@@ -1,0 +1,1750 @@
+- name: Mouse
+  wiki_url: https://itrtg.wiki.gg/wiki/Mouse
+  element: Earth
+  recommended_class: Wildcard
+  class_bonus: +50% to food camps
+  unlock_condition: DefeatGods
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: false
+  special_ability: null
+- name: Frog
+  wiki_url: https://itrtg.wiki.gg/wiki/Frog
+  element: Water
+  recommended_class: !Single Supporter
+  class_bonus: 0.5% x CL
+  unlock_condition: DefeatGods
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: false
+  special_ability: null
+- name: Bee
+  wiki_url: https://itrtg.wiki.gg/wiki/Bee
+  element: Wind
+  recommended_class: !Single Alchemist
+  class_bonus: 0.5% x CL
+  unlock_condition: DefeatGods
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: true
+  special_ability: null
+- name: Cupid
+  wiki_url: https://itrtg.wiki.gg/wiki/Cupid
+  element: Wind
+  recommended_class: !Dual
+  - Adventurer
+  - Wildcard
+  class_bonus: 0.5% x CL
+  unlock_condition: DefeatGods
+  evo_difficulty:
+    base: 1
+    with_conditions: 2
+  token_improvable: true
+  special_ability: null
+- name: Egg/Chicken
+  wiki_url: https://itrtg.wiki.gg/wiki/Egg/Chicken
+  element: Wind
+  recommended_class: !Single Assassin
+  class_bonus: 0.5% x CL
+  unlock_condition: DefeatGods
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: false
+  special_ability: null
+- name: Armadillo
+  wiki_url: https://itrtg.wiki.gg/wiki/Armadillo
+  element: Earth
+  recommended_class: !Single Defender
+  class_bonus: 0.5% x CL
+  unlock_condition: DefeatGods
+  evo_difficulty:
+    base: 1
+    with_conditions: 2
+  token_improvable: false
+  special_ability: null
+- name: Squirrel
+  wiki_url: https://itrtg.wiki.gg/wiki/Squirrel
+  element: Fire
+  recommended_class: !Single Rogue
+  class_bonus: 0.5% x CL
+  unlock_condition: DefeatGods
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: true
+  special_ability: null
+- name: Rabbit
+  wiki_url: https://itrtg.wiki.gg/wiki/Rabbit
+  element: Earth
+  recommended_class: !Single Mage
+  class_bonus: 0.51% x CL
+  unlock_condition: !DefeatPBaal 5
+  evo_difficulty:
+    base: 1
+    with_conditions: 2
+  token_improvable: true
+  special_ability: null
+- name: Cat
+  wiki_url: https://itrtg.wiki.gg/wiki/Cat
+  element: Neutral
+  recommended_class: !Single Assassin
+  class_bonus: 0.51% x CL
+  unlock_condition: !DefeatPBaal 10
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: true
+  special_ability: null
+- name: Dog
+  wiki_url: https://itrtg.wiki.gg/wiki/Dog
+  element: Neutral
+  recommended_class: !Single Defender
+  class_bonus: 0.53% x CL
+  unlock_condition: !DefeatPBaal 15
+  evo_difficulty:
+    base: 2
+    with_conditions: 2
+  token_improvable: false
+  special_ability: null
+- name: Fairy
+  wiki_url: https://itrtg.wiki.gg/wiki/Fairy
+  element: Wind
+  recommended_class: !Single Supporter
+  class_bonus: 0.55% x CL
+  unlock_condition: !DefeatPBaal 20
+  evo_difficulty:
+    base: 2
+    with_conditions: 3
+  token_improvable: true
+  special_ability: null
+- name: Dragon
+  wiki_url: https://itrtg.wiki.gg/wiki/Dragon
+  element: Fire
+  recommended_class: !Single Mage
+  class_bonus: 0.57% x CL
+  unlock_condition: !DefeatPBaal 25
+  evo_difficulty:
+    base: 2
+    with_conditions: 2
+  token_improvable: false
+  special_ability: null
+- name: Snake
+  wiki_url: https://itrtg.wiki.gg/wiki/Snake
+  element: Water
+  recommended_class: !Single Alchemist
+  class_bonus: 0.6% x CL
+  unlock_condition: !DefeatPBaal 30
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: false
+  special_ability: null
+- name: Shark
+  wiki_url: https://itrtg.wiki.gg/wiki/Shark
+  element: Water
+  recommended_class: !Dual
+  - Assassin
+  - Adventurer
+  class_bonus: 0.6% x CL
+  unlock_condition: !DefeatPBaal 35
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: false
+  special_ability: null
+- name: Octopus
+  wiki_url: https://itrtg.wiki.gg/wiki/Octopus
+  element: Water
+  recommended_class: !Single Blacksmith
+  class_bonus: 0.65% x CL
+  unlock_condition: !DefeatPBaal 40
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: true
+  special_ability: null
+- name: Valkyrie
+  wiki_url: https://itrtg.wiki.gg/wiki/Valkyrie
+  element: Wind
+  recommended_class: !Single Defender
+  class_bonus: 0.61% x CL
+  unlock_condition: !DefeatPBaal 45
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: false
+  special_ability: null
+- name: Slime
+  wiki_url: https://itrtg.wiki.gg/wiki/Slime
+  element: Water
+  recommended_class: !Single Mage
+  class_bonus: 0.62% x CL
+  unlock_condition: !DefeatPBaal 50
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: false
+  special_ability: null
+- name: Whale
+  wiki_url: https://itrtg.wiki.gg/wiki/Whale
+  element: Water
+  recommended_class: !Single Defender
+  class_bonus: 0.65% x CL
+  unlock_condition: !DefeatPBaal 55
+  evo_difficulty:
+    base: 3
+    with_conditions: 4
+  token_improvable: false
+  special_ability: null
+- name: Hydra
+  wiki_url: https://itrtg.wiki.gg/wiki/Hydra
+  element: Water
+  recommended_class: !Single Adventurer
+  class_bonus: 0.7% x CL
+  unlock_condition: !DefeatPBaal 60
+  evo_difficulty:
+    base: 3
+    with_conditions: 4
+  token_improvable: false
+  special_ability: null
+- name: Pandora's Box
+  wiki_url: https://itrtg.wiki.gg/wiki/Pandora's_Box
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 0.9% x CL
+  unlock_condition: !DefeatPBaal 66
+  evo_difficulty:
+    base: 4
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Extra Camp Buff
+- name: Lucky Coin
+  wiki_url: https://itrtg.wiki.gg/wiki/Lucky_Coin
+  element: Earth
+  recommended_class: !Dual
+  - Assassin
+  - Rogue
+  class_bonus: 1.5% x CL
+  unlock_condition: !DefeatPBaal 77
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: true
+  special_ability: Bonus Damage
+- name: Balrog
+  wiki_url: https://itrtg.wiki.gg/wiki/Balrog
+  element: Fire
+  recommended_class: !Dual
+  - Mage
+  - Wildcard
+  class_bonus: 1.4% x CL
+  unlock_condition: !DefeatPBaal 88
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Bonus Health
+- name: Gray
+  wiki_url: https://itrtg.wiki.gg/wiki/Gray
+  element: Neutral
+  recommended_class: Special
+  class_bonus: New Pets
+  unlock_condition: !DefeatPBaal 100
+  evo_difficulty:
+    base: 6
+    with_conditions: 9
+  token_improvable: true
+  special_ability: Children
+- name: Ant Queen
+  wiki_url: https://itrtg.wiki.gg/wiki/Ant_Queen
+  element: Fire
+  recommended_class: !Single Adventurer
+  class_bonus: 2% x CL
+  unlock_condition: !DefeatPBaalVersion 125
+  evo_difficulty:
+    base: 6
+    with_conditions: 9
+  token_improvable: false
+  special_ability: Uncap GP Camp Limit, increases ant gain
+- name: Crocodile
+  wiki_url: https://itrtg.wiki.gg/wiki/Crocodile
+  element: Earth
+  recommended_class: !Single Rogue
+  class_bonus: 2% x CL
+  unlock_condition: !DefeatPBaalVersion 150
+  evo_difficulty:
+    base: 7
+    with_conditions: 9
+  token_improvable: false
+  special_ability: Stunning attacks
+- name: Big Burger
+  wiki_url: https://itrtg.wiki.gg/wiki/Big_Burger
+  element: Water
+  recommended_class: !Single Adventurer
+  class_bonus: 2% x CL
+  unlock_condition: !DefeatPBaalVersion 175
+  evo_difficulty:
+    base: 6
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Food Camp Conversion
+- name: Oni
+  wiki_url: https://itrtg.wiki.gg/wiki/Oni
+  element: Fire
+  recommended_class: !Single Adventurer
+  class_bonus: 2% x CL
+  unlock_condition: !DefeatPBaalVersion 200
+  evo_difficulty:
+    base: 8
+    with_conditions: 15
+  token_improvable: false
+  special_ability: P.Baal Weakening
+- name: Bug
+  wiki_url: https://itrtg.wiki.gg/wiki/Bug
+  element: Fire
+  recommended_class: !Dual
+  - Adventurer
+  - Wildcard
+  class_bonus: 0.5% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: false
+  special_ability: null
+- name: Mole
+  wiki_url: https://itrtg.wiki.gg/wiki/Mole
+  element: Earth
+  recommended_class: !Dual
+  - Adventurer
+  - Wildcard
+  class_bonus: 0.5% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 1
+    with_conditions: 2
+  token_improvable: false
+  special_ability: null
+- name: Camel
+  wiki_url: https://itrtg.wiki.gg/wiki/Camel
+  element: Fire
+  recommended_class: !Dual
+  - Adventurer
+  - Wildcard
+  class_bonus: 0.51% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: false
+  special_ability: null
+- name: Goat
+  wiki_url: https://itrtg.wiki.gg/wiki/Goat
+  element: Earth
+  recommended_class: !Dual
+  - Rogue
+  - Adventurer
+  class_bonus: 0.58% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 2
+    with_conditions: 4
+  token_improvable: false
+  special_ability: null
+- name: Ape
+  wiki_url: https://itrtg.wiki.gg/wiki/Ape
+  element: Fire
+  recommended_class: !Dual
+  - Assassin
+  - Adventurer
+  class_bonus: 0.65% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 3
+    with_conditions: 6
+  token_improvable: true
+  special_ability: null
+- name: Flying Cloud
+  wiki_url: https://itrtg.wiki.gg/wiki/Flying_Cloud
+  element: Wind
+  recommended_class: !Dual
+  - Adventurer
+  - Supporter
+  class_bonus: 0.75% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 4
+    with_conditions: 5
+  token_improvable: false
+  special_ability: null
+- name: Holy ITRTG Book
+  wiki_url: https://itrtg.wiki.gg/wiki/Holy_ITRTG_Book
+  element: Fire
+  recommended_class: AllClasses
+  class_bonus: 0.4% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 5
+    with_conditions: 6
+  token_improvable: true
+  special_ability: Crit Immunity and Class Change
+- name: God Power (Pet)
+  wiki_url: https://itrtg.wiki.gg/wiki/God_Power_(Pet)
+  element: Fire
+  recommended_class: !Dual
+  - Adventurer
+  - Wildcard
+  class_bonus: 0.53% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 1
+    with_conditions: 2
+  token_improvable: true
+  special_ability: Receive Some GP when Fed
+- name: Turtle
+  wiki_url: https://itrtg.wiki.gg/wiki/Turtle
+  element: Earth
+  recommended_class: !Single Defender
+  class_bonus: 0.6% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 3
+    with_conditions: 9
+  token_improvable: false
+  special_ability: null
+- name: Afky Clone
+  wiki_url: https://itrtg.wiki.gg/wiki/Afky_Clone
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 0.6% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 3
+    with_conditions: 6
+  token_improvable: true
+  special_ability: null
+- name: Stone/Golem
+  wiki_url: https://itrtg.wiki.gg/wiki/Stone/Golem
+  element: Earth
+  recommended_class: !Single Adventurer
+  class_bonus: 100% All campaigns (CL doesn't matter)
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 4
+    with_conditions: 4
+  token_improvable: false
+  special_ability: null
+- name: Chameleon
+  wiki_url: https://itrtg.wiki.gg/wiki/Chameleon
+  element: All
+  recommended_class: DungeonWildcard
+  class_bonus: All Elements
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: Freely Change it's Element
+- name: Undine
+  wiki_url: https://itrtg.wiki.gg/wiki/Undine
+  element: Water
+  recommended_class: !Single Rogue
+  class_bonus: 1.5% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: AoE Damage
+- name: Gnome
+  wiki_url: https://itrtg.wiki.gg/wiki/Gnome
+  element: Earth
+  recommended_class: !Single Defender
+  class_bonus: 1.5% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: AoE Party Shield
+- name: Salamander
+  wiki_url: https://itrtg.wiki.gg/wiki/Salamander
+  element: Fire
+  recommended_class: !Single Supporter
+  class_bonus: 1.5% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: AoE Heals Every Turn
+- name: Sylph
+  wiki_url: https://itrtg.wiki.gg/wiki/Sylph
+  element: Wind
+  recommended_class: !Single Mage
+  class_bonus: 1.5% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Extra Attacks
+- name: Aether
+  wiki_url: https://itrtg.wiki.gg/wiki/Aether
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 1.5% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Special Boss Fight Improves
+- name: Anteater
+  wiki_url: https://itrtg.wiki.gg/wiki/Anteater
+  element: Earth
+  recommended_class: !Single Blacksmith
+  class_bonus: 0.7% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: false
+  special_ability: Crafting Improves with Number of Ants owned
+- name: Gold Dragon
+  wiki_url: https://itrtg.wiki.gg/wiki/Gold_Dragon
+  element: Neutral
+  recommended_class: !Single Alchemist
+  class_bonus: 0.65% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: Distributes 25% of its Feeding Growth to All Pets
+- name: Living Draw
+  wiki_url: https://itrtg.wiki.gg/wiki/Living_Draw
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 0.8% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 4
+    with_conditions: 6
+  token_improvable: true
+  special_ability: null
+- name: Black Hole Chan
+  wiki_url: https://itrtg.wiki.gg/wiki/Black_Hole_Chan
+  element: Neutral
+  recommended_class: !Dual
+  - Mage
+  - Adventurer
+  class_bonus: 1.17% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Scales with UBv4 Points
+- name: Treasure/Mimic
+  wiki_url: https://itrtg.wiki.gg/wiki/Treasure/Mimic
+  element: Neutral
+  recommended_class: !Single Assassin
+  class_bonus: 1.25% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 5
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Bonus Exp received by RTI Pets
+- name: Seed/Yggdrasil
+  wiki_url: https://itrtg.wiki.gg/wiki/Seed/Yggdrasil
+  element: Earth
+  recommended_class: !Single Adventurer
+  class_bonus: 1.7% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 6
+    with_conditions: 9
+  token_improvable: false
+  special_ability: null
+- name: Rudolph
+  wiki_url: https://itrtg.wiki.gg/wiki/Rudolph
+  element: Wind
+  recommended_class: !Single Rogue
+  class_bonus: 0.55% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 4
+  token_improvable: false
+  special_ability: null
+- name: Santa
+  wiki_url: https://itrtg.wiki.gg/wiki/Santa
+  element: Fire
+  recommended_class: !Single Supporter
+  class_bonus: 0.7% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: false
+  special_ability: Trade Nothings for Choco
+- name: Elf
+  wiki_url: https://itrtg.wiki.gg/wiki/Elf
+  element: Wind
+  recommended_class: !Single Blacksmith
+  class_bonus: 0.9% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Bonus to Crafting. Scales with Tier3/4 Gear
+- name: Pumpkin
+  wiki_url: https://itrtg.wiki.gg/wiki/Pumpkin
+  element: Fire
+  recommended_class: !Single Adventurer
+  class_bonus: Chocolate
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 2
+    with_conditions: 4
+  token_improvable: true
+  special_ability: Finds Choco in Food Campaigns
+- name: Ghost
+  wiki_url: https://itrtg.wiki.gg/wiki/Ghost
+  element: Neutral
+  recommended_class: !Single Rogue
+  class_bonus: 0.65% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: Debuff Enemies Attack and Defense
+- name: Nightmare
+  wiki_url: https://itrtg.wiki.gg/wiki/Nightmare
+  element: Fire
+  recommended_class: !Single Adventurer
+  class_bonus: 0.9% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Uncap GP Camp Limit
+- name: Question
+  wiki_url: https://itrtg.wiki.gg/wiki/Question
+  element: Neutral
+  recommended_class: !Single Alchemist
+  class_bonus: 0.51% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: false
+  special_ability: null
+- name: Chocobear
+  wiki_url: https://itrtg.wiki.gg/wiki/Chocobear
+  element: Earth
+  recommended_class: !Single Adventurer
+  class_bonus: 0.56% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 2
+    with_conditions: 3
+  token_improvable: true
+  special_ability: Campaign Bonus when Fed Choco
+- name: Rose
+  wiki_url: https://itrtg.wiki.gg/wiki/Rose
+  element: Earth
+  recommended_class: !Single Alchemist
+  class_bonus: 0.75% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 4
+  token_improvable: false
+  special_ability: Increased Enchanting Speed
+- name: Doughnut
+  wiki_url: https://itrtg.wiki.gg/wiki/Doughnut
+  element: Earth
+  recommended_class: !Dual
+  - Adventurer
+  - Wildcard
+  class_bonus: Mighty food
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 2
+    with_conditions: 2
+  token_improvable: true
+  special_ability: Cheaper Mighty Food
+- name: Eagle
+  wiki_url: https://itrtg.wiki.gg/wiki/Eagle
+  element: Wind
+  recommended_class: !Single Adventurer
+  class_bonus: 0.52% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 1
+    with_conditions: 2
+  token_improvable: false
+  special_ability: null
+- name: Penguin
+  wiki_url: https://itrtg.wiki.gg/wiki/Penguin
+  element: Water
+  recommended_class: !Single Assassin
+  class_bonus: 0.53% x CL
+  unlock_condition: MilestonesOrPetToken
+  evo_difficulty:
+    base: 2
+    with_conditions: 3
+  token_improvable: false
+  special_ability: null
+- name: Hermit Crab
+  wiki_url: https://itrtg.wiki.gg/wiki/Hermit_Crab
+  element: Water
+  recommended_class: !Single Blacksmith
+  class_bonus: 0.51% x CL
+  unlock_condition: MilestonesOrPetToken
+  evo_difficulty:
+    base: 1
+    with_conditions: 2
+  token_improvable: false
+  special_ability: null
+- name: Hedgehog
+  wiki_url: https://itrtg.wiki.gg/wiki/Hedgehog
+  element: Fire
+  recommended_class: !Single Adventurer
+  class_bonus: 0.58% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 2
+    with_conditions: 2
+  token_improvable: true
+  special_ability: null
+- name: Phoenix
+  wiki_url: https://itrtg.wiki.gg/wiki/Phoenix
+  element: Fire
+  recommended_class: !Single Alchemist
+  class_bonus: 0.6% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: false
+  special_ability: null
+- name: Wizard
+  wiki_url: https://itrtg.wiki.gg/wiki/Wizard
+  element: Wind
+  recommended_class: !Dual
+  - Mage
+  - Wildcard
+  class_bonus: 0.63% x CL
+  unlock_condition: MilestonesOrPetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 4
+  token_improvable: false
+  special_ability: Debuffs the Balrog Boss
+- name: Pegasus
+  wiki_url: https://itrtg.wiki.gg/wiki/Pegasus
+  element: Wind
+  recommended_class: !Single Blacksmith
+  class_bonus: 0.7% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 4
+  token_improvable: false
+  special_ability: null
+- name: Panda
+  wiki_url: https://itrtg.wiki.gg/wiki/Panda
+  element: Earth
+  recommended_class: !Single Supporter
+  class_bonus: 0.67% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: null
+- name: UFO
+  wiki_url: https://itrtg.wiki.gg/wiki/UFO
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 0.7% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 4
+  token_improvable: false
+  special_ability: null
+- name: Robot
+  wiki_url: https://itrtg.wiki.gg/wiki/Robot
+  element: Neutral
+  recommended_class: !Dual
+  - Blacksmith
+  - Adventurer
+  class_bonus: 0.75% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 6
+  token_improvable: true
+  special_ability: T4 Gear Crafting Bonus
+- name: Otter
+  wiki_url: https://itrtg.wiki.gg/wiki/Otter
+  element: Water
+  recommended_class: !Single Adventurer
+  class_bonus: 0.8% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 5
+  token_improvable: false
+  special_ability: Receive Some Dungeon Materials when Fed
+- name: FSM
+  wiki_url: https://itrtg.wiki.gg/wiki/FSM
+  element: Wind
+  recommended_class: !Single Adventurer
+  class_bonus: 0.85% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 4
+  token_improvable: false
+  special_ability: DivGen Boost
+- name: Elephant
+  wiki_url: https://itrtg.wiki.gg/wiki/Elephant
+  element: Fire
+  recommended_class: !Single Defender
+  class_bonus: 0.8% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 4
+  token_improvable: false
+  special_ability: Retaliatory Burn Damage
+- name: Vaccina
+  wiki_url: https://itrtg.wiki.gg/wiki/Vaccina
+  element: Earth
+  recommended_class: !Single Alchemist
+  class_bonus: 0.65% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: false
+  special_ability: Can Craft Vaccines
+- name: Corona
+  wiki_url: https://itrtg.wiki.gg/wiki/Corona
+  element: Wind
+  recommended_class: !Dual
+  - Adventurer
+  - Wildcard
+  class_bonus: 0.7% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 3
+    with_conditions: 4
+  token_improvable: true
+  special_ability: Causes Pet illness
+- name: Firefox
+  wiki_url: https://itrtg.wiki.gg/wiki/Firefox
+  element: Fire
+  recommended_class: !Single Blacksmith
+  class_bonus: 0.75% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 4
+  token_improvable: false
+  special_ability: Buffs Fire Element
+- name: Beachball
+  wiki_url: https://itrtg.wiki.gg/wiki/Beachball
+  element: Water
+  recommended_class: !Single Adventurer
+  class_bonus: 0.67% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Campaign Bonus Scales with Pet Stones
+- name: Tanuki
+  wiki_url: https://itrtg.wiki.gg/wiki/Tanuki
+  element: Neutral
+  recommended_class: !Single Supporter
+  class_bonus: 0.68% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: null
+- name: Seal
+  wiki_url: https://itrtg.wiki.gg/wiki/Seal
+  element: Water
+  recommended_class: !Single Alchemist
+  class_bonus: 0.64% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: null
+- name: Raven
+  wiki_url: https://itrtg.wiki.gg/wiki/Raven
+  element: Wind
+  recommended_class: !Single Rogue
+  class_bonus: 0.67% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 4
+  token_improvable: false
+  special_ability: null
+- name: Hourglass
+  wiki_url: https://itrtg.wiki.gg/wiki/Hourglass
+  element: Wind
+  recommended_class: !Single Supporter
+  class_bonus: 1.0% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Speed Buff to Party and Debuffs Enemies
+- name: Archer
+  wiki_url: https://itrtg.wiki.gg/wiki/Archer
+  element: Neutral
+  recommended_class: !Single Assassin
+  class_bonus: 1.2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Attack Twice in Dungeons if Using a Bow
+- name: Thunder Ball/Raiju
+  wiki_url: https://itrtg.wiki.gg/wiki/Thunder_Ball/Raiju
+  element: Wind
+  recommended_class: !Single Adventurer
+  class_bonus: 1.3% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 6
+  token_improvable: false
+  special_ability: null
+- name: Bottle
+  wiki_url: https://itrtg.wiki.gg/wiki/Bottle
+  element: Fire
+  recommended_class: !Single Alchemist
+  class_bonus: 0.9% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 5
+  token_improvable: false
+  special_ability: Chance to Craft Alchemy Items for Free
+- name: Bag
+  wiki_url: https://itrtg.wiki.gg/wiki/Bag
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 1.0% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: true
+  special_ability: Gives Portion of Growth Campaign to Weakest Pet
+- name: Mysterious Egg
+  wiki_url: https://itrtg.wiki.gg/wiki/Mysterious_Egg
+  element: Fire
+  recommended_class: !Single Defender
+  class_bonus: 1.5% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Bonus Clone Pet Training Exp
+- name: Succubus
+  wiki_url: https://itrtg.wiki.gg/wiki/Succubus
+  element: Fire
+  recommended_class: !Single Assassin
+  class_bonus: 1.0% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 5
+  token_improvable: false
+  special_ability: HP Leech and Always Receives Growth Camp Gains
+- name: Clam
+  wiki_url: https://itrtg.wiki.gg/wiki/Clam
+  element: Water
+  recommended_class: !Single Rogue
+  class_bonus: 0.6% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: Double GP from Dungeon Events
+- name: Earth Eater
+  wiki_url: https://itrtg.wiki.gg/wiki/Earth_Eater
+  element: Earth
+  recommended_class: !Single Adventurer
+  class_bonus: 1.32% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 8
+  token_improvable: true
+  special_ability: Buffable Campaign Bonus
+- name: Portal
+  wiki_url: https://itrtg.wiki.gg/wiki/Portal
+  element: Wind
+  recommended_class: !Single Adventurer
+  class_bonus: 1.0% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: DivGen ratios and Div GP buy
+- name: Cardboardbox
+  wiki_url: https://itrtg.wiki.gg/wiki/Cardboardbox
+  element: Wind
+  recommended_class: !Single Rogue
+  class_bonus: 0.9% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Dungeon Event Reward Bonus/Nerf
+- name: Unicorn
+  wiki_url: https://itrtg.wiki.gg/wiki/Unicorn
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 1.2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Crystal Power Bonus
+- name: Stale Tortilla/Taco
+  wiki_url: https://itrtg.wiki.gg/wiki/Stale_Tortilla/Taco
+  element: Neutral
+  recommended_class: !Single Alchemist
+  class_bonus: 0.8% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 4
+  token_improvable: false
+  special_ability: Dungeon Alchemist with Buffs
+- name: Witch
+  wiki_url: https://itrtg.wiki.gg/wiki/Witch
+  element: Water
+  recommended_class: !Single Mage
+  class_bonus: 1.25% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Buffs Water Element
+- name: Sloth
+  wiki_url: https://itrtg.wiki.gg/wiki/Sloth
+  element: Earth
+  recommended_class: !Single Adventurer
+  class_bonus: 1.25% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Longer camps  more buff
+- name: Cocoa
+  wiki_url: https://itrtg.wiki.gg/wiki/Cocoa
+  element: Neutral
+  recommended_class: !Single Alchemist
+  class_bonus: 0.55% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 2
+    with_conditions: 4
+  token_improvable: false
+  special_ability: Craft Chocolate
+- name: Wolf
+  wiki_url: https://itrtg.wiki.gg/wiki/Wolf
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 1.0% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 5
+    with_conditions: 6
+  token_improvable: false
+  special_ability: null
+- name: Vesuvius
+  wiki_url: https://itrtg.wiki.gg/wiki/Vesuvius
+  element: Fire
+  recommended_class: !Single Mage
+  class_bonus: 0.78% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Gives Portion of Growth from Dungeons to Weakest Pet
+- name: Swan
+  wiki_url: https://itrtg.wiki.gg/wiki/Swan
+  element: Water
+  recommended_class: !Village Fisher
+  class_bonus: 0.2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 2
+    with_conditions: 4
+  token_improvable: false
+  special_ability: Auto Fishing Speed Increase
+- name: Void
+  wiki_url: https://itrtg.wiki.gg/wiki/Void
+  element: Neutral
+  recommended_class: !Single Alchemist
+  class_bonus: 0.85% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Faster at Crafting Nothings
+- name: Pignata
+  wiki_url: https://itrtg.wiki.gg/wiki/Pignata
+  element: Earth
+  recommended_class: Wildcard
+  class_bonus: Rebirth Bacon
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: RebirthBacon Generation
+- name: Baby Carno
+  wiki_url: https://itrtg.wiki.gg/wiki/Baby_Carno
+  element: Neutral
+  recommended_class: !Single Assassin
+  class_bonus: 2% x CL
+  unlock_condition: Secret
+  evo_difficulty:
+    base: 7
+    with_conditions: 5
+  token_improvable: true
+  special_ability: Growth from Food Camp
+- name: Lizard/Zookeeper
+  wiki_url: https://itrtg.wiki.gg/wiki/Lizard
+  element: Water
+  recommended_class: !Single Adventurer
+  class_bonus: 0.9% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 5
+  token_improvable: false
+  special_ability: Gives Growth in Food Camp
+- name: Meteor
+  wiki_url: https://itrtg.wiki.gg/wiki/Meteor
+  element: Fire
+  recommended_class: !Single Adventurer
+  class_bonus: 0.85% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 4
+    with_conditions: 5
+  token_improvable: false
+  special_ability: Camp buff from time in camps
+- name: Sphinx
+  wiki_url: https://itrtg.wiki.gg/wiki/Sphinx
+  element: Earth
+  recommended_class: !Single Adventurer
+  class_bonus: 0.67% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: true
+  special_ability: Small Increase to Dungeon XP
+- name: Alien
+  wiki_url: https://itrtg.wiki.gg/wiki/Alien
+  element: Water
+  recommended_class: !Single Assassin
+  class_bonus: 0.85% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 4
+  token_improvable: false
+  special_ability: Increases the rate of Dungeon Events
+- name: Bat
+  wiki_url: https://itrtg.wiki.gg/wiki/Bat
+  element: Neutral
+  recommended_class: !Single Blacksmith
+  class_bonus: 1.0% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: 40% More Class exp for Self
+- name: Flying Eyeball
+  wiki_url: https://itrtg.wiki.gg/wiki/Flying_Eyeball
+  element: Wind
+  recommended_class: !Single Adventurer
+  class_bonus: 0.85% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Dungeon Adventurer
+- name: Leviathan
+  wiki_url: https://itrtg.wiki.gg/wiki/Leviathan
+  element: Water
+  recommended_class: !Single Defender
+  class_bonus: 2% x CL
+  unlock_condition: Milestones
+  evo_difficulty:
+    base: 7
+    with_conditions: 12
+  token_improvable: false
+  special_ability: Counterattack
+- name: Basilisk
+  wiki_url: https://itrtg.wiki.gg/wiki/Basilisk
+  element: Earth
+  recommended_class: !Single Mage
+  class_bonus: 1.5% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 1
+    with_conditions: 9
+  token_improvable: false
+  special_ability: AoE Element Debuff
+- name: Cherub
+  wiki_url: https://itrtg.wiki.gg/wiki/Cherub
+  element: Wind
+  recommended_class: !Single Defender
+  class_bonus: 2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 10
+  token_improvable: false
+  special_ability: Stunning attacks, reduces speed damage
+- name: Tödlicher Löffel
+  wiki_url: https://itrtg.wiki.gg/wiki/Tödlicher_Löffel
+  element: Neutral
+  recommended_class: !Single Mage
+  class_bonus: 1.19% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Defense debuff, counts as all elements except Neutral for Events
+- name: Goblin
+  wiki_url: https://itrtg.wiki.gg/wiki/Goblin
+  element: Earth
+  recommended_class: !Single Adventurer
+  class_bonus: 0.1% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 1
+    with_conditions: 4
+  token_improvable: false
+  special_ability: null
+- name: Koi
+  wiki_url: https://itrtg.wiki.gg/wiki/Koi
+  element: Water
+  recommended_class: !Village Fish Seller
+  class_bonus: 0.2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Fish seller speed
+- name: Decorator Crab
+  wiki_url: https://itrtg.wiki.gg/wiki/Decorator_Crab
+  element: Water
+  recommended_class: !Single Adventurer
+  class_bonus: 1.75% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Extra items from item camp
+- name: Dwarf
+  wiki_url: https://itrtg.wiki.gg/wiki/Dwarf
+  element: Fire
+  recommended_class: !Single Blacksmith
+  class_bonus: 0.9% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 10
+  token_improvable: false
+  special_ability: Donate Gems Better crafter
+- name: Caterpillar
+  wiki_url: https://itrtg.wiki.gg/wiki/Caterpillar
+  element: Wind
+  recommended_class: !Single Alchemist
+  class_bonus: 0.55% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 2
+    with_conditions: 2
+  token_improvable: false
+  special_ability: Faster material upgrade
+- name: Bunny Girl
+  wiki_url: https://itrtg.wiki.gg/wiki/Bunny_Girl
+  element: Neutral
+  recommended_class: !Single Alchemist
+  class_bonus: 1.17% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Bonus speed crafting talisman/T3 Bars
+- name: Elemental
+  wiki_url: https://itrtg.wiki.gg/wiki/Elemental_(Pet)
+  element: Neutral
+  recommended_class: !Single Blacksmith
+  class_bonus: 2% x CL
+  unlock_condition: !TavernQuest SSS
+  evo_difficulty:
+    base: 6
+    with_conditions: 10
+  token_improvable: false
+  special_ability: Increases dungeon team elements and boosts own damage
+- name: Mist Sphere
+  wiki_url: https://itrtg.wiki.gg/wiki/Mist_Sphere
+  element: Water
+  recommended_class: !Single Supporter
+  class_bonus: 0.9% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Shields pets it heals
+- name: Shadow Clone
+  wiki_url: https://itrtg.wiki.gg/wiki/Shadow_Clone
+  element: Fire
+  recommended_class: !Single Adventurer
+  class_bonus: Shadow clones creating
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 4
+    with_conditions: 5
+  token_improvable: false
+  special_ability: Can create shadow clones
+- name: Sniper
+  wiki_url: https://itrtg.wiki.gg/wiki/Sniper
+  element: Wind
+  recommended_class: !Single Assassin
+  class_bonus: 2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 10
+  token_improvable: false
+  special_ability: Attacks only once per turn, high damage output
+- name: White Tiger
+  wiki_url: https://itrtg.wiki.gg/wiki/White_Tiger
+  element: Wind
+  recommended_class: !Single Assassin
+  class_bonus: 1.0% x CL
+  unlock_condition: Special
+  evo_difficulty:
+    base: 5
+    with_conditions: 5
+  token_improvable: true
+  special_ability: null
+- name: Black Tortoise
+  wiki_url: https://itrtg.wiki.gg/wiki/Black_Tortoise
+  element: Water
+  recommended_class: !Single Defender
+  class_bonus: 1.0% x CL
+  unlock_condition: Special
+  evo_difficulty:
+    base: 5
+    with_conditions: 5
+  token_improvable: true
+  special_ability: null
+- name: Azure Dragon
+  wiki_url: https://itrtg.wiki.gg/wiki/Azure_Dragon
+  element: Earth
+  recommended_class: !Single Supporter
+  class_bonus: 1.0% x CL
+  unlock_condition: Special
+  evo_difficulty:
+    base: 5
+    with_conditions: 5
+  token_improvable: true
+  special_ability: null
+- name: Vermilion Pheasant
+  wiki_url: https://itrtg.wiki.gg/wiki/Vermilion_Pheasant
+  element: Fire
+  recommended_class: !Single Rogue
+  class_bonus: 1.0% x CL
+  unlock_condition: Special
+  evo_difficulty:
+    base: 5
+    with_conditions: 5
+  token_improvable: true
+  special_ability: null
+- name: Tenko
+  wiki_url: https://itrtg.wiki.gg/wiki/Tenko
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 1.1% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 7
+  token_improvable: false
+  special_ability: null
+- name: Vampire
+  wiki_url: https://itrtg.wiki.gg/wiki/Vampire
+  element: Fire
+  recommended_class: !Single Alchemist
+  class_bonus: 1.75% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 6
+  token_improvable: true
+  special_ability: Crafting or Dungeon Alchemist
+- name: Strategist
+  wiki_url: https://itrtg.wiki.gg/wiki/Strategist
+  element: Neutral
+  recommended_class: !Single Rogue
+  class_bonus: 1.33% x CL
+  unlock_condition: !StrategyRoom 11
+  evo_difficulty:
+    base: 7
+    with_conditions: 9
+  token_improvable: true
+  special_ability: Improves health of its dungeon team.
+- name: Mermaid
+  wiki_url: https://itrtg.wiki.gg/wiki/Mermaid
+  element: Water
+  recommended_class: !Single Supporter
+  class_bonus: 2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 7
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Improves multiple stats of its dungeon team.
+- name: Monk
+  wiki_url: https://itrtg.wiki.gg/wiki/Monk
+  element: Neutral
+  recommended_class: !Village Dojo
+  class_bonus: 0.25% x CL bonus exp in Dojo.
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Dojo Pet
+- name: Honeybadger
+  wiki_url: https://itrtg.wiki.gg/wiki/Honeybadger
+  element: Earth
+  recommended_class: !Single Assassin
+  class_bonus: 2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 7
+    with_conditions: 11
+  token_improvable: false
+  special_ability: Immune to stun, doesn't need blacksmith for bonus damage
+- name: Hamster
+  wiki_url: https://itrtg.wiki.gg/wiki/Hamster
+  element: Earth
+  recommended_class: !Single Blacksmith
+  class_bonus: 0.51% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 1
+    with_conditions: 1
+  token_improvable: true
+  special_ability: Crafts and Upgrades Earmuff Accessory
+- name: Pack Mule
+  wiki_url: https://itrtg.wiki.gg/wiki/Pack_Mule
+  element: Neutral
+  recommended_class: !Village Tavern
+  class_bonus: 0.2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: Increases rewards of quests it participates in
+- name: Anni Cake
+  wiki_url: https://itrtg.wiki.gg/wiki/Anni_Cake
+  element: Earth
+  recommended_class: !Single Adventurer
+  class_bonus: 1.38% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Grants bonus pet stats for time in Food Camp
+- name: Llysnafedda
+  wiki_url: https://itrtg.wiki.gg/wiki/Llysnafedda
+  element: Water
+  recommended_class: !Village Tavern
+  class_bonus: 0.65% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 3
+    with_conditions: 3
+  token_improvable: false
+  special_ability: Leveling Busy Pets
+- name: Serow
+  wiki_url: https://itrtg.wiki.gg/wiki/Serow
+  element: Wind
+  recommended_class: !Dual
+  - Adventurer
+  - Wildcard
+  class_bonus: 0.65% x CL
+  unlock_condition: Secret
+  evo_difficulty:
+    base: 3
+    with_conditions: 4
+  token_improvable: true
+  special_ability: Saving Dungeon Consumables
+- name: Aurelius
+  wiki_url: https://itrtg.wiki.gg/wiki/Aurelius
+  element: Neutral
+  recommended_class: !Single Alchemist
+  class_bonus: 0.51% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 1
+    with_conditions: 2
+  token_improvable: true
+  special_ability: Faster Elemental Crafting
+- name: Ancient Mimic
+  wiki_url: https://itrtg.wiki.gg/wiki/Ancient_Mimic
+  element: Neutral
+  recommended_class: !Single Assassin
+  class_bonus: 2% x CL
+  unlock_condition: !AncientMimicPoints 5000
+  evo_difficulty:
+    base: 8
+    with_conditions: 15
+  token_improvable: false
+  special_ability: null
+- name: Student
+  wiki_url: https://itrtg.wiki.gg/wiki/Student_(pet)
+  element: Earth
+  recommended_class: !Single Alchemist
+  class_bonus: 2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 7
+    with_conditions: 10
+  token_improvable: false
+  special_ability: null
+- name: Hwangeum Pig
+  wiki_url: https://itrtg.wiki.gg/wiki/Hwangeum_Pig
+  element: Earth
+  recommended_class: !Single Assassin
+  class_bonus: 2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Bonus damage, wind element bonus
+- name: Lamb
+  wiki_url: https://itrtg.wiki.gg/wiki/Lamb
+  element: Earth
+  recommended_class: !Village Alchemy Hut
+  class_bonus: 0.5% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 2
+    with_conditions: 3
+  token_improvable: false
+  special_ability: Bonus output in Alchemy Hut
+- name: Duragizer
+  wiki_url: https://itrtg.wiki.gg/wiki/Duragizer
+  element: Neutral
+  recommended_class: Wildcard
+  class_bonus: ''
+  unlock_condition: !PetCount 10
+  evo_difficulty:
+    base: 1
+    with_conditions: 2
+  token_improvable: true
+  special_ability: No Penalty EXP Drain
+- name: Nugget
+  wiki_url: https://itrtg.wiki.gg/wiki/Nugget
+  element: Neutral
+  recommended_class: AllClasses
+  class_bonus: 0.3% x CL
+  unlock_condition: !DungeonBoss D3-0
+  evo_difficulty:
+    base: 4
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Class Change
+- name: Arachne
+  wiki_url: https://itrtg.wiki.gg/wiki/Arachne
+  element: Wind
+  recommended_class: !Single Assassin
+  class_bonus: 1.75% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Poison Attacks
+- name: Simulacrum
+  wiki_url: https://itrtg.wiki.gg/wiki/Simulacrum
+  element: Wind
+  recommended_class: !Single Mage
+  class_bonus: 2.0% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 9
+  token_improvable: false
+  special_ability: null
+- name: Pixie Goatmother
+  wiki_url: https://itrtg.wiki.gg/wiki/Pixie_Goatmother
+  element: Wind
+  recommended_class: !Single Supporter
+  class_bonus: 2.0% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 7
+    with_conditions: 11
+  token_improvable: false
+  special_ability: Bonus Actions
+- name: Fainting Capra
+  wiki_url: https://itrtg.wiki.gg/wiki/Fainting_Capra
+  element: Water
+  recommended_class: !Single Rogue
+  class_bonus: 2.0% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 7
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Random DR and in-built knife effect
+- name: Wolpertinger
+  wiki_url: https://itrtg.wiki.gg/wiki/Wolpertinger
+  element: Wind
+  recommended_class: !Single Alchemist
+  class_bonus: 1.32% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Tavernkeep Bonuses
+- name: Skeleton
+  wiki_url: https://itrtg.wiki.gg/wiki/Skeleton
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 0.83% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 5
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Boosts Pumpkin Chocolate
+- name: Bear
+  wiki_url: https://itrtg.wiki.gg/wiki/Bear
+  element: Fire
+  recommended_class: !Single Adventurer
+  class_bonus: 0.75% x CL
+  unlock_condition: !ItemGift 1000 Honey
+  evo_difficulty:
+    base: 4
+    with_conditions: 6
+  token_improvable: false
+  special_ability: Campaign Bonus for Honey
+- name: Dark Gift
+  wiki_url: https://itrtg.wiki.gg/wiki/Dark_Gift
+  element: Neutral
+  recommended_class: !Single Mage
+  class_bonus: 2.2% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 7
+    with_conditions: 9
+  token_improvable: false
+  special_ability: null
+- name: Dorgegebelle
+  wiki_url: https://itrtg.wiki.gg/wiki/Dorgegebelle
+  element: Water
+  recommended_class: !Single Adventurer
+  class_bonus: 1.7% x CL
+  unlock_condition: PetToken
+  evo_difficulty:
+    base: 6
+    with_conditions: 7
+  token_improvable: false
+  special_ability: Bonus to Food, Starvation
+- name: Nothing (Other)
+  wiki_url: https://itrtg.wiki.gg/wiki/Nothing_(Other)
+  element: Neutral
+  recommended_class: AllClasses
+  class_bonus: 0.5% x CL
+  unlock_condition: Secret
+  evo_difficulty:
+    base: 1
+    with_conditions: 3
+  token_improvable: true
+  special_ability: Class Change
+- name: Fool
+  wiki_url: https://itrtg.wiki.gg/wiki/Fool
+  element: Neutral
+  recommended_class: !Single Defender
+  class_bonus: 1.2% x CL
+  unlock_condition: Secret
+  evo_difficulty:
+    base: 5
+    with_conditions: 8
+  token_improvable: false
+  special_ability: Confuse Enemies
+- name: Feather Pile/Owl
+  wiki_url: https://itrtg.wiki.gg/wiki/Feather_Pile/Owl
+  element: Neutral
+  recommended_class: Alternates
+  class_bonus: Special
+  unlock_condition: Secret
+  evo_difficulty:
+    base: 1
+    with_conditions: 5
+  token_improvable: true
+  special_ability: Varies
