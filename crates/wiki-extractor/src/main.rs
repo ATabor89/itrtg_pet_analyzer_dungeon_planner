@@ -1,20 +1,16 @@
-mod models;
 mod parser;
 
 use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "pet_extractor")]
+#[command(name = "wiki-extractor")]
 #[command(about = "Extract pet data from the ITRTG Wiki into structured YAML")]
 struct Cli {
-    /// Path to a local wiki source file (mediawiki markup)
+    /// Path to a local wiki source file (mediawiki markup).
+    /// If omitted, fetches the latest source directly from the wiki.
     #[arg(short, long)]
     file: Option<PathBuf>,
-
-    /// Fetch the latest source directly from the wiki
-    #[arg(short = 'w', long)]
-    fetch_wiki: bool,
 
     /// Output file path (defaults to stdout)
     #[arg(short, long)]
@@ -24,7 +20,9 @@ struct Cli {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    let source = if cli.fetch_wiki {
+    let source = if let Some(path) = &cli.file {
+        std::fs::read_to_string(path)?
+    } else {
         eprintln!("Fetching latest wiki source...");
         let url = "https://itrtg.wiki.gg/wiki/Pets?action=raw";
         let client = reqwest::blocking::Client::builder()
@@ -35,10 +33,6 @@ fn main() -> anyhow::Result<()> {
             anyhow::bail!("Failed to fetch wiki: HTTP {}", resp.status());
         }
         resp.text()?
-    } else if let Some(path) = &cli.file {
-        std::fs::read_to_string(path)?
-    } else {
-        anyhow::bail!("Provide either --file <path> or --fetch-wiki");
     };
 
     let pets = parser::parse_pets(&source)?;

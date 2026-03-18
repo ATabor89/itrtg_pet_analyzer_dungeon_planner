@@ -1,0 +1,2442 @@
+# ============================================================================
+# ITRTG Dungeon Recommendations
+# ============================================================================
+# Structured data for all in-game dungeon recommendations.
+# Format designed for programmatic ingestion.
+#
+# Equipment tiers: T1 (Basic), T2 (Shaping), T3 (Magic), T4 (Legendary)
+# Enhancement format: +N (e.g., +10, +20)
+# Grade format: S, SS, SSS
+# Gem types: fire, water, wind, earth, neutral
+# Gem level: minimum recommended gem level (e.g., 10)
+# Elements: fire, water, wind, earth, neutral, any
+# Classes: assassin, rogue, defender, supporter, mage, blacksmith, any
+#
+# Party ordering: Positions 1-3 are front row, positions 4-6 are back row.
+# Order is preserved as listed in-game.
+#
+# D2 general rules: All equipment T2 S+10. Gems on weapon only, level 10+.
+# D3 general rules: All equipment T3 S+10. Gems on all slots, level 10+.
+#
+# Event countered_by: When a single object, all conditions are AND.
+# When a list, each entry is a separate requirement (all must be met).
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# Equipment Catalog
+# ---------------------------------------------------------------------------
+equipment:
+  weapons:
+    # -- Tier 2 --
+    flame_sword:
+      name: "Flame Sword"
+      type: weapon
+      tier: 2
+      element: fire
+
+    thundering_knives:
+      name: "Thundering Knives"
+      type: weapon
+      tier: 2
+      element: wind
+
+    steel_sword:
+      name: "Steel Sword"
+      type: weapon
+      tier: 2
+      element: neutral
+
+    # -- Tier 3 --
+    inferno_sword:
+      name: "Inferno Sword"
+      type: weapon
+      tier: 3
+      element: fire
+
+    bursting_knives:
+      name: "Bursting Knives"
+      type: weapon
+      tier: 3
+      element: wind
+
+    titanium_sword:
+      name: "Titanium Sword"
+      type: weapon
+      tier: 3
+      element: neutral
+
+    tsunami_spear:
+      name: "Tsunami Spear"
+      type: weapon
+      tier: 3
+      element: water
+
+  armor:
+    # -- Tier 2 --
+    steel_armor:
+      name: "Steel Armor"
+      type: armor
+      tier: 2
+      element: neutral
+
+    tree_armor:
+      name: "Tree Armor"
+      type: armor
+      tier: 2
+      element: earth
+
+    flood_armor:
+      name: "Flood Armor"
+      type: armor
+      tier: 2
+      element: water
+
+    flame_armor:
+      name: "Flame Armor"
+      type: armor
+      tier: 2
+      element: fire
+
+    storm_armor:
+      name: "Storm Armor"
+      type: armor
+      tier: 2
+      element: wind
+
+    # -- Tier 3 --
+    titanium_armor:
+      name: "Titanium Armor"
+      type: armor
+      tier: 3
+      element: neutral
+
+    hurricane_armor:
+      name: "Hurricane Armor"
+      type: armor
+      tier: 3
+      element: wind
+
+    forest_armor:
+      name: "Forest Armor"
+      type: armor
+      tier: 3
+      element: earth
+
+    tsunami_armor:
+      name: "Tsunami Armor"
+      type: armor
+      tier: 3
+      element: water
+
+    inferno_armor:
+      name: "Inferno Armor"
+      type: armor
+      tier: 3
+      element: fire
+
+  accessories:
+    # -- Tier 2 --
+    flame_gloves:
+      name: "Flame Gloves"
+      type: accessory
+      tier: 2
+      element: fire
+
+    storm_ring:
+      name: "Storm Ring"
+      type: accessory
+      tier: 2
+      element: wind
+
+    steel_ring:
+      name: "Steel Ring"
+      type: accessory
+      tier: 2
+      element: neutral
+
+    # -- Tier 3 --
+    inferno_gloves:
+      name: "Inferno Gloves"
+      type: accessory
+      tier: 3
+      element: fire
+
+    titanium_ring:
+      name: "Titanium Ring"
+      type: accessory
+      tier: 3
+      element: neutral
+
+    alchemist_cape:
+      name: "Alchemist Cape"
+      type: accessory
+      tier: 3
+      element: neutral
+      notes: "Crafted at SSS+10 by default; no additional enhancement needed."
+
+# ---------------------------------------------------------------------------
+# Item Catalog
+# ---------------------------------------------------------------------------
+items:
+  torch:
+    name: "Torch"
+    description: "Lights up dark rooms; counters Darkness traps and Fog events."
+
+  holy_water:
+    name: "Holy Water"
+    description: "Cures cursed pets; counters Cursed Chest events."
+
+  health_potion:
+    name: "Health Potion"
+    description: "Heals wounded pets."
+
+  health_potion_x:
+    name: "Health Potion X"
+    description: "Enhanced health potion."
+
+  health_potion_s:
+    name: "Health Potion S"
+    description: "Superior health potion."
+
+  flying_boots:
+    name: "Flying Boots"
+    description: "Avoids pit traps and quagmire traps."
+
+  phoenix_feather:
+    name: "Phoenix Feather"
+    description: "Revives fallen pets."
+
+  nevermelting_ice:
+    name: "Nevermelting Ice"
+    description: "Counters burn traps."
+
+  antidote:
+    name: "Antidote"
+    description: "Counters poison traps."
+
+  ginger:
+    name: "Ginger"
+    description: "Counters weaken traps."
+
+  pet_food:
+    name: "Pet Food"
+    description: "Fed to wild animals during Wild Animals events. Better food yields better growth. Consumed per event trigger."
+
+  mighty_food:
+    name: "Mighty Food"
+    description: "High-quality pet food for Wild Animals events. Consumed per event trigger."
+
+# ---------------------------------------------------------------------------
+# Dungeons
+# ---------------------------------------------------------------------------
+dungeons:
+
+  # =========================================================================
+  # SCRAPYARD
+  # =========================================================================
+  scrapyard:
+    name: "Scrapyard"
+
+    depths:
+      1:
+        rooms: 6
+        monsters_per_room: 6
+
+        requirements:
+          dungeon_level_avg: 10
+          levels_per_difficulty: [3, 4]
+          class_level: 0
+
+        monsters:
+          - name: "Metal Slimy"
+            hp: 10
+            att: 60
+            def: 520
+            spd: 3
+          - name: "Angel Slimy"
+            hp: 312
+            att: 45
+            def: 21
+            spd: 36
+          - name: "Ninja Slimy"
+            hp: 234
+            att: 45
+            def: 21
+            spd: 78
+          - name: "Robo Slimy"
+            hp: 416
+            att: 54
+            def: 47
+            spd: 47
+          - name: "Cyborg Slimy"
+            hp: 312
+            att: 48
+            def: 31
+            spd: 47
+          - name: "Ghost Slimy"
+            hp: 257
+            att: 0
+            def: 52
+            spd: 25997
+          - name: "Unstable Slimy"
+            hp: 234
+            att: 2997
+            def: 0
+            spd: 0
+
+        boss:
+          name: "Oozing Inventor"
+          hp: 2600
+          att: 3
+          def: 104
+          spd: 78
+
+        party:
+          - class: rogue
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+
+        party_items:
+          - item: torch
+            quantity: 10
+          - item: holy_water
+            quantity: 5
+
+        traps:
+          - name: "Darkness"
+            chance_pct: 20
+            countered_by:
+              item: torch
+
+        events:
+          - name: "Wounded Pet"
+            chance_pct: 10
+            countered_by:
+              item: health_potion
+          - name: "Cursed Chest"
+            chance_pct: 5
+            countered_by:
+              class: rogue
+              item: holy_water
+
+      2:
+        rooms: 10
+        monsters_per_room: 7
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 35
+          levels_per_difficulty: [4, 5]
+          class_level: 8
+
+        monsters:
+          - name: "Scrap Worm"
+            hp: 650
+            att: 88
+            def: 70
+            spd: 65
+          - name: "Sentry"
+            hp: 565
+            att: 79
+            def: 78
+            spd: 75
+          - name: "Scavenger"
+            hp: 420
+            att: 98
+            def: 35
+            spd: 85
+          - name: "Robo Hound"
+            hp: 480
+            att: 105
+            def: 30
+            spd: 95
+          - name: "Microbots"
+            hp: 950
+            att: 85
+            def: 95
+            spd: 55
+          - name: "Bulwark Golem"
+            hp: 1050
+            att: 50
+            def: 150
+            spd: 50
+          - name: "Displacer"
+            hp: 450
+            att: 95
+            def: 40
+            spd: 75
+          - name: "Sword Soldier"
+            hp: 650
+            att: 110
+            def: 65
+            spd: 70
+
+        boss:
+          name: "MURDER"
+          hp: 24000
+          att: 175
+          def: 120
+          spd: 150
+
+        party:
+          - class: assassin
+            element: any
+            equipment:
+              weapon: flame_sword
+              armor: steel_armor
+              accessory: flame_gloves
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: rogue
+            element: any
+            equipment:
+              weapon: thundering_knives
+              armor: steel_armor
+              accessory: storm_ring
+              gems:
+                weapon: water
+                armor: null
+                accessory: null
+          - class: defender
+            element: any
+            equipment:
+              weapon: steel_sword
+              armor: steel_armor
+              accessory: steel_ring
+              gems:
+                weapon: water
+                armor: null
+                accessory: null
+          - class: supporter
+            element: any
+            equipment:
+              weapon: flame_sword
+              armor: steel_armor
+              accessory: flame_gloves
+              gems:
+                weapon: wind
+                armor: null
+                accessory: null
+          - class: any
+            element: any
+            equipment:
+              weapon: generic_t2_s10
+              armor: generic_t2_s10
+              accessory: generic_t2_s10
+              gems:
+                weapon: null
+                armor: null
+                accessory: null
+          - class: any
+            element: any
+            equipment:
+              weapon: generic_t2_s10
+              armor: generic_t2_s10
+              accessory: generic_t2_s10
+              gems:
+                weapon: null
+                armor: null
+                accessory: null
+
+        party_items:
+          - item: torch
+            quantity: 20
+          - item: flying_boots
+            quantity: 15
+          - item: holy_water
+            quantity: 5
+          - item: health_potion_x
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+
+        traps:
+          - name: "Darkness"
+            chance_pct: 30
+            countered_by:
+              item: torch
+          - name: "Pit"
+            chance_pct: 20
+            countered_by:
+              item: flying_boots
+
+        events:
+          - name: "Fog"
+            chance_pct: 13
+            countered_by:
+              item: torch
+          - name: "Treasure"
+            chance_pct: 10
+            countered_by:
+              class: rogue
+
+      3:
+        rooms: 14
+        monsters_per_room: 8
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 100
+          levels_per_difficulty: [6, 8]
+          class_level: 25
+          total_growth: 20000
+
+        monsters:
+          - name: "Constructor"
+            hp: 2700
+            att: 295
+            def: 265
+            spd: 180
+          - name: "Compactor"
+            hp: 2300
+            att: 305
+            def: 280
+            spd: 210
+          - name: "Replacer"
+            hp: 2900
+            att: 325
+            def: 290
+            spd: 195
+          - name: "Slayer"
+            hp: 2600
+            att: 315
+            def: 298
+            spd: 220
+          - name: "Arbiter"
+            hp: 6000
+            att: 335
+            def: 500
+            spd: 125
+          - name: "Reclaimer"
+            hp: 2700
+            att: 300
+            def: 270
+            spd: 225
+          - name: "Repurposer"
+            hp: 1900
+            att: 400
+            def: 270
+            spd: 260
+          - name: "Sanitizer"
+            hp: 2800
+            att: 360
+            def: 290
+            spd: 200
+
+        bosses:
+          - name: "Alien Wreckage"
+            hp: 35000
+            att: 550
+            def: 550
+            spd: 400
+          - name: "Metal Mind"
+            hp: 50000
+            att: 420
+            def: 900
+            spd: 150
+
+        party:
+          - class: assassin
+            element: any
+            equipment:
+              weapon: inferno_sword
+              armor: titanium_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+          - class: assassin
+            element: wind
+            equipment:
+              weapon: bursting_knives
+              armor: titanium_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+          - class: defender
+            element: any
+            equipment:
+              weapon: titanium_sword
+              armor: titanium_armor
+              accessory: titanium_ring
+              gems:
+                weapon: water
+                armor: earth
+                accessory: neutral
+          - class: supporter
+            element: any
+            equipment:
+              weapon: inferno_sword
+              armor: titanium_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: fire
+                armor: water
+                accessory: earth
+          - class: rogue
+            element: wind
+            equipment:
+              weapon: bursting_knives
+              armor: hurricane_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: earth
+                armor: water
+                accessory: neutral
+          - class: any
+            element: any
+            equipment:
+              weapon: generic_t3_s10
+              armor: generic_t3_s10
+              accessory: generic_t3_s10
+              gems:
+                weapon: null
+                armor: null
+                accessory: null
+
+        party_items:
+          - item: torch
+            quantity: 40
+          - item: flying_boots
+            quantity: 20
+          - item: holy_water
+            quantity: 5
+          - item: nevermelting_ice
+            quantity: 15
+          - item: health_potion_s
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+
+        traps:
+          - name: "Darkness"
+            chance_pct: 50
+            countered_by:
+              item: torch
+          - name: "Pit"
+            chance_pct: 30
+            countered_by:
+              item: flying_boots
+          - name: "Burn"
+            chance_pct: 20
+            countered_by:
+              item: nevermelting_ice
+
+        events:
+          - name: "Floating Shrine"
+            chance_pct: 17
+            countered_by:
+              element: wind
+              count: 2
+          - name: "Monster Prodigy"
+            chance_pct: 15
+            countered_by:
+              class: assassin
+              count: 2
+
+  # =========================================================================
+  # WATER TEMPLE
+  # =========================================================================
+  water_temple:
+    name: "Water Temple"
+
+    depths:
+      1:
+        rooms: 6
+        monsters_per_room: 6
+
+        requirements:
+          dungeon_level_avg: 10
+          levels_per_difficulty: [3, 4]
+          class_level: 0
+
+        monsters:
+          - name: "Seaweed Sprite"
+            element: water
+            hp: 50
+            att: 8
+            def: 8
+            spd: 8
+          - name: "Piranha"
+            element: water
+            hp: 85
+            att: 22
+            def: 8
+            spd: 20
+          - name: "Mermaid"
+            element: water
+            hp: 115
+            att: 15
+            def: 18
+            spd: 17
+          - name: "Makara"
+            element: water
+            hp: 110
+            att: 10
+            def: 20
+            spd: 18
+          - name: "Nymph"
+            element: water
+            hp: 120
+            att: 20
+            def: 15
+            spd: 10
+          - name: "Naiad"
+            element: water
+            hp: 250
+            att: 15
+            def: 25
+            spd: 5
+          - name: "Vodyanoy"
+            element: water
+            hp: 150
+            att: 20
+            def: 15
+            spd: 10
+
+        boss:
+          name: "Godzilly"
+          element: water
+          hp: 650
+          att: 40
+          def: 30
+          spd: 20
+
+        party:
+          - class: blacksmith
+            element: any
+            equipment: null
+          - class: any
+            element: water
+            equipment: null
+          - class: any
+            element: water
+            equipment: null
+          - class: any
+            element: water
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+
+        party_items:
+          - item: flying_boots
+            quantity: 10
+
+        traps:
+          - name: "Quagmire"
+            chance_pct: 20
+            countered_by:
+              item: flying_boots
+
+        events:
+          - name: "Deep Sea Treasure"
+            chance_pct: 10
+            countered_by:
+              element: water
+              count: 3
+          - name: "Unattended Weapons"
+            chance_pct: 5
+            countered_by:
+              class: blacksmith
+
+      2:
+        rooms: 10
+        monsters_per_room: 7
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 40
+          levels_per_difficulty: [4, 5]
+          class_level: 8
+
+        monsters:
+          - name: "Kappa"
+            element: water
+            hp: 800
+            att: 60
+            def: 120
+            spd: 45
+          - name: "Jellyfish"
+            element: water
+            hp: 350
+            att: 99
+            def: 50
+            spd: 77
+          - name: "Sea Spirit"
+            element: water
+            hp: 500
+            att: 75
+            def: 60
+            spd: 60
+          - name: "Water Elemental"
+            element: water
+            hp: 520
+            att: 85
+            def: 45
+            spd: 70
+          - name: "Fire Coral Reef"
+            element: fire
+            hp: 450
+            att: 92
+            def: 40
+            spd: 80
+          - name: "Water Goblin"
+            element: water
+            hp: 450
+            att: 78
+            def: 35
+            spd: 75
+          - name: "Hippocamp"
+            element: water
+            hp: 1200
+            att: 50
+            def: 160
+            spd: 45
+          - name: "Sharktopus"
+            element: water
+            hp: 750
+            att: 99
+            def: 45
+            spd: 70
+
+        boss:
+          name: "Kraken"
+          element: water
+          hp: 19999
+          att: 150
+          def: 140
+          spd: 120
+
+        party:
+          - class: assassin
+            element: any
+            equipment:
+              weapon: flame_sword
+              armor: steel_armor
+              accessory: flame_gloves
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: rogue
+            element: water
+            equipment:
+              weapon: thundering_knives
+              armor: tree_armor
+              accessory: storm_ring
+              gems:
+                weapon: wind
+                armor: null
+                accessory: null
+          - class: defender
+            element: water
+            equipment:
+              weapon: steel_sword
+              armor: steel_armor
+              accessory: steel_ring
+              gems:
+                weapon: water
+                armor: null
+                accessory: null
+          - class: supporter
+            element: water
+            equipment:
+              weapon: flame_sword
+              armor: tree_armor
+              accessory: storm_ring
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: supporter
+            element: any
+            equipment:
+              weapon: flame_sword
+              armor: steel_armor
+              accessory: storm_ring
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: mage
+            element: earth
+            equipment:
+              weapon: flame_sword
+              armor: tree_armor
+              accessory: flame_gloves
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+
+        party_items:
+          - item: flying_boots
+            quantity: 15
+          - item: antidote
+            quantity: 10
+          - item: health_potion_x
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+
+        traps:
+          - name: "Quagmire"
+            chance_pct: 30
+            countered_by:
+              item: flying_boots
+          - name: "Poison"
+            chance_pct: 20
+            countered_by:
+              item: antidote
+
+        events:
+          - name: "Hidden Library"
+            chance_pct: 13
+            countered_by:
+              class: supporter
+              count: 2
+          - name: "Treasure"
+            chance_pct: 10
+            countered_by:
+              class: rogue
+
+      3:
+        rooms: 14
+        monsters_per_room: 8
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 95
+          levels_per_difficulty: [5, 8]
+          class_level: 25
+          total_growth: 20000
+
+        monsters:
+          - name: "Hydra"
+            element: water
+            hp: 2950
+            att: 295
+            def: 265
+            spd: 180
+          - name: "Shen"
+            element: water
+            hp: 2100
+            att: 380
+            def: 235
+            spd: 150
+          - name: "Living Whirlpool"
+            element: water
+            hp: 2750
+            att: 335
+            def: 225
+            spd: 225
+          - name: "Zaratan"
+            element: water
+            hp: 6500
+            att: 335
+            def: 444
+            spd: 120
+          - name: "Cursed Pirate"
+            element: neutral
+            hp: 2850
+            att: 425
+            def: 300
+            spd: 240
+          - name: "Siren"
+            element: water
+            hp: 2500
+            att: 200
+            def: 300
+            spd: 225
+          - name: "Drowned Priest"
+            element: wind
+            hp: 2200
+            att: 345
+            def: 280
+            spd: 355
+          - name: "Seafloor Raiser"
+            element: earth
+            hp: 2700
+            att: 410
+            def: 270
+            spd: 185
+
+        bosses:
+          - name: "Leviathan"
+            element: water
+            hp: 50000
+            att: 480
+            def: 480
+            spd: 380
+          - name: "Behemoth"
+            element: water
+            hp: 35000
+            att: 400
+            def: 400
+            spd: 150
+
+        party:
+          - class: assassin
+            element: any
+            equipment:
+              weapon: inferno_sword
+              armor: titanium_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+          - class: rogue
+            element: water
+            equipment:
+              weapon: bursting_knives
+              armor: forest_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: wind
+                armor: water
+                accessory: neutral
+          - class: defender
+            element: water
+            equipment:
+              weapon: titanium_sword
+              armor: titanium_armor
+              accessory: titanium_ring
+              gems:
+                weapon: water
+                armor: earth
+                accessory: neutral
+          - class: supporter
+            element: water
+            equipment:
+              weapon: inferno_sword
+              armor: forest_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: fire
+                armor: water
+                accessory: wind
+          - class: supporter
+            element: any
+            equipment:
+              weapon: inferno_sword
+              armor: titanium_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: fire
+                armor: water
+                accessory: earth
+          - class: mage
+            element: earth
+            equipment:
+              weapon: inferno_sword
+              armor: forest_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+
+        party_items:
+          - item: flying_boots
+            quantity: 25
+          - item: antidote
+            quantity: 15
+          - item: ginger
+            quantity: 10
+          - item: health_potion_s
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+
+        traps:
+          - name: "Quagmire"
+            chance_pct: 50
+            countered_by:
+              item: flying_boots
+          - name: "Poison"
+            chance_pct: 30
+            countered_by:
+              item: antidote
+          - name: "Weaken"
+            chance_pct: 20
+            countered_by:
+              item: ginger
+
+        events:
+          - name: "Hidden Library"
+            chance_pct: 17
+            countered_by:
+              class: supporter
+              count: 2
+          - name: "Deep Sea Treasure"
+            chance_pct: 15
+            countered_by:
+              element: water
+              count: 3
+
+  # =========================================================================
+  # VOLCANO
+  # =========================================================================
+  volcano:
+    name: "Volcano"
+
+    depths:
+      1:
+        rooms: 6
+        monsters_per_room: 6
+
+        requirements:
+          dungeon_level_avg: 10
+          levels_per_difficulty: [3, 4]
+          class_level: 0
+
+        monsters:
+          - name: "Firefly"
+            element: fire
+            hp: 55
+            att: 5
+            def: 5
+            spd: 25
+          - name: "Salamander"
+            element: fire
+            hp: 95
+            att: 12
+            def: 8
+            spd: 15
+          - name: "Imp"
+            element: fire
+            hp: 115
+            att: 10
+            def: 12
+            spd: 12
+          - name: "Flame Sprite"
+            element: fire
+            hp: 100
+            att: 30
+            def: 5
+            spd: 5
+          - name: "Magma Beetle"
+            element: fire
+            hp: 225
+            att: 8
+            def: 35
+            spd: 20
+          - name: "Cinder Spider"
+            element: fire
+            hp: 120
+            att: 18
+            def: 20
+            spd: 21
+          - name: "Acolyte Of Flames"
+            element: fire
+            hp: 150
+            att: 20
+            def: 15
+            spd: 10
+
+        boss:
+          name: "Fire Lord"
+          element: fire
+          hp: 666
+          att: 35
+          def: 25
+          spd: 30
+
+        party:
+          - class: blacksmith
+            element: any
+            equipment: null
+          - class: any
+            element: fire
+            equipment: null
+          - class: any
+            element: fire
+            equipment: null
+          - class: any
+            element: fire
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+
+        party_items:
+          - item: antidote
+            quantity: 10
+
+        traps:
+          - name: "Poison"
+            chance_pct: 20
+            countered_by:
+              item: antidote
+
+        events:
+          - name: "Lava Filled Corridor"
+            chance_pct: 10
+            countered_by:
+              element: fire
+              count: 3
+          - name: "Burning Weapons"
+            chance_pct: 5
+            countered_by:
+              class: blacksmith
+              element: fire
+              count: 1
+
+      2:
+        rooms: 10
+        monsters_per_room: 7
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 40
+          levels_per_difficulty: [4, 5]
+          class_level: 8
+
+        monsters:
+          - name: "Minotaur"
+            element: fire
+            hp: 1000
+            att: 60
+            def: 140
+            spd: 30
+          - name: "Flame Scorpion"
+            element: fire
+            hp: 350
+            att: 85
+            def: 50
+            spd: 40
+          - name: "Fire Walker"
+            element: fire
+            hp: 450
+            att: 80
+            def: 35
+            spd: 65
+          - name: "Hellhound"
+            element: fire
+            hp: 666
+            att: 100
+            def: 45
+            spd: 70
+          - name: "Burning Elemental"
+            element: fire
+            hp: 500
+            att: 85
+            def: 40
+            spd: 40
+          - name: "Flame Hawk"
+            element: fire
+            hp: 400
+            att: 90
+            def: 35
+            spd: 100
+          - name: "Lava Worm"
+            element: fire
+            hp: 600
+            att: 65
+            def: 75
+            spd: 45
+          - name: "Crazed Steam Spirit"
+            element: water
+            hp: 750
+            att: 60
+            def: 50
+            spd: 45
+
+        boss:
+          name: "Seraphim"
+          element: fire
+          hp: 12500
+          att: 150
+          def: 140
+          spd: 120
+
+        party:
+          - class: assassin
+            element: water
+            equipment:
+              weapon: flame_sword
+              armor: flood_armor
+              accessory: flame_gloves
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: rogue
+            element: fire
+            equipment:
+              weapon: thundering_knives
+              armor: flame_armor
+              accessory: steel_ring
+              gems:
+                weapon: wind
+                armor: null
+                accessory: null
+          - class: defender
+            element: any
+            equipment:
+              weapon: steel_sword
+              armor: steel_armor
+              accessory: steel_ring
+              gems:
+                weapon: water
+                armor: null
+                accessory: null
+          - class: supporter
+            element: fire
+            equipment:
+              weapon: flame_sword
+              armor: flood_armor
+              accessory: storm_ring
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: mage
+            element: water
+            equipment:
+              weapon: flame_sword
+              armor: flood_armor
+              accessory: flame_gloves
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: any
+            element: fire
+            equipment:
+              weapon: generic_t2_s10
+              armor: generic_t2_s10
+              accessory: generic_t2_s10
+              gems:
+                weapon: null
+                armor: null
+                accessory: null
+
+        party_items:
+          - item: antidote
+            quantity: 25
+          - item: nevermelting_ice
+            quantity: 20
+          - item: holy_water
+            quantity: 10
+          - item: health_potion_x
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+
+        traps:
+          - name: "Poison"
+            chance_pct: 30
+            countered_by:
+              item: antidote
+          - name: "Burn"
+            chance_pct: 20
+            countered_by:
+              item: nevermelting_ice
+
+        events:
+          - name: "Lava Filled Corridor"
+            chance_pct: 13
+            countered_by:
+              element: fire
+              count: 3
+          - name: "Cursed Chest"
+            chance_pct: 10
+            countered_by:
+              class: rogue
+              item: holy_water
+
+      3:
+        rooms: 14
+        monsters_per_room: 8
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 90
+          levels_per_difficulty: [5, 8]
+          class_level: 25
+          total_growth: 20000
+
+        monsters:
+          - name: "Incinerator"
+            element: fire
+            hp: 2400
+            att: 350
+            def: 200
+            spd: 230
+          - name: "Ifrit"
+            element: fire
+            hp: 1900
+            att: 350
+            def: 230
+            spd: 265
+          - name: "Burning Reaper"
+            element: fire
+            hp: 2800
+            att: 370
+            def: 240
+            spd: 245
+          - name: "Flaming Swords"
+            element: fire
+            hp: 2100
+            att: 360
+            def: 225
+            spd: 280
+          - name: "Fire Dragon"
+            element: fire
+            hp: 3000
+            att: 380
+            def: 260
+            spd: 290
+          - name: "Lava Golem"
+            element: earth
+            hp: 5000
+            att: 300
+            def: 450
+            spd: 120
+          - name: "Ash Storm"
+            element: wind
+            hp: 1900
+            att: 400
+            def: 220
+            spd: 300
+          - name: "Slag Elemental"
+            element: neutral
+            hp: 2800
+            att: 360
+            def: 240
+            spd: 210
+
+        bosses:
+          - name: "Sun Spirit"
+            element: fire
+            hp: 65000
+            att: 400
+            def: 750
+            spd: 120
+          - name: "Balrog"
+            element: fire
+            hp: 35000
+            att: 750
+            def: 400
+            spd: 400
+
+        party:
+          - class: assassin
+            element: water
+            equipment:
+              weapon: tsunami_spear
+              armor: tsunami_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+          - class: blacksmith
+            element: fire
+            equipment:
+              weapon: bursting_knives
+              armor: titanium_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: water
+                armor: earth
+                accessory: neutral
+          - class: defender
+            element: any
+            equipment:
+              weapon: titanium_sword
+              armor: titanium_armor
+              accessory: titanium_ring
+              gems:
+                weapon: water
+                armor: earth
+                accessory: neutral
+          - class: supporter
+            element: fire
+            equipment:
+              weapon: inferno_sword
+              armor: tsunami_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: fire
+                armor: water
+                accessory: wind
+          - class: rogue
+            element: fire
+            equipment:
+              weapon: bursting_knives
+              armor: inferno_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: neutral
+                armor: water
+                accessory: earth
+          - class: mage
+            element: water
+            equipment:
+              weapon: tsunami_spear
+              armor: tsunami_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+
+        party_items:
+          - item: antidote
+            quantity: 25
+          - item: nevermelting_ice
+            quantity: 20
+          - item: holy_water
+            quantity: 10
+          - item: health_potion_s
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+
+        traps:
+          - name: "Poison"
+            chance_pct: 50
+            countered_by:
+              item: antidote
+          - name: "Burn"
+            chance_pct: 30
+            countered_by:
+              item: nevermelting_ice
+          - name: "Spikes"
+            chance_pct: 20
+            countered_by:
+              class: rogue
+
+        events:
+          - name: "Lava Filled Corridor"
+            chance_pct: 17
+            countered_by:
+              element: fire
+              count: 3
+          - name: "Burning Weapons"
+            chance_pct: 15
+            countered_by:
+              class: blacksmith
+              element: fire
+              count: 1
+
+  # =========================================================================
+  # MOUNTAIN
+  # =========================================================================
+  mountain:
+    name: "Mountain"
+
+    depths:
+      1:
+        rooms: 6
+        monsters_per_room: 6
+
+        requirements:
+          dungeon_level_avg: 10
+          levels_per_difficulty: [3, 4]
+          class_level: 0
+
+        monsters:
+          - name: "Crow"
+            element: wind
+            hp: 208
+            att: 30
+            def: 31
+            spd: 39
+          - name: "Cockatrice"
+            element: wind
+            hp: 247
+            att: 36
+            def: 34
+            spd: 39
+          - name: "Wyvern"
+            element: wind
+            hp: 494
+            att: 45
+            def: 83
+            spd: 49
+          - name: "Thunderhawk"
+            element: wind
+            hp: 260
+            att: 54
+            def: 26
+            spd: 47
+          - name: "Whelpling"
+            element: wind
+            hp: 416
+            att: 60
+            def: 39
+            spd: 91
+          - name: "Harpy"
+            element: wind
+            hp: 312
+            att: 75
+            def: 65
+            spd: 65
+          - name: "Trickster Sprite"
+            element: wind
+            hp: 442
+            att: 60
+            def: 39
+            spd: 83
+
+        boss:
+          name: "Screeching Gralk"
+          element: wind
+          hp: 1430
+          att: 90
+          def: 65
+          spd: 104
+
+        party:
+          - class: blacksmith
+            element: any
+            equipment: null
+          - class: any
+            element: wind
+            equipment: null
+          - class: any
+            element: wind
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+
+        party_items:
+          - item: flying_boots
+            quantity: 10
+
+        traps:
+          - name: "Pit"
+            chance_pct: 20
+            countered_by:
+              item: flying_boots
+
+        events:
+          - name: "Floating Shrine"
+            chance_pct: 10
+            countered_by:
+              element: wind
+              count: 2
+          - name: "Unattended Weapons"
+            chance_pct: 5
+            countered_by:
+              class: blacksmith
+
+      2:
+        rooms: 10
+        monsters_per_room: 7
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 40
+          levels_per_difficulty: [4, 5]
+          class_level: 8
+
+        monsters:
+          - name: "Sky Blade"
+            element: wind
+            hp: 500
+            att: 75
+            def: 75
+            spd: 75
+          - name: "Sky Priest"
+            element: wind
+            hp: 700
+            att: 70
+            def: 85
+            spd: 80
+          - name: "Storm Caller"
+            element: wind
+            hp: 450
+            att: 80
+            def: 35
+            spd: 75
+          - name: "Rain Speaker"
+            element: wind
+            hp: 550
+            att: 100
+            def: 45
+            spd: 85
+          - name: "Vampire"
+            element: wind
+            hp: 400
+            att: 85
+            def: 40
+            spd: 80
+          - name: "Manticore"
+            element: earth
+            hp: 650
+            att: 80
+            def: 50
+            spd: 90
+          - name: "Cloud Shaper"
+            element: wind
+            hp: 950
+            att: 75
+            def: 135
+            spd: 75
+          - name: "Wind Lord"
+            element: wind
+            hp: 450
+            att: 95
+            def: 35
+            spd: 77
+
+        boss:
+          name: "Soaring Prelate"
+          element: wind
+          hp: 25000
+          att: 175
+          def: 120
+          spd: 200
+
+        party:
+          - class: defender
+            element: any
+            equipment:
+              weapon: steel_sword
+              armor: steel_armor
+              accessory: steel_ring
+              gems:
+                weapon: water
+                armor: null
+                accessory: null
+          - class: rogue
+            element: wind
+            equipment:
+              weapon: thundering_knives
+              armor: storm_armor
+              accessory: steel_ring
+              gems:
+                weapon: wind
+                armor: null
+                accessory: null
+          - class: defender
+            element: wind
+            equipment:
+              weapon: steel_sword
+              armor: steel_armor
+              accessory: steel_ring
+              gems:
+                weapon: water
+                armor: null
+                accessory: null
+          - class: supporter
+            element: any
+            equipment:
+              weapon: flame_sword
+              armor: storm_armor
+              accessory: storm_ring
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: any
+            element: any
+            equipment:
+              weapon: generic_t2_s10
+              armor: generic_t2_s10
+              accessory: generic_t2_s10
+              gems:
+                weapon: null
+                armor: null
+                accessory: null
+          - class: mage
+            element: fire
+            equipment:
+              weapon: flame_sword
+              armor: flame_armor
+              accessory: flame_gloves
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+
+        party_items:
+          - item: flying_boots
+            quantity: 25
+          - item: ginger
+            quantity: 20
+          - item: health_potion_x
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+
+        traps:
+          - name: "Pit"
+            chance_pct: 30
+            countered_by:
+              item: flying_boots
+          - name: "Weaken"
+            chance_pct: 20
+            countered_by:
+              item: ginger
+
+        events:
+          - name: "Crushing Landslide"
+            chance_pct: 13
+            countered_by:
+              class: defender
+              count: 2
+          - name: "Treasure"
+            chance_pct: 10
+            countered_by:
+              class: rogue
+
+      3:
+        rooms: 14
+        monsters_per_room: 8
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 85
+          levels_per_difficulty: [5, 7]
+          class_level: 22
+          total_growth: 20000
+
+        monsters:
+          - name: "Ziz"
+            element: wind
+            hp: 2400
+            att: 295
+            def: 200
+            spd: 350
+          - name: "Sky Dragon"
+            element: wind
+            hp: 4800
+            att: 310
+            def: 420
+            spd: 370
+          - name: "Chimera"
+            element: fire
+            hp: 2800
+            att: 325
+            def: 240
+            spd: 280
+          - name: "Roc"
+            element: wind
+            hp: 2100
+            att: 320
+            def: 225
+            spd: 320
+          - name: "Hippogriff"
+            element: neutral
+            hp: 2250
+            att: 380
+            def: 210
+            spd: 250
+          - name: "Gryphon"
+            element: wind
+            hp: 2700
+            att: 310
+            def: 250
+            spd: 395
+          - name: "Djinn"
+            element: wind
+            hp: 1750
+            att: 450
+            def: 180
+            spd: 400
+          - name: "Living Glacier"
+            element: water
+            hp: 2800
+            att: 295
+            def: 240
+            spd: 210
+
+        bosses:
+          - name: "Lightning Revenant"
+            element: wind
+            hp: 45000
+            att: 400
+            def: 300
+            spd: 750
+          - name: "Unbound Hurricane"
+            element: wind
+            hp: 45000
+            att: 400
+            def: 300
+            spd: 750
+
+        party:
+          - class: rogue
+            element: wind
+            equipment:
+              weapon: bursting_knives
+              armor: hurricane_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+          - class: defender
+            element: wind
+            equipment:
+              weapon: titanium_sword
+              armor: titanium_armor
+              accessory: titanium_ring
+              gems:
+                weapon: water
+                armor: earth
+                accessory: neutral
+          - class: defender
+            element: neutral
+            equipment:
+              weapon: bursting_knives
+              armor: titanium_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: water
+                armor: earth
+                accessory: water
+          - class: supporter
+            element: neutral
+            equipment:
+              weapon: bursting_knives
+              armor: hurricane_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: fire
+                armor: water
+                accessory: wind
+          - class: mage
+            element: fire
+            equipment:
+              weapon: inferno_sword
+              armor: titanium_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: wind
+                accessory: water
+          - class: any
+            element: any
+            equipment:
+              weapon: generic_t3_s10
+              armor: generic_t3_s10
+              accessory: generic_t3_s10
+              gems:
+                weapon: null
+                armor: null
+                accessory: null
+
+        party_items:
+          - item: flying_boots
+            quantity: 25
+          - item: ginger
+            quantity: 20
+          - item: health_potion_s
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+
+        traps:
+          - name: "Pit"
+            chance_pct: 50
+            countered_by:
+              item: flying_boots
+          - name: "Weaken"
+            chance_pct: 30
+            countered_by:
+              item: ginger
+          - name: "Spikes"
+            chance_pct: 20
+            countered_by:
+              class: rogue
+
+        events:
+          - name: "Portal From Beyond"
+            chance_pct: 17
+            countered_by:
+              - class: mage
+              - element: neutral
+                count: 2
+          - name: "Crushing Landslide"
+            chance_pct: 15
+            countered_by:
+              class: defender
+              count: 2
+
+  # =========================================================================
+  # FOREST
+  # =========================================================================
+  forest:
+    name: "Forest"
+
+    depths:
+      1:
+        rooms: 6
+        monsters_per_room: 6
+
+        requirements:
+          dungeon_level_avg: 10
+          levels_per_difficulty: [3, 4]
+          class_level: 0
+
+        monsters:
+          - name: "Wolf"
+            element: earth
+            hp: 80
+            att: 10
+            def: 12
+            spd: 15
+          - name: "Goblin"
+            element: earth
+            hp: 95
+            att: 12
+            def: 13
+            spd: 5
+          - name: "Creeping Vine"
+            element: earth
+            hp: 100
+            att: 35
+            def: 10
+            spd: 1
+          - name: "Poison Frog"
+            element: earth
+            hp: 100
+            att: 5
+            def: 10
+            spd: 5
+          - name: "Sleepy Flowers"
+            element: earth
+            hp: 150
+            att: 20
+            def: 20
+            spd: 5
+          - name: "Troll"
+            element: earth
+            hp: 250
+            att: 25
+            def: 35
+            spd: 8
+          - name: "Druid Apprentice"
+            element: earth
+            hp: 150
+            att: 20
+            def: 15
+            spd: 10
+
+        boss:
+          name: "Grove Warden"
+          element: earth
+          hp: 800
+          att: 30
+          def: 35
+          spd: 15
+
+        party:
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+          - class: any
+            element: any
+            equipment: null
+
+        party_items:
+          - item: torch
+            quantity: 10
+
+        traps:
+          - name: "Darkness"
+            chance_pct: 20
+            countered_by:
+              item: torch
+
+        events:
+          - name: "Wild Animals"
+            chance_pct: 10
+            countered_by:
+              item: pet_food
+              quantity_per_clear: 30
+              notes: "Better pet food yields better growth rewards."
+          - name: "Wounded Pet"
+            chance_pct: 5
+            countered_by:
+              item: health_potion
+
+      2:
+        rooms: 10
+        monsters_per_room: 7
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 40
+          levels_per_difficulty: [4, 5]
+          class_level: 8
+
+        monsters:
+          - name: "Treant"
+            element: earth
+            hp: 750
+            att: 65
+            def: 85
+            spd: 50
+          - name: "Unicorn"
+            element: earth
+            hp: 600
+            att: 85
+            def: 50
+            spd: 75
+          - name: "Ogre"
+            element: earth
+            hp: 750
+            att: 80
+            def: 85
+            spd: 40
+          - name: "Giant"
+            element: earth
+            hp: 1100
+            att: 95
+            def: 145
+            spd: 10
+          - name: "Gargoyle"
+            element: earth
+            hp: 680
+            att: 65
+            def: 85
+            spd: 50
+          - name: "Stone Golem"
+            element: earth
+            hp: 850
+            att: 75
+            def: 85
+            spd: 35
+          - name: "Swampy Ancient"
+            element: water
+            hp: 590
+            att: 65
+            def: 85
+            spd: 50
+          - name: "Shroom Wizard"
+            element: earth
+            hp: 640
+            att: 85
+            def: 85
+            spd: 50
+
+        boss:
+          name: "Mossy Shambler"
+          element: earth
+          hp: 15000
+          att: 125
+          def: 100
+          spd: 100
+
+        party:
+          - class: assassin
+            element: neutral
+            equipment:
+              weapon: thundering_knives
+              armor: tree_armor
+              accessory: flame_gloves
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: rogue
+            element: any
+            equipment:
+              weapon: thundering_knives
+              armor: tree_armor
+              accessory: storm_ring
+              gems:
+                weapon: wind
+                armor: null
+                accessory: null
+          - class: defender
+            element: earth
+            equipment:
+              weapon: steel_sword
+              armor: steel_armor
+              accessory: steel_ring
+              gems:
+                weapon: water
+                armor: null
+                accessory: null
+          - class: supporter
+            element: any
+            equipment:
+              weapon: flame_sword
+              armor: tree_armor
+              accessory: storm_ring
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: mage
+            element: any
+            equipment:
+              weapon: flame_sword
+              armor: tree_armor
+              accessory: flame_gloves
+              gems:
+                weapon: fire
+                armor: null
+                accessory: null
+          - class: any
+            element: any
+            equipment:
+              weapon: generic_t2_s10
+              armor: generic_t2_s10
+              accessory: generic_t2_s10
+              gems:
+                weapon: null
+                armor: null
+                accessory: null
+
+        party_items:
+          - item: torch
+            quantity: 15
+          - item: flying_boots
+            quantity: 10
+          - item: health_potion_x
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+
+        traps:
+          - name: "Darkness"
+            chance_pct: 30
+            countered_by:
+              item: torch
+          - name: "Quagmire"
+            chance_pct: 20
+            countered_by:
+              item: flying_boots
+
+        events:
+          - name: "Fog"
+            chance_pct: 13
+            countered_by:
+              item: torch
+          - name: "Treasure"
+            chance_pct: 10
+            countered_by:
+              class: rogue
+
+      3:
+        rooms: 14
+        monsters_per_room: 8
+        gem_level: 10
+
+        requirements:
+          dungeon_level_avg: 100
+          levels_per_difficulty: [6, 8]
+          class_level: 25
+          total_growth: 20000
+
+        monsters:
+          - name: "Crazed Arch Druid"
+            element: earth
+            hp: 2950
+            att: 295
+            def: 265
+            spd: 180
+          - name: "Darkened Ancient"
+            element: earth
+            hp: 1850
+            att: 365
+            def: 180
+            spd: 420
+          - name: "Stalwart Ancient"
+            element: earth
+            hp: 4800
+            att: 335
+            def: 480
+            spd: 125
+          - name: "Nightmare Ancient"
+            element: earth
+            hp: 2850
+            att: 315
+            def: 298
+            spd: 220
+          - name: "Lumbering Ancient"
+            element: earth
+            hp: 3000
+            att: 335
+            def: 300
+            spd: 240
+          - name: "Petrified Ancient"
+            element: neutral
+            hp: 2850
+            att: 300
+            def: 300
+            spd: 225
+          - name: "Howling Ancient"
+            element: wind
+            hp: 2200
+            att: 345
+            def: 280
+            spd: 275
+          - name: "Blazing Ancient"
+            element: fire
+            hp: 1900
+            att: 410
+            def: 270
+            spd: 260
+
+        bosses:
+          - name: "Agonized Forest Soul"
+            element: earth
+            hp: 40000
+            att: 480
+            def: 480
+            spd: 380
+          - name: "Rotting World Tree"
+            element: earth
+            hp: 52000
+            att: 420
+            def: 850
+            spd: 150
+
+        party:
+          - class: assassin
+            element: neutral
+            equipment:
+              weapon: bursting_knives
+              armor: forest_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+          - class: assassin
+            element: any
+            equipment:
+              weapon: inferno_sword
+              armor: forest_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+          - class: defender
+            element: earth
+            equipment:
+              weapon: titanium_sword
+              armor: titanium_armor
+              accessory: titanium_ring
+              gems:
+                weapon: water
+                armor: earth
+                accessory: neutral
+          - class: supporter
+            element: any
+            equipment:
+              weapon: inferno_sword
+              armor: forest_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: fire
+                armor: water
+                accessory: wind
+          - class: rogue
+            element: any
+            equipment:
+              weapon: bursting_knives
+              armor: forest_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: wind
+                armor: water
+                accessory: wind
+          - class: mage
+            element: any
+            equipment:
+              weapon: inferno_sword
+              armor: titanium_armor
+              accessory: inferno_gloves
+              gems:
+                weapon: fire
+                armor: water
+                accessory: neutral
+
+        party_items:
+          - item: torch
+            quantity: 25
+          - item: flying_boots
+            quantity: 15
+          - item: antidote
+            quantity: 10
+          - item: health_potion_s
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 10
+          - item: mighty_food
+            quantity: 150
+
+        traps:
+          - name: "Darkness"
+            chance_pct: 50
+            countered_by:
+              item: torch
+          - name: "Quagmire"
+            chance_pct: 30
+            countered_by:
+              item: flying_boots
+          - name: "Poison"
+            chance_pct: 20
+            countered_by:
+              item: antidote
+
+        events:
+          - name: "Wild Animals"
+            chance_pct: 17
+            countered_by:
+              item: mighty_food
+              notes: "Better pet food yields better growth rewards."
+          - name: "Monster Prodigy"
+            chance_pct: 15
+            countered_by:
+              class: assassin
+              count: 2

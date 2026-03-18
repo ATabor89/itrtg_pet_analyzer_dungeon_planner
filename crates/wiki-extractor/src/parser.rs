@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::models::*;
+use itrtg_models::*;
 
 const WIKI_BASE: &str = "https://itrtg.wiki.gg/wiki/";
 
@@ -22,17 +22,12 @@ fn wiki_url(name: &str) -> String {
 /// Handles patterns like: [[Mouse]], [[Egg/Chicken]], [[Pandora's Box]],
 /// [[Elemental (Pet)|Elemental]], [[Lizard|Lizard/Zookeeper]], [[Student (pet)|Student]]
 fn parse_name(cell: &str) -> Option<String> {
-    // Match [[Display|Alias]] or [[Name]]
     let re = Regex::new(r"\[\[([^\]|]+?)(?:\|([^\]]+))?\]\]").unwrap();
-    // We want the second link (the name cell, not the image cell)
-    // But sometimes there's only one link in the name cell.
-    // The name cell won't contain "file:" or "File:"
     for cap in re.captures_iter(cell) {
         let target = cap.get(1).unwrap().as_str();
         if target.to_lowercase().starts_with("file:") {
             continue;
         }
-        // If there's a display alias, use it; otherwise use the target
         if let Some(alias) = cap.get(2) {
             return Some(alias.as_str().trim().to_string());
         }
@@ -56,7 +51,6 @@ fn parse_element(cell: &str) -> Element {
     } else if lower.contains("all") || lower.trim() == "all" {
         Element::All
     } else {
-        // Default for edge cases
         Element::Neutral
     }
 }
@@ -76,11 +70,9 @@ fn parse_single_class(s: &str) -> Option<Class> {
 }
 
 fn parse_recommended_class(cell: &str) -> RecommendedClass {
-    // Strip superscript tags and their content for clean matching
     let re_sup = Regex::new(r"<sup>\d+</sup>").unwrap();
     let cleaned = re_sup.replace_all(cell, "").trim().to_string();
 
-    // Check for special keywords first
     if cleaned == "Special" {
         return RecommendedClass::Special;
     }
@@ -100,7 +92,6 @@ fn parse_recommended_class(cell: &str) -> RecommendedClass {
         return RecommendedClass::Wildcard;
     }
 
-    // Check for Village pattern: "Village (Role)"
     if let Some(rest) = cleaned.strip_prefix("Village") {
         let role = rest
             .trim()
@@ -111,14 +102,12 @@ fn parse_recommended_class(cell: &str) -> RecommendedClass {
         return RecommendedClass::Village(role);
     }
 
-    // Check for dual class with slash: "Assassin/Adventurer", "Mage/Wildcard", etc.
     if cleaned.contains('/') {
         let parts: Vec<&str> = cleaned.split('/').collect();
         if parts.len() == 2 {
             let a = parts[0].trim();
             let b = parts[1].trim();
 
-            // Handle X/Wildcard or Wildcard/X
             if b.to_lowercase() == "wildcard" {
                 if let Some(cls) = parse_single_class(a) {
                     return RecommendedClass::Dual(cls, Class::Wildcard);
@@ -132,15 +121,12 @@ fn parse_recommended_class(cell: &str) -> RecommendedClass {
                 return RecommendedClass::Wildcard;
             }
 
-            // Two real classes
             if let (Some(c1), Some(c2)) = (parse_single_class(a), parse_single_class(b)) {
                 return RecommendedClass::Dual(c1, c2);
             }
         }
     }
 
-    // Single class
-    // Strip trailing superscript refs like "Adventurer/Wildcard<sup>8</sup>"
     let no_sup = Regex::new(r"<sup>.*?</sup>").unwrap();
     let final_cleaned = no_sup.replace_all(&cleaned, "").trim().to_string();
 
@@ -148,7 +134,6 @@ fn parse_recommended_class(cell: &str) -> RecommendedClass {
         return RecommendedClass::Single(cls);
     }
 
-    // Fallback for anything we couldn't parse
     eprintln!("Warning: unrecognized class '{}', treating as Wildcard", cleaned);
     RecommendedClass::Wildcard
 }
@@ -156,19 +141,16 @@ fn parse_recommended_class(cell: &str) -> RecommendedClass {
 fn parse_unlock_condition(cell: &str) -> UnlockCondition {
     let trimmed = cell.trim();
 
-    // "Defeat Gods"
     if trimmed == "Defeat Gods" {
         return UnlockCondition::DefeatGods;
     }
 
-    // "Defeat P.Baal v125" style
     if let Some(rest) = trimmed.strip_prefix("Defeat P.Baal v") {
         if let Ok(n) = rest.trim().parse::<u32>() {
             return UnlockCondition::DefeatPBaalVersion(n);
         }
     }
 
-    // "Defeat P.Baal 5" style
     if let Some(rest) = trimmed.strip_prefix("Defeat P.Baal ") {
         if let Ok(n) = rest.trim().parse::<u32>() {
             return UnlockCondition::DefeatPBaal(n);
@@ -191,7 +173,6 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
         return UnlockCondition::Special;
     }
 
-    // "Milestones or Pet Token" / "[[Milestones]] or Pet Token"
     let stripped_links = strip_wiki_links(trimmed);
     if stripped_links.contains("Milestones") && stripped_links.contains("Pet Token") {
         return UnlockCondition::MilestonesOrPetToken;
@@ -201,9 +182,7 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
         return UnlockCondition::Milestones;
     }
 
-    // "[[Tavern]] rank SSS quest"
     if stripped_links.to_lowercase().contains("tavern") && stripped_links.to_lowercase().contains("quest") {
-        // Extract the rank
         let re = Regex::new(r"rank\s+(\S+)\s+quest").unwrap();
         if let Some(cap) = re.captures(&stripped_links) {
             return UnlockCondition::TavernQuest(cap[1].to_string());
@@ -211,7 +190,6 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
         return UnlockCondition::TavernQuest("SSS".to_string());
     }
 
-    // "[[Strategy Room]]<br> Level 11"
     if stripped_links.to_lowercase().contains("strategy room") {
         let re = Regex::new(r"[Ll]evel\s+(\d+)").unwrap();
         if let Some(cap) = re.captures(&stripped_links) {
@@ -219,7 +197,6 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
         }
     }
 
-    // "5000 ancient mimic points"
     if trimmed.to_lowercase().contains("ancient mimic points") {
         let re = Regex::new(r"(\d+)\s+ancient mimic points").unwrap();
         if let Some(cap) = re.captures(&trimmed.to_lowercase()) {
@@ -227,7 +204,6 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
         }
     }
 
-    // "Have 10 Pets Unlocked"
     if trimmed.to_lowercase().contains("pets unlocked") {
         let re = Regex::new(r"(\d+)\s+[Pp]ets\s+[Uu]nlocked").unwrap();
         if let Some(cap) = re.captures(trimmed) {
@@ -235,7 +211,6 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
         }
     }
 
-    // "Defeat a D3-0 Boss"
     if trimmed.to_lowercase().contains("defeat a d") && trimmed.to_lowercase().contains("boss") {
         let re = Regex::new(r"[Dd]efeat a (D\S+) [Bb]oss").unwrap();
         if let Some(cap) = re.captures(trimmed) {
@@ -243,7 +218,6 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
         }
     }
 
-    // "Give it 1000 Honey"
     if trimmed.to_lowercase().starts_with("give it") {
         let gift = trimmed.strip_prefix("Give it").unwrap_or(trimmed).trim();
         return UnlockCondition::ItemGift(gift.to_string());
@@ -255,7 +229,6 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
 
 fn parse_evo_difficulty(cell: &str) -> EvoDifficulty {
     let trimmed = cell.trim();
-    // Pattern: "X(Y)" or "X(Y-Z)" where we take Z as the with_conditions value
     let re = Regex::new(r"(\d+)\((\d+)(?:-(\d+))?\)").unwrap();
     if let Some(cap) = re.captures(trimmed) {
         let base: u8 = cap[1].parse().unwrap_or(1);
@@ -277,8 +250,7 @@ fn parse_evo_difficulty(cell: &str) -> EvoDifficulty {
 }
 
 fn parse_improve(cell: &str) -> bool {
-    let lower = cell.to_lowercase();
-    lower.contains("yes")
+    cell.to_lowercase().contains("yes")
 }
 
 fn parse_special_ability(cell: &str) -> Option<String> {
@@ -291,16 +263,12 @@ fn parse_special_ability(cell: &str) -> Option<String> {
 }
 
 fn parse_class_bonus(cell: &str) -> String {
-    // Strip superscript references but keep the actual bonus text
     let re_sup = Regex::new(r"<sup>\d+</sup>").unwrap();
     let cleaned = re_sup.replace_all(cell.trim(), "");
     let cleaned = cleaned.trim().to_string();
-
-    // Strip <nowiki> tags
     let cleaned = cleaned
         .replace("<nowiki>", "")
         .replace("</nowiki>", "");
-
     cleaned.trim().to_string()
 }
 
@@ -308,16 +276,13 @@ fn parse_class_bonus(cell: &str) -> String {
 fn strip_wiki_links(s: &str) -> String {
     let re = Regex::new(r"\[\[(?:[^\]|]*\|)?([^\]]+)\]\]").unwrap();
     let result = re.replace_all(s, "$1");
-    // Also strip <br> tags
     result.replace("<br>", " ").replace("<br/>", " ").replace("<br />", " ")
 }
 
-/// Parse the full wiki source into a list of Pet structs.
-pub fn parse_pets(source: &str) -> anyhow::Result<Vec<Pet>> {
+/// Parse the full wiki source into a list of WikiPet structs.
+pub fn parse_pets(source: &str) -> anyhow::Result<Vec<WikiPet>> {
     let mut pets = Vec::new();
 
-    // Find the table: starts with {| and ends with |}
-    // We look for the sortable wikitable
     let table_start = source.find("{| class=\"wikitable");
     let table_end = source.rfind("|}");
 
@@ -327,43 +292,23 @@ pub fn parse_pets(source: &str) -> anyhow::Result<Vec<Pet>> {
     };
 
     let table = &source[table_start..=table_end + 1];
-
-    // Split table into rows by "|-"
     let rows: Vec<&str> = table.split("\n|-").collect();
 
-    // Skip the header row (first element)
     for row in rows.iter().skip(1) {
         let row = row.trim();
         if row.is_empty() || row.starts_with("|}") {
             continue;
         }
 
-        // Split cells by "\n|" — each line starting with | is a cell
-        // But we need to handle cells that may span multiple lines
         let cells = split_cells(row);
 
         if cells.len() < 10 {
-            // Not enough cells for a pet row, skip (could be a header or separator)
             continue;
         }
-
-        // Cells by index (0-indexed):
-        // 0: Pet image
-        // 1: Name link
-        // 2: Element image
-        // 3: Recommended Class
-        // 4: Class Bonus
-        // 5: Unlock Condition
-        // 6: Evo Difficulty (Condition)
-        // 7: Improve Available
-        // 8: Release Date
-        // 9: Special Ability
-        // 10: Patreon / Creator (optional)
 
         let name = match parse_name(&cells[1]) {
             Some(n) => n,
             None => {
-                // Try parsing from cell 0 if cell 1 didn't work
                 match parse_name(&cells[0]) {
                     Some(n) => n,
                     None => {
@@ -384,7 +329,7 @@ pub fn parse_pets(source: &str) -> anyhow::Result<Vec<Pet>> {
 
         let url = wiki_url(&name);
 
-        pets.push(Pet {
+        pets.push(WikiPet {
             name,
             wiki_url: url,
             element,
@@ -401,8 +346,6 @@ pub fn parse_pets(source: &str) -> anyhow::Result<Vec<Pet>> {
 }
 
 /// Split a table row into individual cells.
-/// Cells start with "|" at the beginning of a line (or after the row separator).
-/// Handles "||" as cell separator on the same line too.
 fn split_cells(row: &str) -> Vec<String> {
     let mut cells = Vec::new();
     let mut current = String::new();
@@ -416,12 +359,9 @@ fn split_cells(row: &str) -> Vec<String> {
                 cells.push(current.trim().to_string());
             }
             first = false;
-            // Handle double-pipe on same line: ||cell||cell
             let content = trimmed.trim_start_matches('|');
-            // Check if there are "||" separators within
             let sub_cells: Vec<&str> = content.split("||").collect();
             if sub_cells.len() > 1 {
-                // First sub-cell goes into current
                 current = sub_cells[0].trim().to_string();
                 for sc in &sub_cells[1..] {
                     cells.push(current.trim().to_string());
@@ -431,7 +371,6 @@ fn split_cells(row: &str) -> Vec<String> {
                 current = content.trim().to_string();
             }
         } else if trimmed.starts_with("||") {
-            // Continuation with || separator
             let content = trimmed.trim_start_matches('|');
             let sub_cells: Vec<&str> = content.split("||").collect();
             cells.push(current.trim().to_string());
@@ -441,7 +380,6 @@ fn split_cells(row: &str) -> Vec<String> {
                 current = sc.trim().to_string();
             }
         } else {
-            // Continuation of previous cell
             if !current.is_empty() {
                 current.push(' ');
             }
