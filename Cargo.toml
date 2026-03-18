@@ -1,12 +1,7 @@
-[package]
-name = "pet_extractor"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-clap = { version = "4", features = ["derive"] }
-regex = "1"
-reqwest = { version = "0.12", features = ["blocking"] }
-serde = { version = "1", features = ["derive"] }
-serde_yaml = "0.9"
-anyhow = "1"
+[workspace]
+resolver = "3"
+members = [
+    "crates/models",
+    "crates/wiki-extractor",
+    "crates/pet-importer",
+]

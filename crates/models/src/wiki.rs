@@ -1,35 +1,9 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-/// The primary element of a pet.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub enum Element {
-    Neutral,
-    Fire,
-    Water,
-    Wind,
-    Earth,
-    /// Chameleon can freely change its element.
-    All,
-}
-
-/// A single pet class.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub enum Class {
-    Adventurer,
-    Blacksmith,
-    Alchemist,
-    Defender,
-    Supporter,
-    Rogue,
-    Assassin,
-    Mage,
-    /// Not a real class — used in Dual recommendations to indicate the pet can
-    /// be evolved as whatever the player needs.
-    Wildcard,
-}
+use crate::{Class, Element};
 
 /// How the wiki recommends evolving a pet's class.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RecommendedClass {
     /// A single best class.
     Single(Class),
@@ -58,7 +32,7 @@ pub enum RecommendedClass {
 }
 
 /// How a pet is unlocked.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnlockCondition {
     /// Defeat the base gods (earliest pets).
     DefeatGods,
@@ -107,7 +81,7 @@ pub enum UnlockCondition {
 }
 
 /// Evolution difficulty rating.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvoDifficulty {
     /// Base difficulty from growth requirement alone (1-8).
     pub base: u8,
@@ -115,9 +89,9 @@ pub struct EvoDifficulty {
     pub with_conditions: u8,
 }
 
-/// A fully parsed pet entry.
-#[derive(Debug, Clone, Serialize)]
-pub struct Pet {
+/// A pet entry as described by the wiki. Static reference data.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WikiPet {
     pub name: String,
     pub wiki_url: String,
     pub element: Element,

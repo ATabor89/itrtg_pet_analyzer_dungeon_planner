@@ -1,0 +1,12 @@
+[package]
+name = "wiki-extractor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+itrtg-models = { path = "../models" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+reqwest = { version = "0.12", features = ["blocking"] }
+serde_yaml = "0.9"
