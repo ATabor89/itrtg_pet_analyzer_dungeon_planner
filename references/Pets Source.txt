@@ -1,0 +1,2009 @@
+== Overview ==
+
+Pets and related mechanics are available from the start of the game. Over time, you will gather up a crew of little critters who can [[Pet Training|train against your clones]], and boost the stats of your God as they get stronger. Your pets can also be sent on [[Pet Campaigns|campaigns]], which are 1-12 hour missions for growth, items, God Power, food, divinity, and more.
+
+Once you have at least 6 pets, you can also send them to explore special [[Dungeons]]. There, they can gather resources and use them to craft weapons, armors, and accessories, which give bonuses to your Pets' stats and also to your God's stats. Dungeons are also an excellent source of God Power and pet stones.
+
+Pets can also be employed in various buildings in the [[Pet Village]]. The fruits of their labor include God Power, crafting resources, bonuses to Pet and God stats, and more.
+
+Pets have both permanent and temporary stats. Their most important permanent stat is their [[#Growth|Growth]]. The full range of Pet stats is too large to cover in this overview; be sure to visit the other pages for more details.
+
+== Growth ==
+:''For more information, see [[Pet Training#Pet_Growth|Pet Growth]].''
+Growth is the most important stat for all pets. Growth is a permanent stat, kept through rebirths.
+
+Pets receive Base Growth by eating, or being the recipient of a Growth Campaign's reward, or equipping a [[Growing Love Pendant]], or various other ways. The Base Growth stat is multiplied by your [[Patreon Gods Challenge]] (PGC) reward multiplier, if you have done that challenge, and also by the [[Equip#Unique_Equipment|Magic Egg]] multiplier, if the pet has one equipped. The result of these multipliers is called Total Growth.
+
+Total Growth affects:
+* The Physical/Mystic/Battle stats the pet gains when fighting clones. This is the basis for the Pet Multiplier to your own stats.
+* The pet's [[Dungeons|Dungeon]] stats.
+* The class level experience the pet gains in [[Pet Campaigns|Campaigns]], [[Crafting]], and most [[Pet Village]] jobs.
+
+The pet's [[Dungeons#Pet_Evolution_and_Class|evolution]] will require a specific minimum Total Growth. Equipping a Magic Egg (even temporarily) will reduce the amount of Growth needed; the Egg may be removed after evolving the pet.
+
+== List of Pets ==
+
+''If you are having trouble viewing this table on mobile, please go to the bottom of the page and select '''"Desktop"'''. This should allow you to see the full table.''
+
+''If you're looking for pets' campaign bonuses, see [[Pet Campaigns#Pet_Multipliers|the Pet Multipliers table]] instead.''
+
+{| class="wikitable center sortable mw-collapsible"
+|+
+!Pet
+!Name
+!Element
+!Recommended Class
+!data-sort-type="number"|Class Bonus 
+!Unlock Condition
+!Evo Difficulty (Condition)
+!Improve Available
+!Release Date (Y/M/D)
+!Special Ability
+!Patreon / Creator
+|-
+|[[file:Mouse.png|80px|link=Mouse]]
+|[[Mouse]]
+|[[File:earth.png|30x30px]]
+|Wildcard
+|<nowiki>+50% to food camps</nowiki>
+|Defeat Gods
+|1(1)
+|
+|2016-03-10
+| -
+|
+|-
+|[[file:Frog.png|80px|link=Frog]]
+|[[Frog]]
+|[[File:water.png|30x30px|30x30px]]
+|Supporter
+|0.5% x CL
+|Defeat Gods
+|1(1)
+|
+|2019-06-28
+| -
+|
+|-
+|[[file:Bee.png|80px|link=Bee]]
+|[[Bee]]
+|[[File:wind.png|30x30px]]
+|Alchemist
+|0.5% x CL
+|Defeat Gods
+|1(1)
+|[[Bee#Token Upgrade|Yes]]
+|2019-06-28
+| -
+|
+|-
+|[[file:Cupid.png|80px|link=Cupid]]
+|[[Cupid]]
+|[[File:wind.png|30x30px]]
+|Adventurer/Wildcard
+|0.5% x CL
+|Defeat Gods
+|1(2)
+|[[Cupid#Token Upgrade|Yes]]
+|2017-02-14
+| -
+|
+|-
+|[[file:Egg.png|80px|link=Egg/Chicken]]
+|[[Egg/Chicken]]
+|[[File:wind.png|30x30px]]
+|Assassin
+|0.5% x CL
+|Defeat Gods
+|1(1)
+|
+|2018-09-29
+| -
+|
+|-
+|[[file:Armadillo.png|80px|link=Armadillo]]
+|[[Armadillo]]
+|[[File:earth.png|30x30px]]
+|Defender
+|0.5% x CL
+|Defeat Gods
+|1(2)
+|
+|2020-08-13
+| -
+|
+|-
+|[[file:Squirrel.png|80px|link=Squirrel]]
+|[[Squirrel]]
+|[[File:fire.png|30x30px]]
+|Rogue
+|0.5% x CL
+|Defeat Gods
+|1(1)
+|[[Squirrel#Token Upgrade|Yes]]
+|2016-03-12
+| -
+|
+|-
+|[[file:Rabbit.png|80px|link=Rabbit]]
+|[[Rabbit]]
+|[[File:earth.png|30x30px]]
+|Mage
+|0.51% x CL
+|Defeat P.Baal 5
+|1(2)
+|[[Rabbit#Token Upgrade|Yes]]
+|2016-03-10
+| -
+|
+|-
+|[[file:Cat.png|80px|link=Cat]]
+|[[Cat]]
+|[[File:neutral.png|30x30px]]
+|Assassin
+|0.51% x CL
+|Defeat P.Baal 10
+|1(1)
+|[[Cat#Token Upgrade|Yes]]
+|2016-03-10
+| -
+|
+|-
+|[[file:Dog.png|80px|link=Dog]]
+|[[Dog]]
+|[[File:neutral.png|30x30px]]
+|Defender
+|0.53% x CL
+|Defeat P.Baal 15
+|2(2)
+|
+|2016-03-10
+| -
+|
+|-
+|[[file:Fairy.png|80px|link=Fairy]]
+|[[Fairy]]
+|[[File:wind.png|30x30px]]
+|Supporter
+|0.55% x CL
+|Defeat P.Baal 20
+|2(3)
+||[[Fairy#Token Upgrade|Yes]]
+|2016-03-10
+| -
+|
+|-
+|[[file:Dragon.png|80px|link=Dragon]]
+|[[Dragon]]
+|[[File:fire.png|30x30px]]
+|Mage
+|0.57% x CL
+|Defeat P.Baal 25
+|2(2)
+|
+|2016-03-10
+| -
+|
+|-
+|[[file:Snake.png|80px|link=Snake]]
+|[[Snake]]
+|[[File:water.png|30x30px|30x30px]]
+|Alchemist
+|0.6% x CL
+|Defeat P.Baal 30
+|3(5)
+|
+|2017-03-31
+| -
+|
+|-
+|[[file:Shark.png|80px|link=Shark]]
+|[[Shark]]
+|[[File:water.png|30x30px|30x30px]]
+|Assassin/Adventurer
+|0.6% x CL
+|Defeat P.Baal 35
+|3(4-5)
+|
+|2017-03-31
+| -
+|
+|-
+|[[file:Octopus.png|80px|link=Octopus]]
+|[[Octopus]]
+|[[File:water.png|30x30px|30x30px]]
+|Blacksmith
+|0.65% x CL
+|Defeat P.Baal 40
+|3(3)
+|[[Octopus#Token Upgrade|Yes]]
+|2017-03-31
+| -
+|
+|-
+|[[file:Valkyrie.png|80px|link=Valkyrie]]
+|[[Valkyrie]]
+|[[File:wind.png|30x30px]]
+|Defender
+|0.61% x CL
+|Defeat P.Baal 45
+|3(5)
+|
+|2019-10-27
+| -
+|
+|-
+|[[file:Slime.png|80px|link=Slime]]
+|[[Slime]]
+|[[File:water.png|30x30px|30x30px]]
+|Mage
+|0.62% x CL
+|Defeat P.Baal 50
+|3(4-5)
+|
+|2017-03-31
+| -
+|
+|-
+|[[file:Whale.png|80px|link=Whale]]
+|[[Whale]]
+|[[File:water.png|30x30px|30x30px]]
+|Defender
+|0.65% x CL
+|Defeat P.Baal 55
+|3(4)
+|
+|2018-09-29
+| -
+|
+|-
+|[[file:Hydra.png|80px|link=Hydra]]
+|[[Hydra]]
+|[[File:water.png|30x30px|30x30px]]
+|Adventurer
+|0.7% x CL
+|Defeat P.Baal 60
+|3(4)
+|
+|2018-09-29
+| -
+|
+|-
+|[[file:Pandora's box.png|80px|link=Pandora's Box]]
+|[[Pandora's Box]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|0.9% x CL<sup>1</sup>
+|Defeat P.Baal 66
+|4(6)
+|
+|2018-09-29
+|Extra Camp Buff
+|
+|-
+|[[file:Lucky Coin.png|80px|link=Lucky Coin]]
+|[[Lucky Coin]]
+|[[File:earth.png|30x30px]]
+|Assassin/Rogue
+|1.5% x CL<sup>2</sup>
+|Defeat P.Baal 77
+|5(7)
+|[[Lucky Coin#Token Improve|Yes]]
+|2019-10-27
+|Bonus Damage
+|
+|-
+|[[file:Balrog.png|80px|link=Balrog]]
+|[[Balrog]]
+|[[File:fire.png|30x30px]]
+|Mage/Wildcard
+|1.4% x CL
+|Defeat P.Baal 88
+|5(7)
+|
+|2020-08-13
+|Bonus Health
+|
+|-
+|[[file:Gray.png|80px|link=Gray]]
+|[[Gray]]
+|[[File:neutral.png|30x30px]]
+|Special
+|<sup>3</sup>New Pets
+|Defeat P.Baal 100
+|6(9)
+|[[Gray#Token Upgrade|Yes]]
+|2021-06-07
+|Children
+|Feythe
+|-
+|[[File:Ant_Queen.png|80px|link=Ant Queen]]
+|[[Ant Queen]]
+|[[File:fire.png|30x30px]]
+|Adventurer
+|2% x CL
+|Defeat P.Baal v125
+|6(9)
+|
+|2025-02-24
+|Uncap GP Camp Limit, increases ant gain
+|
+|-
+|[[File:Crocodile.png|80px|link=Crocodile]]
+|[[Crocodile]]
+|[[File:earth.png|30x30px]]
+|Rogue
+|2% x CL
+|Defeat P.Baal v150
+|7(9)
+|
+|2025-02-24
+|Stunning attacks
+|
+|-
+|[[File:Big_Burger.png|80px|link=Big Burger]]
+|[[Big Burger]]
+|[[File:water.png|30x30px]]
+|Adventurer
+|2% x CL
+|Defeat P.Baal v175
+|6(8)
+|
+|2025-12-31
+|Food Camp Conversion
+|
+|-
+|[[File:Oni.png|80px|link=Oni]]
+|[[Oni]]
+|[[File:fire.png|30x30px]]
+|Adventurer
+|2% x CL
+|Defeat P.Baal v200
+|8(15)
+|
+|2025-12-31
+|P.Baal Weakening
+|
+|-
+|[[file:Bug.png|80px|link=Bug]]
+|[[Bug]]
+|[[File:fire.png|30x30px]]
+|Adventurer/Wildcard
+|0.5% x CL
+|Special Task
+|1(1)
+|
+|2021-01-21
+| -
+|
+|-
+|[[file:Mole.png|80px|link=Mole]]
+|[[Mole]]
+|[[File:earth.png|30x30px]]
+|Adventurer/Wildcard
+|0.5% x CL
+|Special Task
+|1(2)
+|
+|2017-03-31
+| -
+|
+|-
+|[[file:Camel.png|80px|link=Camel]]
+|[[Camel]]
+|[[File:fire.png|30x30px]]
+|Adventurer/Wildcard
+|0.51% x CL
+|Special Task
+|1(1)
+|
+|2017-03-31
+| -
+|
+|-
+|[[file:Goat.png|80px|link=Goat]]
+|[[Goat]]
+|[[File:earth.png|30x30px]]
+|Rogue/Adventurer
+|0.58% x CL
+|Special Task
+|2(4)
+|
+|2017-03-31
+| -
+|
+|-
+|[[file:Ape.png|80px|link=Ape]]
+|[[Ape]]
+|[[File:fire.png|30x30px]]
+|Assassin/Adventurer
+|0.65% x CL
+|Special Task
+|3(6)
+|[[Ape#Token Upgrade|Yes]]
+|2018-09-29
+| -
+|
+|-
+|[[file:Flying cloud.png|80px|link=Flying Cloud]]
+|[[Flying Cloud]]
+|[[File:wind.png|30x30px]]
+|Adventurer/Supporter
+|0.75% x CL
+|Special Task
+|4(5)
+|
+|2018-09-29
+| -
+|
+|-
+|[[file:Holy ITRTG Book.png|80px|link=Holy ITRTG Book]]
+|[[Holy ITRTG Book]]
+|[[File:fire.png|30x30px]]
+|<sup>4</sup>All Classes
+|0.4% x CL
+|Special Task
+|5(6)
+|[[Holy ITRTG Book#Token Upgrade|Yes]]
+|2018-09-29
+|Crit Immunity and Class Change
+|
+|-
+|[[file:God Power.png|80px|link=God Power (Pet)]]
+|[[God Power (Pet)]]
+|[[File:fire.png|30x30px]]
+|Adventurer/Wildcard
+|0.53% x CL
+|Special Task
+|1(2)
+|[[God Power (Pet)#Token Upgrade|Yes]]
+|2020-10-23
+|Receive Some GP when Fed
+|
+|-
+|[[file:Turtle.png|80px|link=Turtle]]
+|[[Turtle]]
+|[[File:earth.png|30x30px]]
+|Defender
+|0.6% x CL
+|Special Task
+|3(9)
+|
+|2016-03-17
+| -
+|
+|-
+|[[file:Afky clone.png|80px|link=Afky Clone]]
+|[[Afky Clone]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|0.6% x CL
+|Special Task
+|3(6)
+|[[Afky Clone#Token Upgrade|Yes]]
+|2018-04-01
+| -
+|
+|-
+|[[file:Stone.png|80px|link=Stone/Golem]]
+|[[Stone/Golem]]
+|[[File:earth.png|30x30px]]
+|Adventurer
+|100% All campaigns (CL doesn't matter)
+|Special Task
+|4(4)
+|
+|2018-02-14
+| -
+|
+|-
+|[[file:Chameleon.png|80px|link=Chameleon]]
+|[[Chameleon]]
+|All
+|Dungeon Wildcard
+|<sup>5</sup>All Elements
+|Special Task
+|3(3)
+|
+|2019-02-12
+|Freely Change it's Element
+|
+|-
+|[[file:Undine.png|80px|link=Undine]]
+|[[Undine]]
+|[[File:water.png|30x30px|30x30px]]
+|Rogue
+|1.5% x CL
+|Special Task
+|5(4-7)
+|
+|2019-04-01
+|AoE Damage
+|
+|-
+|[[file:Gnome.png|80px|link=Gnome]]
+|[[Gnome]]
+|[[File:earth.png|30x30px]]
+|Defender
+|1.5% x CL
+|Special Task
+|5(4-7)
+|
+|2021-07-29
+|AoE Party Shield
+|Nonomo
+|-
+|[[File:Salamander.png|80px|link=Salamander]]
+|[[Salamander]]
+|[[File:fire.png|30x30px]]
+|Supporter
+|1.5% x CL
+|Special Task
+|5(4-7)
+|
+|2022-01-16
+|AoE Heals Every Turn
+|ElChorizo
+|-
+|[[File:Sylph.png|80px|link=Sylph]]
+|[[Sylph]]
+|[[File:wind.png|30x30px]]
+|Mage
+|1.5% x CL
+|Special Task
+|5(4-7)
+|
+|2022-02-27
+|Extra Attacks
+|Malfat
+|-
+|[[file:Aether.png|80px|link=Aether]]
+|[[Aether]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|1.5% x CL
+|Special Task
+|5(4-7)
+|
+|2021-07-29
+| Special Boss Fight Improves 
+|Nooby
+|-
+|[[file:Anteater.png|80px|link=Anteater]]
+|[[Anteater]]
+|[[File:earth.png|30x30px]]
+|Blacksmith
+|0.7% x CL
+|Special Task
+|3(5)
+|
+|2019-06-28
+|Crafting Improves with Number of Ants owned
+|
+|-
+|[[file:Gold Dragon.png|70px|link=Gold Dragon]]
+|[[Gold Dragon]]
+|[[File:neutral.png|30x30px]]
+|Alchemist
+|0.65% x CL
+|Special Task
+|3(3)
+|
+|2018-08-06
+|Distributes 25% of its Feeding Growth to All Pets
+|
+|-
+|[[file:Living Draw.png|80px|link=Living Draw]]
+|[[Living Draw]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|0.8% x CL
+|Special Task
+|4(6)
+|[[Living Draw#Token Upgrade|Yes]]
+|2020-10-02
+| -
+|
+|-
+|[[file:Black Hole Chan.png|80px|link=Black Hole Chan]]
+|[[Black Hole Chan]]
+|[[File:neutral.png|30x30px]]
+|Mage/Adventurer
+|1.17% x CL<sup>6</sup>
+|Special Task
+|5(7)
+|
+|2020-02-01
+|Scales with UBv4 Points
+|
+|-
+|[[file:Treasure.png|80px|link=Treasure/Mimic]]
+|[[Treasure/Mimic]]
+|[[File:neutral.png|30x30px]]
+|Assassin
+|1.25% x CL
+|Special Task
+|5(8)
+|
+|2020-08-13
+|Bonus Exp received by RTI Pets
+|
+|-
+|[[file:Seed.png|80px|link=Seed/Yggdrasil]]
+|[[Seed/Yggdrasil]]
+|[[File:earth.png|30x30px]]
+|Adventurer
+|1.7% x CL
+|Special Task
+|6(9)
+|
+|2020-08-03
+| -
+|
+|-
+|[[file:Rudolph.png|80px|link=Rudolph]]
+|[[Rudolph]]
+|[[File:wind.png|30x30px]]
+|Rogue
+|0.55% x CL
+|Pet Token
+|3(4)
+|
+|2017-12-21
+| -
+|
+|-
+|[[file:Santa.png|80px|link=Santa]]
+|[[Santa]]
+|[[File:fire.png|30x30px]]
+|Supporter
+|0.7% x CL
+|Pet Token
+|3(5)
+|
+|2019-12-20
+|Trade Nothings for Choco
+|
+|-
+|[[file:Elf.png|80px|link=Elf]]
+|[[Elf]]
+|[[File:wind.png|30x30px]]
+|Blacksmith
+|0.9% x CL
+|Pet Token
+|5(8)
+|
+|2020-12-18
+|Bonus to Crafting. Scales with Tier3/4 Gear
+|
+|-
+|[[file:Pumpkin.png|80px|link=Pumpkin]]
+|[[Pumpkin]]
+|[[File:fire.png|30x30px]]
+|Adventurer
+|<sup>7</sup>Chocolate
+|Pet Token
+|2(4)
+|[[Pumpkin#Token Upgrade|Yes]]
+|2017-10-16
+|Finds Choco in Food Campaigns
+|
+|-
+|[[file:Ghost.png|80px|link=Ghost]]
+|[[Ghost]]
+|[[File:neutral.png|30x30px]]
+|Rogue
+|0.65% x CL
+|Pet Token
+|3(3)
+|
+|2018-10-22
+|Debuff Enemies Attack and Defense
+|
+|-
+|[[file:Nightmare.png|80px|link=Nightmare]]
+|[[Nightmare]]
+|[[File:fire.png|30x30px]]
+|Adventurer
+|0.9% x CL
+|Pet Token
+|5(6)
+|
+|2019-10-27
+|Uncap GP Camp Limit
+|
+|-
+|[[file:Question.png|80px|link=Question]]
+|[[Question]]
+|[[File:neutral.png|30x30px]]
+|Alchemist
+|0.51% x CL
+|Pet Token
+|1(1)
+|
+|2019-01-07
+| -
+|
+|-
+|[[file:Chocobear.png|70px|link=Chocobear]]
+|[[Chocobear]]
+|[[File:earth.png|30x30px]]
+|Adventurer
+|0.56% x CL
+|Pet Token
+|2(3)
+|[[Chocobear#Token Upgrade|Yes]]
+|2019-02-12
+|Campaign Bonus when Fed Choco
+|
+|-
+|[[file:Rose.png|80px|link=Rose]]
+|[[Rose]]
+|[[File:earth.png|30x30px]]
+|Alchemist
+|0.75% x CL
+|Pet Token
+|4(4)
+|
+|2021-02-10
+|Increased Enchanting Speed
+|
+|-
+|[[file:Doughnut.png|80px|link=Doughnut]]
+|[[Doughnut]]
+|[[File:earth.png|30x30px]]
+|Adventurer/Wildcard<sup>8</sup>
+|<sup>8</sup>Mighty food
+|Pet Token
+|2(2)
+|[[Doughnut#Token Upgrade|Yes]]
+|2016-03-10
+|Cheaper Mighty Food
+|
+|-
+|[[file:Eagle.png|80px|link=Eagle]]
+|[[Eagle]]
+|[[File:wind.png|30x30px]]
+|Adventurer
+|0.52% x CL
+|Pet Token
+|1(2)
+|
+|2016-03-10
+| -
+|
+|-
+|[[file:Penguin.png|80px|link=Penguin]]
+|[[Penguin]]
+|[[File:water.png|30x30px|30x30px]]
+|Assassin
+|0.53% x CL
+|[[Milestones]] or Pet Token
+|2(3)
+|
+|2016-03-17
+| -
+|
+|-
+|[[file:Hermit crab.png|80px|link=Hermit Crab]]
+|[[Hermit Crab]]
+|[[File:water.png|30x30px|30x30px]]
+|Blacksmith
+|0.51% x CL
+|[[Milestones]] or Pet Token
+|1(2)
+|
+|2018-09-29
+| -
+|
+|-
+|[[file:Hedgehog.png|80px|link=Hedgehog]]
+|[[Hedgehog]]
+|[[File:fire.png|30x30px]]
+|Adventurer
+|0.58% x CL
+|Pet Token
+|2(2)
+|[[Hedgehog#Token Upgrade|Yes]]
+|2018-09-29
+| -
+|
+|-
+|[[file:Phoenix.png|80px|link=Phoenix]]
+|[[Phoenix]]
+|[[File:fire.png|30x30px]]
+|Alchemist
+|0.6% x CL
+|Pet Token
+|3(4-5)
+|
+|2016-03-10
+| -
+|
+|-
+|[[file:Wizard.png|80px|link=Wizard]]
+|[[Wizard]]
+|[[File:wind.png|30x30px]]
+|Mage/wildcard
+|0.63% x CL
+|[[Milestones]] or Pet Token
+|3(4)
+|
+|2017-03-31
+|Debuffs the Balrog Boss
+|
+|-
+|[[file:Pegasus.png|80px|link=Pegasus]]
+|[[Pegasus]]
+|[[File:wind.png|30x30px]]
+|Blacksmith
+|0.7% x CL
+|Pet Token
+|3(4)
+|
+|2017-03-31
+| -
+|
+|-
+|[[file:Panda.png|80px|link=Panda]]
+|[[Panda]]
+|[[File:earth.png|30x30px]]
+|Supporter
+|0.67% x CL
+|Pet Token
+|3(3)
+|
+|2018-09-29
+| -
+|
+|-
+|[[file:Ufo.png|80px|link=UFO]]
+|[[UFO]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|0.7% x CL
+|Pet Token
+|3(4)
+|
+|2017-03-31
+| -
+|
+|-
+|[[file:Robot.png|80px|link=Robot]]
+|[[Robot]]
+|[[File:neutral.png|30x30px]]
+|Blacksmith/Adventurer
+|0.75% x CL
+|Pet Token
+|4(5-6)
+|[[Robot#Token Upgrade|Yes]]
+|2017-03-31
+|T4 Gear Crafting Bonus
+|
+|-
+|[[file:Otter.png|80px|link=Otter]]
+|[[Otter]]
+|[[File:water.png|30x30px|30x30px]]
+|Adventurer
+|0.8% x CL
+|Pet Token
+|4(5)
+|
+|2019-10-27
+|Receive Some Dungeon Materials when Fed
+|
+|-
+|[[file:FSM.png|80px|link=FSM]]
+|[[FSM]]
+|[[File:wind.png|30x30px]]
+|Adventurer
+|0.85% x CL
+|Pet Token
+|4(4)
+|
+|2018-09-29
+|DivGen Boost
+|
+|-
+|[[file:Elephant.png|80px|link=Elephant]]
+|[[Elephant]]
+|[[File:fire.png|30x30px]]
+|Defender
+|0.8% x CL
+|Pet Token
+|4(4)
+|
+|2019-06-28
+|Retaliatory Burn Damage
+|
+|-
+|[[file:Vaccina.png|80px|link=Vaccina]]
+|[[Vaccina]]
+|[[File:earth.png|30x30px]]
+|Alchemist
+|0.65% x CL
+|Pet Token
+|3(5)
+|
+|2020-03-21
+|Can Craft Vaccines
+|
+|-
+|[[file:Corona.png|80px|link=Corona]]
+|[[Corona]]
+|[[File:wind.png|30x30px]]
+|Adventurer/Wildcard
+|0.7% x CL
+|Special Task
+|3(4)
+|[[Corona#Token Upgrade|Yes]]
+|2020-03-21
+|Causes Pet illness
+|
+|-
+|[[file:Firefox.png|80px|link=Firefox]]
+|[[Firefox]]
+|[[File:fire.png|30x30px]]
+|Blacksmith
+|0.75% x CL
+|Pet Token
+|4(4)
+|
+|2020-04-08
+|Buffs Fire Element
+|
+|-
+|[[file:Beachball.png|80px|link=Beachball]]
+|[[Beachball]]
+|[[File:water.png|30x30px|30x30px]]
+|Adventurer
+|0.67% x CL
+|Pet Token
+|3(6)
+|
+|2020-06-22
+|Campaign Bonus Scales with Pet Stones
+|
+|-
+|[[file:Tanuki.png|80px|link=Tanuki]]
+|[[Tanuki]]
+|[[File:neutral.png|30x30px]]
+|Supporter
+|0.68% x CL
+|Pet Token
+|3(3)
+|
+|2020-08-03
+| -
+|
+|-
+|[[file:Seal.png|80px|link=Seal]]
+|[[Seal]]
+|[[File:water.png|30x30px|30x30px]]
+|Alchemist
+|0.64% x CL
+|Pet Token
+|3(3)
+|
+|2020-08-13
+| -
+|
+|-
+|[[file:Raven.png|80px|link=Raven]]
+|[[Raven]]
+|[[File:wind.png|30x30px]]
+|Rogue
+|0.67% x CL
+|Pet Token
+|3(4)
+|
+|2020-08-13
+| -
+|
+|-
+|[[file:Hourglass.png|80px|link=Hourglass]]
+|[[Hourglass]]
+|[[File:wind.png|30x30px]]
+|Supporter
+|1.0% x CL
+|Pet Token
+|5(8)
+|
+|2021-01-02
+|Speed Buff to Party and Debuffs Enemies
+|Nonomo
+|-
+|[[file:Archer.png|80px|link=Archer]]
+|[[Archer]]
+|[[File:neutral.png|30x30px]]
+|Assassin
+|1.2% x CL
+|Pet Token
+|5(7)
+|
+|2021-01-30
+|Attack Twice in Dungeons if Using a Bow
+|Rykker Bow
+|-
+|[[file:Thunder Ball.png|80px|link=Thunder Ball/Raiju]]
+|[[Thunder Ball/Raiju]]
+|[[File:wind.png|30x30px]]
+|Adventurer
+|1.3% x CL
+|Pet Token
+|5(6)
+|
+|2020-08-13
+| -
+|
+|-
+|[[file:Bottle.png|80px|link=Bottle]]
+|[[Bottle]]
+|[[File:fire.png|30x30px]]
+|Alchemist
+|0.9% x CL
+|Pet Token
+|5(5)
+|
+|2021-03-06
+|Chance to Craft Alchemy Items for Free
+|Amel
+|-
+|[[file:Bag.png|80px|link=Bag]]
+|[[Bag]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|1.0% x CL
+|Pet Token
+|5(7)
+|[[Bag#Token Upgrade|Yes]]
+|2021-03-06
+|Gives Portion of Growth Campaign to Weakest Pet
+|Doobag
+|-
+|[[file:Mysterious Egg.png|80px|link=Mysterious Egg]]
+|[[Mysterious Egg]]
+|[[File:fire.png|30x30px]]
+|Defender
+|1.5% x CL
+|Pet Token
+|6(6)
+|
+|2021-03-06
+|Bonus Clone Pet Training Exp
+|Wabi
+|-
+|[[file:Succubus.png|80px|link=Succubus]]
+|[[Succubus]]
+|[[File:fire.png|30x30px]]
+|Assassin
+|1.0% x CL
+|Pet Token
+|5(5)
+|
+|2021-06-07
+|HP Leech and Always Receives Growth Camp Gains
+|Kentorax
+|-
+|[[file:Clam.png|80px|link=Clam]]
+|[[Clam]]
+|[[File:water.png|30x30px|30x30px]]
+|Rogue
+|0.6% x CL
+|Pet Token
+|3(3)
+|
+|2021-07-29
+|Double GP from Dungeon Events
+|ElChorizo
+|-
+|[[file:Earth Eater.png|80px|link=Earth Eater]]
+|[[Earth Eater]]
+|[[File:earth.png|30x30px]]
+|Adventurer
+|1.32% x CL
+|Pet Token
+|5(8)
+|[[Earth Eater#Token Upgrade|Yes]]
+|2021-07-29
+|Buffable Campaign Bonus
+|NotFromEarth
+|-
+|[[file:Portal.png|80px|link=Portal]]
+|[[Portal]]
+|[[File:wind.png|30x30px]]
+|Adventurer
+|1.0% x CL
+|Pet Token
+|5(7)
+|
+|2021-08-14
+|DivGen ratios and Div GP buy
+|Rykker Bow
+|-
+|[[file:Cardboardbox.png|80px|link=Cardboardbox]]
+|[[Cardboardbox]]
+|[[File:wind.png|30x30px]]
+|Rogue
+|0.9% x CL
+|Pet Token
+|5(7)
+|
+|2021-08-14
+|Dungeon Event Reward Bonus/Nerf
+|Risestorm
+|-
+|[[file:Unicorn.png|80px|link=Unicorn]]
+|[[Unicorn]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|1.2% x CL
+|Pet Token
+|5(7)
+|
+|2021-08-14
+|Crystal Power Bonus
+|Red / Sim
+|-
+|[[file:Stale Tortilla.png|80px|link=Stale Tortilla]]
+|[[Stale Tortilla/Taco]]
+|[[File:neutral.png|30x30px]]
+|Alchemist
+|0.8% x CL
+|Pet Token
+|4(4)
+|
+|2021-10-08
+|Dungeon Alchemist with Buffs
+|Brad
+|-
+|[[File:Witch.png|80px|link=Witch]]
+|[[Witch]]
+|[[File:water.png|30x30px|30x30px]]
+|Mage
+|1.25% x CL
+|Pet Token
+|5(7)
+|
+|2021-10-27
+|Buffs Water Element
+|
+|-
+|[[File:Sloth.png|80px|link=Sloth]]
+|[[Sloth]]
+|[[File:earth.png|30x30px]]
+|Adventurer
+|1.25% x CL
+|Pet Token
+|5(8)
+|
+|2021-11-18
+| Longer camps  more buff
+|Doobag
+|-
+|[[File:Cocoa.png|80px|link=Cocoa]]
+|[[Cocoa]]
+|[[File:neutral.png|30x30px]]
+|Alchemist
+|0.55% x CL
+|Pet Token
+|2(4)
+|
+|2022-01-16
+|Craft Chocolate
+|Jenks / Sim
+|-
+|[[File:Wolf.png|80px|link=Wolf]]
+|[[Wolf]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|1.0% x CL
+|Special Task
+|5(6)
+|
+|2022-01-16
+| -
+|Kentorax
+|-
+|[[file:Vesuvius.png|80px|link=Vesuvius]]
+|[[Vesuvius]]
+|[[File:fire.png|30x30px]]
+|Mage
+|0.78% x CL
+|Pet Token
+|4(6)
+|
+|2022-02-13
+|Gives Portion of Growth from Dungeons to Weakest Pet
+|NotFromEarth
+|-
+|[[File:Swan.png|80px|link=Swan]]
+|[[Swan]]
+|[[File:water.png|30x30px|30x30px]]
+|Village (Fisher)
+|0.2% x CL
+|Pet Token
+|2(4)
+|
+|2022-02-13
+|Auto Fishing Speed Increase
+|
+|-
+|[[File:void.png|80px|link=Void]]
+|[[Void]]
+|[[File:neutral.png|30x30px]]
+|Alchemist
+|0.85% x CL
+|Pet Token
+|4(6)
+|
+|2022-03-15
+|Faster at Crafting Nothings
+|Dymski
+|-
+|[[File:pignata.png|80px|link=pignata]]
+|[[Pignata]]
+|[[File:earth.png|30x30px]]
+|Wildcard
+|<sup>9</sup>Rebirth Bacon
+|Pet Token
+|3(3)
+|
+|2022-04-16
+|RebirthBacon Generation
+|Kimihiro64
+|-
+|[[File:Baby Carno.png|80px|link=Baby Carno]]
+|[[Baby Carno]]
+|[[File:neutral.png|30x30px]]
+|Assassin
+|2% x CL
+|Secret
+|7(5)
+|[[Baby Carno#Token Upgrade|Yes]]
+|2022-05-31
+|Growth from Food Camp
+|Xzait
+|-
+|[[File:Lizard.png|80px|link=Lizard]]
+|[[Lizard|Lizard/Zookeeper]]
+|[[File:water.png|30x30px|30x30px]]
+|Adventurer
+|0.9% x CL
+|Pet Token
+|5(5)
+|
+|2022-07-07
+|Gives Growth in Food Camp
+|Rebels
+|-
+|[[File:Meteor.png|80px|link=Meteor]]
+|[[Meteor]]
+|[[File:fire.png|30x30px]]
+|Adventurer
+|0.85% x CL
+|Special Task
+|4(5)
+|
+|2022-09-11
+| Camp buff from time in camps
+|Nooby
+|-
+|[[File:Sphinx.png|80px|link=Sphinx]]
+|[[Sphinx]]
+|[[File:earth.png|30x30px]]
+|Adventurer
+|0.67% x CL
+|Special Task
+|3(5)
+|[[Sphinx#Token Upgrade|Yes]]
+|2022-09-11
+|Small Increase to Dungeon XP
+|Kurik
+|-
+|[[File:Alien.png|80px|link=Alien]]
+|[[Alien]]
+|[[File:water.png|30x30px|30x30px]]
+|Assassin
+|0.85% x CL
+|Pet Token
+|4(4)
+|
+|2022-10-05
+|Increases the rate of Dungeon Events
+|NotFromEarth
+|-
+|[[File:Bat.png|80px|link=Bat]]
+|[[Bat]]
+|[[File:neutral.png|30x30px]]
+|Blacksmith
+|1.0% x CL
+|Pet Token
+|5(7)
+|
+|2022-10-26
+| 40% More Class exp for Self
+|
+|-
+|[[File:Flying Eyeball.png|80px|link=Flying Eyeball]]
+|[[Flying Eyeball]]
+|[[File:wind.png|30x30px]]
+|Adventurer
+|0.85% x CL
+|Pet Token
+|4(7)
+|
+|2022-10-26
+|Dungeon Adventurer
+|Nonomo
+|-
+|[[File:Leviathan.png|center|frameless|80px|link=Leviathan]]
+|[[Leviathan]]
+|[[File:water.png|30x30px|30x30px]]
+|Defender
+|2% x CL
+|[[Milestones]]
+|7(12)
+|
+|2023-02-05
+|Counterattack
+|
+|-
+|[[File:Young Basilisk.png|center|frameless|80px|link=Basilisk]]
+|[[Basilisk]]
+|[[File:earth.png|30x30px]]
+|Mage
+|1.5% x CL
+|Special Task
+|1(9)
+|
+|2023-02-05
+|AoE Element Debuff
+|Nonomo
+|-
+|[[File:Cherub.png|center|80px|link=Cherub]]
+|[[Cherub]]
+|[[File:wind.png|30x30px]]
+|Defender
+|2% x CL
+|Pet Token
+|6(10)
+|
+|2023-02-11
+|Stunning attacks, reduces speed damage
+|-
+|[[File:Tödlicher Löffel.png|frameless|80x80px]]
+|[[Tödlicher Löffel]]
+|[[File:neutral.png|30x30px]]
+|Mage
+|1.19% x CL
+|Pet Token
+|5(6)
+|
+|2023-03-20
+|Defense debuff, counts as all elements except Neutral for Events
+|Xzait
+|-
+|[[File:Goblin.png|center|80px|link=Goblin]]
+|[[Goblin]]
+|[[File:earth.png|30x30px]]
+|Adventurer
+|0.1% x CL
+|Pet Token
+|1(4)
+|
+|2023-03-28
+|
+|Kurik
+|-
+|[[File:Koi.png|center|80px|link=Koi]]
+|[[Koi]]
+|[[File:water.png|30x30px|30x30px]]
+|Village (Fish Seller)
+|0.2% x CL
+|Pet Token
+|3(6)
+|
+|2023-03-28
+|Fish seller speed
+|Kaly
+|-
+|[[File:Decorator Crab.png|center|80px|link=Decorator Crab]]
+|[[Decorator Crab]]
+|[[File:water.png|30x30px|30x30px]]
+|Adventurer
+|1.75% x CL
+|Pet Token
+|6(8)
+|
+|2023-03-28
+|Extra items from item camp
+|ElChorizo
+|-
+|[[File:Dwarf.png|center|80px|link=Dwarf]]
+|[[Dwarf]]
+|[[File:fire.png|30x30px]]
+|Blacksmith
+|0.9% x CL
+|Pet Token
+|5(10)
+|
+|2023-03-31
+|Donate Gems Better crafter
+|Brad
+|-
+|[[File:Caterpillar.png|center|80px|link=Caterpillar]]
+|[[Caterpillar]]
+|[[File:wind.png|30x30px]]
+|Alchemist
+|0.55% x CL
+|Pet Token
+|2(2)
+|
+|2023-03-31
+|Faster material upgrade
+|Brad
+|-
+|[[File:Bunny Girl.png|center|80px|link=Bunny Girl]]
+|[[Bunny Girl]]
+|[[File:neutral.png|30x30px]]
+|Alchemist
+|1.17% x CL
+|Pet Token
+|5(7)
+|
+|2023-04-07
+|Bonus speed crafting talisman/T3 Bars
+|
+|-
+|[[File:Elemental.png|frameless|100x100px]]
+|[[Elemental (Pet)|Elemental]]
+|[[File:neutral.png|30x30px]]
+|Blacksmith
+|2% x CL
+|[[Tavern]] rank SSS quest
+|6(10)
+|
+|2023-05-12
+|Increases dungeon team elements and boosts own damage
+|
+|-
+|[[File:Mist Sphere.png|center|80px|link=Mist Sphere]]
+|[[Mist Sphere]]
+|[[File:water.png|30x30px|30x30px]]
+|Supporter
+|0.9% x CL
+|Pet Token
+|5(6)
+|
+|2023-06-07
+|Shields pets it heals
+|Elliwood
+|-
+|[[File:Shadow Clone.png|center|80px|link=Shadow Clone]]
+|[[Shadow Clone]]
+|[[File:fire.png|30x30px]]
+|Adventurer
+|Shadow clones creating<sup>10</sup>
+|Pet Token
+|4(5)
+|
+|2023-07-28
+|Can create shadow clones
+|Kaly
+|-
+|[[File:Sniper.png|center|80px|link=Sniper]]
+|[[Sniper]]
+|[[File:wind.png|30x30px]]
+|Assassin
+|2% x CL
+|Pet Token
+|6(10)
+|
+|2023-07-28
+|Attacks only once per turn, high damage output
+|Nonomo
+|-
+|[[File:White Tiger.png|80px|link=White Tiger]]
+|[[White Tiger]]
+|[[File:wind.png|30x30px]]
+|Assassin
+|1.0% x CL
+|Special
+|5(5)
+|Yes
+|2023-09-06
+|
+|Rebels
+|-
+|[[File:Black Tortoise.png|80px|link=Black Tortoise]]
+|[[Black Tortoise]]
+|[[File:water.png|30x30px|30x30px]]
+|Defender
+|1.0% x CL
+|Special
+|5(5)
+|Yes
+|2023-09-06
+|
+|Kurik
+|-
+|[[File:Azure Dragon.png|80px|link=Azure Dragon]]
+|[[Azure Dragon]]
+|[[File:earth.png|30x30px]]
+|Supporter
+|1.0% x CL
+|Special
+|5(5)
+|[[Azure Dragon#Token Upgrade|Yes]]
+|2023-09-06
+|
+|PapA3
+|-
+|[[File:Vermilion Pheasant.png|80px|link=Vermilion Pheasant]]
+|[[Vermilion Pheasant]]
+|[[File:fire.png|30x30px]]
+|Rogue
+|1.0% x CL
+|Special
+|5(5)
+|Yes
+|2023-09-06
+|
+|Rebels
+|-
+|[[File:Tenko.png|80px|link=Tenko]]
+|[[Tenko]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|1.1% x CL
+|Pet Token
+|5(7)
+|
+|2023-09-06
+|
+|Qiarel
+|-
+|[[File:Vampire.png|80px|link=Vampire]]
+|[[Vampire]]
+|[[File:fire.png|30x30px]]
+|Alchemist
+|1.75% x CL<sup>11</sup>
+|Pet Token
+|6(6)
+|[[Vampire#Token Upgrade|Yes]]
+|2023-10-30
+|Crafting or Dungeon Alchemist
+|
+|-
+|[[File:Strategist.png|80px|link=Strategist]]
+|[[Strategist]]
+|[[File:neutral.png|30x30px]]
+|Rogue
+|1.33% x CL
+|[[Strategy Room]]<br> Level 11
+|7(9)
+|Yes
+|2023-12-22
+|Improves health of its dungeon team.
+|Nonomo
+|-
+|[[File:Mermaid.png|80px|link=Mermaid]]
+|[[Mermaid]]
+|[[File:water.png|30x30px|30x30px]]
+|Supporter
+|2% x CL
+|Pet Token
+|7(7)
+|
+|2024-01-13
+|Improves multiple stats of its dungeon team.
+|Myrielle
+|-
+|[[File:Monk.png|80px|link=Monk]]
+|[[Monk]]
+|[[File:neutral.png|30x30px]]
+|Village (Dojo)
+|0.25% x CL bonus exp in Dojo.
+|Pet Token
+|6(7)
+|
+|2024-04-13
+|Dojo Pet
+|Kurik
+|-
+|[[File:Honeybadger.png|80px|link=Honeybadger]]
+|[[Honeybadger]]
+|[[File:earth.png|30x30px]]
+|Assassin
+|2% x CL
+|Pet Token
+|7(11)
+|
+|2024-04-13
+|Immune to stun, doesn't need blacksmith for bonus damage
+|Kaly
+|-
+|[[File:Hamster.png|80px|link=Hamster]]
+|[[Hamster]]
+|[[File:earth.png|30x30px]]
+|Blacksmith
+|0.51% x CL
+|Special Task
+|1(1)
+|[[Hamster#Token Upgrade|Yes]]
+|2024-06-10
+|Crafts and Upgrades Earmuff Accessory
+|Nonomo
+|-
+|[[File:Pack_Mule.png|80px|link=Pack Mule]]
+|[[Pack Mule]]
+|[[File:neutral.png|30x30px]]
+|Village (Tavern)
+|0.2% x CL
+|Pet Token
+|3(3)
+|
+|2024-06-10
+|Increases rewards of quests it participates in
+|Elliwood
+|-
+|[[File:Anni Cake.png|80px|link=Anni Cake]]
+|[[Anni Cake]]
+|[[File:earth.png|30x30px]]
+|Adventurer
+|1.38% x CL
+|Pet Token
+|5(8)
+|
+|2024-10-10
+|Grants bonus pet stats for time in Food Camp
+|
+|-
+|[[File:Llysnafedda.png|80px|link=Llysnafedda]]
+|[[Llysnafedda]]
+|[[File:water.png|30x30px|30x30px]]
+|Tavern Wildcard
+|0.65% x CL
+|Pet Token
+|3(3)
+|
+|2024-11-01
+|Leveling Busy Pets
+|Elliwood
+|-
+|[[File:Serow.png|80px|link=Serow]]
+|[[Serow]]
+|[[File:wind.png|30x30px]]
+|Adventurer/Wildcard
+|0.65% x CL
+|Secret
+|3(4)
+|Yes
+|2024-11-01
+|Saving Dungeon Consumables
+|blarke
+|-
+|[[File:Aurelius.png|80px|link=Aurelius]]
+|[[Aurelius]]
+|[[File:neutral.png|30x30px]]
+|Alchemist
+|0.51% x CL
+|Special Task
+|1(2)
+|Yes
+|2024-12-31
+|Faster Elemental Crafting
+|Nick1wasd
+|-
+|[[File:Ancient_Mimic.png|80px|link=Ancient Mimic]]
+|[[Ancient Mimic]]
+|[[File:neutral.png|30x30px]]
+|Assassin
+|2% x CL
+|5000 ancient mimic points
+|8(15)
+|
+|2025-02-08
+|
+|
+|-
+|[[File:Student.png|80px|link=Student]]
+|[[Student (pet)|Student]]
+|[[File:earth.png|30x30px]]
+|Alchemist
+|2% x CL
+|Pet Token
+|7(10)
+|
+|2025-02-24
+|
+|Nonomo
+|-
+|[[File:Hwangeum_Pig.png|80px|link=Hwangeum Pig]]
+|[[Hwangeum Pig]]
+|[[File:earth.png|30x30px]]
+|Assassin
+|2% x CL
+|Pet Token
+|6(8)
+|
+|2025-02-24
+|Bonus damage, wind element bonus
+|shin
+|-
+|[[File:Lamb.png|80px|link=Lamb]]
+|[[Lamb]]
+|[[File:earth.png|30x30px]]
+|Village (Alchemy Hut)
+|0.5% x CL
+|Pet Token
+|2(3)
+|
+|2025-04-19
+|Bonus output in Alchemy Hut
+|
+|-
+|[[File:Duragizer.png|80px|link=Duragizer]]
+|[[Duragizer]]
+|[[File:Neutral.png|30x30px]]
+|Wildcard
+|
+|Have 10 Pets Unlocked
+|1(2)
+||[[Duragizer#Token Upgrade|Yes]]
+|2025-05-29
+|No Penalty EXP Drain
+|Kaly
+|-
+|[[File:Nugget.png|80px|link=Nugget]]
+|[[Nugget]]
+|[[File:Neutral.png|30x30px]]
+|All Classes
+|0.3% x CL
+|Defeat a D3-0 Boss
+|4(6)
+|
+|2025-09-09
+|Class Change
+|
+|-
+|[[File:Arachne.png|80px|link=Arachne]]
+|[[Arachne]]
+|[[File:Wind.png|30x30px]]
+|Assassin
+|1.75% x CL
+|Pet Token
+|6(8)
+|
+|2025-09-09
+|Poison Attacks
+|Nick1wasd
+|-
+|[[File:Simulacrum.png|80px|link=Simulacrum]]
+|[[Simulacrum]]
+|[[File:Wind.png|30x30px]]
+|Mage
+|2.0% x CL
+|Pet Token
+|6(9)
+|
+|2025-09-09
+|
+|shinrais
+|-
+|[[File:Pixie_Goatmother.png|80px|link=Pixie Goatmother]]
+|[[Pixie Goatmother]]
+|[[File:Wind.png|30x30px]]
+|Supporter
+|2.0% x CL
+|Pet Token
+|7(11)
+|
+|2025-10-12
+|Bonus Actions
+|blarke
+|-
+|[[File:Fainting_Capra.png|80px|link=Fainting Capra]]
+|[[Fainting Capra]]
+|[[File:Water.png|30x30px]]
+|Rogue
+|2.0% x CL
+|Pet Token
+|7(8)
+|
+|2025-10-12
+|Random DR and in-built knife effect
+|blarke
+|-
+|[[File:Wolpertinger.png|80px|link=Wolpertinger]]
+|[[Wolpertinger]]
+|[[File:Wind.png|30x30px]]
+|Alchemist
+|1.32% x CL
+|Pet Token
+|5(6)
+|
+|2025-10-12
+|Tavernkeep Bonuses
+|PApa3
+|-
+|[[File:Skeleton.png|80px|link=Skeleton]]
+|[[Skeleton]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|0.83% x CL
+|Pet Token
+|5(6)
+|
+|2025-10-30
+|Boosts Pumpkin Chocolate
+|
+|-
+|[[File:Bear.png|80px|link=Bear]]
+|[[Bear]]
+|[[File:Fire.png|30x30px]]
+|Adventurer
+|0.75% x CL
+|Give it 1000 Honey
+|4(6)
+|
+|2026-03-01
+|Campaign Bonus for Honey
+|
+|-
+|[[File:Dark_Gift.png|80px|link=Dark Gift]]
+|[[Dark Gift]]
+|[[File:Neutral.png|30x30px]]
+|Mage
+|2.2% x CL
+|Pet Token
+|7(9)
+|
+|2026-03-01
+|
+|blarke
+|-
+|[[File:Dorgegebelle.png|80px|link=Dorgegebelle]]
+|[[Dorgegebelle]]
+|[[File:Water.png|30x30px]]
+|Adventurer
+|1.7% x CL
+|Pet Token
+|6(7)
+|
+|2026-03-01
+|Bonus to Food, Starvation
+|Shin
+|-
+|[[File:Nothing_evo.png|80px|link=Nothing (Other)]]
+|[[Nothing (Other)]]
+|[[File:neutral.png|30x30px]]
+|<sup>4</sup>All Classes
+|0.5% x CL
+|Secret
+|1(3)
+|Yes
+|2020-10-23
+|Class Change
+|
+|-
+|[[File:Fool.png|80px|link=Fool]]
+|[[Fool]]
+|[[File:neutral.png|30x30px]]
+|Defender
+|1.2% x CL
+|Secret
+|5(8)
+|
+|2022-04-01
+|Confuse Enemies
+|
+|-
+|[[File:Feather pile.png|80px|link=[Feather Pile/Owl]]
+|[[Feather Pile/Owl]]
+|[[File:neutral.png|30x30px]]
+|Alternates
+|Special
+|Secret
+|1(5)
+|Yes
+|2022-04-16
+|Varies
+|Feythe
+|}
+----
+==== Things to Note ====
+
+:''Below are explanations for the various terms that appear in the pet list.''
+
+'''Evo Difficulty (Condition)''' - The Evo difficulty metric is determined by a combination of factors, and is represented by a X(Y). The value outside of the parenthesis represents solely the difficulty of evolving the pet from its evolution growth, and follows the following metric:
+
+1 - <3000 <br>
+2 - <10k <br>
+3 - <25k <br>
+4 - <40k <br>
+5 - <100k <br>
+6 - <250k <br>
+7 - <1000k <br>
+8 - 1000k+ <br>
+
+The number in parenthesis accounts for additional evolution conditions, such as additional resources, difficult requirements, or time required to accomplish.
+
+For Evolutions requiring T4 Materials, a +1 will be added for 1-10 required, a +2 will be added for 11-100, and a +3 will be added for 100+. Minimum Resources will always be accounted for. <br>
+For Evolutions requiring Chocolate, a +1 will be added for 10-100 required, a +2 will be added for 101-1000, and a +3 will be added for 1000+. <br>
+For Evolutions involving Dungeon Clears, a +1 will be added for Upper D2 Requirements, a +2 will be added for Upper D3 Requirements, and +3 will be added for a low D4 requirement. Additional difficulty modifier may be added if the requirement is particularly high.
+For Evolutions requiring a minimum time spent, a +1 will be added for 1 week time, a +2 will be required for 1 month time, and a +3 will be required for 2+ months required. <br>
+
+Additional Additions may be made for special cases that fall outside of these criteria.
+
+If you are looking to evolve a pet, and it requires more than +3 from its standard Evo difficulty, consider using a token to evolve it instead after looking at its evolve condition. Not all pets can skip their special requirement with a token.
+
+'''Improve Available:''' These pets have can be further improved by [[Premium Shop/Items#Pet_Token|spending a Pet Token]] to gain a new ability. In most cases, the pet must be evolved first. See the pet's page for details.
+
+'''Wildcard:''' These pets either don't have an evolution specialty, or have an evolution/class bonus that is relatively inconsequential. Therefore, evolving these pets into something you need tends to be more impactful than going with any bonus that they have. Most wildcards are best evolved into Alchemists/Blacksmiths to expedite crafting, or as Rogues/Supporters to fill out your dungeon teams as needed. 
+
+'''Class Bonus:''' Most pets have a bonus when evolved to a particular class. If a pet gets a bonus as Adventurer, they are considered an Adventurer specialist. The more growth a pet takes to evolve, the stronger its class bonus will be. Class bonus for most pets is equal to ((growth required for evolution / 50,000) + 1) * 0.5. If the maximum bonus at class level 100 is different than what is should be, it will be listed.
+
+:'''Note:''' The suggested pet evolution difficulties assumptions that the player has followed a reasonably common path of growth/purchases. For players who have accelerated their game with pet tokens, or who have delayed developing pets, some of the suggested difficulties may not be accurate.
+
+----
+
+:<sup>1</sup> Pandora's box also has a mechanic that increases campaign rewards for every pet in the campaign with it. This bonus is determined by growth and feedings in this rebirth. For every 5k growth up to 100k, there is a 3% increase. After that, it becomes 4% for every 5k. For feedings, the increase is 0.1% per feeding, up to 2%, however this resets if Pandora's Box starves or you rebirth. 
+
+:<sup>2</sup> Lucky Coin also has a rogue-like quality, where drop chance for loot increases by (total damage done^0.3/10)%
+
+:<sup>3</sup> Gray can create up to 2 children with their own classes and elements. Child 1 can be an alchemist, adventurer, or blacksmith. Child 2 (token upgrade only) can be any dungeon class. Children will have a bonus of 0.8% x CL regardless of class chosen.
+
+:<sup>4</sup> Book can change class without any downsides or cost, and when it's in a dungeon it will automatically count as the correct class in any dungeon event. Anything (the evolved form of Nothing) shares this property with Book, however, Anything gets a higher class bonus than Book.
+
+:<sup>5</sup> Chameleon can freely change element. When sent into a dungeon, Chameleon will count as any element for dungeon events.
+
+:<sup>6</sup> Black Hole Chan only gains this bonus if it takes the mage class. Before evo, it also gains a bonus to 25 + sqrt(UBV4 points^1.01)%, capped at 200% and twice as much to all elements. Post-evo, it also gains a bonus to all campaigns using the formula (1.3Million seconds - fastest time in seconds to beat ITRTGv4)^.3-30 and grants twice as much to all elements.
+
+:<sup>7</sup> Pumpkin finds chocolate in food campaigns, which can be increased by (50 + CL x 2.5)%. If tokened, Pumpkin will gain an additional bonus to finding chocolate by 2% x CL, and double for mighty food.
+
+:<sup>8</sup> While Doughnut doesn't receive a bonus for being an adventurer, it does receive a bonus to mighty food found in food camps by (50 + 0.5 x CL)%.
+
+:<sup>9</sup> Pignata will give you (10 + 0.5 * class level) rebirth bacon every time you bash it open (once per daily draw reset).
+
+:<sup>10</sup> Shadow Clone(pet) does not have normal class bonuses, but has an ability to create (0.5 * dungeon level * (1 + class level * 0.01)) shadow clones(workers) per tick if it is an adventurer.
+
+:<sup>11</sup> Vampire also gains an additive bonus to her crafting speed as an Alchemist of sqrt(growth)%.
+
+== Pet Tokens and Class Change Tokens ==
+
+Pet Tokens can be used to unlock new pets, upgrade certain pets, increase pet growth, and bypass the third "special" evolve requirement for most pets.
+
+Some pets cannot have their special evolve condition bypassed. See [[Premium_Shop/Items#Pet_Token|Pet Token]] for a list of these pets.
+
+Class Change (CC) Tokens are used to change the class of an evolved pet without needing materials and without losing XP. You can buy them for 250k pet stones. You also receive one for every 10 pets you evolve, or as a reward for any [[UAC]] completions after 2.
+
+== Guides ==
+If you are curious which token pets are the best to spend your tokens on, take a look at [https://docs.google.com/spreadsheets/d/1tj3BlT56FhFdoNbDqe-HaVlTgEhL0pXWTl2TyiAkSN0/edit#gid=0 this sheet by Nonomo]
+
+Also refer to [[Token Pet Guide]].
+
+[[Elemental (Category)|Elemental pets]] merit special mention.
+
+
+Recommended early-game wildcard classes (as of July 2024):
+
+* [[Bug]] as a Blacksmith: It's a Fire Blacksmith that can go into Volcano D1 and D3. Also has an early evolution so it can become your first Blacksmith and has the best element for hammers. Once you have a hammer, you can unlock [[Hamster]] and [[Hermit Crab]].
+
+* [[Cupid]] as a Adventurer: Becomes a strong campaigner with pet token improvement. Formerly recommended as a wildcard Blacksmith, but this is no longer needed, due to Hamster.
+
+* [[Camel]] as a Alchemist: You may want a wildcard alchemist at the beginning, as only [[Bee]] is not enough and you'll need more of them. Camel is also fire, which allows you to get [[Baby Carno]] later on.
+
+* [[Mole]] and [[Mouse]] as Rogue and Supporter: The game doesn't give many free-to-play options for these roles, so it can be a fine idea to use these wildcards to fill your early missing gaps in dungeon teams. Mouse also frees up [[Frog]] to go [[fishing]].
+
+== See Also ==
+
+*[[Pet Training]]
+*[[Pet Campaigns]]
+*[[Premium_Shop/Items#Pet_Stones|Pet Stones]]
+*[[Dungeons|Pet Dungeons]]
+*[[Infinity Tower | Pet Infinity Towers]]
+*[[Pet Training#Pet Food|Pet Feeding]]
+*[[Pet Village]]
+*[[Elemental]]
