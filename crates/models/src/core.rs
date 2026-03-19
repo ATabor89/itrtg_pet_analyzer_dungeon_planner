@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// The primary element of a pet.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Element {
     Neutral,
     Fire,
@@ -16,7 +16,7 @@ pub enum Element {
 ///
 /// `Wildcard` is not a real in-game class — it is used in [`RecommendedClass::Dual`]
 /// to indicate the pet can viably be evolved as whatever the player needs.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Class {
     Adventurer,
     Blacksmith,
@@ -29,4 +29,15 @@ pub enum Class {
     /// Not a real class — used in Dual recommendations to indicate the pet can
     /// be evolved as whatever the player needs.
     Wildcard,
+}
+
+/// Dungeon names in the game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum Dungeon {
+    NewbieGround,
+    Scrapyard,
+    WaterTemple,
+    Volcano,
+    Mountain,
+    Forest,
 }
