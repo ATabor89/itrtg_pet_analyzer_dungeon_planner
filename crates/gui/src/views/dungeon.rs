@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui, Vec2};
-use itrtg_models::dungeon::{PartyEquipment, EquipmentCatalog};
+use itrtg_models::dungeon::EquipmentCatalog;
 use itrtg_models::{Dungeon, Element};
+use itrtg_planner::equipment::{self, EquipmentSource};
 use itrtg_planner::solver::{
     self, Assignment, CoverageKind, DungeonPlan, DungeonRequest, MatchQuality, SolverConstraints,
 };
@@ -490,6 +491,11 @@ fn solve_all(state: &mut DungeonState, data: &DataStore) {
 
     // Solve all dungeons simultaneously — no pet reuse across teams
     state.plans = solver::solve_multi(&requests, &data.merged, &constraints);
+
+    // Enrich with equipment suggestions (resolves generic keys to real gear)
+    for plan in &mut state.plans {
+        equipment::enrich_equipment(plan, &recs.equipment);
+    }
 }
 
 // =============================================================================
@@ -579,7 +585,7 @@ fn show_slot_card(
     equip_catalog: Option<&EquipmentCatalog>,
 ) {
     // Dynamically size: taller if we have equipment to show
-    let has_equip = slot.slot.equipment.is_some();
+    let has_equip = slot.equipment_suggestion.is_some();
     let height = if has_equip { 100.0 } else { 80.0 };
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), egui::Sense::hover());
 
@@ -664,20 +670,23 @@ fn show_slot_card(
         }
     }
 
-    // Equipment recommendations (gems inline with each piece)
-    if let Some(equip) = &slot.slot.equipment {
-        show_equipment_line(&mut child, equip, equip_catalog);
+    // Equipment recommendations (from enrichment — static or computed)
+    if let Some(suggestion) = &slot.equipment_suggestion {
+        show_equipment_line(&mut child, suggestion, equip_catalog);
     }
 }
 
 /// Show a compact equipment recommendation line inside a slot card.
 /// Gems are shown inline with their equipment piece, e.g. "Flame Sword [Fire]".
+/// Computed suggestions are visually distinguished from static (YAML) ones.
 fn show_equipment_line(
     ui: &mut Ui,
-    equip: &PartyEquipment,
+    suggestion: &equipment::EquipmentSuggestion,
     catalog: Option<&EquipmentCatalog>,
 ) {
+    let equip = &suggestion.equipment;
     let gems = equip.gems.as_ref();
+    let is_computed = suggestion.source == EquipmentSource::Computed;
 
     let parts: Vec<String> = [
         format_equip_with_gem(equip.weapon.as_deref(), gems.and_then(|g| g.weapon.as_ref()), catalog),
@@ -690,12 +699,26 @@ fn show_equipment_line(
 
     if !parts.is_empty() {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Gear:").color(style::TEXT_MUTED).size(10.0));
-            ui.label(
-                RichText::new(parts.join(" / "))
-                    .color(style::TEXT_NORMAL)
-                    .size(10.0),
-            );
+            let label = if is_computed { "Gear*:" } else { "Gear:" };
+            let label_color = if is_computed {
+                Color32::from_rgb(0x88, 0x99, 0xcc) // Bluish tint for computed
+            } else {
+                style::TEXT_MUTED
+            };
+            ui.label(RichText::new(label).color(label_color).size(10.0));
+
+            let text_color = if is_computed {
+                Color32::from_rgb(0x88, 0x99, 0xcc)
+            } else {
+                style::TEXT_NORMAL
+            };
+            let mut text = RichText::new(parts.join(" / "))
+                .color(text_color)
+                .size(10.0);
+            if is_computed {
+                text = text.italics();
+            }
+            ui.label(text);
         });
     }
 }

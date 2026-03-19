@@ -29,6 +29,8 @@ pub struct SlotAssignment {
     pub position: usize,
     /// The assigned pet and how well it matches.
     pub assignment: Assignment,
+    /// Equipment suggestion (populated by equipment::enrich_equipment after solving).
+    pub equipment_suggestion: Option<crate::equipment::EquipmentSuggestion>,
 }
 
 /// What was assigned to a slot.
@@ -265,6 +267,7 @@ pub fn solve_multi(
                         pet: (*pet).clone(),
                         quality,
                     },
+                    equipment_suggestion: None,
                 },
             );
         }
@@ -317,6 +320,7 @@ pub fn solve_multi(
                         pet: (*pet).clone(),
                         quality,
                     },
+                    equipment_suggestion: None,
                 },
             );
         }
@@ -417,6 +421,7 @@ pub fn solve_multi(
                 slot: gs.slot.clone(),
                 position: gs.slot_idx,
                 assignment,
+                equipment_suggestion: None,
             },
         );
     }
@@ -450,6 +455,7 @@ pub fn solve_multi(
                             assignment: Assignment::Empty {
                                 suggestions: Vec::new(),
                             },
+                            equipment_suggestion: None,
                         })
                 })
                 .collect();
