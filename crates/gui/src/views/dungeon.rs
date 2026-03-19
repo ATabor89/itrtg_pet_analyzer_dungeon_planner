@@ -38,11 +38,15 @@ pub struct DungeonState {
     /// Pets forced into dungeon teams: (optional dungeon, pet_name).
     /// None dungeon = solver picks the best team.
     forced_pets: Vec<(Option<Dungeon>, String)>,
+    /// Whitelisted pets: bypass non-dungeon class filter without being forced.
+    whitelisted_pets: HashSet<String>,
     /// Search text for adding constraints.
     constraint_search: String,
     /// Selected dungeon for the "Force" action. None = Any team.
     force_dungeon: Option<Dungeon>,
 }
+
+const CONSTRAINTS_PATH: &str = "data/pet_constraints.yaml";
 
 const DUNGEONS: &[(Dungeon, &str)] = &[
     (Dungeon::Scrapyard, "Scrapyard"),
@@ -96,10 +100,11 @@ impl DungeonState {
             forbidden: self.forbidden_pets.clone(),
             forced,
             forced_any,
+            whitelisted: self.whitelisted_pets.clone(),
         }
     }
 
-    /// Load default constraints from a YAML string (pet_constraints.yaml).
+    /// Load constraints from a YAML string (pet_constraints.yaml).
     /// Merges into current state — existing manual constraints are preserved.
     pub fn load_constraints_yaml(&mut self, yaml: &str) -> Result<(), String> {
         let file: ConstraintsFile =
@@ -109,7 +114,6 @@ impl DungeonState {
             self.forbidden_pets.insert(name);
         }
         for entry in file.forced.unwrap_or_default() {
-            // Avoid duplicates
             let already = self
                 .forced_pets
                 .iter()
@@ -118,8 +122,95 @@ impl DungeonState {
                 self.forced_pets.push((entry.dungeon, entry.pet));
             }
         }
+        for name in file.whitelisted.unwrap_or_default() {
+            self.whitelisted_pets.insert(name);
+        }
 
         Ok(())
+    }
+
+    /// Clear all constraints and reload from the YAML file.
+    pub fn reset_constraints_from_file(&mut self) -> Result<(), String> {
+        self.forbidden_pets.clear();
+        self.forced_pets.clear();
+        self.whitelisted_pets.clear();
+
+        let path = std::path::Path::new(CONSTRAINTS_PATH);
+        if path.exists() {
+            let yaml =
+                std::fs::read_to_string(path).map_err(|e| format!("Read error: {e}"))?;
+            self.load_constraints_yaml(&yaml)?;
+        }
+        Ok(())
+    }
+
+    /// Save current constraints to the YAML file with nice comments.
+    pub fn save_constraints_to_file(&self) -> Result<(), String> {
+        let yaml = self.serialize_constraints_yaml();
+        std::fs::write(CONSTRAINTS_PATH, yaml).map_err(|e| format!("Write error: {e}"))
+    }
+
+    /// Serialize current constraints to a YAML string with explanatory comments.
+    fn serialize_constraints_yaml(&self) -> String {
+        let mut out = String::new();
+        out.push_str("# Pet Constraints for the Dungeon Planner\n");
+        out.push_str("#\n");
+        out.push_str("# Forbidden: pets excluded from ALL dungeon teams.\n");
+        out.push_str("# Use this for pets you want to keep on campaigns, village jobs,\n");
+        out.push_str("# or otherwise don't want the solver touching.\n");
+        out.push_str("#\n");
+        out.push_str("# Forced: pets that MUST appear in a dungeon team.\n");
+        out.push_str("# Optionally specify a dungeon to pin them to a specific team.\n");
+        out.push_str("# Omit the dungeon to let the solver pick the best fit.\n");
+        out.push_str("#\n");
+        out.push_str("# Whitelisted: pets that bypass the non-dungeon class filter.\n");
+        out.push_str("# Use for Blacksmiths/Alchemists/Adventurers that actually benefit\n");
+        out.push_str("# from dungeon runs (e.g. special abilities, class XP exceptions).\n");
+        out.push_str("#\n");
+        out.push_str("# Dungeon names: Scrapyard, WaterTemple, Volcano, Mountain, Forest\n");
+        out.push_str("\n");
+
+        // Forbidden
+        out.push_str("forbidden:\n");
+        if self.forbidden_pets.is_empty() {
+            out.push_str("  # - Pet Name\n");
+        } else {
+            let mut sorted: Vec<&String> = self.forbidden_pets.iter().collect();
+            sorted.sort();
+            for name in sorted {
+                out.push_str(&format!("  - {name}\n"));
+            }
+        }
+        out.push_str("\n");
+
+        // Forced
+        out.push_str("forced:\n");
+        if self.forced_pets.is_empty() {
+            out.push_str("  # - pet: Pet Name\n");
+            out.push_str("  #   dungeon: Forest\n");
+        } else {
+            for (dungeon, name) in &self.forced_pets {
+                out.push_str(&format!("  - pet: {name}\n"));
+                if let Some(d) = dungeon {
+                    out.push_str(&format!("    dungeon: {d:?}\n"));
+                }
+            }
+        }
+        out.push_str("\n");
+
+        // Whitelisted
+        out.push_str("whitelisted:\n");
+        if self.whitelisted_pets.is_empty() {
+            out.push_str("  # - Pet Name\n");
+        } else {
+            let mut sorted: Vec<&String> = self.whitelisted_pets.iter().collect();
+            sorted.sort();
+            for name in sorted {
+                out.push_str(&format!("  - {name}\n"));
+            }
+        }
+
+        out
     }
 }
 
@@ -131,6 +222,7 @@ impl DungeonState {
 struct ConstraintsFile {
     forbidden: Option<Vec<String>>,
     forced: Option<Vec<ForcedEntry>>,
+    whitelisted: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -278,7 +370,9 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
 // =============================================================================
 
 fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
-    let total_constraints = state.forbidden_pets.len() + state.forced_pets.len();
+    let total_constraints = state.forbidden_pets.len()
+        + state.forced_pets.len()
+        + state.whitelisted_pets.len();
     let header_text = if total_constraints > 0 {
         format!("Pet Constraints ({total_constraints} active)")
     } else {
@@ -311,6 +405,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                         .filter(|p| p.is_unlocked())
                         .filter(|p| !state.forbidden_pets.contains(&p.name))
                         .filter(|p| !state.forced_pets.iter().any(|(_, n)| n == &p.name))
+                        .filter(|p| !state.whitelisted_pets.contains(&p.name))
                         .filter(|p| search_lower.is_empty() || p.name.to_lowercase().contains(&search_lower))
                         .map(|p| p.name.as_str())
                         .collect();
@@ -324,14 +419,13 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
 
             ui.add_space(4.0);
 
-            // Forbid button
             let pet_valid = data.merged.iter().any(|p| p.name == state.constraint_search && p.is_unlocked());
+
+            // Forbid button
             if ui
                 .add_enabled(
                     pet_valid,
-                    egui::Button::new(
-                        RichText::new("Forbid").color(style::ERROR).size(12.0),
-                    ),
+                    egui::Button::new(RichText::new("Forbid").color(style::ERROR).size(12.0)),
                 )
                 .clicked()
             {
@@ -339,15 +433,28 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 state.constraint_search.clear();
             }
 
-            ui.add_space(4.0);
-
-            // Force button (into any team)
+            // Whitelist button
             if ui
                 .add_enabled(
                     pet_valid,
                     egui::Button::new(
-                        RichText::new("Force").color(style::SUCCESS).size(12.0),
+                        RichText::new("Whitelist")
+                            .color(Color32::from_rgb(0x88, 0xcc, 0xff))
+                            .size(12.0),
                     ),
+                )
+                .on_hover_text("Allow this pet in dungeon teams even if it has a non-dungeon class")
+                .clicked()
+            {
+                state.whitelisted_pets.insert(state.constraint_search.clone());
+                state.constraint_search.clear();
+            }
+
+            // Force button
+            if ui
+                .add_enabled(
+                    pet_valid,
+                    egui::Button::new(RichText::new("Force").color(style::SUCCESS).size(12.0)),
                 )
                 .clicked()
             {
@@ -357,7 +464,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 state.constraint_search.clear();
             }
 
-            // Optional dungeon selector (defaults to Any)
+            // Optional dungeon selector for Force (defaults to Any)
             let force_label = match state.force_dungeon {
                 None => "Any",
                 Some(d) => dungeon_label(d),
@@ -374,46 +481,59 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 });
         });
 
-        // Reset button: clears all constraints and reloads from file
+        // File management buttons
         ui.horizontal(|ui| {
             if ui
                 .add(egui::Button::new(
-                    RichText::new("Reset to File").color(style::TEXT_MUTED).size(11.0),
+                    RichText::new("Open File").color(style::TEXT_MUTED).size(11.0),
+                ))
+                .on_hover_text("Open pet_constraints.yaml in your default editor")
+                .clicked()
+            {
+                open_constraints_file();
+            }
+
+            if ui
+                .add(egui::Button::new(
+                    RichText::new("Save to File").color(style::TEXT_MUTED).size(11.0),
+                ))
+                .on_hover_text("Save current constraints to data/pet_constraints.yaml")
+                .clicked()
+            {
+                if let Err(e) = state.save_constraints_to_file() {
+                    eprintln!("Failed to save constraints: {e}");
+                }
+            }
+
+            if ui
+                .add(egui::Button::new(
+                    RichText::new("Reset from File").color(style::TEXT_MUTED).size(11.0),
                 ))
                 .on_hover_text("Clear all constraints and reload from data/pet_constraints.yaml")
                 .clicked()
             {
-                state.forbidden_pets.clear();
-                state.forced_pets.clear();
-                let path = std::path::Path::new("data/pet_constraints.yaml");
-                if path.exists() {
-                    if let Ok(yaml) = std::fs::read_to_string(path) {
-                        let _ = state.load_constraints_yaml(&yaml);
-                    }
-                }
+                let _ = state.reset_constraints_from_file();
             }
         });
 
         // Show active constraints
-        if !state.forbidden_pets.is_empty() || !state.forced_pets.is_empty() {
+        let has_any = !state.forbidden_pets.is_empty()
+            || !state.forced_pets.is_empty()
+            || !state.whitelisted_pets.is_empty();
+
+        if has_any {
             ui.add_space(4.0);
 
             // Forbidden pets
             if !state.forbidden_pets.is_empty() {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(
-                        RichText::new("Forbidden:")
-                            .color(style::ERROR)
-                            .size(11.0),
-                    );
+                    ui.label(RichText::new("Forbidden:").color(style::ERROR).size(11.0));
                     let mut to_remove = Vec::new();
                     let mut sorted: Vec<&String> = state.forbidden_pets.iter().collect();
                     sorted.sort();
                     for name in sorted {
                         let btn = egui::Button::new(
-                            RichText::new(format!("{name} ×"))
-                                .color(style::ERROR)
-                                .size(11.0),
+                            RichText::new(format!("{name} ×")).color(style::ERROR).size(11.0),
                         )
                         .fill(Color32::from_rgb(0x30, 0x15, 0x15));
                         if ui.add(btn).clicked() {
@@ -426,14 +546,38 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 });
             }
 
+            // Whitelisted pets
+            if !state.whitelisted_pets.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new("Whitelisted:")
+                            .color(Color32::from_rgb(0x88, 0xcc, 0xff))
+                            .size(11.0),
+                    );
+                    let mut to_remove = Vec::new();
+                    let mut sorted: Vec<&String> = state.whitelisted_pets.iter().collect();
+                    sorted.sort();
+                    for name in sorted {
+                        let btn = egui::Button::new(
+                            RichText::new(format!("{name} ×"))
+                                .color(Color32::from_rgb(0x88, 0xcc, 0xff))
+                                .size(11.0),
+                        )
+                        .fill(Color32::from_rgb(0x15, 0x20, 0x30));
+                        if ui.add(btn).clicked() {
+                            to_remove.push(name.clone());
+                        }
+                    }
+                    for name in to_remove {
+                        state.whitelisted_pets.remove(&name);
+                    }
+                });
+            }
+
             // Forced pets
             if !state.forced_pets.is_empty() {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(
-                        RichText::new("Forced:")
-                            .color(style::SUCCESS)
-                            .size(11.0),
-                    );
+                    ui.label(RichText::new("Forced:").color(style::SUCCESS).size(11.0));
                     let mut to_remove = Vec::new();
                     for (i, (dungeon, name)) in state.forced_pets.iter().enumerate() {
                         let target = match dungeon {
@@ -450,7 +594,6 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                             to_remove.push(i);
                         }
                     }
-                    // Remove in reverse order to preserve indices
                     for i in to_remove.into_iter().rev() {
                         state.forced_pets.remove(i);
                     }
@@ -458,6 +601,25 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             }
         }
     });
+}
+
+/// Open the constraints YAML file in the OS default editor.
+fn open_constraints_file() {
+    let path = CONSTRAINTS_PATH;
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "", path])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(path).spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+    }
 }
 
 // =============================================================================
@@ -584,9 +746,9 @@ fn show_slot_card(
     width: f32,
     equip_catalog: Option<&EquipmentCatalog>,
 ) {
-    // Dynamically size: taller if we have equipment to show
+    // Dynamically size: taller if we have equipment to show (3 lines for gear)
     let has_equip = slot.equipment_suggestion.is_some();
-    let height = if has_equip { 100.0 } else { 80.0 };
+    let height = if has_equip { 120.0 } else { 80.0 };
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), egui::Sense::hover());
 
     // Card background
@@ -676,8 +838,8 @@ fn show_slot_card(
     }
 }
 
-/// Show a compact equipment recommendation line inside a slot card.
-/// Gems are shown inline with their equipment piece, e.g. "Flame Sword [Fire]".
+/// Show equipment recommendations, one line per slot (weapon, armor, accessory).
+/// Gems are shown inline with their piece, e.g. "W: Flame Sword [Fire]".
 /// Computed suggestions are visually distinguished from static (YAML) ones.
 fn show_equipment_line(
     ui: &mut Ui,
@@ -688,52 +850,31 @@ fn show_equipment_line(
     let gems = equip.gems.as_ref();
     let is_computed = suggestion.source == EquipmentSource::Computed;
 
-    let parts: Vec<String> = [
-        format_equip_with_gem(equip.weapon.as_deref(), gems.and_then(|g| g.weapon.as_ref()), catalog),
-        format_equip_with_gem(equip.armor.as_deref(), gems.and_then(|g| g.armor.as_ref()), catalog),
-        format_equip_with_gem(equip.accessory.as_deref(), gems.and_then(|g| g.accessory.as_ref()), catalog),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
+    let text_color = if is_computed {
+        Color32::from_rgb(0x88, 0x99, 0xcc)
+    } else {
+        style::TEXT_NORMAL
+    };
 
-    if !parts.is_empty() {
-        ui.horizontal(|ui| {
-            let label = if is_computed { "Gear*:" } else { "Gear:" };
-            let label_color = if is_computed {
-                Color32::from_rgb(0x88, 0x99, 0xcc) // Bluish tint for computed
-            } else {
-                style::TEXT_MUTED
-            };
-            ui.label(RichText::new(label).color(label_color).size(10.0));
+    let lines: [(&str, Option<&str>, Option<&Element>); 3] = [
+        ("W:", equip.weapon.as_deref(), gems.and_then(|g| g.weapon.as_ref())),
+        ("A:", equip.armor.as_deref(), gems.and_then(|g| g.armor.as_ref())),
+        ("Ac:", equip.accessory.as_deref(), gems.and_then(|g| g.accessory.as_ref())),
+    ];
 
-            let text_color = if is_computed {
-                Color32::from_rgb(0x88, 0x99, 0xcc)
-            } else {
-                style::TEXT_NORMAL
+    for (prefix, key, gem) in &lines {
+        if let Some(key) = key {
+            let name = resolve_equip_name(key, catalog);
+            let display = match gem {
+                Some(el) => format!("{prefix} {name} [{el:?}]"),
+                None => format!("{prefix} {name}"),
             };
-            let mut text = RichText::new(parts.join(" / "))
-                .color(text_color)
-                .size(10.0);
+            let mut text = RichText::new(display).color(text_color).size(10.0);
             if is_computed {
                 text = text.italics();
             }
             ui.label(text);
-        });
-    }
-}
-
-/// Format a single equipment piece with its gem recommendation inline.
-fn format_equip_with_gem(
-    key: Option<&str>,
-    gem: Option<&Element>,
-    catalog: Option<&EquipmentCatalog>,
-) -> Option<String> {
-    let key = key?;
-    let name = resolve_equip_name(key, catalog);
-    match gem {
-        Some(el) => Some(format!("{name} [{el:?}]")),
-        None => Some(name),
+        }
     }
 }
 

@@ -8,19 +8,60 @@
 # Optionally specify a dungeon to pin them to a specific team.
 # Omit the dungeon to let the solver pick the best fit.
 #
+# Whitelisted: pets that bypass the non-dungeon class filter.
+# Use for Blacksmiths/Alchemists/Adventurers that actually benefit
+# from dungeon runs (e.g. special abilities, class XP exceptions).
+#
 # Dungeon names: Scrapyard, WaterTemple, Volcano, Mountain, Forest
 
 forbidden:
+  - Ape
+  - God Power (Pet)
   - Honey Badger
   - Panda
-  - God Power (Pet)
   - Raven
-  - Ape
+  - Witch
 
 forced:
-  # Without a dungeon (solver picks best team):
+  # - pet: Hourglass
+  # Temporarily lock in my actual teams to leverage the solver's equipment recommendations
+  # Scrapyard first
+  - pet: Egg/Chicken
+    dungeon: Scrapyard
+  - pet: Rudolph
+    dungeon: Scrapyard
+  - pet: Dog
+    dungeon: Scrapyard
+  - pet: Santa
+    dungeon: Scrapyard
+  - pet: Dragon
+    dungeon: Scrapyard
+  - pet: Slime
+    dungeon: Scrapyard
+  # Now Water temple
+  - pet: Penguin
+    dungeon: WaterTemple
+  - pet: Clam
+    dungeon: WaterTemple
+  - pet: Frog
+    dungeon: WaterTemple
+  - pet: Fairy
+    dungeon: WaterTemple
+  - pet: Rabbit
+    dungeon: WaterTemple
+  # Now Forest
+  - pet: Cat
+    dungeon: Forest
+  - pet: Squirrel
+    dungeon: Forest
+  - pet: Armadillo
+    dungeon: Forest
   - pet: Hourglass
+    dungeon: Forest
+  - pet: Sylph
+    dungeon: Forest
+  - pet: Valkyrie
+    dungeon: Forest
 
-  # With a specific dungeon:
-  # - pet: Salamander
-  #   dungeon: Forest
+whitelisted:
+  # - Pet Name
