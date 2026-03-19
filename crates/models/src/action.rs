@@ -1,5 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::Dungeon;
+
 /// The type of campaign a pet can be sent on.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CampaignType {
@@ -10,17 +12,6 @@ pub enum CampaignType {
     Level,
     Multiplier,
     GodPower,
-}
-
-/// Dungeon names in the game.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Dungeon {
-    NewbieGround,
-    Scrapyard,
-    WaterTemple,
-    Volcano,
-    Mountain,
-    Forest,
 }
 
 /// Village jobs and their sub-roles.
