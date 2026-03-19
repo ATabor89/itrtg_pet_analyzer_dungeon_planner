@@ -1,7 +1,11 @@
+use std::collections::{HashMap, HashSet};
+
 use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui, Vec2};
 use itrtg_models::dungeon::{PartyEquipment, EquipmentCatalog};
 use itrtg_models::{Dungeon, Element};
-use itrtg_planner::solver::{self, Assignment, CoverageKind, DungeonPlan, DungeonRequest, MatchQuality};
+use itrtg_planner::solver::{
+    self, Assignment, CoverageKind, DungeonPlan, DungeonRequest, MatchQuality, SolverConstraints,
+};
 
 use crate::data::DataStore;
 use crate::style;
@@ -27,6 +31,14 @@ pub struct DungeonState {
     /// Solved plans, keyed by dungeon. Regenerated on Solve.
     plans: Vec<DungeonPlan>,
     initialized: bool,
+    /// Pet names forbidden from all dungeon teams.
+    forbidden_pets: HashSet<String>,
+    /// Pets forced into specific dungeon teams: (dungeon, pet_name).
+    forced_pets: Vec<(Dungeon, String)>,
+    /// Search text for adding constraints.
+    constraint_search: String,
+    /// Selected dungeon for the "Force" action.
+    force_dungeon: Option<Dungeon>,
 }
 
 const DUNGEONS: &[(Dungeon, &str)] = &[
@@ -36,6 +48,14 @@ const DUNGEONS: &[(Dungeon, &str)] = &[
     (Dungeon::Mountain, "Mountain"),
     (Dungeon::Forest, "Forest"),
 ];
+
+fn dungeon_label(d: Dungeon) -> &'static str {
+    DUNGEONS
+        .iter()
+        .find(|(dd, _)| *dd == d)
+        .map(|(_, l)| *l)
+        .unwrap_or("Unknown")
+}
 
 impl DungeonState {
     fn ensure_init(&mut self) {
@@ -51,7 +71,23 @@ impl DungeonState {
                 depth: 1,
             })
             .collect();
+        self.force_dungeon = Some(Dungeon::Scrapyard);
         self.initialized = true;
+    }
+
+    /// Build SolverConstraints from the current UI state.
+    fn build_constraints(&self) -> SolverConstraints {
+        let mut forced: HashMap<Dungeon, Vec<String>> = HashMap::new();
+        for (dungeon, name) in &self.forced_pets {
+            // Skip if the pet is also forbidden (forbidden takes priority)
+            if !self.forbidden_pets.contains(name) {
+                forced.entry(*dungeon).or_default().push(name.clone());
+            }
+        }
+        SolverConstraints {
+            forbidden: self.forbidden_pets.clone(),
+            forced,
+        }
     }
 }
 
@@ -159,6 +195,10 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     });
 
     ui.add_space(4.0);
+
+    // Pet constraints (collapsible)
+    show_constraints(ui, state, data);
+
     ui.separator();
     ui.add_space(4.0);
 
@@ -185,6 +225,184 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     }
 }
 
+// =============================================================================
+// Constraints UI
+// =============================================================================
+
+fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
+    let total_constraints = state.forbidden_pets.len() + state.forced_pets.len();
+    let header_text = if total_constraints > 0 {
+        format!("Pet Constraints ({total_constraints} active)")
+    } else {
+        "Pet Constraints".to_string()
+    };
+
+    egui::CollapsingHeader::new(
+        RichText::new(header_text)
+            .color(style::TEXT_MUTED)
+            .size(13.0),
+    )
+    .default_open(false)
+    .show(ui, |ui| {
+        // Search + add controls
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Pet:").color(style::TEXT_MUTED).size(12.0));
+
+            // Pet selector: ComboBox listing unlocked pets filtered by search
+            let search = &state.constraint_search;
+            egui::ComboBox::from_id_salt("constraint_pet")
+                .selected_text(if search.is_empty() {
+                    "Select pet..."
+                } else {
+                    search.as_str()
+                })
+                .width(160.0)
+                .show_ui(ui, |ui| {
+                    let search_lower = state.constraint_search.to_lowercase();
+                    for pet in &data.merged {
+                        if !pet.is_unlocked() {
+                            continue;
+                        }
+                        // Skip pets already in either constraint list
+                        if state.forbidden_pets.contains(&pet.name) {
+                            continue;
+                        }
+                        if state.forced_pets.iter().any(|(_, n)| n == &pet.name) {
+                            continue;
+                        }
+                        if !search_lower.is_empty() && !pet.name.to_lowercase().contains(&search_lower) {
+                            continue;
+                        }
+                        if ui
+                            .selectable_label(false, &pet.name)
+                            .clicked()
+                        {
+                            state.constraint_search = pet.name.clone();
+                        }
+                    }
+                });
+
+            ui.add_space(4.0);
+
+            // Forbid button
+            let pet_valid = data.merged.iter().any(|p| p.name == state.constraint_search && p.is_unlocked());
+            if ui
+                .add_enabled(
+                    pet_valid,
+                    egui::Button::new(
+                        RichText::new("Forbid").color(style::ERROR).size(12.0),
+                    ),
+                )
+                .clicked()
+            {
+                state.forbidden_pets.insert(state.constraint_search.clone());
+                state.constraint_search.clear();
+            }
+
+            ui.add_space(4.0);
+            ui.label(RichText::new("→").color(style::TEXT_MUTED));
+
+            // Dungeon selector for forcing
+            let force_label = state
+                .force_dungeon
+                .map(dungeon_label)
+                .unwrap_or("Select...");
+            egui::ComboBox::from_id_salt("constraint_dungeon")
+                .selected_text(force_label)
+                .width(110.0)
+                .show_ui(ui, |ui| {
+                    for (d, label) in DUNGEONS {
+                        ui.selectable_value(&mut state.force_dungeon, Some(*d), *label);
+                    }
+                });
+
+            // Force button
+            let can_force = pet_valid && state.force_dungeon.is_some();
+            if ui
+                .add_enabled(
+                    can_force,
+                    egui::Button::new(
+                        RichText::new("Force").color(style::SUCCESS).size(12.0),
+                    ),
+                )
+                .clicked()
+            {
+                if let Some(dungeon) = state.force_dungeon {
+                    state
+                        .forced_pets
+                        .push((dungeon, state.constraint_search.clone()));
+                    state.constraint_search.clear();
+                }
+            }
+        });
+
+        // Show active constraints
+        if !state.forbidden_pets.is_empty() || !state.forced_pets.is_empty() {
+            ui.add_space(4.0);
+
+            // Forbidden pets
+            if !state.forbidden_pets.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new("Forbidden:")
+                            .color(style::ERROR)
+                            .size(11.0),
+                    );
+                    let mut to_remove = Vec::new();
+                    let mut sorted: Vec<&String> = state.forbidden_pets.iter().collect();
+                    sorted.sort();
+                    for name in sorted {
+                        let btn = egui::Button::new(
+                            RichText::new(format!("{name} ×"))
+                                .color(style::ERROR)
+                                .size(11.0),
+                        )
+                        .fill(Color32::from_rgb(0x30, 0x15, 0x15));
+                        if ui.add(btn).clicked() {
+                            to_remove.push(name.clone());
+                        }
+                    }
+                    for name in to_remove {
+                        state.forbidden_pets.remove(&name);
+                    }
+                });
+            }
+
+            // Forced pets
+            if !state.forced_pets.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new("Forced:")
+                            .color(style::SUCCESS)
+                            .size(11.0),
+                    );
+                    let mut to_remove = Vec::new();
+                    for (i, (dungeon, name)) in state.forced_pets.iter().enumerate() {
+                        let label = dungeon_label(*dungeon);
+                        let btn = egui::Button::new(
+                            RichText::new(format!("{name} → {label} ×"))
+                                .color(style::SUCCESS)
+                                .size(11.0),
+                        )
+                        .fill(Color32::from_rgb(0x15, 0x30, 0x15));
+                        if ui.add(btn).clicked() {
+                            to_remove.push(i);
+                        }
+                    }
+                    // Remove in reverse order to preserve indices
+                    for i in to_remove.into_iter().rev() {
+                        state.forced_pets.remove(i);
+                    }
+                });
+            }
+        }
+    });
+}
+
+// =============================================================================
+// Solver
+// =============================================================================
+
 fn solve_all(state: &mut DungeonState, data: &DataStore) {
     let Some(recs) = &data.dungeon_recs else { return };
 
@@ -207,16 +425,19 @@ fn solve_all(state: &mut DungeonState, data: &DataStore) {
         return;
     }
 
+    // Build constraints from UI state
+    let constraints = state.build_constraints();
+
     // Solve all dungeons simultaneously — no pet reuse across teams
-    state.plans = solver::solve_multi(&requests, &data.merged);
+    state.plans = solver::solve_multi(&requests, &data.merged, &constraints);
 }
 
+// =============================================================================
+// Plan display
+// =============================================================================
+
 fn show_plan(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
-    let dungeon_name = DUNGEONS
-        .iter()
-        .find(|(d, _)| *d == plan.dungeon)
-        .map(|(_, n)| *n)
-        .unwrap_or("Unknown");
+    let dungeon_name = dungeon_label(plan.dungeon);
 
     // Dungeon header
     ui.horizontal(|ui| {

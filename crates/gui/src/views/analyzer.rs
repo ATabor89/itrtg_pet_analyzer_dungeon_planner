@@ -535,7 +535,7 @@ fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
             );
         }
 
-        // Top-50 average dungeon level
+        // Top-50 combined dungeon level (game unlocks based on this total)
         let mut dungeon_levels: Vec<u32> = data
             .merged
             .iter()
@@ -547,10 +547,9 @@ fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
             dungeon_levels.sort_unstable_by(|a, b| b.cmp(a));
             let top_n = dungeon_levels.len().min(50);
             let top_sum: u64 = dungeon_levels[..top_n].iter().map(|&x| x as u64).sum();
-            let avg = top_sum as f64 / top_n as f64;
             ui.separator();
             ui.label(
-                RichText::new(format!("Top-{top_n} Dng Avg: {avg:.1}"))
+                RichText::new(format!("Top-{top_n} Dng Lv: {}", format_number(top_sum)))
                     .color(style::TEXT_NORMAL)
                     .size(13.0),
             );
