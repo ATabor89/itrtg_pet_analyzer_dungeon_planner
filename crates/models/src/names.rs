@@ -5,6 +5,7 @@
 /// (removing spaces, e.g. "BunnyGirl" → "Bunny Girl").
 pub fn export_name_to_wiki_name(export_name: &str) -> Option<&'static str> {
     match export_name {
+        // Slash names (export uses one side, wiki uses both)
         "Egg" => Some("Egg/Chicken"),
         "Stone" => Some("Stone/Golem"),
         "Mimic" => Some("Treasure/Mimic"),
@@ -12,6 +13,8 @@ pub fn export_name_to_wiki_name(export_name: &str) -> Option<&'static str> {
         "Lizard" => Some("Lizard/Zookeeper"),
         "Owl" => Some("Feather Pile/Owl"),
         "Raiju" => Some("Thunder Ball/Raiju"),
+        "StaleTortilla" => Some("Stale Tortilla/Taco"),
+        // Completely different names
         "Reindeer" => Some("Rudolph"),
         "Pandora" => Some("Pandora's Box"),
         "GodPower" => Some("God Power (Pet)"),
@@ -26,8 +29,18 @@ pub fn export_name_to_wiki_name(export_name: &str) -> Option<&'static str> {
         "GoldDragon" => Some("Gold Dragon"),
         "Baphomate" => Some("Dark Gift"),
         "PixieGoat" => Some("Pixie Goatmother"),
+        // Gray's children (export uses no space)
+        "GrayChild1" => Some("Gray Child 1"),
+        "GrayChild2" => Some("Gray Child 2"),
+        // Case differences where CamelCase splitting doesn't help
+        "Ufo" => Some("UFO"),
+        // Same name but needs explicit mapping to avoid false positive
         "Student" => Some("Student"),
         "Elemental" => Some("Elemental"),
+        // Wiki uses single word, export uses CamelCase that would produce spaces
+        "BeachBall" => Some("Beachball"),
+        "CardboardBox" => Some("Cardboardbox"),
+        "HoneyBadger" => Some("Honeybadger"),
         _ => None,
     }
 }
@@ -40,7 +53,7 @@ pub fn resolve_wiki_name(export_name: &str) -> String {
     }
 
     // Insert spaces before uppercase letters that follow lowercase letters
-    // e.g. "HoneyBadger" → "Honey Badger", "EarthEater" → "Earth Eater"
+    // e.g. "EarthEater" → "Earth Eater", "BunnyGirl" → "Bunny Girl"
     let mut result = String::with_capacity(export_name.len() + 4);
     for (i, ch) in export_name.chars().enumerate() {
         if i > 0 && ch.is_uppercase() {
@@ -54,6 +67,15 @@ pub fn resolve_wiki_name(export_name: &str) -> String {
     result
 }
 
+/// Build a normalized lookup key from a name (lowercase, no spaces/punctuation).
+/// Used by the merge logic for fuzzy matching.
+pub fn normalize_for_lookup(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -65,12 +87,10 @@ mod tests {
 
     #[test]
     fn test_resolve_camel_case() {
-        assert_eq!(resolve_wiki_name("HoneyBadger"), "Honey Badger");
         assert_eq!(resolve_wiki_name("EarthEater"), "Earth Eater");
         assert_eq!(resolve_wiki_name("BunnyGirl"), "Bunny Girl");
         assert_eq!(resolve_wiki_name("FlyingEyeball"), "Flying Eyeball");
         assert_eq!(resolve_wiki_name("ShadowClone"), "Shadow Clone");
-        assert_eq!(resolve_wiki_name("CardboardBox"), "Cardboard Box");
     }
 
     #[test]
@@ -82,6 +102,18 @@ mod tests {
         assert_eq!(resolve_wiki_name("Reindeer"), "Rudolph");
         assert_eq!(resolve_wiki_name("Baphomate"), "Dark Gift");
         assert_eq!(resolve_wiki_name("PixieGoat"), "Pixie Goatmother");
+    }
+
+    #[test]
+    fn test_resolve_problem_names() {
+        // These were causing duplicate entries before
+        assert_eq!(resolve_wiki_name("BeachBall"), "Beachball");
+        assert_eq!(resolve_wiki_name("CardboardBox"), "Cardboardbox");
+        assert_eq!(resolve_wiki_name("HoneyBadger"), "Honeybadger");
+        assert_eq!(resolve_wiki_name("Ufo"), "UFO");
+        assert_eq!(resolve_wiki_name("GrayChild1"), "Gray Child 1");
+        assert_eq!(resolve_wiki_name("GrayChild2"), "Gray Child 2");
+        assert_eq!(resolve_wiki_name("StaleTortilla"), "Stale Tortilla/Taco");
     }
 
     #[test]
