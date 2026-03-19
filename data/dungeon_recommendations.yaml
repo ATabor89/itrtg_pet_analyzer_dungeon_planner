@@ -27,12 +27,121 @@
 # ---------------------------------------------------------------------------
 equipment:
   weapons:
+    # -- Tier 1 --
+    iron_sword:
+      name: "Iron Sword"
+      type: Weapon
+      tier: 1
+      element: Neutral
+
+    fire_sword:
+      name: "Fire Sword"
+      type: Weapon
+      tier: 1
+      element: Fire
+
+    water_spear:
+      name: "Water Spear"
+      type: Weapon
+      tier: 1
+      element: Water
+
+    wood_axe:
+      name: "Wood Axe"
+      type: Weapon
+      tier: 1
+      element: Earth
+
+    feather_bow:
+      name: "Feather Bow"
+      type: Weapon
+      tier: 1
+      element: Wind
+
+    forging_hammer:
+      name: "Forging Hammer"
+      type: Weapon
+      tier: 1
+      element: Fire
+
+    walking_stick:
+      name: "Walking Stick"
+      type: Weapon
+      tier: 1
+      element: Earth
+
+    iron_pot:
+      name: "Iron Pot"
+      type: Weapon
+      tier: 1
+      element: Neutral
+
+    training_sword:
+      name: "Training Sword"
+      type: Weapon
+      tier: 1
+      element: Water
+
+    howling_knives:
+      name: "Howling Knives"
+      type: Weapon
+      tier: 1
+      element: Wind
+
     # -- Tier 2 --
+    steel_sword:
+      name: "Steel Sword"
+      type: Weapon
+      tier: 2
+      element: Neutral
+
     flame_sword:
       name: "Flame Sword"
       type: Weapon
       tier: 2
       element: Fire
+
+    flood_spear:
+      name: "Flood Spear"
+      type: Weapon
+      tier: 2
+      element: Water
+
+    tree_axe:
+      name: "Tree Axe"
+      type: Weapon
+      tier: 2
+      element: Earth
+
+    storm_bow:
+      name: "Storm Bow"
+      type: Weapon
+      tier: 2
+      element: Wind
+
+    shaping_hammer:
+      name: "Shaping Hammer"
+      type: Weapon
+      tier: 2
+      element: Fire
+
+    journeying_stick:
+      name: "Journeying Stick"
+      type: Weapon
+      tier: 2
+      element: Earth
+
+    steel_pot:
+      name: "Steel Pot"
+      type: Weapon
+      tier: 2
+      element: Neutral
+
+    leeching_sword:
+      name: "Leeching Sword"
+      type: Weapon
+      tier: 2
+      element: Water
 
     thundering_knives:
       name: "Thundering Knives"
@@ -40,30 +149,18 @@ equipment:
       tier: 2
       element: Wind
 
-    steel_sword:
-      name: "Steel Sword"
-      type: Weapon
-      tier: 2
-      element: Neutral
-
     # -- Tier 3 --
-    inferno_sword:
-      name: "Inferno Sword"
-      type: Weapon
-      tier: 3
-      element: Fire
-
-    bursting_knives:
-      name: "Bursting Knives"
-      type: Weapon
-      tier: 3
-      element: Wind
-
     titanium_sword:
       name: "Titanium Sword"
       type: Weapon
       tier: 3
       element: Neutral
+
+    inferno_sword:
+      name: "Inferno Sword"
+      type: Weapon
+      tier: 3
+      element: Fire
 
     tsunami_spear:
       name: "Tsunami Spear"
@@ -71,7 +168,80 @@ equipment:
       tier: 3
       element: Water
 
+    forest_axe:
+      name: "Forest Axe"
+      type: Weapon
+      tier: 3
+      element: Earth
+
+    hurricane_bow:
+      name: "Hurricane Bow"
+      type: Weapon
+      tier: 3
+      element: Wind
+
+    magic_hammer:
+      name: "Magic Hammer"
+      type: Weapon
+      tier: 3
+      element: Fire
+
+    magic_stick:
+      name: "Magic Stick"
+      type: Weapon
+      tier: 3
+      element: Earth
+
+    magic_pot:
+      name: "Magic Pot"
+      type: Weapon
+      tier: 3
+      element: Neutral
+
+    ego_sword:
+      name: "Ego Sword"
+      type: Weapon
+      tier: 3
+      element: Water
+
+    bursting_knives:
+      name: "Bursting Knives"
+      type: Weapon
+      tier: 3
+      element: Wind
+
   armor:
+    # -- Tier 1 --
+    iron_vest:
+      name: "Iron Vest"
+      type: Armor
+      tier: 1
+      element: Neutral
+
+    fire_vest:
+      name: "Fire Vest"
+      type: Armor
+      tier: 1
+      element: Fire
+
+    water_vest:
+      name: "Water Vest"
+      type: Armor
+      tier: 1
+      element: Water
+
+    wooden_vest:
+      name: "Wooden Vest"
+      type: Armor
+      tier: 1
+      element: Earth
+
+    feather_vest:
+      name: "Feather Vest"
+      type: Armor
+      tier: 1
+      element: Wind
+
     # -- Tier 2 --
     steel_armor:
       name: "Steel Armor"
@@ -79,11 +249,11 @@ equipment:
       tier: 2
       element: Neutral
 
-    tree_armor:
-      name: "Tree Armor"
+    flame_armor:
+      name: "Flame Armor"
       type: Armor
       tier: 2
-      element: Earth
+      element: Fire
 
     flood_armor:
       name: "Flood Armor"
@@ -91,11 +261,11 @@ equipment:
       tier: 2
       element: Water
 
-    flame_armor:
-      name: "Flame Armor"
+    tree_armor:
+      name: "Tree Armor"
       type: Armor
       tier: 2
-      element: Fire
+      element: Earth
 
     storm_armor:
       name: "Storm Armor"
@@ -110,17 +280,11 @@ equipment:
       tier: 3
       element: Neutral
 
-    hurricane_armor:
-      name: "Hurricane Armor"
+    inferno_armor:
+      name: "Inferno Armor"
       type: Armor
       tier: 3
-      element: Wind
-
-    forest_armor:
-      name: "Forest Armor"
-      type: Armor
-      tier: 3
-      element: Earth
+      element: Fire
 
     tsunami_armor:
       name: "Tsunami Armor"
@@ -128,19 +292,74 @@ equipment:
       tier: 3
       element: Water
 
-    inferno_armor:
-      name: "Inferno Armor"
+    forest_armor:
+      name: "Forest Armor"
       type: Armor
       tier: 3
-      element: Fire
+      element: Earth
+
+    hurricane_armor:
+      name: "Hurricane Armor"
+      type: Armor
+      tier: 3
+      element: Wind
 
   accessories:
+    # -- Tier 1 --
+    iron_ring:
+      name: "Iron Ring"
+      type: Accessory
+      tier: 1
+      element: Neutral
+
+    fire_gloves:
+      name: "Fire Gloves"
+      type: Accessory
+      tier: 1
+      element: Fire
+
+    water_necklace:
+      name: "Water Necklace"
+      type: Accessory
+      tier: 1
+      element: Water
+
+    wood_bracelet:
+      name: "Wood Bracelet"
+      type: Accessory
+      tier: 1
+      element: Earth
+
+    feather_ring:
+      name: "Feather Ring"
+      type: Accessory
+      tier: 1
+      element: Wind
+
     # -- Tier 2 --
+    steel_ring:
+      name: "Steel Ring"
+      type: Accessory
+      tier: 2
+      element: Neutral
+
     flame_gloves:
       name: "Flame Gloves"
       type: Accessory
       tier: 2
       element: Fire
+
+    flood_necklace:
+      name: "Flood Necklace"
+      type: Accessory
+      tier: 2
+      element: Water
+
+    tree_bracelet:
+      name: "Tree Bracelet"
+      type: Accessory
+      tier: 2
+      element: Earth
 
     storm_ring:
       name: "Storm Ring"
@@ -148,24 +367,36 @@ equipment:
       tier: 2
       element: Wind
 
-    steel_ring:
-      name: "Steel Ring"
+    # -- Tier 3 --
+    titanium_ring:
+      name: "Titanium Ring"
       type: Accessory
-      tier: 2
+      tier: 3
       element: Neutral
 
-    # -- Tier 3 --
     inferno_gloves:
       name: "Inferno Gloves"
       type: Accessory
       tier: 3
       element: Fire
 
-    titanium_ring:
-      name: "Titanium Ring"
+    tsunami_necklace:
+      name: "Tsunami Necklace"
       type: Accessory
       tier: 3
-      element: Neutral
+      element: Water
+
+    forest_bracelet:
+      name: "Forest Bracelet"
+      type: Accessory
+      tier: 3
+      element: Earth
+
+    hurricane_ring:
+      name: "Hurricane Ring"
+      type: Accessory
+      tier: 3
+      element: Wind
 
     alchemist_cape:
       name: "Alchemist Cape"
@@ -249,36 +480,43 @@ dungeons:
 
         monsters:
           - name: "Metal Slimy"
+            element: Neutral
             hp: 10
             att: 60
             def: 520
             spd: 3
           - name: "Angel Slimy"
+            element: Neutral
             hp: 312
             att: 45
             def: 21
             spd: 36
           - name: "Ninja Slimy"
+            element: Neutral
             hp: 234
             att: 45
             def: 21
             spd: 78
           - name: "Robo Slimy"
+            element: Neutral
             hp: 416
             att: 54
             def: 47
             spd: 47
           - name: "Cyborg Slimy"
+            element: Neutral
             hp: 312
             att: 48
             def: 31
             spd: 47
           - name: "Ghost Slimy"
+            element: Neutral
             hp: 257
             att: 0
             def: 52
             spd: 25997
           - name: "Unstable Slimy"
+            element: Neutral
             hp: 234
             att: 2997
             def: 0
@@ -286,6 +524,7 @@ dungeons:
 
         boss:
           name: "Oozing Inventor"
+          element: Neutral
           hp: 2600
           att: 3
           def: 104
@@ -346,41 +585,49 @@ dungeons:
 
         monsters:
           - name: "Scrap Worm"
+            element: Neutral
             hp: 650
             att: 88
             def: 70
             spd: 65
           - name: "Sentry"
+            element: Neutral
             hp: 565
             att: 79
             def: 78
             spd: 75
           - name: "Scavenger"
+            element: Neutral
             hp: 420
             att: 98
             def: 35
             spd: 85
           - name: "Robo Hound"
+            element: Neutral
             hp: 480
             att: 105
             def: 30
             spd: 95
           - name: "Microbots"
+            element: Neutral
             hp: 950
             att: 85
             def: 95
             spd: 55
           - name: "Bulwark Golem"
+            element: Neutral
             hp: 1050
             att: 50
             def: 150
             spd: 50
           - name: "Displacer"
+            element: Neutral
             hp: 450
             att: 95
             def: 40
             spd: 75
           - name: "Sword Soldier"
+            element: Neutral
             hp: 650
             att: 110
             def: 65
@@ -388,6 +635,7 @@ dungeons:
 
         boss:
           name: "MURDER"
+          element: Neutral
           hp: 24000
           att: 175
           def: 120
@@ -500,41 +748,49 @@ dungeons:
 
         monsters:
           - name: "Constructor"
+            element: Neutral
             hp: 2700
             att: 295
             def: 265
             spd: 180
           - name: "Compactor"
+            element: Neutral
             hp: 2300
             att: 305
             def: 280
             spd: 210
           - name: "Replacer"
+            element: Neutral
             hp: 2900
             att: 325
             def: 290
             spd: 195
           - name: "Slayer"
+            element: Neutral
             hp: 2600
             att: 315
             def: 298
             spd: 220
           - name: "Arbiter"
+            element: Neutral
             hp: 6000
             att: 335
             def: 500
             spd: 125
           - name: "Reclaimer"
+            element: Earth
             hp: 2700
             att: 300
             def: 270
             spd: 225
           - name: "Repurposer"
+            element: Fire
             hp: 1900
             att: 400
             def: 270
             spd: 260
           - name: "Sanitizer"
+            element: Water
             hp: 2800
             att: 360
             def: 290
@@ -542,11 +798,13 @@ dungeons:
 
         bosses:
           - name: "Alien Wreckage"
+            element: Neutral
             hp: 35000
             att: 550
             def: 550
             spd: 400
           - name: "Metal Mind"
+            element: Neutral
             hp: 50000
             att: 420
             def: 900

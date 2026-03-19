@@ -104,6 +104,8 @@ pub struct SolverConstraints {
     pub forbidden: HashSet<String>,
     /// Pets forced into specific dungeon teams: dungeon → list of pet names.
     pub forced: HashMap<Dungeon, Vec<String>>,
+    /// Pets forced into any available team — solver picks the best dungeon/slot.
+    pub forced_any: Vec<String>,
 }
 
 // =============================================================================
@@ -259,6 +261,58 @@ pub fn solve_multi(
                 SlotAssignment {
                     slot: dd.party[slot_idx].clone(),
                     position: slot_idx,
+                    assignment: Assignment::Filled {
+                        pet: (*pet).clone(),
+                        quality,
+                    },
+                },
+            );
+        }
+    }
+
+    // Phase 1b: Pre-assign forced_any pets (solver picks best dungeon/slot)
+    for forced_name in &constraints.forced_any {
+        // Find this pet in the available pool
+        let Some((pi, pet)) = available
+            .iter()
+            .enumerate()
+            .find(|(pi, p)| !used.contains(pi) && p.name == *forced_name)
+        else {
+            continue;
+        };
+
+        // Find the best (request, slot) pair across all dungeons
+        let mut best: Option<(usize, usize, MatchQuality)> = None;
+        let mut first_open: Option<(usize, usize)> = None;
+
+        for (ri, dd_opt) in depth_datas.iter().enumerate() {
+            let Some(dd) = dd_opt else { continue };
+            for (si, slot) in dd.party.iter().enumerate() {
+                if assignment_map.contains_key(&(ri, si)) {
+                    continue;
+                }
+                if first_open.is_none() {
+                    first_open = Some((ri, si));
+                }
+                if let Some(q) = score_pet(pet, slot) {
+                    if best.as_ref().map_or(true, |(_, _, bq)| q < *bq) {
+                        best = Some((ri, si, q));
+                    }
+                }
+            }
+        }
+
+        let target = best.map(|(ri, si, q)| (ri, si, q))
+            .or_else(|| first_open.map(|(ri, si)| (ri, si, MatchQuality::Fallback)));
+
+        if let Some((ri, si, quality)) = target {
+            let dd = depth_datas[ri].unwrap();
+            used.insert(pi);
+            assignment_map.insert(
+                (ri, si),
+                SlotAssignment {
+                    slot: dd.party[si].clone(),
+                    position: si,
                     assignment: Assignment::Filled {
                         pet: (*pet).clone(),
                         quality,
