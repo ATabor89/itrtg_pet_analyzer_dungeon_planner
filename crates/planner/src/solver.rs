@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use itrtg_models::dungeon::*;
 use itrtg_models::*;
@@ -94,92 +94,135 @@ pub enum CoverageKind {
 }
 
 // =============================================================================
-// Solver
+// Dungeon class viability
 // =============================================================================
 
-/// Solve the dungeon party assignment problem.
+/// Non-dungeon classes that should not fill "any" class slots in dungeons.
+/// These classes generally don't gain class experience from dungeon runs.
+const NON_DUNGEON_CLASSES: &[Class] = &[Class::Adventurer, Class::Blacksmith, Class::Alchemist];
+
+/// Whether a pet is viable for dungeon "any" class slots.
 ///
-/// Given the recommendations for a dungeon+depth, the player's merged pet roster,
-/// and the full dungeon data (needed for sub-depth coverage checks), produce a plan.
+/// Returns false for pets evolved as or recommended for non-dungeon classes
+/// (Adventurer, Blacksmith, Alchemist), since those classes don't benefit
+/// from dungeon runs. When a slot *specifically* requires one of these classes
+/// (e.g. Volcano wanting Blacksmiths), the viability check is bypassed.
+fn is_dungeon_viable(pet: &MergedPet) -> bool {
+    if let Some(class) = pet.evolved_class() {
+        return !NON_DUNGEON_CLASSES.contains(&class);
+    }
+    // Unevolved: check recommended class
+    match pet.recommended_class() {
+        Some(RecommendedClass::Single(c)) => !NON_DUNGEON_CLASSES.contains(c),
+        Some(RecommendedClass::Dual(a, b)) => {
+            // Viable if at least one recommended class is a dungeon class
+            !NON_DUNGEON_CLASSES.contains(a) || !NON_DUNGEON_CLASSES.contains(b)
+        }
+        Some(
+            RecommendedClass::Wildcard
+            | RecommendedClass::DungeonWildcard
+            | RecommendedClass::AllClasses,
+        ) => true,
+        Some(
+            RecommendedClass::Village(_)
+            | RecommendedClass::Special
+            | RecommendedClass::Alternates,
+        ) => false,
+        None => true, // No wiki data — assume viable
+    }
+}
+
+// =============================================================================
+// Single-dungeon solver (backward-compatible)
+// =============================================================================
+
+/// Solve the dungeon party assignment problem for a single dungeon.
 pub fn solve(
     dungeon: Dungeon,
     target_depth: u8,
     dungeon_data: &DungeonData,
     roster: &[MergedPet],
 ) -> DungeonPlan {
-    let depth_data = match dungeon_data.depths.get(&target_depth) {
-        Some(d) => d,
-        None => {
-            return DungeonPlan {
-                dungeon,
-                depth: target_depth,
-                assignments: Vec::new(),
-                warnings: vec![CoverageWarning {
-                    source_depth: target_depth,
-                    kind: CoverageKind::Event,
-                    name: "Unknown depth".to_string(),
-                    detail: format!("No data for depth {target_depth}"),
-                }],
-            };
-        }
-    };
+    let requests = [DungeonRequest {
+        dungeon,
+        depth: target_depth,
+        data: dungeon_data,
+    }];
+    let mut plans = solve_multi(&requests, roster);
+    plans.pop().unwrap_or(DungeonPlan {
+        dungeon,
+        depth: target_depth,
+        assignments: Vec::new(),
+        warnings: Vec::new(),
+    })
+}
 
+// =============================================================================
+// Multi-dungeon solver
+// =============================================================================
+
+/// A request to solve a single dungeon at a specific depth.
+pub struct DungeonRequest<'a> {
+    pub dungeon: Dungeon,
+    pub depth: u8,
+    pub data: &'a DungeonData,
+}
+
+/// Solve multiple dungeons simultaneously, ensuring no pet appears in more than
+/// one team. Uses a greedy constraint-first approach across all dungeons: the
+/// most constrained slots (fewest viable candidates) are filled first.
+pub fn solve_multi(requests: &[DungeonRequest], roster: &[MergedPet]) -> Vec<DungeonPlan> {
     // Only consider unlocked pets that aren't village pets
     let available: Vec<&MergedPet> = roster
         .iter()
         .filter(|p| p.is_unlocked() && !p.is_village_pet())
         .collect();
 
-    let assignments = assign_party(&depth_data.party, &available);
-
-    // Check event/trap coverage across all depths up to and including target
-    let assigned_pets: Vec<&MergedPet> = assignments
+    // Resolve depth data for each request
+    let depth_datas: Vec<Option<&DepthData>> = requests
         .iter()
-        .filter_map(|a| match &a.assignment {
-            Assignment::Filled { pet, .. } => Some(pet),
-            Assignment::Empty { .. } => None,
-        })
+        .map(|req| req.data.depths.get(&req.depth))
         .collect();
 
-    let warnings = check_coverage(dungeon_data, target_depth, &assigned_pets);
-
-    DungeonPlan {
-        dungeon,
-        depth: target_depth,
-        assignments,
-        warnings,
+    // Flatten all slots across all dungeons with their candidates
+    struct GlobalSlot<'a> {
+        req_idx: usize,
+        slot_idx: usize,
+        slot: &'a PartySlot,
+        candidates: Vec<(usize, MatchQuality)>,
     }
-}
 
-/// Score and assign pets to party slots using greedy constraint-first ordering.
-fn assign_party(party_slots: &[PartySlot], available: &[&MergedPet]) -> Vec<SlotAssignment> {
-    let n = party_slots.len();
+    let mut all_slots: Vec<GlobalSlot> = Vec::new();
 
-    // Build scored candidates for each slot
-    let mut slot_candidates: Vec<(usize, &PartySlot, Vec<(usize, MatchQuality)>)> = party_slots
-        .iter()
-        .enumerate()
-        .map(|(i, slot)| {
-            let candidates: Vec<(usize, MatchQuality)> = available
-                .iter()
-                .enumerate()
-                .filter_map(|(pi, pet)| score_pet(pet, slot).map(|q| (pi, q)))
-                .collect();
-            (i, slot, candidates)
-        })
-        .collect();
+    for (ri, dd_opt) in depth_datas.iter().enumerate() {
+        if let Some(dd) = dd_opt {
+            for (si, slot) in dd.party.iter().enumerate() {
+                let candidates: Vec<(usize, MatchQuality)> = available
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(pi, pet)| score_pet(pet, slot).map(|q| (pi, q)))
+                    .collect();
+                all_slots.push(GlobalSlot {
+                    req_idx: ri,
+                    slot_idx: si,
+                    slot,
+                    candidates,
+                });
+            }
+        }
+    }
 
-    // Sort by constraint strictness: most constrained first (fewest candidates).
-    // But maintain stable order for ties — we want the original party ordering to
-    // act as a tiebreaker so front-row slots are filled first among equals.
-    slot_candidates.sort_by_key(|(orig_idx, _, cands)| (cands.len(), *orig_idx));
+    // Sort by constraint strictness: fewest candidates first.
+    // Ties broken by request index then slot index for stability.
+    all_slots.sort_by_key(|s| (s.candidates.len(), s.req_idx, s.slot_idx));
 
+    // Greedy assignment across all dungeons
     let mut used: HashSet<usize> = HashSet::new();
-    let mut results: Vec<(usize, SlotAssignment)> = Vec::with_capacity(n);
+    let mut assignment_map: HashMap<(usize, usize), SlotAssignment> = HashMap::new();
 
-    for (orig_idx, slot, candidates) in &slot_candidates {
-        // Among unused candidates, pick the best quality, then highest growth as tiebreak
-        let best = candidates
+    for gs in &all_slots {
+        let best = gs
+            .candidates
             .iter()
             .filter(|(pi, _)| !used.contains(pi))
             .min_by(|(pi_a, qa), (pi_b, qb)| {
@@ -195,7 +238,7 @@ fn assign_party(party_slots: &[PartySlot], available: &[&MergedPet]) -> Vec<Slot
                         .as_ref()
                         .map(|e| e.growth)
                         .unwrap_or(0);
-                    gb.cmp(&ga) // reverse: higher growth first
+                    gb.cmp(&ga)
                 })
             });
 
@@ -206,25 +249,77 @@ fn assign_party(party_slots: &[PartySlot], available: &[&MergedPet]) -> Vec<Slot
                 quality,
             }
         } else {
-            // No candidate found — generate unlock suggestions
-            let suggestions = generate_unlock_suggestions(slot, available, &used);
+            // Generate unlock suggestions from the full roster
+            let suggestions = suggest_unlocks_for_slot(gs.slot, roster);
             Assignment::Empty { suggestions }
         };
 
-        results.push((
-            *orig_idx,
+        assignment_map.insert(
+            (gs.req_idx, gs.slot_idx),
             SlotAssignment {
-                slot: (*slot).clone(),
-                position: *orig_idx,
+                slot: gs.slot.clone(),
+                position: gs.slot_idx,
                 assignment,
             },
-        ));
+        );
     }
 
-    // Restore original party order
-    results.sort_by_key(|(orig_idx, _)| *orig_idx);
-    results.into_iter().map(|(_, sa)| sa).collect()
+    // Build DungeonPlans for each request
+    requests
+        .iter()
+        .enumerate()
+        .map(|(ri, req)| {
+            let Some(dd) = depth_datas[ri] else {
+                return DungeonPlan {
+                    dungeon: req.dungeon,
+                    depth: req.depth,
+                    assignments: Vec::new(),
+                    warnings: vec![CoverageWarning {
+                        source_depth: req.depth,
+                        kind: CoverageKind::Event,
+                        name: "Unknown depth".to_string(),
+                        detail: format!("No data for depth {}", req.depth),
+                    }],
+                };
+            };
+
+            let assignments: Vec<SlotAssignment> = (0..dd.party.len())
+                .map(|si| {
+                    assignment_map
+                        .remove(&(ri, si))
+                        .unwrap_or_else(|| SlotAssignment {
+                            slot: dd.party[si].clone(),
+                            position: si,
+                            assignment: Assignment::Empty {
+                                suggestions: Vec::new(),
+                            },
+                        })
+                })
+                .collect();
+
+            let assigned_pets: Vec<&MergedPet> = assignments
+                .iter()
+                .filter_map(|a| match &a.assignment {
+                    Assignment::Filled { pet, .. } => Some(pet),
+                    Assignment::Empty { .. } => None,
+                })
+                .collect();
+
+            let warnings = check_coverage(req.data, req.depth, &assigned_pets);
+
+            DungeonPlan {
+                dungeon: req.dungeon,
+                depth: req.depth,
+                assignments,
+                warnings,
+            }
+        })
+        .collect()
 }
+
+// =============================================================================
+// Scoring
+// =============================================================================
 
 /// Score how well a pet matches a slot. Returns None if completely unsuitable.
 fn score_pet(pet: &MergedPet, slot: &PartySlot) -> Option<MatchQuality> {
@@ -233,9 +328,12 @@ fn score_pet(pet: &MergedPet, slot: &PartySlot) -> Option<MatchQuality> {
         return None;
     }
 
-    // If slot has no class requirement, any pet works
+    // If slot has no class requirement, any dungeon-viable pet works
     let Some(required_class) = &slot.class else {
-        // Element matches (or slot is "any" element). This is a valid assignment.
+        // "Any" class slot — exclude non-dungeon classes
+        if !is_dungeon_viable(pet) {
+            return None;
+        }
         if pet.is_evolved() {
             return Some(MatchQuality::Exact);
         }
@@ -267,20 +365,9 @@ fn score_pet(pet: &MergedPet, slot: &PartySlot) -> Option<MatchQuality> {
     None
 }
 
-/// Generate suggestions for pets that could be unlocked to fill a slot.
-fn generate_unlock_suggestions(
-    slot: &PartySlot,
-    all_available: &[&MergedPet],
-    used: &HashSet<usize>,
-) -> Vec<UnlockSuggestion> {
-    // Look at ALL merged pets (including those not unlocked) from the roster
-    // We can only work with what we have in the available list, but the caller
-    // already filtered to unlocked. For unlock suggestions, we'd need the full
-    // roster. For now, return empty — the GUI can populate this from the full
-    // merged list.
-    let _ = (slot, all_available, used);
-    Vec::new()
-}
+// =============================================================================
+// Unlock suggestions
+// =============================================================================
 
 /// Generate unlock suggestions from the full merged pet list (including locked pets).
 pub fn suggest_unlocks_for_slot(
@@ -298,6 +385,8 @@ pub fn suggest_unlocks_for_slot(
             && pet.matches_element(slot.element)
             // Must recommend the required class (if any)
             && slot.class.as_ref().map_or(true, |c| pet.recommends_class(c))
+            // For "any" class slots, must be dungeon-viable
+            && (slot.class.is_some() || is_dungeon_viable(pet))
         })
         .map(|pet| UnlockSuggestion {
             pet: pet.clone(),
@@ -527,9 +616,25 @@ mod tests {
     }
 
     #[test]
-    fn test_any_slot_accepts_anyone() {
+    fn test_any_slot_accepts_dungeon_class() {
+        let pet = mock_pet("Dog", Element::Neutral, Some(Class::Defender), RecommendedClass::Single(Class::Defender), true);
+        let slot = make_slot(None, None);
+        assert_eq!(score_pet(&pet, &slot), Some(MatchQuality::Exact));
+    }
+
+    #[test]
+    fn test_non_dungeon_class_excluded_from_any_slot() {
+        // Adventurer-evolved pet should NOT fill an "any" slot
         let pet = mock_pet("Mouse", Element::Earth, Some(Class::Adventurer), RecommendedClass::Wildcard, true);
         let slot = make_slot(None, None);
+        assert_eq!(score_pet(&pet, &slot), None);
+    }
+
+    #[test]
+    fn test_non_dungeon_class_allowed_when_required() {
+        // Blacksmith IS allowed when the slot specifically requires Blacksmith
+        let pet = mock_pet("Smith", Element::Fire, Some(Class::Blacksmith), RecommendedClass::Single(Class::Blacksmith), true);
+        let slot = make_slot(Some(Class::Blacksmith), Some(Element::Fire));
         assert_eq!(score_pet(&pet, &slot), Some(MatchQuality::Exact));
     }
 
@@ -548,32 +653,105 @@ mod tests {
             mock_pet("Rabbit", Element::Earth, Some(Class::Mage), RecommendedClass::Single(Class::Mage), true),
             mock_pet("Squirrel", Element::Fire, Some(Class::Rogue), RecommendedClass::Single(Class::Rogue), true),
             mock_pet("Dog", Element::Neutral, Some(Class::Defender), RecommendedClass::Single(Class::Defender), true),
-            mock_pet("Mouse", Element::Earth, Some(Class::Adventurer), RecommendedClass::Wildcard, true),
-        ];
-        let available: Vec<&MergedPet> = pets.iter().collect();
-
-        let slots = vec![
-            make_slot(Some(Class::Rogue), None),
-            make_slot(Some(Class::Assassin), None),
-            make_slot(Some(Class::Defender), None),
-            make_slot(Some(Class::Supporter), None),
-            make_slot(Some(Class::Mage), None),
-            make_slot(None, None),
+            // Mouse: unevolved, Wildcard rec — dungeon-viable for "any" slot
+            mock_pet("Mouse", Element::Earth, None, RecommendedClass::Wildcard, true),
         ];
 
-        let assignments = assign_party(&slots, &available);
+        let dungeon_data = DungeonData {
+            name: "Test".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 10,
+                    monsters_per_room: 3,
+                    gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 10,
+                        levels_per_difficulty: vec![1, 2],
+                        class_level: 5,
+                        total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry {
+                        name: "Boss".to_string(),
+                        element: None,
+                        hp: 100, att: 50, def: 30, spd: 20,
+                    }],
+                    party: vec![
+                        make_slot(Some(Class::Rogue), None),
+                        make_slot(Some(Class::Assassin), None),
+                        make_slot(Some(Class::Defender), None),
+                        make_slot(Some(Class::Supporter), None),
+                        make_slot(Some(Class::Mage), None),
+                        make_slot(None, None),
+                    ],
+                    party_items: Vec::new(),
+                    traps: Vec::new(),
+                    events: Vec::new(),
+                });
+                m
+            },
+        };
+
+        let plan = solve(Dungeon::Scrapyard, 1, &dungeon_data, &pets);
 
         // Verify order is preserved (positions 0-5)
-        for (i, a) in assignments.iter().enumerate() {
+        for (i, a) in plan.assignments.iter().enumerate() {
             assert_eq!(a.position, i);
         }
 
-        // Verify correct class assignments
-        assert!(matches!(&assignments[0].assignment,
+        // Verify correct class assignments for specific slots
+        assert!(matches!(&plan.assignments[0].assignment,
             Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.evolved_class() == Some(Class::Rogue)));
-        assert!(matches!(&assignments[1].assignment,
+        assert!(matches!(&plan.assignments[1].assignment,
             Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.evolved_class() == Some(Class::Assassin)));
-        assert!(matches!(&assignments[2].assignment,
+        assert!(matches!(&plan.assignments[2].assignment,
             Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.evolved_class() == Some(Class::Defender)));
+    }
+
+    #[test]
+    fn test_multi_solve_no_pet_reuse() {
+        let pets = vec![
+            mock_pet("Frog", Element::Water, Some(Class::Supporter), RecommendedClass::Single(Class::Supporter), true),
+            mock_pet("Cat", Element::Neutral, Some(Class::Assassin), RecommendedClass::Single(Class::Assassin), true),
+            mock_pet("Dog", Element::Neutral, Some(Class::Defender), RecommendedClass::Single(Class::Defender), true),
+        ];
+
+        // Two dungeons that both want a Supporter
+        let dd1 = DungeonData {
+            name: "Dungeon1".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 5, monsters_per_room: 2, gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                        class_level: 3, total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                    party: vec![make_slot(Some(Class::Supporter), None)],
+                    party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+                });
+                m
+            },
+        };
+        let dd2 = dd1.clone(); // Same requirements
+
+        let requests = [
+            DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd1 },
+            DungeonRequest { dungeon: Dungeon::WaterTemple, depth: 1, data: &dd2 },
+        ];
+
+        let plans = solve_multi(&requests, &pets);
+        assert_eq!(plans.len(), 2);
+
+        // First dungeon gets Frog (only Supporter)
+        assert!(matches!(&plans[0].assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Frog"));
+
+        // Second dungeon can't fill its Supporter slot (Frog already used)
+        assert!(matches!(&plans[1].assignments[0].assignment,
+            Assignment::Empty { .. }));
     }
 }

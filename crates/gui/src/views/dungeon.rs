@@ -1,7 +1,7 @@
 use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui, Vec2};
-use itrtg_models::dungeon::PartyEquipment;
-use itrtg_models::Dungeon;
-use itrtg_planner::solver::{self, Assignment, CoverageKind, DungeonPlan, MatchQuality};
+use itrtg_models::dungeon::{PartyEquipment, EquipmentCatalog};
+use itrtg_models::{Dungeon, Element};
+use itrtg_planner::solver::{self, Assignment, CoverageKind, DungeonPlan, DungeonRequest, MatchQuality};
 
 use crate::data::DataStore;
 use crate::style;
@@ -188,19 +188,27 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
 fn solve_all(state: &mut DungeonState, data: &DataStore) {
     let Some(recs) = &data.dungeon_recs else { return };
 
-    state.plans.clear();
+    // Build requests for all enabled dungeons
+    let requests: Vec<DungeonRequest> = state
+        .entries
+        .iter()
+        .filter(|e| e.enabled)
+        .filter_map(|entry| {
+            recs.dungeons.get(&entry.dungeon).map(|dd| DungeonRequest {
+                dungeon: entry.dungeon,
+                depth: entry.depth,
+                data: dd,
+            })
+        })
+        .collect();
 
-    for entry in &state.entries {
-        if !entry.enabled {
-            continue;
-        }
-        let Some(dungeon_data) = recs.dungeons.get(&entry.dungeon) else {
-            continue;
-        };
-
-        let plan = solver::solve(entry.dungeon, entry.depth, dungeon_data, &data.merged);
-        state.plans.push(plan);
+    if requests.is_empty() {
+        state.plans.clear();
+        return;
     }
+
+    // Solve all dungeons simultaneously — no pet reuse across teams
+    state.plans = solver::solve_multi(&requests, &data.merged);
 }
 
 fn show_plan(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
@@ -287,11 +295,11 @@ fn show_slot_card(
     ui: &mut Ui,
     slot: &solver::SlotAssignment,
     width: f32,
-    equip_catalog: Option<&itrtg_models::dungeon::EquipmentCatalog>,
+    equip_catalog: Option<&EquipmentCatalog>,
 ) {
     // Dynamically size: taller if we have equipment to show
     let has_equip = slot.slot.equipment.is_some();
-    let height = if has_equip { 105.0 } else { 80.0 };
+    let height = if has_equip { 100.0 } else { 80.0 };
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), egui::Sense::hover());
 
     // Card background
@@ -375,70 +383,69 @@ fn show_slot_card(
         }
     }
 
-    // Equipment recommendations
+    // Equipment recommendations (gems inline with each piece)
     if let Some(equip) = &slot.slot.equipment {
         show_equipment_line(&mut child, equip, equip_catalog);
     }
 }
 
 /// Show a compact equipment recommendation line inside a slot card.
+/// Gems are shown inline with their equipment piece, e.g. "Flame Sword [Fire]".
 fn show_equipment_line(
     ui: &mut Ui,
     equip: &PartyEquipment,
-    catalog: Option<&itrtg_models::dungeon::EquipmentCatalog>,
+    catalog: Option<&EquipmentCatalog>,
 ) {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("Gear:").color(style::TEXT_MUTED).size(10.0));
+    let gems = equip.gems.as_ref();
 
-        let parts: Vec<String> = [
-            equip.weapon.as_deref().map(|k| resolve_equip_name(k, catalog)),
-            equip.armor.as_deref().map(|k| resolve_equip_name(k, catalog)),
-            equip.accessory.as_deref().map(|k| resolve_equip_name(k, catalog)),
-        ]
-        .iter()
-        .filter_map(|x| x.clone())
-        .collect();
+    let parts: Vec<String> = [
+        format_equip_with_gem(equip.weapon.as_deref(), gems.and_then(|g| g.weapon.as_ref()), catalog),
+        format_equip_with_gem(equip.armor.as_deref(), gems.and_then(|g| g.armor.as_ref()), catalog),
+        format_equip_with_gem(equip.accessory.as_deref(), gems.and_then(|g| g.accessory.as_ref()), catalog),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
 
-        if parts.is_empty() {
-            ui.label(RichText::new("—").color(style::TEXT_MUTED).size(10.0));
-        } else {
+    if !parts.is_empty() {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Gear:").color(style::TEXT_MUTED).size(10.0));
             ui.label(
                 RichText::new(parts.join(" / "))
                     .color(style::TEXT_NORMAL)
                     .size(10.0),
             );
-        }
-    });
-
-    // Gem recommendations
-    if let Some(gems) = &equip.gems {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Gems:").color(style::TEXT_MUTED).size(10.0));
-            let gem_parts: Vec<String> = [
-                gems.weapon.as_ref().map(|e| format!("W:{e:?}")),
-                gems.armor.as_ref().map(|e| format!("A:{e:?}")),
-                gems.accessory.as_ref().map(|e| format!("Ac:{e:?}")),
-            ]
-            .iter()
-            .filter_map(|x| x.clone())
-            .collect();
-
-            if !gem_parts.is_empty() {
-                ui.label(
-                    RichText::new(gem_parts.join(" "))
-                        .color(style::TEXT_MUTED)
-                        .size(10.0),
-                );
-            }
         });
     }
 }
 
+/// Format a single equipment piece with its gem recommendation inline.
+fn format_equip_with_gem(
+    key: Option<&str>,
+    gem: Option<&Element>,
+    catalog: Option<&EquipmentCatalog>,
+) -> Option<String> {
+    let key = key?;
+    let name = resolve_equip_name(key, catalog);
+    match gem {
+        Some(el) => Some(format!("{name} [{el:?}]")),
+        None => Some(name),
+    }
+}
+
 /// Resolve a catalog key to a display name.
-fn resolve_equip_name(key: &str, catalog: Option<&itrtg_models::dungeon::EquipmentCatalog>) -> String {
+fn resolve_equip_name(key: &str, catalog: Option<&EquipmentCatalog>) -> String {
     if let Some(cat) = catalog {
         if let Some(entry) = cat.lookup(key) {
             return entry.name.clone();
+        }
+    }
+    // Humanize generic keys: "generic_t2_s10" → "Generic T2"
+    if key.starts_with("generic_t") {
+        let rest = &key["generic_t".len()..];
+        let tier: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if !tier.is_empty() {
+            return format!("Generic T{tier}");
         }
     }
     // Fallback: humanize the key

@@ -1,6 +1,11 @@
+use std::cell::RefCell;
+
 use eframe::egui::{self, Color32, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
-use itrtg_models::{Class, Element, RecommendedClass, UnlockCondition};
+use itrtg_models::{
+    CampaignType, Class, Dungeon, Element, PetAction, RecommendedClass, UnlockCondition,
+    VillageJob,
+};
 use itrtg_planner::merge::MergedPet;
 
 use crate::data::DataStore;
@@ -17,10 +22,9 @@ pub enum UnlockTypeFilter {
     All,
     DefeatGods,
     PBaal,
-    PBaalVersion,
     PetToken,
     Milestones,
-    SpecialTask,
+    Special,
     Secret,
     TavernQuest,
     StrategyRoom,
@@ -28,7 +32,6 @@ pub enum UnlockTypeFilter {
     PetCount,
     ItemGift,
     AncientMimic,
-    Special,
 }
 
 impl UnlockTypeFilter {
@@ -37,10 +40,9 @@ impl UnlockTypeFilter {
             Self::All => "All",
             Self::DefeatGods => "Defeat Gods",
             Self::PBaal => "P.Baal",
-            Self::PBaalVersion => "P.Baal Ver",
             Self::PetToken => "Pet Token",
             Self::Milestones => "Milestones",
-            Self::SpecialTask => "Special Task",
+            Self::Special => "Special",
             Self::Secret => "Secret",
             Self::TavernQuest => "Tavern Quest",
             Self::StrategyRoom => "Strategy Room",
@@ -48,7 +50,6 @@ impl UnlockTypeFilter {
             Self::PetCount => "Pet Count",
             Self::ItemGift => "Item Gift",
             Self::AncientMimic => "Ancient Mimic",
-            Self::Special => "Special",
         }
     }
 
@@ -56,11 +57,10 @@ impl UnlockTypeFilter {
         match self {
             Self::All => true,
             Self::DefeatGods => matches!(cond, UnlockCondition::DefeatGods),
-            Self::PBaal => matches!(cond, UnlockCondition::DefeatPBaal(_)),
-            Self::PBaalVersion => matches!(cond, UnlockCondition::DefeatPBaalVersion(_)),
+            Self::PBaal => matches!(cond, UnlockCondition::DefeatPBaal(_) | UnlockCondition::DefeatPBaalVersion(_)),
             Self::PetToken => matches!(cond, UnlockCondition::PetToken),
             Self::Milestones => matches!(cond, UnlockCondition::Milestones | UnlockCondition::MilestonesOrPetToken),
-            Self::SpecialTask => matches!(cond, UnlockCondition::SpecialTask),
+            Self::Special => matches!(cond, UnlockCondition::SpecialTask | UnlockCondition::Special),
             Self::Secret => matches!(cond, UnlockCondition::Secret),
             Self::TavernQuest => matches!(cond, UnlockCondition::TavernQuest(_)),
             Self::StrategyRoom => matches!(cond, UnlockCondition::StrategyRoom(_)),
@@ -68,7 +68,6 @@ impl UnlockTypeFilter {
             Self::PetCount => matches!(cond, UnlockCondition::PetCount(_)),
             Self::ItemGift => matches!(cond, UnlockCondition::ItemGift(_)),
             Self::AncientMimic => matches!(cond, UnlockCondition::AncientMimicPoints(_)),
-            Self::Special => matches!(cond, UnlockCondition::Special),
         }
     }
 }
@@ -227,6 +226,8 @@ pub struct AnalyzerState {
     pub sort_column: SortColumn,
     pub sort_ascending: bool,
     sort_initialized: bool,
+    /// Name of the currently selected pet for the detail card.
+    pub selected_pet: Option<String>,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -240,6 +241,7 @@ pub enum SortColumn {
     DungeonLevel,
     Class,
     ClassLevel,
+    Action,
 }
 
 impl SortColumn {
@@ -247,7 +249,7 @@ impl SortColumn {
     /// Text/categorical columns default ascending; numeric columns default descending.
     fn default_ascending(self) -> bool {
         match self {
-            Self::Name | Self::Element | Self::RecClass | Self::Class => true,
+            Self::Name | Self::Element | Self::RecClass | Self::Class | Self::Action => true,
             Self::EvoDifficulty | Self::Growth | Self::DungeonLevel | Self::ClassLevel => false,
         }
     }
@@ -264,6 +266,9 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
         state.sort_initialized = true;
     }
 
+    // Pet detail window (rendered before table so it floats above)
+    show_detail_window(ui, state, data);
+
     // Stats bar
     show_stats_bar(ui, data);
 
@@ -278,6 +283,215 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     // Pet table
     let filtered = filter_and_sort(&data.merged, state);
     show_table(ui, &filtered, state);
+}
+
+fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
+    if let Some(pet_name) = state.selected_pet.clone() {
+        let pet = data.merged.iter().find(|p| p.name == pet_name);
+        let mut open = true;
+
+        egui::Window::new(format!("Pet: {pet_name}"))
+            .open(&mut open)
+            .collapsible(true)
+            .resizable(true)
+            .default_size([400.0, 350.0])
+            .show(ui.ctx(), |ui| {
+                if let Some(pet) = pet {
+                    show_pet_details(ui, pet);
+                } else {
+                    ui.label(
+                        RichText::new("Pet not found in current data.")
+                            .color(style::WARNING),
+                    );
+                }
+            });
+
+        if !open {
+            state.selected_pet = None;
+        }
+    }
+}
+
+fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
+    // Wiki data section
+    if let Some(wiki) = &pet.wiki {
+        // Wiki link
+        if !wiki.wiki_url.is_empty() {
+            ui.hyperlink_to(
+                RichText::new("View on Wiki →").color(style::ACCENT).size(12.0),
+                &wiki.wiki_url,
+            );
+        }
+
+        ui.add_space(4.0);
+
+        egui::Grid::new("pet_wiki_grid")
+            .num_columns(2)
+            .spacing([12.0, 4.0])
+            .show(ui, |ui| {
+                ui.label(RichText::new("Element:").color(style::TEXT_MUTED).size(12.0));
+                widgets::element_badge(ui, &wiki.element);
+                ui.end_row();
+
+                ui.label(RichText::new("Rec Class:").color(style::TEXT_MUTED).size(12.0));
+                ui.horizontal(|ui| {
+                    widgets::recommended_class_label(ui, &wiki.recommended_class);
+                });
+                ui.end_row();
+
+                ui.label(RichText::new("Class Bonus:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(RichText::new(&wiki.class_bonus).color(style::TEXT_NORMAL).size(12.0));
+                ui.end_row();
+
+                ui.label(RichText::new("Unlock:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(
+                    RichText::new(format_unlock_condition(&wiki.unlock_condition))
+                        .color(style::TEXT_NORMAL)
+                        .size(12.0),
+                );
+                ui.end_row();
+
+                ui.label(RichText::new("Evo Difficulty:").color(style::TEXT_MUTED).size(12.0));
+                let evo = &wiki.evo_difficulty;
+                ui.label(
+                    RichText::new(format!("{} ({})", evo.base, evo.with_conditions))
+                        .color(evo_difficulty_color(evo.base))
+                        .size(12.0),
+                );
+                ui.end_row();
+
+                ui.label(RichText::new("Improvable:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(
+                    RichText::new(if wiki.token_improvable { "Yes" } else { "No" })
+                        .color(if wiki.token_improvable { style::SUCCESS } else { style::TEXT_MUTED })
+                        .size(12.0),
+                );
+                ui.end_row();
+
+                if let Some(special) = &wiki.special_ability {
+                    ui.label(RichText::new("Special:").color(style::TEXT_MUTED).size(12.0));
+                    ui.label(
+                        RichText::new(special)
+                            .color(style::ACCENT)
+                            .italics()
+                            .size(12.0),
+                    );
+                    ui.end_row();
+                }
+            });
+    }
+
+    // Export data section
+    if let Some(export) = &pet.export {
+        ui.add_space(8.0);
+        ui.separator();
+        ui.label(
+            RichText::new("Your Pet Data")
+                .color(style::TEXT_BRIGHT)
+                .size(13.0)
+                .strong(),
+        );
+        ui.add_space(2.0);
+
+        egui::Grid::new("pet_export_grid")
+            .num_columns(2)
+            .spacing([12.0, 4.0])
+            .show(ui, |ui| {
+                ui.label(RichText::new("Growth:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(
+                    RichText::new(format_number(export.growth))
+                        .color(style::TEXT_NORMAL)
+                        .size(12.0)
+                        .family(egui::FontFamily::Monospace),
+                );
+                ui.end_row();
+
+                ui.label(RichText::new("Dungeon Lv:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(
+                    RichText::new(export.dungeon_level.to_string())
+                        .color(style::TEXT_NORMAL)
+                        .size(12.0)
+                        .family(egui::FontFamily::Monospace),
+                );
+                ui.end_row();
+
+                ui.label(RichText::new("Class:").color(style::TEXT_MUTED).size(12.0));
+                ui.horizontal(|ui| {
+                    if let Some(class) = &export.class {
+                        widgets::class_label(ui, class);
+                        ui.label(
+                            RichText::new(format!("(CL {})", export.class_level))
+                                .color(style::TEXT_MUTED)
+                                .size(12.0),
+                        );
+                    } else {
+                        ui.label(RichText::new("Unevolved").color(style::TEXT_MUTED).size(12.0));
+                    }
+                });
+                ui.end_row();
+
+                ui.label(RichText::new("Stats:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(
+                    RichText::new(format!(
+                        "HP {} / ATK {} / DEF {} / SPD {}",
+                        format_number(export.combat_stats.hp as u64),
+                        format_number(export.combat_stats.attack as u64),
+                        format_number(export.combat_stats.defense as u64),
+                        format_number(export.combat_stats.speed as u64),
+                    ))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0)
+                    .family(egui::FontFamily::Monospace),
+                );
+                ui.end_row();
+
+                ui.label(RichText::new("Action:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(
+                    RichText::new(format_action(&export.action))
+                        .color(style::TEXT_NORMAL)
+                        .size(12.0),
+                );
+                ui.end_row();
+
+                if export.improved {
+                    ui.label(RichText::new("Improved:").color(style::TEXT_MUTED).size(12.0));
+                    ui.label(RichText::new("✓ Yes").color(style::SUCCESS).size(12.0));
+                    ui.end_row();
+                }
+
+                // Equipment
+                let has_equip = export.loadout.weapon.is_some()
+                    || export.loadout.armor.is_some()
+                    || export.loadout.accessory.is_some();
+                if has_equip {
+                    ui.label(RichText::new("Equipment:").color(style::TEXT_MUTED).size(12.0));
+                    ui.vertical(|ui| {
+                        if let Some(w) = &export.loadout.weapon {
+                            ui.label(
+                                RichText::new(format!("W: {} ({:?})", w.name, w.quality))
+                                    .color(style::TEXT_NORMAL)
+                                    .size(11.0),
+                            );
+                        }
+                        if let Some(a) = &export.loadout.armor {
+                            ui.label(
+                                RichText::new(format!("A: {} ({:?})", a.name, a.quality))
+                                    .color(style::TEXT_NORMAL)
+                                    .size(11.0),
+                            );
+                        }
+                        if let Some(ac) = &export.loadout.accessory {
+                            ui.label(
+                                RichText::new(format!("Ac: {} ({:?})", ac.name, ac.quality))
+                                    .color(style::TEXT_NORMAL)
+                                    .size(11.0),
+                            );
+                        }
+                    });
+                    ui.end_row();
+                }
+            });
+    }
 }
 
 fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
@@ -424,10 +638,9 @@ fn show_filters(ui: &mut Ui, state: &mut AnalyzerState) {
                     UnlockTypeFilter::All,
                     UnlockTypeFilter::DefeatGods,
                     UnlockTypeFilter::PBaal,
-                    UnlockTypeFilter::PBaalVersion,
                     UnlockTypeFilter::PetToken,
                     UnlockTypeFilter::Milestones,
-                    UnlockTypeFilter::SpecialTask,
+                    UnlockTypeFilter::Special,
                     UnlockTypeFilter::Secret,
                     UnlockTypeFilter::TavernQuest,
                     UnlockTypeFilter::StrategyRoom,
@@ -435,7 +648,6 @@ fn show_filters(ui: &mut Ui, state: &mut AnalyzerState) {
                     UnlockTypeFilter::PetCount,
                     UnlockTypeFilter::ItemGift,
                     UnlockTypeFilter::AncientMimic,
-                    UnlockTypeFilter::Special,
                 ] {
                     ui.selectable_value(&mut state.filter_unlock_type, f, f.label());
                 }
@@ -511,6 +723,9 @@ fn show_filters(ui: &mut Ui, state: &mut AnalyzerState) {
 fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
     let available = ui.available_size();
 
+    // Track clicks via RefCell so the closure can mutate it
+    let clicked_pet: RefCell<Option<String>> = RefCell::new(None);
+
     TableBuilder::new(ui)
         .striped(true)
         .resizable(true)
@@ -539,7 +754,7 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
             sortable_header(&mut header, "Class", SortColumn::Class, state);
             sortable_header(&mut header, "CL", SortColumn::ClassLevel, state);
             header.col(|ui| { ui.label(RichText::new("Imp").color(style::TEXT_MUTED).strong()); });
-            header.col(|ui| { ui.label(RichText::new("Action / Special").color(style::TEXT_MUTED).strong()); });
+            sortable_header(&mut header, "Action", SortColumn::Action, state);
         })
         .body(|body| {
             body.rows(22.0, pets.len(), |mut row| {
@@ -552,11 +767,14 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                     widgets::status_dot(ui, unlocked);
                 });
 
-                // Name
+                // Name (clickable for detail card)
                 row.col(|ui| {
-                    ui.label(RichText::new(&pet.name).color(
+                    let text = RichText::new(&pet.name).color(
                         if unlocked { style::TEXT_BRIGHT } else { style::TEXT_MUTED },
-                    ));
+                    );
+                    if ui.add(egui::Label::new(text).sense(egui::Sense::click())).clicked() {
+                        *clicked_pet.borrow_mut() = Some(pet.name.clone());
+                    }
                 });
 
                 // Element
@@ -649,10 +867,9 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                 // Action / Special
                 row.col(|ui| {
                     if let Some(export) = &pet.export {
-                        let action_str = format!("{:?}", export.action);
                         ui.label(
-                            RichText::new(action_str)
-                                .color(style::TEXT_MUTED)
+                            RichText::new(format_action(&export.action))
+                                .color(action_color(&export.action))
                                 .size(11.0),
                         );
                     } else if let Some(wiki) = &pet.wiki {
@@ -668,6 +885,16 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                 });
             });
         });
+
+    // Process click after table rendering
+    if let Some(name) = clicked_pet.into_inner() {
+        // Toggle: clicking the same pet again closes the detail card
+        if state.selected_pet.as_ref() == Some(&name) {
+            state.selected_pet = None;
+        } else {
+            state.selected_pet = Some(name);
+        }
+    }
 }
 
 fn sortable_header(
@@ -708,6 +935,120 @@ fn evo_difficulty_color(base: u8) -> Color32 {
         6 => Color32::from_rgb(0xdd, 0x88, 0x44),
         7 => Color32::from_rgb(0xdd, 0x66, 0x44),
         _ => style::ERROR,
+    }
+}
+
+// =============================================================================
+// Action formatting
+// =============================================================================
+
+fn format_action(action: &PetAction) -> String {
+    match action {
+        PetAction::Idle => "Idle".to_string(),
+        PetAction::Crafting => "Crafting".to_string(),
+        PetAction::Campaign(ct) => {
+            let name = match ct {
+                CampaignType::Growth => "Growth",
+                CampaignType::Divinity => "Divinity",
+                CampaignType::Food => "Food",
+                CampaignType::Item => "Item",
+                CampaignType::Level => "Level",
+                CampaignType::Multiplier => "Multiplier",
+                CampaignType::GodPower => "God Power",
+            };
+            format!("C: {name}")
+        }
+        PetAction::Dungeon(d) => {
+            let name = match d {
+                Dungeon::NewbieGround => "Newbie",
+                Dungeon::Scrapyard => "Scrapyard",
+                Dungeon::WaterTemple => "Water",
+                Dungeon::Volcano => "Volcano",
+                Dungeon::Mountain => "Mountain",
+                Dungeon::Forest => "Forest",
+            };
+            format!("D: {name}")
+        }
+        PetAction::Village(vj) => {
+            let detail = match vj {
+                VillageJob::Fishing(sub) => match sub {
+                    Some(s) => format!("Fish ({s})"),
+                    None => "Fishing".to_string(),
+                },
+                VillageJob::MaterialFactory(sub) => match sub {
+                    Some(s) => format!("Mat ({s})"),
+                    None => "Material".to_string(),
+                },
+                VillageJob::AlchemyHut => "Alchemy".to_string(),
+                VillageJob::Dojo => "Dojo".to_string(),
+                VillageJob::StrategyRoom => "Strategy".to_string(),
+                VillageJob::Questing(sub) => match sub {
+                    Some(s) => format!("Quest ({s})"),
+                    None => "Questing".to_string(),
+                },
+            };
+            format!("V: {detail}")
+        }
+    }
+}
+
+fn action_color(action: &PetAction) -> Color32 {
+    match action {
+        PetAction::Idle => style::TEXT_MUTED,
+        PetAction::Campaign(_) => Color32::from_rgb(0x88, 0xcc, 0xff),
+        PetAction::Dungeon(_) => Color32::from_rgb(0xff, 0xaa, 0x88),
+        PetAction::Crafting => Color32::from_rgb(0xff, 0xcc, 0x66),
+        PetAction::Village(_) => Color32::from_rgb(0x88, 0xdd, 0x88),
+    }
+}
+
+/// Sort key for actions: groups by type, then by sub-variant.
+fn action_sort_key(action: &PetAction) -> u16 {
+    match action {
+        PetAction::Idle => 0,
+        PetAction::Campaign(ct) => 10 + match ct {
+            CampaignType::Growth => 0,
+            CampaignType::Divinity => 1,
+            CampaignType::Food => 2,
+            CampaignType::Item => 3,
+            CampaignType::Level => 4,
+            CampaignType::Multiplier => 5,
+            CampaignType::GodPower => 6,
+        },
+        PetAction::Dungeon(d) => 20 + match d {
+            Dungeon::NewbieGround => 0,
+            Dungeon::Scrapyard => 1,
+            Dungeon::WaterTemple => 2,
+            Dungeon::Volcano => 3,
+            Dungeon::Mountain => 4,
+            Dungeon::Forest => 5,
+        },
+        PetAction::Crafting => 30,
+        PetAction::Village(_) => 40,
+    }
+}
+
+// =============================================================================
+// Unlock condition formatting
+// =============================================================================
+
+fn format_unlock_condition(cond: &UnlockCondition) -> String {
+    match cond {
+        UnlockCondition::DefeatGods => "Defeat Gods".to_string(),
+        UnlockCondition::DefeatPBaal(n) => format!("Defeat P.Baal {n}"),
+        UnlockCondition::DefeatPBaalVersion(n) => format!("Defeat P.Baal v{n}"),
+        UnlockCondition::SpecialTask => "Special Task".to_string(),
+        UnlockCondition::PetToken => "Pet Token".to_string(),
+        UnlockCondition::MilestonesOrPetToken => "Milestones or Pet Token".to_string(),
+        UnlockCondition::Milestones => "Milestones".to_string(),
+        UnlockCondition::Secret => "Secret".to_string(),
+        UnlockCondition::Special => "Special".to_string(),
+        UnlockCondition::TavernQuest(rank) => format!("Tavern Quest ({rank})"),
+        UnlockCondition::StrategyRoom(level) => format!("Strategy Room Lv.{level}"),
+        UnlockCondition::AncientMimicPoints(pts) => format!("Ancient Mimic ({pts} pts)"),
+        UnlockCondition::PetCount(n) => format!("{n} Pets Unlocked"),
+        UnlockCondition::DungeonBoss(boss) => format!("Dungeon Boss: {boss}"),
+        UnlockCondition::ItemGift(item) => format!("Item Gift: {item}"),
     }
 }
 
@@ -812,20 +1153,23 @@ fn filter_and_sort<'a>(pets: &'a [MergedPet], state: &AnalyzerState) -> Vec<&'a 
         })
         .collect();
 
-    // Sort
+    // Sort — growth descending is the universal tiebreaker (strongest first in ties)
     let asc = state.sort_ascending;
     filtered.sort_by(|a, b| {
+        let ga = a.export.as_ref().map(|e| e.growth).unwrap_or(0);
+        let gb = b.export.as_ref().map(|e| e.growth).unwrap_or(0);
+
         let ord = match state.sort_column {
             SortColumn::Name => a.name.cmp(&b.name),
             SortColumn::Element => {
                 let ea = a.element().unwrap_or(Element::Neutral);
                 let eb = b.element().unwrap_or(Element::Neutral);
-                ea.cmp(&eb).then_with(|| a.name.cmp(&b.name))
+                ea.cmp(&eb).then_with(|| gb.cmp(&ga))
             }
             SortColumn::RecClass => {
                 let ra = rec_class_sort_key(a.recommended_class());
                 let rb = rec_class_sort_key(b.recommended_class());
-                ra.cmp(&rb).then_with(|| a.name.cmp(&b.name))
+                ra.cmp(&rb).then_with(|| gb.cmp(&ga))
             }
             SortColumn::EvoDifficulty => {
                 let da = a
@@ -838,42 +1182,33 @@ fn filter_and_sort<'a>(pets: &'a [MergedPet], state: &AnalyzerState) -> Vec<&'a 
                     .as_ref()
                     .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
                     .unwrap_or((99, 99));
-                da.cmp(&db).then_with(|| {
-                    // Growth tiebreaker in same direction as primary sort
-                    let ga = a.export.as_ref().map(|e| e.growth).unwrap_or(0);
-                    let gb = b.export.as_ref().map(|e| e.growth).unwrap_or(0);
-                    gb.cmp(&ga)
-                })
+                da.cmp(&db).then_with(|| gb.cmp(&ga))
             }
             SortColumn::Growth => {
-                let ga = a.export.as_ref().map(|e| e.growth).unwrap_or(0);
-                let gb = b.export.as_ref().map(|e| e.growth).unwrap_or(0);
                 ga.cmp(&gb).then_with(|| a.name.cmp(&b.name))
             }
             SortColumn::DungeonLevel => {
                 let da = a.export.as_ref().map(|e| e.dungeon_level).unwrap_or(0);
                 let db = b.export.as_ref().map(|e| e.dungeon_level).unwrap_or(0);
-                da.cmp(&db).then_with(|| a.name.cmp(&b.name))
+                da.cmp(&db).then_with(|| gb.cmp(&ga))
             }
             SortColumn::Class => {
                 let ca = a.evolved_class().unwrap_or(Class::Wildcard);
                 let cb = b.evolved_class().unwrap_or(Class::Wildcard);
-                ca.cmp(&cb).then_with(|| a.name.cmp(&b.name))
+                ca.cmp(&cb).then_with(|| gb.cmp(&ga))
             }
             SortColumn::ClassLevel => {
-                let la = a
-                    .export
-                    .as_ref()
-                    .filter(|e| e.class.is_some())
-                    .map(|e| e.class_level)
-                    .unwrap_or(0);
-                let lb = b
-                    .export
-                    .as_ref()
-                    .filter(|e| e.class.is_some())
-                    .map(|e| e.class_level)
-                    .unwrap_or(0);
-                la.cmp(&lb).then_with(|| a.name.cmp(&b.name))
+                let la = a.export.as_ref().filter(|e| e.class.is_some()).map(|e| e.class_level).unwrap_or(0);
+                let lb = b.export.as_ref().filter(|e| e.class.is_some()).map(|e| e.class_level).unwrap_or(0);
+                // Class level → class → growth
+                let ca = a.evolved_class().unwrap_or(Class::Wildcard);
+                let cb = b.evolved_class().unwrap_or(Class::Wildcard);
+                la.cmp(&lb).then_with(|| ca.cmp(&cb)).then_with(|| gb.cmp(&ga))
+            }
+            SortColumn::Action => {
+                let ka = a.export.as_ref().map(|e| action_sort_key(&e.action)).unwrap_or(999);
+                let kb = b.export.as_ref().map(|e| action_sort_key(&e.action)).unwrap_or(999);
+                ka.cmp(&kb).then_with(|| gb.cmp(&ga))
             }
         };
         if asc { ord } else { ord.reverse() }
