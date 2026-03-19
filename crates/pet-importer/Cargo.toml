@@ -3,6 +3,14 @@ name = "pet-importer"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "pet_importer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pet-importer"
+path = "src/main.rs"
+
 [dependencies]
 itrtg-models = { path = "../models" }
 anyhow = "1"

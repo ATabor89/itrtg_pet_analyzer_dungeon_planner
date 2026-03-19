@@ -1,6 +1,5 @@
-mod parser;
-
 use clap::Parser;
+use wiki_extractor::parser;
 use std::path::PathBuf;
 
 #[derive(Parser)]

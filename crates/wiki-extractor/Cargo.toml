@@ -3,6 +3,14 @@ name = "wiki-extractor"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "wiki_extractor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wiki-extractor"
+path = "src/main.rs"
+
 [dependencies]
 itrtg-models = { path = "../models" }
 anyhow = "1"
