@@ -94,6 +94,19 @@ pub enum CoverageKind {
 }
 
 // =============================================================================
+// Custom constraints
+// =============================================================================
+
+/// User-defined constraints for the dungeon solver.
+#[derive(Debug, Clone, Default)]
+pub struct SolverConstraints {
+    /// Pet names forbidden from all dungeon teams.
+    pub forbidden: HashSet<String>,
+    /// Pets forced into specific dungeon teams: dungeon → list of pet names.
+    pub forced: HashMap<Dungeon, Vec<String>>,
+}
+
+// =============================================================================
 // Dungeon class viability
 // =============================================================================
 
@@ -148,7 +161,7 @@ pub fn solve(
         depth: target_depth,
         data: dungeon_data,
     }];
-    let mut plans = solve_multi(&requests, roster);
+    let mut plans = solve_multi(&requests, roster, &SolverConstraints::default());
     plans.pop().unwrap_or(DungeonPlan {
         dungeon,
         depth: target_depth,
@@ -171,11 +184,24 @@ pub struct DungeonRequest<'a> {
 /// Solve multiple dungeons simultaneously, ensuring no pet appears in more than
 /// one team. Uses a greedy constraint-first approach across all dungeons: the
 /// most constrained slots (fewest viable candidates) are filled first.
-pub fn solve_multi(requests: &[DungeonRequest], roster: &[MergedPet]) -> Vec<DungeonPlan> {
-    // Only consider unlocked pets that aren't village pets
+///
+/// Respects custom constraints:
+/// - **Forbidden** pets are excluded entirely from the available pool.
+/// - **Forced** pets are pre-assigned to the best-fitting slot in their target
+///   dungeon before the greedy solve runs for remaining slots.
+pub fn solve_multi(
+    requests: &[DungeonRequest],
+    roster: &[MergedPet],
+    constraints: &SolverConstraints,
+) -> Vec<DungeonPlan> {
+    // Only consider unlocked pets that aren't village pets or forbidden
     let available: Vec<&MergedPet> = roster
         .iter()
-        .filter(|p| p.is_unlocked() && !p.is_village_pet())
+        .filter(|p| {
+            p.is_unlocked()
+                && !p.is_village_pet()
+                && !constraints.forbidden.contains(&p.name)
+        })
         .collect();
 
     // Resolve depth data for each request
@@ -184,7 +210,65 @@ pub fn solve_multi(requests: &[DungeonRequest], roster: &[MergedPet]) -> Vec<Dun
         .map(|req| req.data.depths.get(&req.depth))
         .collect();
 
-    // Flatten all slots across all dungeons with their candidates
+    // Track used pets and pre-assigned slots
+    let mut used: HashSet<usize> = HashSet::new();
+    let mut assignment_map: HashMap<(usize, usize), SlotAssignment> = HashMap::new();
+
+    // Phase 1: Pre-assign forced pets to their target dungeons
+    for (ri, req) in requests.iter().enumerate() {
+        let Some(dd) = depth_datas[ri] else { continue };
+        let Some(forced_names) = constraints.forced.get(&req.dungeon) else {
+            continue;
+        };
+
+        for forced_name in forced_names {
+            // Find this pet in the available pool
+            let Some((pi, pet)) = available
+                .iter()
+                .enumerate()
+                .find(|(pi, p)| !used.contains(pi) && p.name == *forced_name)
+            else {
+                continue;
+            };
+
+            // Find the best slot for this pet in the dungeon
+            let best_slot = dd
+                .party
+                .iter()
+                .enumerate()
+                .filter(|(si, _)| !assignment_map.contains_key(&(ri, *si)))
+                .filter_map(|(si, slot)| score_pet(pet, slot).map(|q| (si, q)))
+                .min_by_key(|(_, q)| *q);
+
+            // If no slot matches constraints, force into the first open slot anyway
+            // (user explicitly forced this pet — respect the intent)
+            let (slot_idx, quality) = best_slot.unwrap_or_else(|| {
+                let first_open = dd
+                    .party
+                    .iter()
+                    .enumerate()
+                    .find(|(si, _)| !assignment_map.contains_key(&(ri, *si)))
+                    .map(|(si, _)| si)
+                    .unwrap_or(0);
+                (first_open, MatchQuality::Fallback)
+            });
+
+            used.insert(pi);
+            assignment_map.insert(
+                (ri, slot_idx),
+                SlotAssignment {
+                    slot: dd.party[slot_idx].clone(),
+                    position: slot_idx,
+                    assignment: Assignment::Filled {
+                        pet: (*pet).clone(),
+                        quality,
+                    },
+                },
+            );
+        }
+    }
+
+    // Phase 2: Flatten remaining slots across all dungeons with their candidates
     struct GlobalSlot<'a> {
         req_idx: usize,
         slot_idx: usize,
@@ -197,9 +281,14 @@ pub fn solve_multi(requests: &[DungeonRequest], roster: &[MergedPet]) -> Vec<Dun
     for (ri, dd_opt) in depth_datas.iter().enumerate() {
         if let Some(dd) = dd_opt {
             for (si, slot) in dd.party.iter().enumerate() {
+                // Skip slots already filled by forced pets
+                if assignment_map.contains_key(&(ri, si)) {
+                    continue;
+                }
                 let candidates: Vec<(usize, MatchQuality)> = available
                     .iter()
                     .enumerate()
+                    .filter(|(pi, _)| !used.contains(pi))
                     .filter_map(|(pi, pet)| score_pet(pet, slot).map(|q| (pi, q)))
                     .collect();
                 all_slots.push(GlobalSlot {
@@ -216,10 +305,7 @@ pub fn solve_multi(requests: &[DungeonRequest], roster: &[MergedPet]) -> Vec<Dun
     // Ties broken by request index then slot index for stability.
     all_slots.sort_by_key(|s| (s.candidates.len(), s.req_idx, s.slot_idx));
 
-    // Greedy assignment across all dungeons
-    let mut used: HashSet<usize> = HashSet::new();
-    let mut assignment_map: HashMap<(usize, usize), SlotAssignment> = HashMap::new();
-
+    // Phase 3: Greedy assignment across all dungeons
     for gs in &all_slots {
         let best = gs
             .candidates
@@ -227,6 +313,23 @@ pub fn solve_multi(requests: &[DungeonRequest], roster: &[MergedPet]) -> Vec<Dun
             .filter(|(pi, _)| !used.contains(pi))
             .min_by(|(pi_a, qa), (pi_b, qb)| {
                 qa.cmp(qb).then_with(|| {
+                    // For Evolvable matches, prefer easier evo difficulty
+                    if *qa == MatchQuality::Evolvable {
+                        let evo_a = available[*pi_a]
+                            .wiki
+                            .as_ref()
+                            .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
+                            .unwrap_or((99, 99));
+                        let evo_b = available[*pi_b]
+                            .wiki
+                            .as_ref()
+                            .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
+                            .unwrap_or((99, 99));
+                        let evo_cmp = evo_a.cmp(&evo_b);
+                        if evo_cmp != std::cmp::Ordering::Equal {
+                            return evo_cmp;
+                        }
+                    }
                     // Higher growth = better tiebreak (prefer stronger pets)
                     let ga = available[*pi_a]
                         .export
@@ -527,6 +630,19 @@ mod tests {
         rec: RecommendedClass,
         unlocked: bool,
     ) -> MergedPet {
+        mock_pet_with_evo(name, element, class, rec, unlocked, 1, 1, 10000)
+    }
+
+    fn mock_pet_with_evo(
+        name: &str,
+        element: Element,
+        class: Option<Class>,
+        rec: RecommendedClass,
+        unlocked: bool,
+        evo_base: u8,
+        evo_cond: u8,
+        growth: u64,
+    ) -> MergedPet {
         let wiki = WikiPet {
             name: name.to_string(),
             wiki_url: String::new(),
@@ -534,14 +650,14 @@ mod tests {
             recommended_class: rec,
             class_bonus: String::new(),
             unlock_condition: UnlockCondition::PetToken,
-            evo_difficulty: EvoDifficulty { base: 1, with_conditions: 1 },
+            evo_difficulty: EvoDifficulty { base: evo_base, with_conditions: evo_cond },
             token_improvable: false,
             special_ability: None,
         };
         let export = ExportPet {
             export_name: name.to_string(),
             element,
-            growth: 10000,
+            growth,
             dungeon_level: 20,
             class,
             class_level: 10,
@@ -601,15 +717,12 @@ mod tests {
     #[test]
     fn test_village_pet_excluded() {
         let pet = mock_pet("Swan", Element::Water, None, RecommendedClass::Village("Fisher".to_string()), true);
-        // Village pets should be filtered out before reaching the solver,
-        // but verify recommends_class returns false
         assert!(!pet.recommends_class(&Class::Supporter));
         assert!(pet.is_village_pet());
     }
 
     #[test]
     fn test_wildcard_reclassable() {
-        // A pet evolved as Adventurer but with Wildcard recommendation — could reclass
         let pet = mock_pet("Mouse", Element::Earth, Some(Class::Adventurer), RecommendedClass::Wildcard, true);
         let slot = make_slot(Some(Class::Defender), Some(Element::Earth));
         assert_eq!(score_pet(&pet, &slot), Some(MatchQuality::Reclassable));
@@ -624,7 +737,6 @@ mod tests {
 
     #[test]
     fn test_non_dungeon_class_excluded_from_any_slot() {
-        // Adventurer-evolved pet should NOT fill an "any" slot
         let pet = mock_pet("Mouse", Element::Earth, Some(Class::Adventurer), RecommendedClass::Wildcard, true);
         let slot = make_slot(None, None);
         assert_eq!(score_pet(&pet, &slot), None);
@@ -632,7 +744,6 @@ mod tests {
 
     #[test]
     fn test_non_dungeon_class_allowed_when_required() {
-        // Blacksmith IS allowed when the slot specifically requires Blacksmith
         let pet = mock_pet("Smith", Element::Fire, Some(Class::Blacksmith), RecommendedClass::Single(Class::Blacksmith), true);
         let slot = make_slot(Some(Class::Blacksmith), Some(Element::Fire));
         assert_eq!(score_pet(&pet, &slot), Some(MatchQuality::Exact));
@@ -653,7 +764,6 @@ mod tests {
             mock_pet("Rabbit", Element::Earth, Some(Class::Mage), RecommendedClass::Single(Class::Mage), true),
             mock_pet("Squirrel", Element::Fire, Some(Class::Rogue), RecommendedClass::Single(Class::Rogue), true),
             mock_pet("Dog", Element::Neutral, Some(Class::Defender), RecommendedClass::Single(Class::Defender), true),
-            // Mouse: unevolved, Wildcard rec — dungeon-viable for "any" slot
             mock_pet("Mouse", Element::Earth, None, RecommendedClass::Wildcard, true),
         ];
 
@@ -695,12 +805,10 @@ mod tests {
 
         let plan = solve(Dungeon::Scrapyard, 1, &dungeon_data, &pets);
 
-        // Verify order is preserved (positions 0-5)
         for (i, a) in plan.assignments.iter().enumerate() {
             assert_eq!(a.position, i);
         }
 
-        // Verify correct class assignments for specific slots
         assert!(matches!(&plan.assignments[0].assignment,
             Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.evolved_class() == Some(Class::Rogue)));
         assert!(matches!(&plan.assignments[1].assignment,
@@ -717,7 +825,6 @@ mod tests {
             mock_pet("Dog", Element::Neutral, Some(Class::Defender), RecommendedClass::Single(Class::Defender), true),
         ];
 
-        // Two dungeons that both want a Supporter
         let dd1 = DungeonData {
             name: "Dungeon1".to_string(),
             depths: {
@@ -736,22 +843,126 @@ mod tests {
                 m
             },
         };
-        let dd2 = dd1.clone(); // Same requirements
+        let dd2 = dd1.clone();
 
         let requests = [
             DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd1 },
             DungeonRequest { dungeon: Dungeon::WaterTemple, depth: 1, data: &dd2 },
         ];
 
-        let plans = solve_multi(&requests, &pets);
+        let plans = solve_multi(&requests, &pets, &SolverConstraints::default());
         assert_eq!(plans.len(), 2);
 
-        // First dungeon gets Frog (only Supporter)
         assert!(matches!(&plans[0].assignments[0].assignment,
             Assignment::Filled { pet, .. } if pet.name == "Frog"));
-
-        // Second dungeon can't fill its Supporter slot (Frog already used)
         assert!(matches!(&plans[1].assignments[0].assignment,
             Assignment::Empty { .. }));
+    }
+
+    #[test]
+    fn test_evolvable_prefers_easier_evo() {
+        // Two unevolved pets, both recommend Mage, but different evo difficulties
+        let pets = vec![
+            mock_pet_with_evo("HardEvo", Element::Fire, None, RecommendedClass::Single(Class::Mage), true, 7, 9, 50000),
+            mock_pet_with_evo("EasyEvo", Element::Fire, None, RecommendedClass::Single(Class::Mage), true, 2, 3, 10000),
+        ];
+
+        let dd = DungeonData {
+            name: "Test".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 5, monsters_per_room: 2, gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                        class_level: 3, total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                    party: vec![make_slot(Some(Class::Mage), Some(Element::Fire))],
+                    party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+                });
+                m
+            },
+        };
+
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets);
+        // EasyEvo should be preferred despite lower growth, because evo difficulty is lower
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, quality: MatchQuality::Evolvable } if pet.name == "EasyEvo"));
+    }
+
+    #[test]
+    fn test_forbidden_pets_excluded() {
+        let pets = vec![
+            mock_pet("Frog", Element::Water, Some(Class::Supporter), RecommendedClass::Single(Class::Supporter), true),
+            mock_pet("Cat", Element::Water, Some(Class::Supporter), RecommendedClass::Single(Class::Supporter), true),
+        ];
+
+        let dd = DungeonData {
+            name: "Test".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 5, monsters_per_room: 2, gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                        class_level: 3, total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                    party: vec![make_slot(Some(Class::Supporter), None)],
+                    party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+                });
+                m
+            },
+        };
+
+        let mut constraints = SolverConstraints::default();
+        constraints.forbidden.insert("Frog".to_string());
+
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints);
+
+        // Frog is forbidden, so Cat should be assigned
+        assert!(matches!(&plans[0].assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Cat"));
+    }
+
+    #[test]
+    fn test_forced_pets_assigned() {
+        let pets = vec![
+            mock_pet("Frog", Element::Water, Some(Class::Supporter), RecommendedClass::Single(Class::Supporter), true),
+            mock_pet("Cat", Element::Water, Some(Class::Supporter), RecommendedClass::Single(Class::Supporter), true),
+        ];
+
+        let dd = DungeonData {
+            name: "Test".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 5, monsters_per_room: 2, gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                        class_level: 3, total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                    party: vec![make_slot(Some(Class::Supporter), None)],
+                    party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+                });
+                m
+            },
+        };
+
+        let mut constraints = SolverConstraints::default();
+        constraints.forced.insert(Dungeon::Scrapyard, vec!["Cat".to_string()]);
+
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints);
+
+        // Cat is forced, so Cat should be assigned even though Frog might be "better"
+        assert!(matches!(&plans[0].assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Cat"));
     }
 }
