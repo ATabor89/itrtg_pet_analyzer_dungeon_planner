@@ -108,6 +108,10 @@ pub struct SolverConstraints {
     pub forced: HashMap<Dungeon, Vec<String>>,
     /// Pets forced into any available team — solver picks the best dungeon/slot.
     pub forced_any: Vec<String>,
+    /// Whitelisted pets: bypass the non-dungeon class filter.
+    /// These pets won't be automatically excluded from "any" class slots even
+    /// if they have a non-dungeon class (Adventurer/Blacksmith/Alchemist).
+    pub whitelisted: HashSet<String>,
 }
 
 // =============================================================================
@@ -241,7 +245,7 @@ pub fn solve_multi(
                 .iter()
                 .enumerate()
                 .filter(|(si, _)| !assignment_map.contains_key(&(ri, *si)))
-                .filter_map(|(si, slot)| score_pet(pet, slot).map(|q| (si, q)))
+                .filter_map(|(si, slot)| score_pet(pet, slot, true).map(|q| (si, q)))
                 .min_by_key(|(_, q)| *q);
 
             // If no slot matches constraints, force into the first open slot anyway
@@ -297,7 +301,7 @@ pub fn solve_multi(
                 if first_open.is_none() {
                     first_open = Some((ri, si));
                 }
-                if let Some(q) = score_pet(pet, slot) {
+                if let Some(q) = score_pet(pet, slot, true) {
                     if best.as_ref().map_or(true, |(_, _, bq)| q < *bq) {
                         best = Some((ri, si, q));
                     }
@@ -347,7 +351,10 @@ pub fn solve_multi(
                     .iter()
                     .enumerate()
                     .filter(|(pi, _)| !used.contains(pi))
-                    .filter_map(|(pi, pet)| score_pet(pet, slot).map(|q| (pi, q)))
+                    .filter_map(|(pi, pet)| {
+                        let wl = constraints.whitelisted.contains(&pet.name);
+                        score_pet(pet, slot, wl).map(|q| (pi, q))
+                    })
                     .collect();
                 all_slots.push(GlobalSlot {
                     req_idx: ri,
@@ -485,7 +492,7 @@ pub fn solve_multi(
 // =============================================================================
 
 /// Score how well a pet matches a slot. Returns None if completely unsuitable.
-fn score_pet(pet: &MergedPet, slot: &PartySlot) -> Option<MatchQuality> {
+fn score_pet(pet: &MergedPet, slot: &PartySlot, whitelisted: bool) -> Option<MatchQuality> {
     let element_ok = pet.matches_element(slot.element);
     if !element_ok {
         return None;
@@ -493,8 +500,8 @@ fn score_pet(pet: &MergedPet, slot: &PartySlot) -> Option<MatchQuality> {
 
     // If slot has no class requirement, any dungeon-viable pet works
     let Some(required_class) = &slot.class else {
-        // "Any" class slot — exclude non-dungeon classes
-        if !is_dungeon_viable(pet) {
+        // "Any" class slot — exclude non-dungeon classes (unless whitelisted)
+        if !whitelisted && !is_dungeon_viable(pet) {
             return None;
         }
         if pet.is_evolved() {
@@ -756,7 +763,7 @@ mod tests {
         let available: Vec<&MergedPet> = pets.iter().collect();
 
         let slot = make_slot(Some(Class::Supporter), Some(Element::Water));
-        let score = score_pet(&available[0], &slot);
+        let score = score_pet(&available[0], &slot, false);
         assert_eq!(score, Some(MatchQuality::Exact));
     }
 
@@ -764,14 +771,14 @@ mod tests {
     fn test_evolvable_match() {
         let pet = mock_pet("Rabbit", Element::Earth, None, RecommendedClass::Single(Class::Mage), true);
         let slot = make_slot(Some(Class::Mage), Some(Element::Earth));
-        assert_eq!(score_pet(&pet, &slot), Some(MatchQuality::Evolvable));
+        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Evolvable));
     }
 
     #[test]
     fn test_element_mismatch_rejected() {
         let pet = mock_pet("Frog", Element::Water, Some(Class::Supporter), RecommendedClass::Single(Class::Supporter), true);
         let slot = make_slot(Some(Class::Supporter), Some(Element::Fire));
-        assert_eq!(score_pet(&pet, &slot), None);
+        assert_eq!(score_pet(&pet, &slot, false), None);
     }
 
     #[test]
@@ -785,35 +792,44 @@ mod tests {
     fn test_wildcard_reclassable() {
         let pet = mock_pet("Mouse", Element::Earth, Some(Class::Adventurer), RecommendedClass::Wildcard, true);
         let slot = make_slot(Some(Class::Defender), Some(Element::Earth));
-        assert_eq!(score_pet(&pet, &slot), Some(MatchQuality::Reclassable));
+        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Reclassable));
     }
 
     #[test]
     fn test_any_slot_accepts_dungeon_class() {
         let pet = mock_pet("Dog", Element::Neutral, Some(Class::Defender), RecommendedClass::Single(Class::Defender), true);
         let slot = make_slot(None, None);
-        assert_eq!(score_pet(&pet, &slot), Some(MatchQuality::Exact));
+        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Exact));
     }
 
     #[test]
     fn test_non_dungeon_class_excluded_from_any_slot() {
         let pet = mock_pet("Mouse", Element::Earth, Some(Class::Adventurer), RecommendedClass::Wildcard, true);
         let slot = make_slot(None, None);
-        assert_eq!(score_pet(&pet, &slot), None);
+        assert_eq!(score_pet(&pet, &slot, false), None);
+    }
+
+    #[test]
+    fn test_whitelisted_non_dungeon_class_allowed() {
+        // Whitelisted pets bypass the non-dungeon class filter for "any" slots
+        let pet = mock_pet("Bee", Element::Wind, Some(Class::Alchemist), RecommendedClass::Single(Class::Alchemist), true);
+        let slot = make_slot(None, None);
+        assert_eq!(score_pet(&pet, &slot, false), None); // Normally excluded
+        assert_eq!(score_pet(&pet, &slot, true), Some(MatchQuality::Exact)); // Whitelisted: allowed
     }
 
     #[test]
     fn test_non_dungeon_class_allowed_when_required() {
         let pet = mock_pet("Smith", Element::Fire, Some(Class::Blacksmith), RecommendedClass::Single(Class::Blacksmith), true);
         let slot = make_slot(Some(Class::Blacksmith), Some(Element::Fire));
-        assert_eq!(score_pet(&pet, &slot), Some(MatchQuality::Exact));
+        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Exact));
     }
 
     #[test]
     fn test_chameleon_matches_any_element() {
         let pet = mock_pet("Chameleon", Element::All, Some(Class::Mage), RecommendedClass::DungeonWildcard, true);
         let slot = make_slot(Some(Class::Mage), Some(Element::Fire));
-        assert_eq!(score_pet(&pet, &slot), Some(MatchQuality::Exact));
+        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Exact));
     }
 
     #[test]
