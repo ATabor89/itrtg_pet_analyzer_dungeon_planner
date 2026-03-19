@@ -3,7 +3,7 @@ use itrtg_models::{Class, Dungeon, Element, EquipmentSlot};
 
 const YAML_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../references/dungeon_recommendations.yaml"
+    "/../../data/dungeon_recommendations.yaml"
 );
 
 #[test]
@@ -158,9 +158,9 @@ fn monsters_use_core_element() {
     let d1 = &recs.dungeons[&Dungeon::WaterTemple].depths[&1];
     assert_eq!(d1.monsters[0].element, Some(Element::Water));
 
-    // Scrapyard D1 monsters have no element
+    // Scrapyard D1 monsters are Neutral element
     let sd1 = &recs.dungeons[&Dungeon::Scrapyard].depths[&1];
-    assert_eq!(sd1.monsters[0].element, None);
+    assert_eq!(sd1.monsters[0].element, Some(Element::Neutral));
 }
 
 #[test]

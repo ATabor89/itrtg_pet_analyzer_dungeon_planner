@@ -1,0 +1,26 @@
+# Pet Constraints for the Dungeon Planner
+#
+# Forbidden: pets excluded from ALL dungeon teams.
+# Use this for pets you want to keep on campaigns, village jobs,
+# or otherwise don't want the solver touching.
+#
+# Forced: pets that MUST appear in a dungeon team.
+# Optionally specify a dungeon to pin them to a specific team.
+# Omit the dungeon to let the solver pick the best fit.
+#
+# Dungeon names: Scrapyard, WaterTemple, Volcano, Mountain, Forest
+
+forbidden:
+  - Honey Badger
+  - Panda
+  - God Power (Pet)
+  - Raven
+  - Ape
+
+forced:
+  # Without a dungeon (solver picks best team):
+  - pet: Hourglass
+
+  # With a specific dungeon:
+  # - pet: Salamander
+  #   dungeon: Forest

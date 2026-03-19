@@ -6,6 +6,7 @@ use itrtg_models::{Dungeon, Element};
 use itrtg_planner::solver::{
     self, Assignment, CoverageKind, DungeonPlan, DungeonRequest, MatchQuality, SolverConstraints,
 };
+use serde::Deserialize;
 
 use crate::data::DataStore;
 use crate::style;
@@ -33,11 +34,12 @@ pub struct DungeonState {
     initialized: bool,
     /// Pet names forbidden from all dungeon teams.
     forbidden_pets: HashSet<String>,
-    /// Pets forced into specific dungeon teams: (dungeon, pet_name).
-    forced_pets: Vec<(Dungeon, String)>,
+    /// Pets forced into dungeon teams: (optional dungeon, pet_name).
+    /// None dungeon = solver picks the best team.
+    forced_pets: Vec<(Option<Dungeon>, String)>,
     /// Search text for adding constraints.
     constraint_search: String,
-    /// Selected dungeon for the "Force" action.
+    /// Selected dungeon for the "Force" action. None = Any team.
     force_dungeon: Option<Dungeon>,
 }
 
@@ -71,24 +73,69 @@ impl DungeonState {
                 depth: 1,
             })
             .collect();
-        self.force_dungeon = Some(Dungeon::Scrapyard);
+        self.force_dungeon = None; // Default: solver picks best team
         self.initialized = true;
     }
 
     /// Build SolverConstraints from the current UI state.
     fn build_constraints(&self) -> SolverConstraints {
         let mut forced: HashMap<Dungeon, Vec<String>> = HashMap::new();
+        let mut forced_any: Vec<String> = Vec::new();
         for (dungeon, name) in &self.forced_pets {
             // Skip if the pet is also forbidden (forbidden takes priority)
-            if !self.forbidden_pets.contains(name) {
-                forced.entry(*dungeon).or_default().push(name.clone());
+            if self.forbidden_pets.contains(name) {
+                continue;
+            }
+            match dungeon {
+                Some(d) => forced.entry(*d).or_default().push(name.clone()),
+                None => forced_any.push(name.clone()),
             }
         }
         SolverConstraints {
             forbidden: self.forbidden_pets.clone(),
             forced,
+            forced_any,
         }
     }
+
+    /// Load default constraints from a YAML string (pet_constraints.yaml).
+    /// Merges into current state — existing manual constraints are preserved.
+    pub fn load_constraints_yaml(&mut self, yaml: &str) -> Result<(), String> {
+        let file: ConstraintsFile =
+            serde_yaml::from_str(yaml).map_err(|e| format!("Constraints YAML error: {e}"))?;
+
+        for name in file.forbidden.unwrap_or_default() {
+            self.forbidden_pets.insert(name);
+        }
+        for entry in file.forced.unwrap_or_default() {
+            // Avoid duplicates
+            let already = self
+                .forced_pets
+                .iter()
+                .any(|(d, n)| n == &entry.pet && *d == entry.dungeon);
+            if !already {
+                self.forced_pets.push((entry.dungeon, entry.pet));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+// =============================================================================
+// Constraints YAML format
+// =============================================================================
+
+#[derive(Deserialize)]
+struct ConstraintsFile {
+    forbidden: Option<Vec<String>>,
+    forced: Option<Vec<ForcedEntry>>,
+}
+
+#[derive(Deserialize)]
+struct ForcedEntry {
+    pet: String,
+    dungeon: Option<Dungeon>,
 }
 
 // =============================================================================
@@ -107,7 +154,7 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                     .size(16.0),
             );
             ui.label(
-                RichText::new("Place dungeon_recommendations.yaml in the references directory.")
+                RichText::new("Place dungeon_recommendations.yaml in the data directory.")
                     .color(style::TEXT_MUTED),
             );
         });
@@ -259,25 +306,17 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 .width(160.0)
                 .show_ui(ui, |ui| {
                     let search_lower = state.constraint_search.to_lowercase();
-                    for pet in &data.merged {
-                        if !pet.is_unlocked() {
-                            continue;
-                        }
-                        // Skip pets already in either constraint list
-                        if state.forbidden_pets.contains(&pet.name) {
-                            continue;
-                        }
-                        if state.forced_pets.iter().any(|(_, n)| n == &pet.name) {
-                            continue;
-                        }
-                        if !search_lower.is_empty() && !pet.name.to_lowercase().contains(&search_lower) {
-                            continue;
-                        }
-                        if ui
-                            .selectable_label(false, &pet.name)
-                            .clicked()
-                        {
-                            state.constraint_search = pet.name.clone();
+                    let mut names: Vec<&str> = data.merged.iter()
+                        .filter(|p| p.is_unlocked())
+                        .filter(|p| !state.forbidden_pets.contains(&p.name))
+                        .filter(|p| !state.forced_pets.iter().any(|(_, n)| n == &p.name))
+                        .filter(|p| search_lower.is_empty() || p.name.to_lowercase().contains(&search_lower))
+                        .map(|p| p.name.as_str())
+                        .collect();
+                    names.sort_unstable();
+                    for name in names {
+                        if ui.selectable_label(false, name).clicked() {
+                            state.constraint_search = name.to_string();
                         }
                     }
                 });
@@ -300,38 +339,56 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             }
 
             ui.add_space(4.0);
-            ui.label(RichText::new("→").color(style::TEXT_MUTED));
 
-            // Dungeon selector for forcing
-            let force_label = state
-                .force_dungeon
-                .map(dungeon_label)
-                .unwrap_or("Select...");
-            egui::ComboBox::from_id_salt("constraint_dungeon")
-                .selected_text(force_label)
-                .width(110.0)
-                .show_ui(ui, |ui| {
-                    for (d, label) in DUNGEONS {
-                        ui.selectable_value(&mut state.force_dungeon, Some(*d), *label);
-                    }
-                });
-
-            // Force button
-            let can_force = pet_valid && state.force_dungeon.is_some();
+            // Force button (into any team)
             if ui
                 .add_enabled(
-                    can_force,
+                    pet_valid,
                     egui::Button::new(
                         RichText::new("Force").color(style::SUCCESS).size(12.0),
                     ),
                 )
                 .clicked()
             {
-                if let Some(dungeon) = state.force_dungeon {
-                    state
-                        .forced_pets
-                        .push((dungeon, state.constraint_search.clone()));
-                    state.constraint_search.clear();
+                state
+                    .forced_pets
+                    .push((state.force_dungeon, state.constraint_search.clone()));
+                state.constraint_search.clear();
+            }
+
+            // Optional dungeon selector (defaults to Any)
+            let force_label = match state.force_dungeon {
+                None => "Any",
+                Some(d) => dungeon_label(d),
+            };
+            ui.label(RichText::new("→").color(style::TEXT_MUTED).size(11.0));
+            egui::ComboBox::from_id_salt("constraint_dungeon")
+                .selected_text(force_label)
+                .width(110.0)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut state.force_dungeon, None, "Any");
+                    for (d, label) in DUNGEONS {
+                        ui.selectable_value(&mut state.force_dungeon, Some(*d), *label);
+                    }
+                });
+        });
+
+        // Reset button: clears all constraints and reloads from file
+        ui.horizontal(|ui| {
+            if ui
+                .add(egui::Button::new(
+                    RichText::new("Reset to File").color(style::TEXT_MUTED).size(11.0),
+                ))
+                .on_hover_text("Clear all constraints and reload from data/pet_constraints.yaml")
+                .clicked()
+            {
+                state.forbidden_pets.clear();
+                state.forced_pets.clear();
+                let path = std::path::Path::new("data/pet_constraints.yaml");
+                if path.exists() {
+                    if let Ok(yaml) = std::fs::read_to_string(path) {
+                        let _ = state.load_constraints_yaml(&yaml);
+                    }
                 }
             }
         });
@@ -378,9 +435,12 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                     );
                     let mut to_remove = Vec::new();
                     for (i, (dungeon, name)) in state.forced_pets.iter().enumerate() {
-                        let label = dungeon_label(*dungeon);
+                        let target = match dungeon {
+                            Some(d) => dungeon_label(*d),
+                            None => "Any",
+                        };
                         let btn = egui::Button::new(
-                            RichText::new(format!("{name} → {label} ×"))
+                            RichText::new(format!("{name} → {target} ×"))
                                 .color(style::SUCCESS)
                                 .size(11.0),
                         )

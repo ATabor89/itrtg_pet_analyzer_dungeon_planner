@@ -29,8 +29,8 @@ impl App {
 
         let mut data = DataStore::new();
 
-        // Try to load dungeon recommendations from a known path
-        let recs_path = std::path::Path::new("references/dungeon_recommendations.yaml");
+        // Try to load dungeon recommendations from data directory
+        let recs_path = std::path::Path::new("data/dungeon_recommendations.yaml");
         if recs_path.exists() {
             if let Ok(yaml) = std::fs::read_to_string(recs_path) {
                 data.load_dungeon_recs(&yaml);
@@ -40,11 +40,22 @@ impl App {
         // Auto-fetch wiki on startup
         data.fetch_wiki();
 
+        // Load default pet constraints
+        let mut dungeon_state = dungeon::DungeonState::default();
+        let constraints_path = std::path::Path::new("data/pet_constraints.yaml");
+        if constraints_path.exists() {
+            if let Ok(yaml) = std::fs::read_to_string(constraints_path) {
+                if let Err(e) = dungeon_state.load_constraints_yaml(&yaml) {
+                    data.import_status = Some((e, true));
+                }
+            }
+        }
+
         Self {
             tab: Tab::Analyzer,
             data,
             analyzer_state: analyzer::AnalyzerState::default(),
-            dungeon_state: dungeon::DungeonState::default(),
+            dungeon_state,
             show_import_dialog: false,
             import_text: String::new(),
         }
