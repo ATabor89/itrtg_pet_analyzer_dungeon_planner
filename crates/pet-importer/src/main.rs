@@ -1,6 +1,5 @@
-mod parser;
-
 use clap::Parser;
+use pet_importer::parser;
 use std::path::PathBuf;
 
 #[derive(Parser)]

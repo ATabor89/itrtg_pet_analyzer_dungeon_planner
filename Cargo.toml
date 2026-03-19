@@ -4,4 +4,6 @@ members = [
     "crates/models",
     "crates/wiki-extractor",
     "crates/pet-importer",
+    "crates/planner",
+    "crates/gui",
 ]
