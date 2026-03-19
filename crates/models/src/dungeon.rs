@@ -37,6 +37,62 @@ impl EquipmentCatalog {
             .or_else(|| self.armor.get(key))
             .or_else(|| self.accessories.get(key))
     }
+
+    /// Find equipment by slot type, element, and tier.
+    pub fn find(
+        &self,
+        slot: EquipmentSlot,
+        element: Element,
+        tier: u8,
+    ) -> Option<(&str, &CatalogEquipment)> {
+        self.slot_map(slot)
+            .iter()
+            .find(|(_, eq)| eq.tier == tier && eq.element == Some(element))
+            .map(|(k, v)| (k.as_str(), v))
+    }
+
+    /// Find equipment by slot type, element, tier, and a name substring.
+    /// Useful for distinguishing weapon types like "knives", "sword", "pot".
+    pub fn find_by_kind(
+        &self,
+        slot: EquipmentSlot,
+        element: Element,
+        tier: u8,
+        name_contains: &str,
+    ) -> Option<(&str, &CatalogEquipment)> {
+        let lower = name_contains.to_lowercase();
+        self.slot_map(slot)
+            .iter()
+            .find(|(_, eq)| {
+                eq.tier == tier
+                    && eq.element == Some(element)
+                    && eq.name.to_lowercase().contains(&lower)
+            })
+            .map(|(k, v)| (k.as_str(), v))
+    }
+
+    /// Find equipment by slot type, tier, and name substring (ignoring element).
+    /// Used for unique items like "Alchemist Cape".
+    pub fn find_by_name(
+        &self,
+        slot: EquipmentSlot,
+        tier: u8,
+        name_contains: &str,
+    ) -> Option<(&str, &CatalogEquipment)> {
+        let lower = name_contains.to_lowercase();
+        self.slot_map(slot)
+            .iter()
+            .find(|(_, eq)| eq.tier == tier && eq.name.to_lowercase().contains(&lower))
+            .map(|(k, v)| (k.as_str(), v))
+    }
+
+    fn slot_map(&self, slot: EquipmentSlot) -> &BTreeMap<String, CatalogEquipment> {
+        match slot {
+            EquipmentSlot::Weapon => &self.weapons,
+            EquipmentSlot::Armor => &self.armor,
+            EquipmentSlot::Accessory => &self.accessories,
+        }
+    }
 }
 
 /// A piece of equipment as defined in the catalog (not a player's actual gear).

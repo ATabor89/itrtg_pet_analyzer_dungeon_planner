@@ -31,6 +31,17 @@ pub enum RecommendedClass {
     Alternates,
 }
 
+impl RecommendedClass {
+    /// Extract the primary (first) concrete class, if any.
+    pub fn primary_class(&self) -> Option<Class> {
+        match self {
+            RecommendedClass::Single(c) => Some(*c),
+            RecommendedClass::Dual(a, _) => Some(*a),
+            _ => None,
+        }
+    }
+}
+
 /// How a pet is unlocked.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnlockCondition {
