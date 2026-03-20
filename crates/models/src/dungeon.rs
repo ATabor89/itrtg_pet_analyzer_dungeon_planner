@@ -102,8 +102,14 @@ pub struct CatalogEquipment {
     #[serde(rename = "type")]
     pub slot: EquipmentSlot,
     pub tier: u8,
+    /// Equipment element. Use `null`/`~`/omit for elementless items, or `All` for omni-element.
+    /// Also accepts `None` as a YAML string (treated as no element).
+    #[serde(default, deserialize_with = "deserialize_element_or_none")]
     pub element: Option<Element>,
     pub notes: Option<String>,
+    /// Catalog key of the lower-tier equipment this is upgraded from.
+    #[serde(default)]
+    pub upgraded_from: Option<String>,
 }
 
 // =============================================================================
@@ -346,6 +352,20 @@ where
         return Ok(None);
     }
     T::deserialize(s.into_deserializer()).map(Some)
+}
+
+/// Deserialize element for catalog equipment: handles null, "None" string, and normal variants.
+/// "None" (the string) is treated as no element, same as null/omitted.
+fn deserialize_element_or_none<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Element>, D::Error> {
+    // Use an intermediate that can be null or a string
+    let opt: Option<String> = Option::deserialize(deserializer)?;
+    match opt {
+        None => Ok(None),
+        Some(s) if s == "None" => Ok(None),
+        Some(s) => Element::deserialize(s.into_deserializer()).map(Some),
+    }
 }
 
 /// Deserialize "any" as None, otherwise parse as Class.
