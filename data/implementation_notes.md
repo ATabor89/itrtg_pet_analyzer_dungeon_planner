@@ -1,64 +1,14 @@
 # Next Features
 
-## 1. Gem Recommendation Enhancement
+## 1. Dungeon Planner - Total Counts
 
-Consider enhancing the algorithm to recommend gems. Use the following reference data from the wiki.
+Add something to the dungeon planner that shows the total counts of missing things. The primary concern here is to see a single "shopping list" of all pets, equipment, and gems that are missing.
 
-### Gem Stat Bonuses
+Note that I have yet to actually add any gems to equipment, so we're still not entirely sure how this will appear in the imported data. We'll likely want to add a gem slot to the equipment model that can be referenced here. If we add this to the model now, we can simply default it to `None` and come back to this later to determine the changes needed in the parser.
 
-| Gem Type | Bonus |
-|----------|-------|
-| Neutral | Increases all element stats by `1 * Gem Level * Equipment Tier` |
-| Water | Increases health by `1% * Gem Level * Equipment Tier` |
-| Fire | Increases attack by `1% * Gem Level * Equipment Tier` |
-| Wind | Increases speed by `1% * Gem Level * Equipment Tier` |
-| Earth | Increases defense by `1% * Gem Level * Equipment Tier` |
+Bonus: While working on this, consider making the "Select Dungeons" section collapsible, similar to the Pet Constraints. This will allow for better screen real estate once the dungeons/teams are actually planned.
 
-### Gem Guidelines by Class
-
-> **Note:** This is a baseline guideline and will change depending on gear and dungeon progress. Gems are often used to compensate for equipment/class weaknesses. Gem placement on specific equipment slots doesn't matter for stat purposes, but keeping them consistent (e.g., fire on weapons, water/earth on accessories) makes swapping easier during reforging/upgrading.
-
-- **Mage:** 1 Fire, 2 Water. Swap a Water for Neutral if more elements are needed.
-- **Defender:** All Earth (v4s) / All Water (dungeons). A mix of Earth/Water works if you don't want to re-gear between v4s and dungeons.
-- **Supporter:** 1 Fire, 1 Water, and either 1 Wind or Neutral depending on need. 2–3 Fire gems can help low-level Supporters who can't yet heal a pet fully.
-- **Rogue:** 1 Fire, 1 Water, and either another Fire or a Wind gem. Rogues usually have Knives, and extra speed helps with defense reduction.
-- **Assassin:** 2 Fire, 1 Water. If low speed, swap a Fire for Wind. Swap Fire for Neutral to help with later dungeons if needed.
-- **Blacksmith:** Very flexible. 1 Fire, 1 Earth, 1 Water for defensive. Swap Earth for Wind for more offensive.
-- **Wind/Neutral gems (general):** Used to address speed or elemental problems. Neutral gems are both offensive and defensive and can replace either Water or Fire. Often replaced by Fire/Water as the pet levels up and equipment is enchanted, but keep a stockpile.
-
-### Implementation Notes
-
-This does **not** mean the algorithm must change. Review these heuristics and consider whether any changes would produce smarter recommendations.
-
----
-
-## 2. Dungeon Planner Display Improvements
-
-Improve the pet card display in the dungeon planner to show more useful information at a glance.
-
-### Equipment Comparison
-
-For each pet card, show the pet's **current equipment** and flag any differences from the recommended equipment:
-
-- If current equipment **matches** the recommendation, show it with a positive indicator (e.g., checkmark).
-- If current equipment **differs**, show both current and recommended in a hybrid view.
-- Highlight differences in **equipment quality and upgrade level**. For example, if the recommendation is S+10 and the pet currently has S+4, that gap should be visually obvious so we can identify what still needs upgrading.
-
-### Additional Pet Info on Cards
-
-Display relevant pet metadata on the cards:
-
-- Dungeon level
-- Class level
-- Any other stats that help at a glance
-
-### Design Goal
-
-Keep the display informative without cluttering it. Use your judgment on layout — the hybrid view (match vs. diff) should handle most cases cleanly.
-
----
-
-## 3. Pet Pairing Constraints
+## 2. Pet Pairing Constraints
 
 Add support for positive and negative pairing constraints between pets. These will be provided manually in a data file (format TBD — consider what works best).
 
@@ -91,7 +41,7 @@ This system should be generic enough to handle synergy pairings between any two 
 
 ---
 
-## 4. Custom Pet Information / Special Abilities
+## 3. Custom Pet Information / Special Abilities
 
 Add support for custom per-pet information that can influence team building and equipment recommendations.
 
@@ -114,30 +64,3 @@ The main difficulty is creating a data format that can adequately represent the 
 - A combination: structured data for what the algorithm can use, plus freeform text for context.
 
 Determine the best approach during implementation.
-
-## 5. Refresh Pets in Dungeon Planner on Import
-
-The pet analyzer already updates when pet data is reimported, but the dungeon planner doesn't do this. The current solution is to click "Solve All" to replan with the updated data.
-
-The dungeon planner should behave similarly to the pet analyzer in this regard, automatically refreshing relevant stats/information when new data is imported. This refresh should keep the currently planned teams in place and only update the stats (levels, equipment, etc.) and recalculate the suggested difficulties. The motivation here is to allow a quick update without having to replan the teams and to ensure that the data presented to the user is not stale.
-
-## 6. Refine Total Growth Check for Dungeon Planner
-
-Within the UI views, the `dungeon.rs` file checks to ensure that the suggested pets satisfy the total growth requirement of the dungeon. This check is currently based on an incorrect assumption.
-
-```rust
-let total_growth: u64 = assigned_exports.iter().map(|e| e.growth).sum();
-```
-
-This calculation sums up the entire team's growth and compares that value to the recommended value. Within the game, the growth of an individual pet is actually called "total growth," because some equipment can boost their growth. The total growth check should actually be on a per-pet basis instead of the team total. It's possible that some pets will satisfy the requirement while others may not. This could be handled similarly to the minimum class level check to simply flag that at least one pet's growth is too low. It's trivial to check the growth values of each pet in-game. We could also consider adding each pet's growth to their card along with their other stats (like DL and CL).
-
-## 7. Minor Bug When Loading Actions
-
-While a pet is working in the Alchemist Hut, the tool is unable to properly deserialize the action. The following error is displayed:
-
-```
-Warning: unrecognized action 'Alchemist Hut, producing', treating as Idle
-```
-
-Note that the export data is exactly as this appears here in the warning message. The exported data does appear to be incomplete as it does not show what they are actually producing. The warning message appearing truncated is not a parsing bug. This is actually nearly identical to what the exported stats show for the Material Factory.
-
