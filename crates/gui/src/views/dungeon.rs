@@ -859,9 +859,14 @@ fn show_slot_card(
     width: f32,
     equip_catalog: Option<&EquipmentCatalog>,
 ) {
-    // Dynamically size: taller if we have equipment to show (3 lines for gear)
+    // Dynamically size based on content
     let has_equip = slot.equipment_suggestion.is_some();
-    let height = if has_equip { 120.0 } else { 80.0 };
+    let is_filled = matches!(&slot.assignment, Assignment::Filled { .. });
+    let height = match (has_equip, is_filled) {
+        (true, true) => 140.0,  // Full card: header + pet + stats + 3 equip lines
+        (false, true) => 80.0,  // No equipment
+        _ => 65.0,              // Empty slot
+    };
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), egui::Sense::hover());
 
     // Card background
@@ -908,6 +913,7 @@ fn show_slot_card(
                 MatchQuality::Fallback => ("Fallback", style::ERROR),
             };
 
+            // Pet name + element
             child.horizontal(|ui| {
                 ui.label(
                     RichText::new(&pet.name)
@@ -918,6 +924,8 @@ fn show_slot_card(
                     widgets::element_badge(ui, &el);
                 }
             });
+
+            // Class + match quality + DL + CL
             child.horizontal(|ui| {
                 if let Some(class) = pet.evolved_class() {
                     widgets::class_label(ui, &class);
@@ -929,7 +937,22 @@ fn show_slot_card(
                         .color(quality_color)
                         .size(10.0),
                 );
+                // DL and CL
+                if let Some(export) = &pet.export {
+                    ui.label(
+                        RichText::new(format!("DL:{} CL:{}", export.dungeon_level, export.class_level))
+                            .color(style::TEXT_MUTED)
+                            .size(10.0)
+                            .family(egui::FontFamily::Monospace),
+                    );
+                }
             });
+
+            // Equipment: recommended vs current
+            if let Some(suggestion) = &slot.equipment_suggestion {
+                let current_loadout = pet.export.as_ref().map(|e| &e.loadout);
+                show_equipment_comparison(&mut child, suggestion, current_loadout, equip_catalog);
+            }
         }
         Assignment::Empty { suggestions } => {
             child.label(RichText::new("No pet available").color(style::ERROR).size(12.0));
@@ -944,51 +967,111 @@ fn show_slot_card(
             }
         }
     }
-
-    // Equipment recommendations (from enrichment — static or computed)
-    if let Some(suggestion) = &slot.equipment_suggestion {
-        show_equipment_line(&mut child, suggestion, equip_catalog);
-    }
 }
 
-/// Show equipment recommendations, one line per slot (weapon, armor, accessory).
-/// Gems are shown inline with their piece, e.g. "W: Flame Sword [Fire]".
-/// Computed suggestions are visually distinguished from static (YAML) ones.
-fn show_equipment_line(
+/// Show equipment with comparison against pet's current gear.
+/// Each line shows the recommendation and a status indicator:
+/// ✓ if current gear matches, or the current gear name if different.
+fn show_equipment_comparison(
     ui: &mut Ui,
     suggestion: &equipment::EquipmentSuggestion,
+    current_loadout: Option<&itrtg_models::Loadout>,
     catalog: Option<&EquipmentCatalog>,
 ) {
     let equip = &suggestion.equipment;
     let gems = equip.gems.as_ref();
     let is_computed = suggestion.source == EquipmentSource::Computed;
 
-    let text_color = if is_computed {
+    let rec_color = if is_computed {
         Color32::from_rgb(0x88, 0x99, 0xcc)
     } else {
         style::TEXT_NORMAL
     };
 
-    let lines: [(&str, Option<&str>, Option<&Element>); 3] = [
-        ("W:", equip.weapon.as_deref(), gems.and_then(|g| g.weapon.as_ref())),
-        ("A:", equip.armor.as_deref(), gems.and_then(|g| g.armor.as_ref())),
-        ("Ac:", equip.accessory.as_deref(), gems.and_then(|g| g.accessory.as_ref())),
+    // (prefix, recommended catalog key, gem, current equipment)
+    let lines: [(&str, Option<&str>, Option<&Element>, Option<&itrtg_models::Equipment>); 3] = [
+        ("W:", equip.weapon.as_deref(), gems.and_then(|g| g.weapon.as_ref()),
+         current_loadout.and_then(|l| l.weapon.as_ref())),
+        ("A:", equip.armor.as_deref(), gems.and_then(|g| g.armor.as_ref()),
+         current_loadout.and_then(|l| l.armor.as_ref())),
+        ("Ac:", equip.accessory.as_deref(), gems.and_then(|g| g.accessory.as_ref()),
+         current_loadout.and_then(|l| l.accessory.as_ref())),
     ];
 
-    for (prefix, key, gem) in &lines {
-        if let Some(key) = key {
-            let name = resolve_equip_name(key, catalog);
-            let display = match gem {
-                Some(el) => format!("{prefix} {name} [{el:?}]"),
-                None => format!("{prefix} {name}"),
+    for (prefix, rec_key, gem, current) in &lines {
+        if let Some(key) = rec_key {
+            let rec_name = resolve_equip_name(key, catalog);
+            let gem_str = match gem {
+                Some(el) => format!(" [{el:?}]"),
+                None => String::new(),
             };
-            let mut text = RichText::new(display).color(text_color).size(10.0);
-            if is_computed {
-                text = text.italics();
-            }
-            ui.label(text);
+
+            // Check if current gear matches the recommendation
+            let status = match current {
+                Some(cur) => {
+                    let cur_lower = cur.name.to_lowercase();
+                    let rec_lower = rec_name.to_lowercase();
+                    if cur_lower.contains(&rec_lower) || rec_lower.contains(&cur_lower) {
+                        // Match — show quality/upgrade info
+                        let grade = match cur.upgrade_level {
+                            Some(lv) => format!("{:?}+{lv}", cur.quality),
+                            None => format!("{:?}", cur.quality),
+                        };
+                        EquipStatus::Match(grade)
+                    } else {
+                        // Different equipment
+                        EquipStatus::Diff(cur.name.clone())
+                    }
+                }
+                None => EquipStatus::None,
+            };
+
+            ui.horizontal(|ui| {
+                // Recommendation
+                let mut rec_text = RichText::new(format!("{prefix} {rec_name}{gem_str}"))
+                    .color(rec_color)
+                    .size(10.0);
+                if is_computed {
+                    rec_text = rec_text.italics();
+                }
+                ui.label(rec_text);
+
+                // Current status indicator
+                match &status {
+                    EquipStatus::Match(grade) => {
+                        ui.label(
+                            RichText::new(format!("✓ {grade}"))
+                                .color(style::SUCCESS)
+                                .size(9.0),
+                        );
+                    }
+                    EquipStatus::Diff(name) => {
+                        ui.label(
+                            RichText::new(format!("✗ {name}"))
+                                .color(Color32::from_rgb(0xdd, 0x88, 0x44))
+                                .size(9.0),
+                        );
+                    }
+                    EquipStatus::None => {
+                        ui.label(
+                            RichText::new("—")
+                                .color(style::TEXT_MUTED)
+                                .size(9.0),
+                        );
+                    }
+                }
+            });
         }
     }
+}
+
+enum EquipStatus {
+    /// Current gear matches recommendation — show quality+upgrade.
+    Match(String),
+    /// Current gear differs — show what's equipped.
+    Diff(String),
+    /// No equipment in this slot.
+    None,
 }
 
 /// Resolve a catalog key to a display name.
