@@ -706,6 +706,9 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
         ui.add_space(4.0);
     }
 
+    // Team stats & difficulty recommendations
+    show_team_stats(ui, plan, data);
+
     // Warnings
     if !plan.warnings.is_empty() {
         ui.add_space(4.0);
@@ -738,6 +741,116 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
             });
         }
     }
+}
+
+fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
+    // Collect stats from assigned pets
+    let assigned_exports: Vec<_> = plan
+        .assignments
+        .iter()
+        .filter_map(|sa| match &sa.assignment {
+            Assignment::Filled { pet, .. } => pet.export.as_ref(),
+            _ => None,
+        })
+        .collect();
+
+    if assigned_exports.is_empty() {
+        return;
+    }
+
+    let pet_count = assigned_exports.len();
+    let avg_dungeon_level = assigned_exports.iter().map(|e| e.dungeon_level as u64).sum::<u64>() / pet_count as u64;
+    let min_class_level = assigned_exports.iter().map(|e| e.class_level).min().unwrap_or(0);
+    let total_growth: u64 = assigned_exports.iter().map(|e| e.growth).sum();
+
+    // Team stats summary
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Team:").color(style::TEXT_MUTED).size(12.0).strong());
+        ui.label(
+            RichText::new(format!("Avg DL {avg_dungeon_level}"))
+                .color(style::TEXT_NORMAL)
+                .size(12.0),
+        );
+        ui.label(RichText::new("|").color(style::TEXT_MUTED).size(12.0));
+        ui.label(
+            RichText::new(format!("Min CL {min_class_level}"))
+                .color(style::TEXT_NORMAL)
+                .size(12.0),
+        );
+        ui.label(RichText::new("|").color(style::TEXT_MUTED).size(12.0));
+        ui.label(
+            RichText::new(format!("{pet_count}/6 filled"))
+                .color(if pet_count == 6 { style::TEXT_NORMAL } else { style::WARNING })
+                .size(12.0),
+        );
+    });
+
+    // Difficulty recommendations per sub-depth
+    let Some(recs) = &data.dungeon_recs else { return };
+    let Some(dungeon_data) = recs.dungeons.get(&plan.dungeon) else { return };
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Difficulty:").color(style::TEXT_MUTED).size(12.0).strong());
+
+        for depth in 1..=plan.depth {
+            let Some(dd) = dungeon_data.depths.get(&depth) else { continue };
+            let reqs = &dd.requirements;
+
+            // Dungeon level difficulty: how many difficulty levels can we afford?
+            // Use the higher (conservative) levels_per_difficulty value
+            let per_diff = reqs.levels_per_difficulty.last().copied().unwrap_or(5) as u64;
+            let dl_diff = if avg_dungeon_level > reqs.dungeon_level_avg as u64 {
+                ((avg_dungeon_level - reqs.dungeon_level_avg as u64) / per_diff).min(10)
+            } else {
+                0
+            };
+
+            // Class level check: binary pass/fail for the depth
+            let cl_ok = min_class_level >= reqs.class_level;
+
+            // Total growth check (some depths have this requirement)
+            let growth_ok = reqs.total_growth.map_or(true, |req| total_growth >= req);
+
+            let max_diff = dl_diff.min(10);
+
+            let diff_color = if max_diff >= 8 {
+                style::SUCCESS
+            } else if max_diff >= 4 {
+                style::WARNING
+            } else if max_diff >= 1 {
+                Color32::from_rgb(0xdd, 0x88, 0x44)
+            } else {
+                style::ERROR
+            };
+
+            if depth > 1 {
+                ui.label(RichText::new("|").color(style::TEXT_MUTED).size(12.0));
+            }
+            ui.label(
+                RichText::new(format!("D{depth} → {max_diff}"))
+                    .color(diff_color)
+                    .size(12.0),
+            );
+
+            // Show warnings for unmet requirements
+            if !cl_ok {
+                ui.label(
+                    RichText::new(format!("(need CL {})", reqs.class_level))
+                        .color(style::ERROR)
+                        .size(10.0),
+                );
+            }
+            if !growth_ok {
+                ui.label(
+                    RichText::new("(growth)")
+                        .color(style::ERROR)
+                        .size(10.0),
+                );
+            }
+        }
+    });
+
+    ui.add_space(2.0);
 }
 
 fn show_slot_card(
