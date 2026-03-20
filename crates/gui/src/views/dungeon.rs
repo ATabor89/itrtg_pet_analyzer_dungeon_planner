@@ -284,53 +284,59 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
         return;
     }
 
-    // Dungeon selection panel: one row per dungeon with checkbox + depth buttons
-    ui.label(
-        RichText::new("Select Dungeons")
+    // Dungeon selection (collapsible)
+    let selected_count = state.entries.iter().filter(|e| e.enabled).count();
+    let sel_header = if selected_count > 0 {
+        format!("Select Dungeons ({selected_count} selected)")
+    } else {
+        "Select Dungeons".to_string()
+    };
+
+    egui::CollapsingHeader::new(
+        RichText::new(sel_header)
             .color(style::TEXT_BRIGHT)
             .size(14.0)
             .strong(),
-    );
-    ui.add_space(2.0);
-
-    for entry in &mut state.entries {
-        ui.horizontal(|ui| {
-            ui.checkbox(&mut entry.enabled, "");
-            ui.label(
-                RichText::new(entry.label)
-                    .color(if entry.enabled { style::TEXT_BRIGHT } else { style::TEXT_MUTED })
-                    .size(13.0),
-            );
-
-            ui.add_space(8.0);
-
-            // Depth buttons
-            for depth in 1..=3u8 {
-                let selected = entry.depth == depth;
-                let text = RichText::new(format!("D{depth}")).color(
-                    if !entry.enabled {
-                        style::TEXT_MUTED
-                    } else if selected {
-                        style::ACCENT
-                    } else {
-                        style::TEXT_NORMAL
-                    },
+    )
+    .default_open(state.plans.is_empty())
+    .show(ui, |ui| {
+        for entry in &mut state.entries {
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut entry.enabled, "");
+                ui.label(
+                    RichText::new(entry.label)
+                        .color(if entry.enabled { style::TEXT_BRIGHT } else { style::TEXT_MUTED })
+                        .size(13.0),
                 );
-                let btn = egui::Button::new(text).fill(if selected && entry.enabled {
-                    Color32::from_rgb(0x2a, 0x20, 0x40)
-                } else {
-                    style::BG_SURFACE
-                });
-                if ui.add_enabled(entry.enabled, btn).clicked() {
-                    entry.depth = depth;
+
+                ui.add_space(8.0);
+
+                // Depth buttons
+                for depth in 1..=3u8 {
+                    let selected = entry.depth == depth;
+                    let text = RichText::new(format!("D{depth}")).color(
+                        if !entry.enabled {
+                            style::TEXT_MUTED
+                        } else if selected {
+                            style::ACCENT
+                        } else {
+                            style::TEXT_NORMAL
+                        },
+                    );
+                    let btn = egui::Button::new(text).fill(if selected && entry.enabled {
+                        Color32::from_rgb(0x2a, 0x20, 0x40)
+                    } else {
+                        style::BG_SURFACE
+                    });
+                    if ui.add_enabled(entry.enabled, btn).clicked() {
+                        entry.depth = depth;
+                    }
                 }
-            }
-        });
-    }
+            });
+        }
+    });
 
-    ui.add_space(4.0);
-
-    // Action buttons
+    // Action buttons (always visible)
     ui.horizontal(|ui| {
         let any_enabled = state.entries.iter().any(|e| e.enabled);
         let can_solve = any_enabled && !data.merged.is_empty();
@@ -351,16 +357,6 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             .clicked()
         {
             state.plans.clear();
-        }
-
-        // Summary of selection
-        let selected_count = state.entries.iter().filter(|e| e.enabled).count();
-        if selected_count > 0 {
-            ui.label(
-                RichText::new(format!("{selected_count} dungeon(s) selected"))
-                    .color(style::TEXT_MUTED)
-                    .size(12.0),
-            );
         }
     });
 
@@ -391,6 +387,12 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 }
                 show_plan(ui, plan, data);
             }
+
+            // Shopping list: aggregate missing items across all plans
+            ui.add_space(12.0);
+            ui.separator();
+            ui.add_space(8.0);
+            show_shopping_list(ui, &state.plans, data);
         });
     }
 }
@@ -884,6 +886,212 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
     });
 
     ui.add_space(2.0);
+}
+
+// =============================================================================
+// Shopping list
+// =============================================================================
+
+/// Aggregate missing items across all solved dungeon plans into a single checklist.
+fn show_shopping_list(ui: &mut Ui, plans: &[DungeonPlan], data: &DataStore) {
+    let catalog = data.dungeon_recs.as_ref().map(|r| &r.equipment);
+
+    // Collect missing pets, equipment differences, and gem needs
+    let mut pets_to_unlock: Vec<String> = Vec::new();
+    let mut pets_to_evolve: Vec<(String, String)> = Vec::new(); // (pet, target class)
+    let mut equip_needed: Vec<String> = Vec::new();
+    let mut gems_needed: std::collections::BTreeMap<Element, u32> = std::collections::BTreeMap::new();
+
+    for plan in plans {
+        let dng_name = dungeon_label(plan.dungeon);
+
+        for sa in &plan.assignments {
+            match &sa.assignment {
+                Assignment::Empty { suggestions } => {
+                    // Missing pet
+                    let suggest_str = suggestions
+                        .first()
+                        .map(|s| format!(" (unlock {})", s.pet.name))
+                        .unwrap_or_default();
+                    let class_str = sa.slot.class.map(|c| format!("{c:?}")).unwrap_or("Any".into());
+                    pets_to_unlock.push(format!(
+                        "{dng_name} #{}: {class_str}{suggest_str}",
+                        sa.position + 1
+                    ));
+                }
+                Assignment::Filled { pet, quality } => {
+                    // Track pets that need evolving
+                    if *quality == MatchQuality::Evolvable {
+                        let target = sa.slot.class.map(|c| format!("{c:?}")).unwrap_or("?".into());
+                        pets_to_evolve.push((pet.name.clone(), target));
+                    }
+
+                    // Compare equipment
+                    if let Some(suggestion) = &sa.equipment_suggestion {
+                        let current = pet.export.as_ref().map(|e| &e.loadout);
+                        collect_equip_diffs(
+                            &suggestion.equipment,
+                            current,
+                            catalog,
+                            &mut equip_needed,
+                        );
+
+                        // Collect gem needs
+                        if let Some(gem_slots) = &suggestion.equipment.gems {
+                            let current_weapon_gem = current.and_then(|l| l.weapon.as_ref()).and_then(|e| e.gem);
+                            let current_armor_gem = current.and_then(|l| l.armor.as_ref()).and_then(|e| e.gem);
+                            let current_acc_gem = current.and_then(|l| l.accessory.as_ref()).and_then(|e| e.gem);
+
+                            for (rec, cur) in [
+                                (&gem_slots.weapon, current_weapon_gem),
+                                (&gem_slots.armor, current_armor_gem),
+                                (&gem_slots.accessory, current_acc_gem),
+                            ] {
+                                if let Some(needed) = rec {
+                                    if cur != Some(*needed) {
+                                        *gems_needed.entry(*needed).or_insert(0) += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Deduplicate evolve list
+    pets_to_evolve.sort();
+    pets_to_evolve.dedup();
+    // Deduplicate equipment
+    equip_needed.sort();
+    equip_needed.dedup();
+
+    let has_items = !pets_to_unlock.is_empty()
+        || !pets_to_evolve.is_empty()
+        || !equip_needed.is_empty()
+        || !gems_needed.is_empty();
+
+    if !has_items {
+        ui.label(
+            RichText::new("✓ All teams fully equipped!")
+                .color(style::SUCCESS)
+                .size(13.0),
+        );
+        return;
+    }
+
+    ui.label(
+        RichText::new("Shopping List")
+            .color(style::ACCENT)
+            .size(15.0)
+            .strong(),
+    );
+    ui.add_space(4.0);
+
+    // Pets to unlock
+    if !pets_to_unlock.is_empty() {
+        ui.label(
+            RichText::new(format!("Pets to Unlock ({})", pets_to_unlock.len()))
+                .color(style::ERROR)
+                .size(12.0)
+                .strong(),
+        );
+        for item in &pets_to_unlock {
+            ui.label(
+                RichText::new(format!("  • {item}"))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0),
+            );
+        }
+        ui.add_space(4.0);
+    }
+
+    // Pets to evolve
+    if !pets_to_evolve.is_empty() {
+        ui.label(
+            RichText::new(format!("Pets to Evolve ({})", pets_to_evolve.len()))
+                .color(style::WARNING)
+                .size(12.0)
+                .strong(),
+        );
+        for (name, class) in &pets_to_evolve {
+            ui.label(
+                RichText::new(format!("  • {name} → {class}"))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0),
+            );
+        }
+        ui.add_space(4.0);
+    }
+
+    // Equipment to forge/obtain
+    if !equip_needed.is_empty() {
+        ui.label(
+            RichText::new(format!("Equipment Needed ({})", equip_needed.len()))
+                .color(Color32::from_rgb(0x88, 0x99, 0xcc))
+                .size(12.0)
+                .strong(),
+        );
+        for item in &equip_needed {
+            ui.label(
+                RichText::new(format!("  • {item}"))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0),
+            );
+        }
+        ui.add_space(4.0);
+    }
+
+    // Gems needed
+    if !gems_needed.is_empty() {
+        let total_gems: u32 = gems_needed.values().sum();
+        ui.label(
+            RichText::new(format!("Gems Needed ({total_gems})"))
+                .color(Color32::from_rgb(0xcc, 0x99, 0xff))
+                .size(12.0)
+                .strong(),
+        );
+        for (element, count) in &gems_needed {
+            ui.label(
+                RichText::new(format!("  • {count}x {element:?}"))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0),
+            );
+        }
+    }
+}
+
+/// Collect equipment differences between recommendation and current loadout.
+fn collect_equip_diffs(
+    rec: &itrtg_models::dungeon::PartyEquipment,
+    current: Option<&itrtg_models::Loadout>,
+    catalog: Option<&EquipmentCatalog>,
+    out: &mut Vec<String>,
+) {
+    let slots: [(&str, Option<&str>, Option<&itrtg_models::Equipment>); 3] = [
+        ("Weapon", rec.weapon.as_deref(), current.and_then(|l| l.weapon.as_ref())),
+        ("Armor", rec.armor.as_deref(), current.and_then(|l| l.armor.as_ref())),
+        ("Accessory", rec.accessory.as_deref(), current.and_then(|l| l.accessory.as_ref())),
+    ];
+
+    for (slot_name, rec_key, cur_equip) in &slots {
+        let Some(key) = rec_key else { continue };
+        let rec_name = resolve_equip_name(key, catalog);
+
+        let matches = cur_equip.as_ref().is_some_and(|cur| {
+            let cur_lower = cur.name.to_lowercase();
+            let rec_lower = rec_name.to_lowercase();
+            cur_lower.contains(&rec_lower) || rec_lower.contains(&cur_lower)
+        });
+
+        if !matches {
+            let current_str = cur_equip
+                .map(|c| format!(" (have: {})", c.name))
+                .unwrap_or_default();
+            out.push(format!("{slot_name}: {rec_name}{current_str}"));
+        }
+    }
 }
 
 fn show_slot_card(

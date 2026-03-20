@@ -158,6 +158,7 @@ fn parse_equipment(s: &str) -> Option<Equipment> {
             upgrade_level,
             quality,
             enchant_level,
+            gem: None, // TODO: parse gem data when export format is known
         });
     }
 

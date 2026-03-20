@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::Element;
+
 /// Equipment quality grade.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Quality {
@@ -36,6 +38,9 @@ pub struct Equipment {
     pub upgrade_level: Option<u8>,
     pub quality: Quality,
     pub enchant_level: Option<u8>,
+    /// Embedded gem element, if any. Parsed from export data when available.
+    #[serde(default)]
+    pub gem: Option<Element>,
 }
 
 /// The full loadout for a pet (all three equipment slots).

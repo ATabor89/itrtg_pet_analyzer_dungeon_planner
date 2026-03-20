@@ -1,12 +1,10 @@
 # Next Features
 
-## 1. Dungeon Planner - Total Counts
+## 1. Dungeon Planner: Slightly Smarter Recommendations
 
-Add something to the dungeon planner that shows the total counts of missing things. The primary concern here is to see a single "shopping list" of all pets, equipment, and gems that are missing.
+The current implementation of the dungeon planner is missing one edge case when checking for equipment satisfaction. Specifically, it doesn't account for tier-levels.
 
-Note that I have yet to actually add any gems to equipment, so we're still not entirely sure how this will appear in the imported data. We'll likely want to add a gem slot to the equipment model that can be referenced here. If we add this to the model now, we can simply default it to `None` and come back to this later to determine the changes needed in the parser.
-
-Bonus: While working on this, consider making the "Select Dungeons" section collapsible, similar to the Pet Constraints. This will allow for better screen real estate once the dungeons/teams are actually planned.
+Note: Ignore this for now. Currently adding more items to the catalog, so determining if this is actually a bug or not.
 
 ## 2. Pet Pairing Constraints
 
