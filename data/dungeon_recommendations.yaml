@@ -94,60 +94,70 @@ equipment:
       type: Weapon
       tier: 2
       element: Neutral
+      upgraded_from: "iron_sword"
 
     flame_sword:
       name: "Flame Sword"
       type: Weapon
       tier: 2
       element: Fire
+      upgraded_from: "fire_sword"
 
     flood_spear:
       name: "Flood Spear"
       type: Weapon
       tier: 2
       element: Water
+      upgraded_from: "water_spear"
 
     tree_axe:
       name: "Tree Axe"
       type: Weapon
       tier: 2
       element: Earth
+      upgraded_from: "wood_axe"
 
     storm_bow:
       name: "Storm Bow"
       type: Weapon
       tier: 2
       element: Wind
+      upgraded_from: "feather_bow"
 
     shaping_hammer:
       name: "Shaping Hammer"
       type: Weapon
       tier: 2
       element: Fire
+      upgraded_from: "forging_hammer"
 
     journeying_stick:
       name: "Journeying Stick"
       type: Weapon
       tier: 2
       element: Earth
+      upgraded_from: "walking_stick"
 
     steel_pot:
       name: "Steel Pot"
       type: Weapon
       tier: 2
       element: Neutral
+      upgraded_from: "iron_pot"
 
     leeching_sword:
       name: "Leeching Sword"
       type: Weapon
       tier: 2
       element: Water
+      upgraded_from: "training_sword"
 
     thundering_knives:
       name: "Thundering Knives"
       type: Weapon
       tier: 2
       element: Wind
+      upgraded_from: "howling_knives"
 
     # -- Tier 3 --
     titanium_sword:
@@ -155,60 +165,159 @@ equipment:
       type: Weapon
       tier: 3
       element: Neutral
+      upgraded_from: "steel_sword"
 
     inferno_sword:
       name: "Inferno Sword"
       type: Weapon
       tier: 3
       element: Fire
+      upgraded_from: "flame_sword"
 
     tsunami_spear:
       name: "Tsunami Spear"
       type: Weapon
       tier: 3
       element: Water
+      upgraded_from: "flood_spear"
 
     forest_axe:
       name: "Forest Axe"
       type: Weapon
       tier: 3
       element: Earth
+      upgraded_from: "tree_axe"
 
     hurricane_bow:
       name: "Hurricane Bow"
       type: Weapon
       tier: 3
       element: Wind
+      upgraded_from: "storm_bow"
 
     magic_hammer:
       name: "Magic Hammer"
       type: Weapon
       tier: 3
       element: Fire
+      upgraded_from: "shaping_hammer"
 
     magic_stick:
       name: "Magic Stick"
       type: Weapon
       tier: 3
       element: Earth
+      upgraded_from: "journeying_stick"
 
     magic_pot:
       name: "Magic Pot"
       type: Weapon
       tier: 3
       element: Neutral
+      upgraded_from: "steel_pot"
 
     ego_sword:
       name: "Ego Sword"
       type: Weapon
       tier: 3
       element: Water
+      upgraded_from: "leeching_sword"
 
     bursting_knives:
       name: "Bursting Knives"
       type: Weapon
       tier: 3
       element: Wind
+      upgraded_from: "thundering_knives"
+
+    # -- Tier 4 --
+    mythril_shield:
+      name: "Mythril Shield"
+      type: Weapon
+      tier: 4
+      element: Neutral
+      upgraded_from: "titanium_sword"
+
+    sun_sword:
+      name: "Sun Sword"
+      type: Weapon
+      tier: 4
+      element: Fire
+      upgraded_from: "inferno_sword"
+
+    ocean_spear:
+      name: "Ocean Spear"
+      type: Weapon
+      tier: 4
+      element: Water
+      upgraded_from: "tsunami_spear"
+
+    jungle_axe:
+      name: "Jungle Axe"
+      type: Weapon
+      tier: 4
+      element: Earth
+      upgraded_from: "forest_axe"
+
+    sky_bow:
+      name: "Sky Bow"
+      type: Weapon
+      tier: 4
+      element: Wind
+      upgraded_from: "hurricane_bow"
+
+    demonic_sword:
+      name: "Demonic Sword"
+      type: Weapon
+      tier: 4
+      element: None
+
+    divine_bow:
+      name: "Divine Bow"
+      type: Weapon
+      tier: 4
+      element: None
+
+    legend_hammer:
+      name: "Legend Hammer"
+      type: Weapon
+      tier: 4
+      element: Fire
+      upgraded_from: "magic_hammer"
+
+    legendary_stick:
+      name: "Legendary Stick"
+      type: Weapon
+      tier: 4
+      element: Earth
+      upgraded_from: "magic_stick"
+
+    legendary_pot:
+      name: "Legendary Pot"
+      type: Weapon
+      tier: 4
+      element: Neutral
+      upgraded_from: "magic_pot"
+
+    soul_sword:
+      name: "Soul Sword"
+      type: Weapon
+      tier: 4
+      element: Water
+      upgraded_from: "ego_sword"
+
+    exploding_knives:
+      name: "Exploding Knives"
+      type: Weapon
+      tier: 4
+      element: Wind
+      upgraded_from: "bursting_knives"
+
+    ele_twin_dagger:
+      name: "Ele Twin Dagger"
+      type: Weapon
+      tier: 4
+      element: All
 
   armor:
     # -- Tier 1 --
@@ -248,30 +357,35 @@ equipment:
       type: Armor
       tier: 2
       element: Neutral
+      upgraded_from: "iron_vest"
 
     flame_armor:
       name: "Flame Armor"
       type: Armor
       tier: 2
       element: Fire
+      upgraded_from: "fire_vest"
 
     flood_armor:
       name: "Flood Armor"
       type: Armor
       tier: 2
       element: Water
+      upgraded_from: "water_vest"
 
     tree_armor:
       name: "Tree Armor"
       type: Armor
       tier: 2
       element: Earth
+      upgraded_from: "wooden_vest"
 
     storm_armor:
       name: "Storm Armor"
       type: Armor
       tier: 2
       element: Wind
+      upgraded_from: "feather_vest"
 
     # -- Tier 3 --
     titanium_armor:
@@ -279,29 +393,89 @@ equipment:
       type: Armor
       tier: 3
       element: Neutral
+      upgraded_from: "steel_armor"
 
     inferno_armor:
       name: "Inferno Armor"
       type: Armor
       tier: 3
       element: Fire
+      upgraded_from: "flame_armor"
 
     tsunami_armor:
       name: "Tsunami Armor"
       type: Armor
       tier: 3
       element: Water
+      upgraded_from: "flood_armor"
 
     forest_armor:
       name: "Forest Armor"
       type: Armor
       tier: 3
       element: Earth
+      upgraded_from: "tree_armor"
 
     hurricane_armor:
       name: "Hurricane Armor"
       type: Armor
       tier: 3
+      element: Wind
+      upgraded_from: "storm_armor"
+
+    # -- Tier 4 --
+    # In order: Mythril armor, sun armor, ocean armor, jungle armor, sky armor, demonic armor, divine armor, robe of economy
+    mythril_armor:
+      name: "Mythril Armor"
+      type: Armor
+      tier: 4
+      element: Neutral
+      upgraded_from: "titanium_armor"
+
+    sun_armor:
+      name: "Sun Armor"
+      type: Armor
+      tier: 4
+      element: Fire
+      upgraded_from: "inferno_armor"
+
+    ocean_armor:
+      name: "Ocean Armor"
+      type: Armor
+      tier: 4
+      element: Water
+      upgraded_from: "tsunami_armor"
+
+    jungle_armor:
+      name: "Jungle Armor"
+      type: Armor
+      tier: 4
+      element: Earth
+      upgraded_from: "forest_armor"
+
+    sky_armor:
+      name: "Sky Armor"
+      type: Armor
+      tier: 4
+      element: Wind
+      upgraded_from: "hurricane_armor"
+
+    demonic_armor:
+      name: "Demonic Armor"
+      type: Armor
+      tier: 4
+      element: None
+
+    divine_armor:
+      name: "Divine Armor"
+      type: Armor
+      tier: 4
+      element: None
+
+    robe_of_economy:
+      name: "Robe of Economy"
+      type: Armor
+      tier: 4
       element: Wind
 
   accessories:
@@ -342,30 +516,35 @@ equipment:
       type: Accessory
       tier: 2
       element: Neutral
+      upgraded_from: "iron_ring"
 
     flame_gloves:
       name: "Flame Gloves"
       type: Accessory
       tier: 2
       element: Fire
+      upgraded_from: "fire_gloves"
 
     flood_necklace:
       name: "Flood Necklace"
       type: Accessory
       tier: 2
       element: Water
+      upgraded_from: "water_necklace"
 
     tree_bracelet:
       name: "Tree Bracelet"
       type: Accessory
       tier: 2
       element: Earth
+      upgraded_from: "wood_bracelet"
 
     storm_ring:
       name: "Storm Ring"
       type: Accessory
       tier: 2
       element: Wind
+      upgraded_from: "feather_ring"
 
     # -- Tier 3 --
     titanium_ring:
@@ -373,30 +552,35 @@ equipment:
       type: Accessory
       tier: 3
       element: Neutral
+      upgraded_from: "steel_ring"
 
     inferno_gloves:
       name: "Inferno Gloves"
       type: Accessory
       tier: 3
       element: Fire
+      upgraded_from: "flame_gloves"
 
     tsunami_necklace:
       name: "Tsunami Necklace"
       type: Accessory
       tier: 3
       element: Water
+      upgraded_from: "flood_necklace"
 
     forest_bracelet:
       name: "Forest Bracelet"
       type: Accessory
       tier: 3
       element: Earth
+      upgraded_from: "tree_bracelet"
 
     hurricane_ring:
       name: "Hurricane Ring"
       type: Accessory
       tier: 3
       element: Wind
+      upgraded_from: "storm_ring"
 
     alchemist_cape:
       name: "Alchemist Cape"
@@ -404,6 +588,61 @@ equipment:
       tier: 3
       element: Neutral
       notes: "Crafted at SSS+10 by default; no additional enhancement needed."
+
+    # -- Tier 4 --
+    mythril_ring:
+      name: "Mythril Ring"
+      type: Accessory
+      tier: 4
+      element: Neutral
+      upgraded_from: "titanium_ring"
+
+    sun_gloves:
+      name: "Sun Gloves"
+      type: Accessory
+      tier: 4
+      element: Fire
+      upgraded_from: "inferno_gloves"
+
+    ocean_necklace:
+      name: "Ocean Necklace"
+      type: Accessory
+      tier: 4
+      element: Water
+      upgraded_from: "tsunami_necklace"
+
+    jungle_bracelet:
+      name: "Jungle Bracelet"
+      type: Accessory
+      tier: 4
+      element: Earth
+      upgraded_from: "forest_bracelet"
+
+    sky_ring:
+      name: "Sky Ring"
+      type: Accessory
+      tier: 4
+      element: Wind
+      upgraded_from: "hurricane_ring"
+
+    demonic_ring:
+      name: "Demonic Ring"
+      type: Accessory
+      tier: 4
+      element: None
+
+    divine_ring:
+      name: "Divine Ring"
+      type: Accessory
+      tier: 4
+      element: None
+
+    mana_cape:
+      name: "Mana Cape"
+      type: Accessory
+      tier: 4
+      element: Neutral
+      upgraded_from: "alchemist_cape"
 
 # ---------------------------------------------------------------------------
 # Item Catalog
