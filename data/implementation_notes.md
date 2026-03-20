@@ -114,3 +114,30 @@ The main difficulty is creating a data format that can adequately represent the 
 - A combination: structured data for what the algorithm can use, plus freeform text for context.
 
 Determine the best approach during implementation.
+
+## 5. Refresh Pets in Dungeon Planner on Import
+
+The pet analyzer already updates when pet data is reimported, but the dungeon planner doesn't do this. The current solution is to click "Solve All" to replan with the updated data.
+
+The dungeon planner should behave similarly to the pet analyzer in this regard, automatically refreshing relevant stats/information when new data is imported. This refresh should keep the currently planned teams in place and only update the stats (levels, equipment, etc.) and recalculate the suggested difficulties. The motivation here is to allow a quick update without having to replan the teams and to ensure that the data presented to the user is not stale.
+
+## 6. Refine Total Growth Check for Dungeon Planner
+
+Within the UI views, the `dungeon.rs` file checks to ensure that the suggested pets satisfy the total growth requirement of the dungeon. This check is currently based on an incorrect assumption.
+
+```rust
+let total_growth: u64 = assigned_exports.iter().map(|e| e.growth).sum();
+```
+
+This calculation sums up the entire team's growth and compares that value to the recommended value. Within the game, the growth of an individual pet is actually called "total growth," because some equipment can boost their growth. The total growth check should actually be on a per-pet basis instead of the team total. It's possible that some pets will satisfy the requirement while others may not. This could be handled similarly to the minimum class level check to simply flag that at least one pet's growth is too low. It's trivial to check the growth values of each pet in-game. We could also consider adding each pet's growth to their card along with their other stats (like DL and CL).
+
+## 7. Minor Bug When Loading Actions
+
+While a pet is working in the Alchemist Hut, the tool is unable to properly deserialize the action. The following error is displayed:
+
+```
+Warning: unrecognized action 'Alchemist Hut, producing', treating as Idle
+```
+
+Note that the export data is exactly as this appears here in the warning message. The exported data does appear to be incomplete as it does not show what they are actually producing. The warning message appearing truncated is not a parsing bug. This is actually nearly identical to what the exported stats show for the Material Factory.
+

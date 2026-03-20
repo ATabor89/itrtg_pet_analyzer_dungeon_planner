@@ -286,25 +286,29 @@ fn recommend_accessory<'a>(
 /// Gem effects:
 /// - Fire: attack    - Water: HP
 /// - Earth: defense  - Wind: speed
-/// - Neutral: all stats
+/// - Neutral: all element stats
+///
+/// Guidelines by class (D3, 3 gems):
+/// - Mage:       1 Fire, 2 Water
+/// - Assassin:   2 Fire, 1 Water
+/// - Supporter:  1 Fire, 1 Water, 1 Wind
+/// - Defender:   All Water (for dungeons)
+/// - Rogue:      1 Fire, 1 Water, 1 Wind
+/// - Blacksmith: 1 Fire, 1 Water, 1 Earth
 fn recommend_gems(class: Class, depth: u8) -> Option<GemSlots> {
     if depth < 2 {
         return None;
     }
 
+    // D2: weapon gem only
     let weapon_gem = match class {
-        // Damage dealers and supporters: Fire (attack)
         Class::Assassin | Class::Mage | Class::Supporter => Some(Element::Fire),
-        // Rogues: Wind (speed) for more actions
         Class::Rogue => Some(Element::Wind),
-        // Defenders: Water (HP for survival)
         Class::Defender => Some(Element::Water),
-        // Others: Fire (attack)
         _ => Some(Element::Fire),
     };
 
     if depth < 3 {
-        // D2: weapon gem only
         return Some(GemSlots {
             weapon: weapon_gem,
             armor: None,
@@ -312,32 +316,44 @@ fn recommend_gems(class: Class, depth: u8) -> Option<GemSlots> {
         });
     }
 
-    // D3: all slots
-    let (armor_gem, accessory_gem) = match class {
-        Class::Assassin | Class::Mage => {
-            // Water (HP) armor, Neutral (all) accessory
-            (Some(Element::Water), Some(Element::Neutral))
-        }
-        Class::Supporter => {
-            // Water (HP) armor, Earth (defense) or Wind (speed) accessory
-            (Some(Element::Water), Some(Element::Earth))
-        }
-        Class::Defender => {
-            // Earth (defense) armor, Neutral (all) accessory
-            (Some(Element::Earth), Some(Element::Neutral))
-        }
-        Class::Rogue => {
-            // Water (HP) armor, Neutral (all) accessory
-            (Some(Element::Water), Some(Element::Neutral))
-        }
-        _ => (Some(Element::Water), Some(Element::Neutral)),
-    };
-
-    Some(GemSlots {
-        weapon: weapon_gem,
-        armor: armor_gem,
-        accessory: accessory_gem,
-    })
+    // D3: all slots — follow per-class guidelines
+    match class {
+        Class::Mage => Some(GemSlots {
+            weapon: Some(Element::Fire),   // attack
+            armor: Some(Element::Water),   // HP
+            accessory: Some(Element::Water), // HP (1F 2W)
+        }),
+        Class::Assassin => Some(GemSlots {
+            weapon: Some(Element::Fire),   // attack
+            armor: Some(Element::Fire),    // attack (2F 1W)
+            accessory: Some(Element::Water), // HP
+        }),
+        Class::Supporter => Some(GemSlots {
+            weapon: Some(Element::Fire),   // attack (helps healing scale)
+            armor: Some(Element::Water),   // HP
+            accessory: Some(Element::Wind), // speed (1F 1W 1Wi)
+        }),
+        Class::Defender => Some(GemSlots {
+            weapon: Some(Element::Water),  // HP
+            armor: Some(Element::Water),   // HP
+            accessory: Some(Element::Water), // HP (all Water for dungeons)
+        }),
+        Class::Rogue => Some(GemSlots {
+            weapon: Some(Element::Fire),   // attack
+            armor: Some(Element::Water),   // HP
+            accessory: Some(Element::Wind), // speed (1F 1W 1Wi)
+        }),
+        Class::Blacksmith => Some(GemSlots {
+            weapon: Some(Element::Fire),   // attack
+            armor: Some(Element::Water),   // HP
+            accessory: Some(Element::Earth), // defense (1F 1W 1E)
+        }),
+        _ => Some(GemSlots {
+            weapon: Some(Element::Fire),
+            armor: Some(Element::Water),
+            accessory: Some(Element::Neutral),
+        }),
+    }
 }
 
 // =============================================================================
@@ -584,7 +600,7 @@ accessories:
         let gems = s.equipment.gems.unwrap();
         assert_eq!(gems.weapon, Some(Element::Fire));
         assert_eq!(gems.armor, Some(Element::Water));
-        assert_eq!(gems.accessory, Some(Element::Earth));
+        assert_eq!(gems.accessory, Some(Element::Wind));
     }
 
     #[test]
