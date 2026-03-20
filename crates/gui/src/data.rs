@@ -18,6 +18,9 @@ pub struct DataStore {
 
     /// Status message for imports.
     pub import_status: Option<(String, bool)>, // (message, is_error)
+
+    /// Incremented every time merged data changes. Used by views to detect stale data.
+    pub data_version: u64,
 }
 
 impl DataStore {
@@ -31,12 +34,14 @@ impl DataStore {
             wiki_loading: false,
             wiki_error: None,
             import_status: None,
+            data_version: 0,
         }
     }
 
     /// Re-merge wiki + export data after either side changes.
     pub fn rebuild_merged(&mut self) {
         self.merged = merge::merge_pets(&self.wiki_pets, &self.export_pets);
+        self.data_version += 1;
     }
 
     /// Start an async wiki fetch on a background thread.

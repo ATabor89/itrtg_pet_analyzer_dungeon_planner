@@ -236,13 +236,14 @@ fn parse_action(s: &str) -> PetAction {
             "Fishing" => return PetAction::Village(VillageJob::Fishing(sub)),
             "Material Factory" => return PetAction::Village(VillageJob::MaterialFactory(sub)),
             "Questing" => return PetAction::Village(VillageJob::Questing(sub)),
+            "Alchemy Hut" | "Alchemist Hut" => return PetAction::Village(VillageJob::AlchemyHut),
             _ => {}
         }
     }
 
     // Village jobs without sub-roles
     match trimmed {
-        "Alchemy Hut" => return PetAction::Village(VillageJob::AlchemyHut),
+        "Alchemy Hut" | "Alchemist Hut" => return PetAction::Village(VillageJob::AlchemyHut),
         "Dojo" => return PetAction::Village(VillageJob::Dojo),
         "Strategy Room" => return PetAction::Village(VillageJob::StrategyRoom),
         _ => {}
@@ -316,6 +317,15 @@ mod tests {
         assert_eq!(
             parse_action("Questing, Water Droplets"),
             PetAction::Village(VillageJob::Questing(Some("Water Droplets".to_string())))
+        );
+        // "Alchemist Hut, producing" from export data
+        assert_eq!(
+            parse_action("Alchemist Hut, producing"),
+            PetAction::Village(VillageJob::AlchemyHut)
+        );
+        assert_eq!(
+            parse_action("Alchemy Hut"),
+            PetAction::Village(VillageJob::AlchemyHut)
         );
     }
 

@@ -44,6 +44,8 @@ pub struct DungeonState {
     constraint_search: String,
     /// Selected dungeon for the "Force" action. None = Any team.
     force_dungeon: Option<Dungeon>,
+    /// Data version when plans were last refreshed.
+    last_data_version: u64,
 }
 
 const CONSTRAINTS_PATH: &str = "data/pet_constraints.yaml";
@@ -127,6 +129,31 @@ impl DungeonState {
         }
 
         Ok(())
+    }
+
+    /// Refresh pet data in existing plans without re-solving.
+    /// Updates stats (DL, CL, growth, equipment) for already-assigned pets.
+    fn refresh_plans(&mut self, data: &DataStore) {
+        if self.plans.is_empty() || self.last_data_version == data.data_version {
+            return;
+        }
+        self.last_data_version = data.data_version;
+
+        for plan in &mut self.plans {
+            for sa in &mut plan.assignments {
+                if let Assignment::Filled { pet, .. } = &mut sa.assignment {
+                    // Find updated data for this pet
+                    if let Some(updated) = data.merged.iter().find(|m| m.name == pet.name) {
+                        pet.export = updated.export.clone();
+                        pet.wiki = updated.wiki.clone();
+                    }
+                }
+            }
+            // Re-enrich equipment with updated pet data
+            if let Some(recs) = &data.dungeon_recs {
+                equipment::enrich_equipment(plan, &recs.equipment);
+            }
+        }
     }
 
     /// Clear all constraints and reload from the YAML file.
@@ -237,6 +264,9 @@ struct ForcedEntry {
 
 pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     state.ensure_init();
+
+    // Auto-refresh plans when pet data changes (import/wiki refresh)
+    state.refresh_plans(data);
 
     if data.dungeon_recs.is_none() {
         ui.vertical_centered(|ui| {
@@ -658,6 +688,9 @@ fn solve_all(state: &mut DungeonState, data: &DataStore) {
     for plan in &mut state.plans {
         equipment::enrich_equipment(plan, &recs.equipment);
     }
+
+    // Mark plans as current
+    state.last_data_version = data.data_version;
 }
 
 // =============================================================================
@@ -761,7 +794,7 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
     let pet_count = assigned_exports.len();
     let avg_dungeon_level = assigned_exports.iter().map(|e| e.dungeon_level as u64).sum::<u64>() / pet_count as u64;
     let min_class_level = assigned_exports.iter().map(|e| e.class_level).min().unwrap_or(0);
-    let total_growth: u64 = assigned_exports.iter().map(|e| e.growth).sum();
+    let min_growth = assigned_exports.iter().map(|e| e.growth).min().unwrap_or(0);
 
     // Team stats summary
     ui.horizontal(|ui| {
@@ -808,8 +841,8 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
             // Class level check: binary pass/fail for the depth
             let cl_ok = min_class_level >= reqs.class_level;
 
-            // Total growth check (some depths have this requirement)
-            let growth_ok = reqs.total_growth.map_or(true, |req| total_growth >= req);
+            // Per-pet growth check: "total growth" is per-pet, not team sum
+            let growth_ok = reqs.total_growth.map_or(true, |req| min_growth >= req);
 
             let max_diff = dl_diff.min(10);
 
@@ -937,10 +970,10 @@ fn show_slot_card(
                         .color(quality_color)
                         .size(10.0),
                 );
-                // DL and CL
+                // DL, CL, Growth
                 if let Some(export) = &pet.export {
                     ui.label(
-                        RichText::new(format!("DL:{} CL:{}", export.dungeon_level, export.class_level))
+                        RichText::new(format!("DL:{} CL:{} G:{}", export.dungeon_level, export.class_level, format_compact_number(export.growth)))
                             .color(style::TEXT_MUTED)
                             .size(10.0)
                             .family(egui::FontFamily::Monospace),
@@ -1091,4 +1124,17 @@ fn resolve_equip_name(key: &str, catalog: Option<&EquipmentCatalog>) -> String {
     }
     // Fallback: humanize the key
     key.replace('_', " ")
+}
+
+/// Format a number compactly for card display (e.g. 1500 → "1.5k", 2300000 → "2.3M").
+fn format_compact_number(n: u64) -> String {
+    if n >= 1_000_000 {
+        let m = n as f64 / 1_000_000.0;
+        format!("{m:.1}M")
+    } else if n >= 1_000 {
+        let k = n as f64 / 1_000.0;
+        format!("{k:.1}k")
+    } else {
+        n.to_string()
+    }
 }
