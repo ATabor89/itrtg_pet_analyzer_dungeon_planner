@@ -86,6 +86,48 @@ impl EquipmentCatalog {
             .map(|(k, v)| (k.as_str(), v))
     }
 
+    /// Find a catalog key by exact equipment name (case-insensitive), searching all slots.
+    pub fn find_key_by_name_exact(&self, name: &str) -> Option<&str> {
+        let lower = name.to_lowercase();
+        for map in [&self.weapons, &self.armor, &self.accessories] {
+            if let Some((k, _)) = map.iter().find(|(_, eq)| eq.name.to_lowercase() == lower) {
+                return Some(k.as_str());
+            }
+        }
+        None
+    }
+
+    /// Check if `candidate_key` is the same as `base_key` or is an upgraded version
+    /// of it (walks the `upgraded_from` chain from the candidate back toward the base).
+    pub fn is_upgrade_of(&self, candidate_key: &str, base_key: &str) -> bool {
+        if candidate_key == base_key {
+            return true;
+        }
+        // Walk the candidate's upgrade chain backward
+        let mut current = candidate_key;
+        // Safety limit to prevent infinite loops from bad data
+        for _ in 0..10 {
+            let Some(entry) = self.lookup(current) else {
+                return false;
+            };
+            let Some(parent) = &entry.upgraded_from else {
+                return false;
+            };
+            if parent == base_key {
+                return true;
+            }
+            current = parent;
+        }
+        false
+    }
+
+    /// Check if `candidate_key` is in the same upgrade chain as `base_key`
+    /// (either an upgrade or a downgrade — checks both directions).
+    pub fn is_same_line(&self, candidate_key: &str, base_key: &str) -> bool {
+        self.is_upgrade_of(candidate_key, base_key)
+            || self.is_upgrade_of(base_key, candidate_key)
+    }
+
     fn slot_map(&self, slot: EquipmentSlot) -> &BTreeMap<String, CatalogEquipment> {
         match slot {
             EquipmentSlot::Weapon => &self.weapons,
