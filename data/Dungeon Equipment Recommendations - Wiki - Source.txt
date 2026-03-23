@@ -1,0 +1,200 @@
+== Equipment Goals ==
+There are several priorities you will need to consider while gearing your pets in Dungeons. In order of decreasing priority:
+
+* To improve your ability to clear a Dungeon
+* To boost a new pet's Dungeon or Class levels
+* To boost your God's stats.
+
+While the recommendations below are oriented around the first goal, here is a brief summary of the two other goals.
+
+=== Boosting New Pets ===
+
+Oftentimes if you get a new pet, the fastest way to get it up to speed (in both Dungeon Level and Class Level) is to use pet equipment to improve their Experience rate from Dungeons. This can be done using any Water Sword or [[Gram]]. As a general rule it is recommended NOT to use this priority until you can use Tier 3 Water Swords (Ego Sword).
+
+'''Experience Funneling''' is the most basic form of this strategy, and requires equipping at least one of either equipment piece listed above, with the experience being evenly split between all pets using these weapons.
+
+Additionally, prior to upgrading any Dojo Element Water Swords have two additional effects on experience.
+#Each Water Sword increases the experience produced by the dungeon by 4%, up to a max boost of 24%
+#If equipped to a pet outside of dungeons, gives 1.2% of the experience earned by dungeon teams as either Dungeon or Class experience.
+
+=== God Stats ===
+
+If you are clearing a Dungeon Depth very easily and are facing a wall in further progression (such as the barrier between Depth 3 and 4 Dungeons) or have capped on Dungeon progression, equipment slots will be opened up to have your pets instead support your god's stats.
+
+As a general rule, only standard element equipment provides a bonus to your God's Stats. The one exception is exclusive to the (presently) final tier of the Water Sword line.
+
+The Stat benefits each equipment piece scale depending on an the equipment's Tier, Quality, and Upgrade level. The individual stats pet equipment can provide are:<br>
+* God HP Boost - Neutral Element Equipment
+* God Attack Boost - Fire Element Equipment
+* God Mystic Boost - Water Element Equipment
+* God Regen Boost - T4 Water Swords (Soul Swords)
+* Building Speed Boost - Earth Element Equipment
+* Creation Speed Boost - Wind Element Equipment
+
+== Equipment Recommendations ==
+
+Recommendations below are grouped by Depth and Class, with individual Dungeons outlined when necessary if their gearing requirement is substantially different. As a reminder, '''This is not a guide for building teams for dungeons'''. If you are looking for help with that, the [[Introduction to Dungeons]] page or Game Discord is a better place to get an answer to your question.
+
+As an final note, be aware that the biggest balancing factor that causes variance in pets is their innate element. Because this element affects both the Defensive AND Offensive interactions between pets and monsters. Due to this the gear selected may be more offensively or defensively focused depending on which is more appropriate for their role.
+
+For shorthand, the following four indicators will be used
+*SameElement - The Equipment Slot should be the same element as the pet using it.
+*CounterElement - The Equipment Slot should be the element that counters the pet. As a reminder, the Element "counters" chart is Fire -> Wind -> Earth -> Water -> Fire, with Fire beating Wind, Wind beating Earth etc. '''Neutral Element pets do not have a Counter Element.'''
+*DungeonElement - The Equipment Slot should be the same element as the Dungeon it is in
+*DungeonCounter - The Equipment Slot element should counter the element of the dungeon.
+
+
+=== Depth 1 ===
+Depth 1 Dungeons are, in general, the least likely to pose a serious challenge to the weakest dungeon teams due to the lack of diversity in their Elemental composition. Additionally, depending on how fast you progress its unlikely that you will be able to craft all recommended equipment before moving onto Depth 2 Dungeons. Gems will not be mentioned for this depth as they are generally unneeded at this point in time.
+
+Additionally, '''be aware that a good portion of gear that is generally good at this Depth is not as good in later Depths'''. Consider looking ahead at the Depth 2, Depth 3, or Mimic gearing options for alternatives, as the best in slot equipment for Depth 1 very rarely matches the best in slot equipment for later depths.
+
+'''Blacksmiths'''<br>
+* Weapon: T1 Neutral Weapon (Depth 1 Water Temple), T1 Fire Weapon (All other Depth 1 Dungeons)
+* Armor: T1 Counter Element OR T1 Neutral
+* Accessory: No Specific Recommendation
+
+Blacksmith's primary role in D1 dungeons is to fill event requirement slots, and more likely then not you will want to keep them outside of Dungeons to be working on equipment. If you run a Blacksmith, a standard Hybrid Damage/Tank set will generally be the best option you can bring this early.
+
+'''Defenders'''<br>
+* Weapon: T1 Neutral Weapon OR T1 Pot
+* Armor: T1 Neutral Armor
+* Accessory: T1 Neutral Accessory
+
+Defender's sole role, at least until better knives are unlocked, is to tank damage in Early Dungeons. The one choice you may want to engage with is making T1 Pots as the initial weapon for your Defenders. These pots can then be phased out gradually as you evolve Alchemists and replaced with T1 Neutral Weapons. While the Armor and Accessory could be more efficiently optimized in the mono-element zones of Depth 1, they are generally easy enough that planning for the future is better.
+
+'''Supporters'''<br>
+* Weapon: T1 Neutral Weapon (Depth 1 Water Temple), T1 Fire Weapon (All other Depth 1 Dungeons)
+* Armor: T1 Counter Element OR T1 Neutral (Neutral Pets)
+* Accessory: No Specific Recommendation
+
+Supporter's Healing solely scales with their Attack. Because of this, the element of equipment doesn't matter as much as what stats it gives. Despite this, no specific accessory is recommended, as the best in slot gear piece (T1 Fire Accessory) isn't broadly useful after Depth 1 and early Depth 2.
+
+'''Mages'''<br>
+* Weapon: T1 Fire Weapon
+* Armor: T1 Same Element (Offensive), T1 Counter Element or T1 Neutral Gear (Defensive)
+* Accessory: T1 Same Element Accessory
+
+Mage is one of the two primary DPS classes, and scales best from a combination of Weapon Attack and increasing their own Element. If your mage is struggling to stay alive, equipping armor that mitigates their counter element (if in a dungeon that counters them) or neutral gear (which has the best stats) is your best best for solving this issue, bar socketing gems.
+
+'''Assassins'''<br>
+* Weapon: T1 Fire Weapon
+* Armor: T1 Same Element (Offensive), T1 Counter Element or T1 Neutral(Defensive)
+* Accessory: T1 Same Element Accessory (Offensive), T1 Neutral Accessory (Defensive)
+
+Assassin is the other primary DPS class, and so will gear very similarly to Mages. Due to how their damage scales with Class Level, you can afford to use a more Defensive Accessory instead of a same-element accessory, though this effect gradually falls off as Class Level increases.
+
+'''Rogue'''<br>
+* Weapon: T1 Neutral Weapon
+* Armor: T1 Counter Element OR T1 Neutral (Neutral Pets)
+* Accessory: T1 Neutral Accessory
+
+In Depth 1, Rogue's primary goals are to survive, increase the loot obtained from defeating enemies, and complete relevant events. Because of this, their gear can resemble either Defender's or Blacksmiths's more defensive gearing style. This will change in later depths however, and you may want to instead look ahead to the
+
+=== Depth 2 ===
+Depth 2 is the beginning of more complex dungeon design, with one enemy of a different element along with enemy stats increasing across the board. Suggestions in this section will also include gem recommendations.
+
+If you were using this page for your Depth 1 Gearing, '''be aware that the T1 Fire Swords and Accessories crafted for Depth 1 are generally not as useful from this depth onward'''. While sometimes a T2 Fire Sword will be used for specific pets, enemy offensive power has increased enough that solely increasing Damage is not the best option.
+
+Let's look at an example depth 2 Mountain party.  The depth 2 events call for 2 Defenders and 1 Rogue.  The depth 1 events are satisfied by 2 wind pets, and 1 Blacksmith.  We're going to skip the Blacksmith, because it's inconvenient, and we don't really need that event's reward (and it only has a 5% chance of triggering in the first 6 rooms of each dive anyway).
+
+{| class="wikitable"
+|Valkyrie<br>[[File:Valkyrie.png|80x80px]]<br>Wind Defender
+|Dog<br>[[File:Dog.png|80x80px]]<br>Neutral Defender
+|Fairy<br>[[File:Fairy.png|80x80px]]<br>Wind Supporter
+|-
+|Dragon<br>[[File:Dragon.png|80x80px]]<br>Fire Mage
+|Mole<br>[[File:Mole.png|80x80px]]<br>Earth Rogue
+|Camel<br>[[File:Camel.png|80x80px]]<br>Fire Assassin
+|}
+
+Mountain is a wind dungeon with one added earth monster.  The wind monsters are weak against fire, and the earth monster is weak against wind.  Therefore, a combination of wind and fire pets should work well.
+
+This team has 4 core pets that are well suited to the Mountain specifically -- [[Valkyrie]], [[Dog]], [[Fairy]] and [[Dragon]].  It has 2 wildcard pets which are filling in secondary roles.  Your own wildcard pets may be different, and this is ''not'' to say that you should follow this example.  You might have [[Rudolph]] as a wind Rogue, for example, which would be better suited than [[Mole]].  This is simply one example, containing pets that are likely to be available for a player in the early depth 2 stage.  It also demonstrates how we might plan around a pet whose element is "wrong" for a given dungeon.
+
+The first thing we'll note is that this team has ''two'' Defenders, as required for the depth 2 event.  This means the other pets are much less likely to be targeted, compared to a typical team with one, or even zero, Defenders.  Mole is weak against most of the monsters in this dungeon, but we've placed it in the back row, behind two Defenders, which should help.  Also, it's a Rogue, which means we want to give it a knife -- which is wind equipment.  If we give it even more wind equipment, it'll be quite well protected against the monsters at this depth, and the wind gear provides a lovely speed bonus.
+
+The [[Dragon]] is an extremely strong Mage in this dungeon.  We can give it fire equipment, which increases attack and confers a water elemental weakness that we can ignore.  We'll most likely want to start it out with water gems that boost HP, or neutral gems that boost elemental levels.  Later, if all goes well, we might be able to switch to some fire gems for extra attack power, or wind gems for speed.  If the Dragon is lower level than the rest of the team, then we might use a single piece of neutral equipment to help boost its survivability.  Wind gear ''could'' be used, but because wind gear reduces fire, that would cut into Dragon's offensive capability.  Then again, wind gear also boosts speed, which is nice....
+
+The Mage is going to be the primary damage source for this team (unless it's low level), but we've added a fire Assassin as a backup.  There are a couple other fire pets which get an Assassin specialist bonus ([[Ape]] and [[Succubus]]), but Ape is often used as a growth camp Adventurer, and Succubus may not be available.  Thus, the wildcard [[Camel]].  [[Cat]] could also be used here, or even [[Egg]], although a wind Assassin is not ideal in the Mountain.
+
+The three front-row pets can be given straight wind equipment, or a mixture of neutral and wind in the case of the Defenders.  The Fairy Supporter should avoid neutral gear, because we want speedy healing.  If the single earth monster is a concern, the Fairy could use HP/defense/elemental gems.  But it's more likely we'll just ignore the earth monster, and use wind gems for speed.
+
+That leaves our wildcard Camel Assassin.  Depending on its level, we might need to boost its survivability (wind/neutral gear), or we might want to boost its offense (fire gear).  If it's high level, we might even want to move it to the front row, swapping with the Fairy, to avoid the 20% back-row damage penalty.  Wind gear reduces its fire element level, which hurts its attack power (as with Dragon), so the decision to use wind gear would have to be made with careful deliberation.  A mix of fire and neutral equipment may work as a compromise.
+
+As you start getting your pets set up with the proper gear, you should start looking into gems. Gems are obtained from [[Challenge Dungeons]] and can be embedded into equipment by Blacksmiths in the Crafting menu. You should start working on gems once you have your Tier 2 gear to around S+10 quality. You do not lose levels on gems through tiering up or upgrading your gear, but will lose a gem level if you remove it from the gear. (This can be avoided with a [[Challenge Points|Challenge Point]] purchase.
+
+The below flowchart from Derelict Kami can be used as a quick reference to help you decide what gems to use. This is only meant to be used for Depth 2 and Depth 3 dungeons. Many of the lategame dungeon content (Mimics, [[Infinity Tower|Infinity Towers]], [[Gram]] bosses, etc.) change the gem strategy, but this flowchart guide can be a solid start that you can work off of for later content.
+
+Note: Regarding wind gems, the extra action breakpoints are at 500 and 1500 speed. More info on your pet's current action amount can be found in the Speed tooltip on your pet's dungeon stats screen. If you are close to one of these breakpoints a wind gem can be used to push you over that point, making them only situationally useful.
+
+[[File:Gems101.png|frameless|453x453px]]
+
+=== Prepping for D3 and Mimics ===
+Moving into D3 dungeons, elements are more important than ever. As many D3 dungeons have monsters of most elemental types, keeping an eye on your elemental weaknesses is key to survival. As you progress further into D3, about the time you reach the D3-5/6 mark, it would be a good idea to begin fighting the [[Mimic]] enemy to farm more XP and Mimic Points for the [[Treasure/Mimic]] pet.
+
+To remedy any elemental deficiencies you might have on your pets (any element below 0) you can mix-and-match different elements of equipment, use Neutral equipment, enchant T3 equipment, and/or use Neutral Gems.
+
+Note: It is not worth it to enchant any equipment below T3, since enchant levels are halved when you upgrade a tier.
+
+==== Equipment Suggestions - D3/Mimics ====
+Below is a list of ''suggested'' equipment for your pets in D3 dungeons. This is only a suggestion, curated by several players who are familiar with the current meta. Dungeons can be approached a variety of ways, and each strategy has its own advantage. These notes are '''not''' guaranteed and a better strategy is most likely out there. Please take this information with a grain of salt. If you have questions on how to gear your pet, feel free to reach out in the [[Discord]].
+
+==== Blacksmith ====
+'''''Weapon:''''' Knives (very useful for v4 fights).<br>
+'''''Armor:''''' Titanium Armor.<br>
+'''''Accessory:''''' Titanium Ring (better dungeon stats), Alchemist Cape (good for V4s).<br>
+'''''Gems:''''' If you are using the pet for v4 and dungeons, have a mix of HP and Defense. If only dungeons, just use HP. If you happen to still have negative elements, you can swap in a neutral gem until your gear is more enchanted.<br>
+
+==== Mage ====
+'''''Weapon:'''''<br>
+
+'''''All:''''' Ego sword (Mages are often your largest damage dealer, and should be several levels ahead of your other pets. When not using an Ego sword, use the other equipment listed below.)<br>
+'''''Fire:''''' Tsunami Spear or Inferno Sword. (Tsunami Spear is useful if you need to raise your Elemental Resistance.)<br>
+'''''Earth:''''' Inferno or a Bow. (Forest axes are inferior unless on Rabbit after token improved, but can be used if you have nothing else.)<br>
+'''''Water:''''' Tsunami Spear or Inferno Sword. (Either is fine as they are very similar in terms of damage dealt.<br>
+'''''Wind:''''' Inferno Sword.<br>
+
+'''''Armor:'''''
+Match the pets element.<br>
+
+'''''Accessory:''''' Usually Alchemist Cape, or whatever is needed to cover an elemental weakness. Consider a Forest Bracelet or Titanium Ring if you see them dying a lot. Improved Rabbit can use a Forest Bracelet.<br>
+
+'''''Gems:''''' Until later Dungeon Levels, your Mage will need to focus on HP/Neutral Gems usually in 2 HP/1 Neutral, but you can adjust as needed depending on the Mage Element. You can focus on full attack if you want to minmax V4s but your dungeons will suffer from that. A good mix can be using a Fire/Water/Neutral, swapping out the Neutral for another Water or Fire if you do not have any elemental weaknesses. <br>
+
+==== Defender ====
+'''''Weapon:''''' Titanium Sword (Dungeons) or Magic Pot (V4s)<br>
+'''''Armor:''''' Titanium (Dungeons) or Forest Armor (God Stats)<br>
+'''''Accessory:''''' Titanium (Dungeons) or Forest (God Stats).<br>
+'''''Gems:''''' HP (Dungeons) or Defense (V4s). Neutral if using Forest equipment.<br>
+
+==== Supporter ====
+'''''Weapon:'''''
+Similar to Mage except Knives can be useful for extra speed or when you no longer need more healing power to keep pets alive. You can see a supporter's healing power by hovering over it in the dungeon team slot (where you put pets into teams).<br>
+
+'''''Armor:'''''
+You can focus on whichever stats/element you feel you need most. If you are using Knives and Inferno Gloves, having your armor be more HP and Defense oriented can be good for survival. <br>
+
+'''''Accessory:'''''
+Similar to the armor choice, although Inferno Gloves are a good choice overall as they give speed as well as healing power.<br>
+
+'''''Gems:''''' One of each Attack/HP/Neutral will serve you well unless you want to specialize. The occasional speed gem can also be a good choice but should never replace the Neutral or the HP gem.<br>
+Neutral pets can eventually drop the neutral gem if you want, but using it is still fine. You can focus on full attack if you want to minmax V4s but your dungeons will suffer from that.<br>
+
+==== Rogue ====
+'''''Weapon:''''' Knives.<br>
+
+'''''Armor/Accessory:''''' Just don't give them anything with negative speed (before being over 1.5k speed even with negative speed gear). Focus on getting all elements above 0 and after that, you can go for survivability and/or god stats.<br>
+
+'''''Gems:''''' Same as armor. Wind gems can be good to break the 1.5k speed for 3 actions, otherwise focus on HP, Neutral, or Attack. <br>
+
+'''''[[Ghost]]:''''' Ghost is a special case as their unique ''scare'' ability scales entirely with its attack strength. Therefore it is best to equip an Inferno Sword, Inferno Armor, and Inferno Gloves. The gems should be either Fire for additional Attack, or Water (HP) for survivability.  <br>
+
+==== Assassin ====
+'''''Weapon:'''''<br>
+'''''All:''''' Assassins share the weapon choices of Supporters but make better use of Knives. Similar to Mages, these are usually your biggest damage dealers. Using an Ego sword on them to get a few levels ahead is very useful. <br>
+'''''[[Archer]]:''''' Bow.<br>
+'''''Armor:''''' Gear for defense usually, covering any elemental weakness. <br>
+'''''Accessory:''''' Almost always Inferno. For water pets consider a Forest Bracelet if you see them dying a lot.<br>
+'''''Gems:'''''  Usually it is better to stick with more defensive gems over offensive gems unless you are dying to room collapses or ultimate attacks. Using Fire/Neutral/Water for gems is a good mix of both offensive and defensive.<br>
+Neutral pets can focus more on offensive gems since they naturally have better resistances, but you can gem them the same as others if you prefer.

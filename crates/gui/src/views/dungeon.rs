@@ -1079,11 +1079,9 @@ fn collect_equip_diffs(
         let Some(key) = rec_key else { continue };
         let rec_name = resolve_equip_name(key, catalog);
 
-        let matches = cur_equip.as_ref().is_some_and(|cur| {
-            let cur_lower = cur.name.to_lowercase();
-            let rec_lower = rec_name.to_lowercase();
-            cur_lower.contains(&rec_lower) || rec_lower.contains(&cur_lower)
-        });
+        let matches = cur_equip
+            .as_ref()
+            .is_some_and(|cur| equip_matches_rec(&cur.name, key, catalog));
 
         if !matches {
             let current_str = cur_equip
@@ -1247,13 +1245,12 @@ fn show_equipment_comparison(
                 None => String::new(),
             };
 
-            // Check if current gear matches the recommendation
+            // Check if current gear matches the recommendation (or is an upgrade)
             let status = match current {
                 Some(cur) => {
-                    let cur_lower = cur.name.to_lowercase();
-                    let rec_lower = rec_name.to_lowercase();
-                    if cur_lower.contains(&rec_lower) || rec_lower.contains(&cur_lower) {
-                        // Match — show quality/upgrade info
+                    let matches = equip_matches_rec(&cur.name, key, catalog);
+                    if matches {
+                        // Match (or higher-tier upgrade) — show quality/upgrade info
                         let grade = match cur.upgrade_level {
                             Some(lv) => format!("{:?}+{lv}", cur.quality),
                             None => format!("{:?}", cur.quality),
@@ -1313,6 +1310,34 @@ enum EquipStatus {
     Diff(String),
     /// No equipment in this slot.
     None,
+}
+
+/// Check if a pet's current equipment matches a recommendation (by catalog key),
+/// including higher-tier upgrades in the same crafting chain.
+fn equip_matches_rec(
+    current_name: &str,
+    rec_key: &str,
+    catalog: Option<&EquipmentCatalog>,
+) -> bool {
+    let Some(cat) = catalog else {
+        // No catalog: fall back to name substring match
+        let cur_lower = current_name.to_lowercase();
+        let rec_name = rec_key.replace('_', " ").to_lowercase();
+        return cur_lower.contains(&rec_name) || rec_name.contains(&cur_lower);
+    };
+
+    // Find the current equipment's catalog key by name
+    if let Some(cur_key) = cat.find_key_by_name_exact(current_name) {
+        // Check if it's the same item or an upgrade of the recommendation
+        if cat.is_same_line(cur_key, rec_key) {
+            return true;
+        }
+    }
+
+    // Fallback: name substring match (handles items not in catalog)
+    let rec_name = resolve_equip_name(rec_key, catalog).to_lowercase();
+    let cur_lower = current_name.to_lowercase();
+    cur_lower.contains(&rec_name) || rec_name.contains(&cur_lower)
 }
 
 /// Resolve a catalog key to a display name.

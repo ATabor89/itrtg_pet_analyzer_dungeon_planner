@@ -1,0 +1,305 @@
+Initially made and edited by nonomo4 with the information provided by the ITRTG discord. This guide was built with the help of the discord community, so please feel free to add your input if there's something that isn't right. After all, this is just a community guide at the end of the day.
+
+== '''Introduction''' ==
+Welcome. This guide is here to help you with your dungeon progression. This will hopefully help you understand what you should be doing to start progressing in dungeons for all players alike.
+
+=='''Guide'''==
+==='''The New Player (non-token)'''===
+When you are just starting, you generally won't have enough pets until you reach Odin. But once you obtain your 6th pet, you are ready to begin your dungeon journey. Trust me when I say it's better than doing normal [[Pet Campaigns]].
+
+:'''Note:''' There's a pet called [[Bug]] that you can unlock if you press the feedback button. I'd recommend making it into a Blacksmith(BS), as a non-specialist fire BS is decent for this stage of the game if you aren't using tokens. As for the other pets, I'd still recommend the roles mentioned below. 3 BSs may feel like a lot, but you'll eventually find yourself making good use of the sheer number of BSs you have.
+
+----
+===='''Depth 1'''====
+
+=====Initial Team=====
+{| class="wikitable"
+|Mouse
+|Frog
+|Bee
+|Cupid
+|Egg
+|Armadillo
+|-
+|[[File:Mouse.png|80x80px]]
+|[[File:Frog.png|80x80px]]
+|[[File:Bee.png|80x80px]]
+|[[File:Cupid.png|80x80px]]
+|[[File:Egg.png|80x80px]]
+|[[File:Armadillo.png|80x80px]]
+|}
+
+Unless you used a token or obtained a pet via an event, these six pets, together with Bug, will likely be your starting set. Your first task is to send them into the [[Dungeons#Newbie Training Grounds|Newbie Training Grounds]] to get enough levels (~10) for your first elemental dungeon.
+
+When Bug reaches 333 total growth, and you've got enough hot stones and ants, evolve it as a Blacksmith. The first thing it should craft is a hammer. Equip it to improve your crafting for everything else. When you run out of materials to forge equipment, forge the [[Nothing (item)]].
+
+When your dungeon team have all reached dungeon level 10+, send them to the other dungeons. Start with the [[Dungeons#Mountain|Mountain Dungeon]], but don't be afraid to try the others as well, especially if you need non-Wind materials for a pet evolution or a desired piece of equipment.
+
+For D1 (depth 1) dungeons, pet dungeon level is the main stat you need for survival. Class selections, equipment and inventory items are less important at this depth than they will be in depth 2 and beyond. However, it's still good to consider these things, and try to build toward teams that will prosper in more dangerous settings.
+----
+
+=====Swapping Out Pets=====
+As you progress outside of dungeons, you gradually acquire more pets. While you can obtain pets via tokens, we are assuming you haven't spent any yet. After a bit of time, you will likely pick up [[Squirrel]], [[Rabbit]], and [[God Power (Pet)|God Power]]. Out of the three, Squirrel and Rabbit will replace Bee and Mouse respectively.
+
+Now your team should be the following *(if frog is fishing, use mouse wildcard supporter instead):
+{| class="wikitable"
+|Cupid
+|Frog*/Mouse
+|Squirrel
+|Rabbit
+|Egg
+|Armadillo
+|-
+|[[File:Cupid.png|80x80px]]
+|[[File:Frog.png|80x80px]]
+|[[File:Squirrel.png|80x80px]]
+|[[File:Rabbit.png|80x80px]]
+|[[File:Egg.png|80x80px]]
+|[[File:Armadillo.png|80x80px]]
+|}
+----
+
+=====Evolving Your Pets=====
+
+Bee should be your first Alchemist and Bug should be a Blacksmith. Having a Blacksmith early will help you prepare the minimal pet gear that's recommended to reach [[Dungeons#Depth 2|depth 2]]. Mouse can make a good wildcard; we suggest Supporter so Frog can go [[Fishing]], but Rogue works decently well. You will eventually unlock more Dungeon teams, so having multiple of each class is important.
+
+For more details on the importance of Blacksmiths and Alchemists, please see [[Crafting]].
+
+As I said, you can reach depth 2 with sheer levels, but it's definitely faster to work on gear, items, and classes.
+----
+
+=====Team Setup=====
+Your pets should be well on their way, levelling up slowly but surely. As they do this, we can begin thinking about the classes and gear of the pets.
+
+'''Classes'''
+
+If you still have the same team, then it is recommended you choose the following classes for your team. *(If frog is fishing, then use supporter mouse instead.)
+{| class="wikitable"
+|Cupid
+|Frog*/Mouse
+|Squirrel
+|Rabbit
+|Egg
+|Armadillo
+|-
+|[[File:Cupid.png|80x80px]]
+|[[File:Frog.png|80x80px]]
+|[[File:Squirrel.png|80x80px]]
+|[[File:Rabbit.png|80x80px]]
+|[[File:Egg.png|80x80px]]
+|[[File:Armadillo.png|80x80px]]
+|-
+|None*
+|Supporter
+|Rogue
+|Mage
+|Assassin
+|Defender
+|}
+
+A pet's class decides their role in a team. Defenders help protect other pets. Supporters make sure everyone stays healthy. Rogues improve the loot. Assassins and Mages provide most of the damage.
+
+At this point, team positioning becomes more important. Each pet should have a place in either the front row or back row. You want to make sure your Cupid, Armadillo, and Egg are in front, with the other 3 in the back.
+
+* While Cupid will evolve into an Adventurer, it will be one of your only 2 wind pets that you have until you unlock [[Fairy]]. As such, it will be vital for the growth event of Mountain, which is the main reason to spend most of your pets' time in the Mountain dungeon. It is recommended to replace Cupid with Fairy once you unlock it.
+
+* This guide is mainly to give you the basic information you need to progress. Please refer to [[Dungeons#Pet_Evolution_and_Class|Dungeons]] for details about each class.
+
+'''Blacksmith Side Quest'''
+
+With Mouse, a hammer, and Rabbit evolved as a Mage, you are ready to pick up a new pet: [[Hamster]]. Remove all pets from your team, and send only Mouse (with hammer equipped) and Rabbit into the Forest, for 1 room. They will come back with a new friend, who will soon become your second Blacksmith.
+
+Forge a second hammer, and equip whichever one is worse quality while you work on upgrading/reforging the higher quality one to satisfy Hamster's evolution requirement. Then, reforge it to "A" quality (if it isn't already) to unlock [[Hermit Crab]], which will become your third Blacksmith.
+
+Once you have one or both of these specialist Blacksmiths evolved, you can send Bug into the dungeons (should you choose), or use it for [[Tavern]] quests, or let it continue crafting.
+
+'''Gear'''
+
+Your Blacksmith(s) should be hard at work crafting the gear you need at this point. Your equipment choices will depend on which pets you're using, which classes they're evolved into, and which dungeon you're exploring. Let's start with a Mountain team example. *(If frog is fishing use mouse wildcard supporter instead)
+{| class="wikitable"
+|
+|Armadillo
+|Egg
+|Cupid
+|Frog*/Mouse
+|Squirrel
+|Rabbit
+|-
+|
+|[[File:Armadillo.png|80x80px]]
+|[[File:Egg.png|80x80px]]
+|[[File:Cupid.png|80x80px]]
+|[[File:Frog.png|80x80px]]
+|[[File:Squirrel.png|80x80px]]
+|[[File:Rabbit.png|80x80px]]
+|-
+|Class
+|Defender
+|Assassin
+|None/Adventurer
+|Supporter
+|Rogue
+|Mage
+|-
+|Weapon
+|Iron Sword or Pot
+|Fire Sword
+|Fire Sword
+|Fire Sword
+|Knives
+|Fire Sword or Earth Axe
+|-
+|Armor
+|Neutral or Wind Armor
+|Fire or Wind Armor
+|Wind Armor
+|Wind Armor
+|Wind Armor
+|Wind Armor
+|-
+|Accessory
+|Neutral Accessory
+|Fire Accessory
+|Fire Accessory
+|Fire or Wind Accessory
+|Fire Accessory
+|Fire or Earth Accessory
+|}
+
+Why do we choose these pieces?  Let's examine each pet:
+* The defender's job is to get hit and live through it, so Armadillo wants high defense and hit points, and doesn't need to worry about speed. High wind element also helps, because that's the element monsters will use to attack you in the Mountain dungeon. Neutral gear is almost always a safe pick for any defender.
+* We have two or three damage dealers in this team: Egg, Rabbit and possibly Squirrel. Egg goes in the front row, to increase damage and speed. This makes him more likely to be targeted, so having wind armor will boost his defenses in this dungeon. On the other hand, Egg is a wind element pet, so while he'll struggle to deal damage, he'll naturally be a bit safer; so we might choose fire armor instead, to help boost his damage.
+* Rabbit goes in the back, because mages do not suffer a damage penalty in the back row, and they're fragile. He's an earth element pet, so he attacks with that element; earth gear will help his damage. However, we'd also like to boost his speed, to get more attacks, so wind gear (or fire accessory) is desirable as well, especially if it pushes him over an attacks-per-round threshold. Wind gear also boosts Rabbit's defense in the Mountain dungeon, so that serves dual purpose.
+* Squirrel is a fire element pet, which is great for dealing damage in the Mountain, where monsters are susceptible to fire. We could move him to the front row if we want to add more damage, or keep him safer in the back row if he's lower level. Rogues emphasize speed over raw attack power, so wind and fire gear are good picks here, with the fire accessory adding speed.
+* Frog or Mouse, our supporter, will primarily want speed, to increase the number of heals per round. Attack power increases the healing amount, but this is a distant second place consideration. Wind armor for survivability + speed is a solid pick for the Mountain, especially if we're using Mouse, who's naturally weak against wind.
+* Cupid, our unevolved or non-dungeon-class tourist, is basically just a warm body taking up space. Give him enough wind gear to stay alive (shouldn't be hard, given his wind element), and enough fire gear to possibly do a little bit of damage when he attacks. When he gets replaced by Fairy, then you can consider gear more critically.
+
+Before upgrading any gear, you will want to craft at least something to fill the slots. After all, something is better than nothing. Only when your team is properly geared and the starting quality rank is good enough should you begin upgrading pieces of gear.
+
+Do note that you want to upgrade your Mage's gear above the rest, as they are your primary damage dealer. After all, a good offence can power your way through.
+
+Players should look at [[Equip]] to understand the value of the stats on each piece of gear. Knowing what each stat is for is essential for maximizing your pets' potential, as the combination gear stats can determine a party's success or failure.
+
+Now you have learned a bit about pet gear, you may be wondering how you get the material for these? You will have the material for wind gear because you've been working on Mountain, but fire, iron and earth material will be in shorter supply. You'll need to send your team to the respective dungeons for resources.
+
+When sending your team to a different dungeon, swapping gear may be helpful. That wind armor is probably a lot less useful in the Forest, where monsters are attacking you with the earth element. Earth (wood) armor may be better suited for most pets there.
+
+Remember, you can use the Sim button to see whether your team is ready for a different dungeon, or a higher difficulty level. Use it after you change anything (new dungeon, swapped equipment), and periodically thereafter to check for higher difficulty readiness.
+
+'''Items'''
+
+You may want to start using party items as well. Look at the traps and events for the dungeon you're exploring.
+
+* For Mountain, you can bring flying boots to mitigate damage and prevent your pets from being stalled in the dungeon.
+* For Scrapyard, torches prevent a trap, and holy water (if you bring a rogue) unlocks a highly valuable event reward.
+* For Volcano, it's barely worth bringing antidotes, as the poison trap is so weak. You may choose whether to skip them.
+* For Forest, torches prevent a trap, and if you have a large supply of pet food, you can bring some to gain growth. Don't do this until you have a well-stocked Refrigerator, though.
+* For all dungeons, you can bring healing potions so that pets are less likely to die, if your supporter(s) aren't keeping pace.
+* Phoenix feathers from the pet stone trader can be used to revive your pets if they die, saving your resources.
+* For those with tons of Pet Stones (likely not the new player), there are talismans that give exp and drop boosts.
+
+Items are valuable, as they make dungeons easier and more profitable. D1 dungeons will not require items, but they will matter more as you reach greater depths.
+----
+
+=====Two More Dungeons=====
+
+At a certain point, you probably should have 2 dungeons teams unlocked. However, it's possible that this isn't the case. This next section will be split into two to cover both dungeons.
+----
+
+=====Second Dungeon Team Locked=====
+Your biggest roadblock would likely be not having the second team slot. That, or you don't have 12 pets. This means that you'll be sending your Mountain team straight into [[Dungeons#Volcano|Volcano]], [[Dungeons#Scrapyard|Scrapyard]] and [[Dungeons#Forest|Forest]] for gear materials. As I mentioned earlier, depth 1 is all about levels. If your team is levelled enough, you can power through anything.
+
+Make sure to adjust the difficulty, as your team isn't normally meant for these dungeons and thus will have a harder time doing them. If you have extra pets, you may want to adjust the team to better fight the dungeon. In the Volcano, for example, you can unlock event rewards if you bring 3 fire element pets, especially if one of them is a blacksmith. For Forest, you may bring pet food in your items to gain growth (the growth depends on the food used). The Scrapyard monsters will target your elemental weaknesses, which means you may need to reduce the difficulty, or balance your gear. Paying close attention to these requirements will help you get extra value from the dungeons.
+----
+
+=====Unlocking More Dungeon Teams=====
+There are a few ways to obtain extra team slots. If you are a new player, then the easiest is to do daily [[Challenge Dungeons]]. Challenge Dungeons give gems, which can be traded in for a second team slot.
+
+The other option is to spend 300k Pet Stones to unlock it. This can be obtained over time through various methods, but the easiest way to obtain this amount is just by buying it directly or getting lucky with your [[Premium Shop/Items#Lucky Draw|Lucky Draws]].
+
+The last option is to spend 1k [[Challenge Points]] to obtain it. If you're a veteran player, this should be relatively easy. For most people, this is likely their 4th ChP purchase, right after [[Ultimate Beings|UB]] damage reduction, Exp Overflow, and Auto Half Stat.
+
+Regardless of which method you pick, the second main requirement for a second dungeon team is to have enough pets.
+
+Newer players will have to make a choice. Either divert pets away from their [[Pet Campaigns#Growth Campaign|Growth Campaign]], or not use a 2nd dungeon team. Growth is important, so not using a second team isn't a bad choice if your growth campaign is developing.
+
+Fielding your second team with random pets can be acceptable. The main goal is to have this team obtain resources to help grow your first team. Even if they are farming the first difficulty of a dungeon, that is still growth.
+
+Of course, eventually, you should have a proper second team, but that's later down the line for a new player.
+----
+
+===='''Depth 2'''====
+If you've been following this guide, you should be ready for D2 dungeons. This section will go over a list of things that you either should be working towards or have done to beat depth 2. While you don't need to do everything listed, having them done would make your first D2 easier.
+
+=====Preparation=====
+
+* Your pets should be working on reaching levels 35-45. At level 35 and with proper class evolutions, they could potentially beat D2 with a lot of gear and items. However, reaching higher levels significantly reduces the gear, item and class requirements. At 45 and above, you should be able to brute force it with minimal gear and barely any class levels.
+* Pet Gear should still be T1's (tier 1) around this point. This is because most of your resources should go towards making a good hammer. Getting a T2 SSS+20 hammer is much better than spending resources on other things. Of course, it isn't expected for you to have a fully upgraded and reforged tier 2 hammer at this point, but this is a goal you should focus on.
+* For dungeon gear, everyone except your defender should have elemental matching weapons, fire swords, or knives depending on what gear you have available. Defenders should have a pot, neutral weapon or knife. Your armor and accessories for your damage dealer should match the pet element. Your armor and accessories for your non-damage dealers should match the dungeon element. Specific cases and exceptions will be discussed below.
+
+====Gearing for depth 2====
+
+Note: Defenders always use neutral gear in every slot no matter the dungeon; the rest of this section is only for non-defender jobs.
+
+'''Weapons''':
+
+Assassins, rogues, and blacksmiths (if you're using one for whatever reason) should use knives; the defense reduction is important, especially as your knives get higher tier.
+
+Supporters should either use fire swords (if you need more healing) or knives (if you don't).
+
+Mages should use fire swords, since they're heavy hitters in terms of DPS.
+
+This means that the water spear, earth axe, and wind bow are generally not used for this tier, though they can be used on mages if they need extra survivability.
+
+'''Armor''':
+
+Matching the dungeon's element provides the best defense option; for scrapyard, match your pet's elemental weakness (since neutral monsters attack using your pet's weakest element). Fire armor provides more attack, though on mages using armor that matches their element may be better.
+
+'''Accessories''':
+
+Fire gloves provide the best offense but at a heavy penalty to defense. Wood/water accessories are generally useful. For mages, matching their element may provide better results than fire gloves. Additionally, if you have an alchemist's cape, it's a very good piece of defensive gear that goes well on mages.
+
+====Gems====
+
+In the long run, you want to use level 10 gems; however, starting out with level 5 gems lets you apply them to more pieces of your gear (since there are 32 level 5 gems to a single level 10). Both approaches are fine.
+
+Using level 10 gems strikes a balance between the stat boost and the amount of time it takes to make them. Note that removing a gem from a piece of gear decreases it by one tier (unless you have the relevant upgrade).
+
+In general, gem recommendations are given as weapon/body/accessory; keeping the same element on the same slot means you can swap gear around.
+
+Defenders use water/water/water (or earth/water/water to save on water gems), since defenders need survivability more than anything else and their gear doesn't decrease any elements (making neutral gems not necessary).
+
+All other pets will use fire/water/neutral, though wind can also be viable on knives in some situations.
+
+====Gear Progression====
+
+Creating the next tier of equipment (e.g. making a flame sword out of a fire sword) halves the upgrade stats (so +7 would go to +3) and rerolls its quality, with a higher input quality leading to higher output quality. This means that it's not worth it upgrading gear past the requirement to create the next tier. As a result, tier 1 (T1) gear should stop at B+5, T2 gear should stop at S+10, and T3 gear goes all the way to SSS+20. Depth 2 will see you converting your T1 gear into T2 and starting to get into T3s as well. T4 gear is beyond the scope of this guide.
+
+The use of [[seeding]] to ensure that your T3 gear crafts have high stats saves ''immense'' amounts of time and materials when crafting T3 gear, is accepted in the community, and is not considered cheating or hacking by the developer.
+
+Gems are not lost when upgrading, so it's okay to gem T2 gear; gemming T1 gear is not a waste of the gem, but the time it takes is better spent on other things.
+
+Enchanting (which decreases the element penalty) is not worth it until T3.
+
+Blacksmith hammers are the exception to this; you should take one T2 hammer to SSS+20. This is because the benefits of having a high-stat blacksmith hammer are much larger than a single piece of high-stat dungeon gear, and a T2 SSS+20 hammer is about as good as a T3 S+10, which would take a lot of time and materials to make. The rest of your hammers should follow the same pattern as your other gear: T1 B+5 -> T2 S+10 -> T3 SSS+20.
+
+----
+
+==='''The Veteran/Token Player'''===
+Even veterans and token players will start with Scrapyard and move into Mountain. However, they likely have more pets or have the ability to gain pets faster. As a result, this next section will be targeted at the veteran players who have a decent number of pets and are looking to get into dungeons with a better team.
+----
+===='''Depth 3'''====
+=====Building Your Team=====
+The key to building this team is to understand what you need for D2 and D3 Mountain. For example, you will need 2 defenders once you get into Mountain D2 and above. You will also want 2 wind pets to take advantage of the Mountain D1 growth event, and/or 2 neutral pets for the Mountain D3 growth event. With this in mind, you can look through your pets and determine which fits these criteria the best.
+
+For example, [[Armadillo]] and [[Valkyrie]] are often cited as two solid defenders you can bring. Armadillo is easy to evolve, meaning that you will have one defender within D1. Valkyrie will take more time to evolve due to her evolution requirements.
+
+Looking ahead to D3, satisfying all the events requires a well-selected party. Valkyrie fulfils one of the two defenders for the D2 event, as well as one of the two wind pets for the D1 growth event. [[Dog]] is a great choice for the second defender, as it also satisfies one of the neutral pets needed for the D3 growth event.
+
+If you find yourself swapping pets as you progress. This is perfectly normal. Replacing Armadillo with Dog is just one example, and remember that this will free up Armadillo to serve elsewhere (perhaps Forest, Scrapyard or RTI).
+
+----
+== See Also ==
+
+*[[Dungeons]]
+*[[Early Token Pets]]
