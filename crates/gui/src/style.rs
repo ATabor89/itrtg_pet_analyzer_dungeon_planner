@@ -70,29 +70,23 @@ pub fn element_bg(element: &Element) -> Color32 {
 // Theme setup
 // =============================================================================
 
+/// Bundled symbol font for cross-platform glyph rendering (✓ ✗ ◆ etc.).
+/// Noto Sans Symbols 2 — SIL Open Font License 1.1 (Google).
+const SYMBOLS_FONT: &[u8] =
+    include_bytes!("../../../resources/fonts/NotoSansSymbols2-Regular.ttf");
+
 pub fn configure_style(ctx: &egui::Context) {
-    // Load a system symbol font as fallback so ✓ ✗ ◆ etc. render properly.
-    // egui's built-in font subset doesn't include these glyphs.
+    // Add bundled symbol font as fallback so ✓ ✗ ◆ etc. render on all platforms.
     let mut fonts = egui::FontDefinitions::default();
-    let symbol_paths = [
-        "C:\\Windows\\Fonts\\seguisym.ttf",  // Segoe UI Symbol (Windows)
-        "C:\\Windows\\Fonts\\segmdl2.ttf",    // Segoe MDL2 Assets (fallback)
-    ];
-    for path in &symbol_paths {
-        if let Ok(font_data) = std::fs::read(path) {
-            let name = "system_symbols".to_owned();
-            fonts.font_data.insert(
-                name.clone(),
-                egui::FontData::from_owned(font_data).into(),
-            );
-            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
-                family.push(name.clone());
-            }
-            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
-                family.push(name);
-            }
-            break; // Use the first available font
-        }
+    let name = "symbols".to_owned();
+    fonts
+        .font_data
+        .insert(name.clone(), egui::FontData::from_static(SYMBOLS_FONT).into());
+    if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        family.push(name.clone());
+    }
+    if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+        family.push(name);
     }
     ctx.set_fonts(fonts);
 
