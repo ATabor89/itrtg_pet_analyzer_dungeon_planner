@@ -1,0 +1,1197 @@
+# =============================================================================
+# ITRTG Pet Special Information & Constraints
+# =============================================================================
+# Manually curated data describing unique pet mechanics, synergies, and
+# constraints that affect dungeon team building and equipment planning.
+#
+# This file only contains pets with NOTABLE special mechanics. Pets with
+# only standard class bonuses (e.g., "+0.5% * CL multi-target damage as
+# Mage") are not listed here -- the planner can rely on base pet data for
+# those.
+#
+# Source: https://itrtg.wiki.gg/wiki/Pets (individual pet pages)
+# =============================================================================
+#
+# --- Schema ---
+#
+# stat_modifiers:
+#   Permanent percentage adjustments to dungeon stats.
+#   Format: { stat: percentage } where stat is hp/attack/defense/speed
+#   Positive = bonus, negative = penalty.
+#
+# element_scaling:
+#   Special interactions with element equipment beyond normal behavior.
+#   - element: which element triggers the effect
+#   - multiplier: equipment element value is multiplied by this
+#   - extra_hits: { per: element_threshold, max: max_extra_hits }
+#   - party_buff: { stat: element, per_cl: bonus_per_CL }
+#   - priority_override: true if this pet should deviate from standard
+#     class-based element recommendations
+#
+# team_synergies:
+#   Pets or classes that this pet benefits from being paired with.
+#   - pet: specific pet name
+#   - class: class name (for class-level pairings)
+#   - reason: short explanation
+#
+# team_anti_synergies:
+#   Pets that MUST NOT be on the same team as this pet.
+#   - pet: specific pet name
+#   - reason: short explanation
+#   - context: "dungeon" | "campaign" | "all" (where the conflict applies)
+#
+# class_constraints:
+#   - locked_class: pet cannot change from this class
+#   - preferred_class: class that unlocks special mechanics
+#   - avoid_class: class that disables or penalizes special mechanics
+#   - flexible_class: pet can freely switch classes (no cost/penalty)
+#   - class_wildcard: pet counts as correct class for dungeon events
+#   - reason: explanation
+#
+# element_constraints:
+#   - element_wildcard: pet counts as any element for dungeon events
+#   - multi_element: pet counts as multiple specific elements
+#
+# equipment_constraints:
+#   - required_weapon_type: weapon type needed for special mechanic (e.g., bow)
+#   - forbidden_weapon_type: weapon type that cannot be used
+#   - forbidden_team_equipment: equipment that cannot be on ANY teammate
+#   - special_weapon: unique weapon that enables a special mechanic
+#   - reason: explanation
+#
+# special_mechanics:
+#   Freeform descriptions of unique combat/utility abilities that the
+#   planner should display to the user but may not be able to act on
+#   algorithmically. Each entry has:
+#   - name: short identifier
+#   - description: what it does
+#   - affects: "self" | "team" | "enemies"
+#   - combat_relevant: true if it affects dungeon combat directly
+#
+# token_improvement:
+#   What changes when the pet is token-improved, if significant.
+#   - description: what the token improvement does
+#   - unlocks_mechanics: list of mechanic names that require token
+#
+# notes:
+#   Freeform text for human reference. Things the algorithm can't easily
+#   consume but a player should know.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Pets with Special Mechanics
+# ---------------------------------------------------------------------------
+
+Hourglass:
+  stat_modifiers:
+    speed: +30
+    hp: -10
+    attack: -10
+    defense: -10
+  team_synergies:
+    - class: Supporter
+      reason: >
+        As Supporter, Hourglass gives speed buff instead of damage reduction.
+        Team benefits from a second Supporter providing the missing damage
+        reduction.
+  team_anti_synergies:
+    - pet: Undine
+      context: all
+      reason: >
+        Undine's passive DoT will not be applied if Hourglass is on the
+        same team, regardless of order or dungeon.
+    - pet: Vermilion Pheasant
+      context: all
+      reason: >
+        Vermilion Pheasant's Speed Damage Bonus will not be applied if
+        Hourglass is on the same team.
+  class_constraints:
+    - preferred_class: Supporter
+      reason: >
+        As Supporter, changes from speed debuff (enemy) to speed buff (party):
+        1% per CL, max 50%. This is a fundamentally different role.
+  special_mechanics:
+    - name: speed_debuff
+      description: >
+        First action each turn debuffs enemy speed by 10% + 0.2% * CL,
+        lasting 2 turns, stackable. Halved in boss rooms.
+      affects: enemies
+      combat_relevant: true
+
+Sylph:
+  element_scaling:
+    - element: wind
+      multiplier: 1.5
+      extra_hits:
+        per: 450
+        max: 7
+      priority_override: true
+  class_constraints:
+    - preferred_class: Mage
+      reason: >
+        Extra hits from wind element only apply as Mage. At CL100: up to 15
+        total attacks (3 base + 5 CL + 7 wind bonus).
+  special_mechanics:
+    - name: wind_extra_hits
+      description: >
+        As Mage, gains one extra hit per 450 wind element, capped at 7 extra
+        hits at 3150 wind element. Wind element from equipment is multiplied
+        by 1.5.
+      affects: self
+      combat_relevant: true
+  notes: >
+    Starts with -33,333 growth, making early evolution very difficult.
+    Wind element breakpoints: 450/900/1350/1800/2250/2700/3150.
+
+Rabbit:
+  element_scaling:
+    - element: earth
+      priority_override: true
+  class_constraints:
+    - preferred_class: Mage
+      reason: Mage class bonus of 0.51% * CL multi-target damage.
+  token_improvement:
+    description: >
+      Earth equipment provides 5% * equipment_tier speed bonus per piece.
+      Flat +50% attack bonus from all earth equipment. Fire gems in earth
+      gear also receive this bonus.
+    unlocks_mechanics:
+      - earth_equipment_scaling
+  special_mechanics:
+    - name: earth_equipment_scaling
+      description: >
+        Token-improved: each earth gear piece gives 5% * tier speed bonus.
+        +50% attack from all earth equipment. Fire gems in earth gear also
+        get the attack bonus.
+      affects: self
+      combat_relevant: true
+  notes: >
+    Token improvement fundamentally changes equipment strategy. Prioritize
+    earth equipment even if it deviates from standard mage element wisdom.
+
+Undine:
+  element_scaling:
+    - element: water
+      priority_override: true
+  team_anti_synergies:
+    - pet: Hourglass
+      context: all
+      reason: >
+        Undine's passive DoT does not apply when Hourglass is on the team.
+  special_mechanics:
+    - name: percent_dot
+      description: >
+        Percentage-based DoT to all non-boss enemies. Scales with water
+        element and evolution: V3+ is (1 + Water/500)% of max HP, V4 is
+        (3 + Water/400)%, V5 is (5 + Water/300)%, capped at 10%.
+      affects: enemies
+      combat_relevant: true
+    - name: infinity_tower_specialist
+      description: >
+        In Infinity Towers: ignores reflected damage (Neutral Tower),
+        bypasses dodge (Wind Tower), overcomes high defense (Earth Tower).
+      affects: self
+      combat_relevant: true
+  notes: >
+    Water element equipment directly increases DoT damage. One of the best
+    pets for Infinity Towers, but NEVER pair with Hourglass there.
+
+Gnome:
+  element_scaling:
+    - element: earth
+      priority_override: true
+  special_mechanics:
+    - name: party_shield
+      description: >
+        Adds shield to ALL party members scaling with earth element:
+        V1 = Earth stat, V2 = 3x Earth, V3+ = 5x Earth * (0.5 + 0.02 * CL).
+        Shield resets fully each room. Cannot be healed by Supporters.
+        Additional defense boost of (Earth/300)% capped at 20%.
+      affects: team
+      combat_relevant: true
+  team_anti_synergies:
+    - pet: Mist Sphere
+      context: dungeon
+      reason: >
+        Mist Sphere's targeted shield overrides Gnome's party-wide shield
+        on the same pet.
+  notes: >
+    Earth element directly scales shield strength. Shields reset each room,
+    so they provide consistent value. Supporters cannot heal shield HP.
+
+Salamander:
+  element_scaling:
+    - element: fire
+      priority_override: true
+  class_constraints:
+    - preferred_class: Supporter
+      reason: >
+        AoE heal is at full strength only as V4 Supporter. Non-Supporter V4
+        gets half strength. V3 gets quarter, V2 gets eighth.
+  special_mechanics:
+    - name: aoe_heal
+      description: >
+        Heals entire party at start of every turn BEFORE phoenix feathers.
+        Scales with fire element, capping at 15% HP at 1500 fire element.
+        Full strength requires V4 Supporter.
+      affects: team
+      combat_relevant: true
+  notes: >
+    Fire element equipment directly increases heal amount. Healing occurs
+    before phoenix feather checks, making it a pre-emptive healer.
+
+Vermilion Pheasant:
+  team_anti_synergies:
+    - pet: Hourglass
+      context: all
+      reason: >
+        Speed Damage Bonus does not apply when Hourglass is on the team.
+  special_mechanics:
+    - name: party_speed_damage_buff
+      description: >
+        Increases speed damage dealt by all party members by 0.25% * CL.
+      affects: team
+      combat_relevant: true
+  class_constraints:
+    - preferred_class: Rogue
+      reason: Rogue class gives 1% * CL item drop rate.
+
+Ghost:
+  equipment_constraints:
+    - forbidden_weapon_type: knives
+      reason: Ghost cannot equip knives.
+  special_mechanics:
+    - name: scare
+      description: >
+        Uses Scare instead of normal attacks. Always goes first (independent
+        of speed). Chance to reduce enemy attack and defense by 50% (30% for
+        bosses). Formula: Ghost_attack / enemy_defense * 0.6. At CL20, gains
+        Twin Scare (two attempts per action, can target 2 enemies).
+      affects: enemies
+      combat_relevant: true
+  notes: >
+    Ghost deals NO direct damage. It is purely a debuffer. Team needs other
+    DPS pets. Scared enemies receive increased targeting priority.
+
+Cat:
+  token_improvement:
+    description: >
+      Three effects: (1) Negates frozen aura of Ancient Mimics.
+      (2) Instantly kills summoned/replicated enemies if their HP < Cat's
+      Attack x 2. (3) Killing a summoned enemy grants an extra action next
+      turn plus 40% speed damage bonus for current room.
+    unlocks_mechanics:
+      - frozen_aura_negation
+      - summoned_enemy_autokill
+      - chain_action
+  special_mechanics:
+    - name: summoned_enemy_autokill
+      description: >
+        Token-improved: instantly kills summoned/replicated enemies if
+        HP < Attack * 2. Grants extra action + 40% speed damage bonus.
+      affects: enemies
+      combat_relevant: true
+
+Fairy:
+  token_improvement:
+    description: >
+      Once per dungeon round, prevents a single pet death from one attack,
+      leaving pet at 1 HP. Does NOT block subsequent hits in the same round
+      or multi-attack scenarios.
+    unlocks_mechanics:
+      - death_prevention
+  special_mechanics:
+    - name: death_prevention
+      description: >
+        Token-improved: prevents one pet death per round (pet survives at 1
+        HP). Single-hit only; multi-hit attacks can still kill.
+      affects: team
+      combat_relevant: true
+
+Pandora's Box:
+  team_anti_synergies:
+    - pet: Treasure/Mimic
+      context: campaign
+      reason: >
+        Pandora's Box bonus becomes a penalty when paired with Mimic in
+        campaigns.
+  notes: >
+    Primarily a campaign multiplier pet. Campaign result multiplier scales
+    with growth: 3% per 5k growth up to 100k, then 4% per 5k.
+
+Treasure/Mimic:
+  team_anti_synergies:
+    - pet: Pandora's Box
+      context: campaign
+      reason: >
+        Pandora's Box bonus reverts to penalty when Mimic is present.
+  special_mechanics:
+    - name: mimic_point_damage
+      description: >
+        Damage bonus from Mimic Points: (Points/100)% up to 50%, then
+        (Points^0.4 + 20)% beyond. Mimic Points earned from D3 mimics
+        (requires Nothing item).
+      affects: self
+      combat_relevant: true
+    - name: rti_exp_boost
+      description: >
+        Increases XP of all RTI pets by 5% * CL.
+      affects: team
+      combat_relevant: false
+
+Lucky Coin:
+  special_mechanics:
+    - name: true_damage
+      description: >
+        Deals extra damage after attacks that ignores defense: 7 dmg (30%),
+        77 dmg (50%), 777 dmg (10%), 7777 dmg (10%, evolved only).
+      affects: enemies
+      combat_relevant: true
+    - name: drop_rate_scaling
+      description: >
+        Boosts dungeon loot based on cumulative damage: (total_damage^0.3
+        / 10)%, caps at 100% at 10 billion cumulative damage.
+      affects: team
+      combat_relevant: false
+  token_improvement:
+    description: >
+      Gains Rogue bonus (1.28% per CL) in addition to Assassin bonus
+      (upgraded to 2% per CL). Dual-class benefit is unique.
+    unlocks_mechanics:
+      - dual_class_bonus
+
+Balrog:
+  special_mechanics:
+    - name: horn_hp_scaling
+      description: >
+        HP multiplied by horn count: 10% + 0.1% per horn up to 900, then
+        100% + (Horns-900)^0.8 * 0.1% above 900.
+      affects: self
+      combat_relevant: true
+  notes: >
+    As a player pet, Mage class gives 1.4% * CL multi-target damage (very
+    high). Horn count is a major progression variable. When fighting Evolved
+    Balrog as dungeon boss, Wizard pet prevents its healing, and Shiny
+    Stone/Magic Ore items weaken it.
+
+Gray:
+  special_mechanics:
+    - name: grayling_children
+      description: >
+        Gray herself cannot participate in dungeons. Only Grayling children
+        can. First child: Adventurer/Blacksmith/Alchemist. Token-improved
+        second child: Assassin/Supporter/Rogue/Mage/Defender. Children can
+        switch class and element freely.
+      affects: self
+      combat_relevant: true
+  class_constraints:
+    - flexible_class: true
+      reason: Grayling children can switch class and element freely.
+  notes: >
+    Gray herself is NOT a dungeon pet. Only her children participate.
+    Children share dungeon level with mother and send 60% of XP to her.
+
+Crocodile:
+  special_mechanics:
+    - name: stun
+      description: >
+        10% chance to stun enemies for 3 actions per attack.
+      affects: enemies
+      combat_relevant: true
+
+Chameleon:
+  element_constraints:
+    element_wildcard: true
+  special_mechanics:
+    - name: element_wildcard
+      description: >
+        After evolution, counts as the correct element for dungeon events
+        regardless of actual element. Can freely change element on pet page.
+      affects: self
+      combat_relevant: false
+    - name: multi_target_leech
+      description: >
+        Attacks 4 times per action at ~0.25x damage each, healing for 100%
+        of damage dealt.
+      affects: self
+      combat_relevant: true
+
+Ape:
+  class_constraints:
+    - avoid_class: Mage
+      reason: >
+        Super Ape transformation does not grant double hits to Mages.
+  token_improvement:
+    description: >
+      First dungeon action transforms into Super Ape for CL/5 actions.
+      During transformation: CL% boost to ALL stats, double hits per
+      attack (except Mages). Once per room/floor.
+    unlocks_mechanics:
+      - super_ape_transform
+  special_mechanics:
+    - name: super_ape_transform
+      description: >
+        Token-improved: CL% stat boost + double hits for CL/5 actions.
+        Once per room. Not useful until CL 50+.
+      affects: self
+      combat_relevant: true
+
+Witch:
+  element_scaling:
+    - element: water
+      priority_override: true
+      party_buff:
+        stat: water_element
+        per_cl: 0.5
+  class_constraints:
+    - preferred_class: Mage
+      reason: >
+        Extra +1.25% * CL multi-target damage as Mage. Also boosts water
+        element of all party members by 0.5% * CL.
+  special_mechanics:
+    - name: party_water_buff
+      description: >
+        Increases water element of ALL party members by 0.5% * CL.
+      affects: team
+      combat_relevant: true
+    - name: enemy_water_reduction
+      description: >
+        Decreases water element of attacked enemies by 0.5% * CL before
+        her attacks land.
+      affects: enemies
+      combat_relevant: true
+  notes: >
+    Considered the best mage in the game. Common D4 Water Temple strategy:
+    solo Witch DPS + 3 Supporters + 1 Defender + 1 Rogue.
+
+Archer:
+  equipment_constraints:
+    - required_weapon_type: bow
+      reason: >
+        Double-hit mechanic only triggers with a bow equipped. Chance is
+        (20 + CL * 1.25)%, capped at 100%.
+  class_constraints:
+    - preferred_class: Assassin
+      reason: Assassin bonus of +1.2% * CL single-target damage.
+  special_mechanics:
+    - name: double_arrow
+      description: >
+        When equipped with a bow: (20 + CL * 1.25)% chance to shoot two
+        arrows at once, capped at 100%.
+      affects: self
+      combat_relevant: true
+
+Stale Tortilla/Taco:
+  special_mechanics:
+    - name: element_dependent_buff
+      description: >
+        When evolved and attacking, grants buffs to unbuffed party members.
+        Buff type depends on highest elemental resistance (priority:
+        water > fire > earth > wind). Fire buff: CL% damage to highest ATK
+        pet. Water buff: CL*2% heal to lowest HP pet. Earth buff: CL/2%
+        damage reduction to lowest DEF pet. Wind buff: CL% bonus damage
+        chance to highest SPD pet. All cap at CL 50.
+      affects: team
+      combat_relevant: true
+  notes: >
+    Equipment element choice determines which buff Taco provides. This is
+    a unique element-to-buff mapping that the planner should expose.
+
+Clam:
+  special_mechanics:
+    - name: gp_doubling
+      description: >
+        Doubles ALL God Power earned from dungeon events. Works evolved or
+        unevolved. Only applies to the dungeon where Clam is active.
+      affects: team
+      combat_relevant: false
+  team_synergies:
+    - pet: Cardboardbox
+      reason: >
+        Stacking GP event reward bonuses for maximum God Power farming.
+
+Cardboardbox:
+  special_mechanics:
+    - name: event_reward_modification
+      description: >
+        Evolved form alters event rewards with 50/50 good/bad chance.
+        Good: rewards * (1.1 + 0.007 * CL). Bad: rewards * (0.5 + 0.007
+        * CL). Breakeven at CL 29. At CL 50: average +15%.
+      affects: team
+      combat_relevant: false
+  team_synergies:
+    - pet: Clam
+      reason: Stacking GP event bonuses.
+  notes: >
+    Net negative below CL 29. Planner should warn if CL < 29.
+
+Elephant:
+  special_mechanics:
+    - name: burn_retaliation
+      description: >
+        All enemies who attack Elephant get burned: 3% max HP per action
+        for 5 actions (1.5% for bosses).
+      affects: enemies
+      combat_relevant: true
+  class_constraints:
+    - preferred_class: Defender
+      reason: >
+        +10% protect chance as Defender. Absorbs 0.8% * CL extra damage
+        for party members.
+  notes: >
+    No campaign bonuses at all. Purely a dungeon pet. Burn is passive and
+    triggers when attacked, synergizing with the tank role.
+
+Leviathan:
+  stat_modifiers:
+    hp: +200  # 3x multiplier (represented as +200%)
+    attack: -50
+    defense: -50
+    speed: -50
+  element_scaling:
+    - element: water
+      priority_override: false
+  team_synergies:
+    - pet: Witch
+      reason: >
+        Witch's water element party buff (up to 1.5x at CL100) benefits
+        Leviathan's water-dependent abilities.
+  special_mechanics:
+    - name: counter_attack
+      description: >
+        Counter-attacks when hit or protecting allies, dealing 10% of max
+        HP as damage.
+      affects: enemies
+      combat_relevant: true
+    - name: poison_immunity
+      description: Immune to Poison and Lethal Poison traps.
+      affects: self
+      combat_relevant: true
+  equipment_constraints:
+    - reason: >
+        Focus entirely on HP (Neutral Equipment + Blue Gems) due to 3x HP
+        multiplier and 0.5x everything else.
+  notes: >
+    Has innate +2000 water element. Natural 65% protect chance (vs standard
+    60%). Water Temple specialist due to poison immunity. Counter-attack
+    based on max HP makes HP stacking doubly effective.
+
+Mysterious Egg:
+  class_constraints:
+    - preferred_class: Defender
+      reason: >
+        Absorbs damage for party: 1.5% * CL (max 50%) + extra 10% protect
+        chance as Defender. Top-tier tank.
+  special_mechanics:
+    - name: damage_absorption
+      description: >
+        Evolved (Golden Chicken): increases damage taken instead of party
+        by 1.5% * CL (max 50%). Defender class adds 10% protect chance.
+      affects: team
+      combat_relevant: true
+
+Wizard:
+  team_synergies:
+    - reason: >
+        When on team fighting Evolved Balrog, the boss loses its healing
+        ability. Essential for first Balrog kill.
+  special_mechanics:
+    - name: balrog_heal_prevention
+      description: >
+        When included in team against Evolved Balrog, boss cannot heal.
+      affects: enemies
+      combat_relevant: true
+  notes: >
+    Recommended for first Evolved Balrog kill, then can be swapped out.
+
+Robot:
+  team_anti_synergies:
+    - pet: Thunder Ball/Raiju
+      context: campaign
+      reason: >
+        Thunder Ball's lightning causes Robot to malfunction in campaigns.
+        One-directional: Thunder Ball can grow Robot, but Robot cannot
+        campaign with Thunder Ball.
+
+Bat:
+  equipment_constraints:
+    - forbidden_team_equipment:
+        - Ego Sword
+        - Gram
+      reason: >
+        Bat's 40% class XP bonus is DISABLED if any teammate equips Ego
+        Sword or Gram. Exception: solo Bat with Gram retains bonus.
+  special_mechanics:
+    - name: class_xp_bonus
+      description: Gains 40% extra class experience from all sources.
+      affects: self
+      combat_relevant: false
+
+Flying Eyeball:
+  team_synergies:
+    - pet: Sniper
+      reason: >
+        Marked enemies take 25% extra damage from Sniper specifically,
+        on top of the base (10 + CL/4)% extra damage from all sources.
+  equipment_constraints:
+    - forbidden_team_equipment:
+        - Ego Sword
+        - Gram
+      reason: >
+        Same as Bat: Ego Sword/Gram on any team member removes the bonus
+        damage on marked targets.
+  special_mechanics:
+    - name: mark_target
+      description: >
+        First attack marks the enemy with lowest max HP instead of dealing
+        damage. All pets then target marked enemy. Marked enemies take
+        (10 + CL/4)% extra damage (max 35% at CL100). Needs 500+ speed
+        for subsequent normal attacks.
+      affects: team
+      combat_relevant: true
+
+Sniper:
+  stat_modifiers:
+    attack: +30
+    hp: -10
+    defense: -10
+    speed: -10
+  team_synergies:
+    - pet: Flying Eyeball
+      reason: >
+        25% extra damage on targets marked by Flying Eyeball, stacking
+        with Sniper's 3x damage multiplier.
+  special_mechanics:
+    - name: triple_damage
+      description: >
+        Only ONE action per turn regardless of speed. Always attacks LAST.
+        All damage is TRIPLED (3x). No back-row damage penalty.
+      affects: self
+      combat_relevant: true
+  notes: >
+    Fixed 1 action/turn and always-last are hard constraints. Despite
+    these, 3x damage makes Sniper a premier single-target damage dealer.
+
+Basilisk:
+  class_constraints:
+    - locked_class: Mage
+      reason: Cannot be class-changed. Always Mage.
+  team_synergies:
+    - pet: Student
+      reason: >
+        Upgraded Student provides +50% attack to Basilisk when on the
+        same team (requires Student DL 1000, CL 100, 60 rooms of each
+        D4-10 completed).
+  special_mechanics:
+    - name: poison_explosion
+      description: >
+        Cannot attack normally. Uses Poison Explosion (AoE): initial hit
+        does (150% + 1.5% * CL) damage to all enemies, reduces elements
+        by 10%. DoT follows at (50% + 0.5% * CL) per turn with 0.8%
+        element reduction per tick. DoT persists after death. Does NOT
+        work against reflect enemies.
+      affects: enemies
+      combat_relevant: true
+  token_improvement:
+    description: >
+      Doubles initial explosion AND DoT damage. Adds secondary explosion
+      on turn 40. Obtained from Forest D4-10.
+    unlocks_mechanics:
+      - enhanced_poison_explosion
+  notes: >
+    Useless against reflect enemies. Always deals 6 damage to Cosmic Gnome.
+
+Student:
+  stat_modifiers:
+    hp: -10
+    attack: -10
+    defense: -10
+    speed: -10
+  team_synergies:
+    - pet: Basilisk
+      reason: >
+        Hidden upgrade: when DL 1000, CL 100, and 60 rooms of each D4-10
+        completed with Student in party, Student boosts Basilisk's attack
+        by 50% and entire party's XP by 50%.
+  special_mechanics:
+    - name: hidden_upgrade
+      description: >
+        At DL 1000, CL 100, with 60 rooms of each D4-10 completed:
+        +50% XP to entire party, +50% attack to Basilisk if on same team.
+        Disabled if Student drops below DL 1000 or CL 100.
+      affects: team
+      combat_relevant: true
+  notes: >
+    Has unique earth element scaling: 3.9*DL instead of 50+3*DL. Lower
+    earth below DL 55, higher after DL 56.
+
+White Tiger:
+  class_constraints:
+    - avoid_class: Mage
+      reason: Instant kill mechanic is disabled when evolved as Mage.
+  token_improvement:
+    description: >
+      Grants instant kill: triggers when enemy HP < (CL * 0.15%) of max
+      HP. In boss rooms, threshold reduced to CL * 0.05%. Kill-based
+      damage multiplier: +0.0058% per kill, capped at 10k kills.
+    unlocks_mechanics:
+      - instant_kill
+  special_mechanics:
+    - name: instant_kill
+      description: >
+        Token-improved: kills enemy when HP < (CL * 0.15%) of max. Boss
+        rooms use (CL * 0.05%). Disabled as Mage. Kill multiplier
+        (+0.0058% per kill, cap 10k) boosts damage over time.
+      affects: enemies
+      combat_relevant: true
+  notes: >
+    Disabled against Lernean Hydra and Chicken fights. Some fights also
+    disable the kill-based damage multiplier.
+
+Tödlicher Löffel:
+  element_constraints:
+    multi_element: true
+    # Counts as all non-neutral elements for dungeon events
+  special_mechanics:
+    - name: defense_element_shred
+      description: >
+        Reduces target's defense and total elements by 0.125% per hit.
+        Defense can't go below 0, elements capped at 50% of base. Stacks
+        with knife reductions.
+      affects: enemies
+      combat_relevant: true
+    - name: multi_element_classification
+      description: >
+        Counts as ALL non-neutral elements for dungeon events, but attacks
+        as neutral.
+      affects: self
+      combat_relevant: false
+  class_constraints:
+    - preferred_class: Mage
+      reason: +1.19% * CL multi-target damage as Mage.
+
+Holy ITRTG Book:
+  class_constraints:
+    - flexible_class: true
+      reason: Can change classes without loss or cost.
+    - class_wildcard: true
+      reason: Counts as the correct class for dungeon events.
+  special_mechanics:
+    - name: class_wildcard
+      description: >
+        Counts for the right class in dungeon events regardless of actual
+        class. Can change class freely with no cost or penalty.
+      affects: self
+      combat_relevant: false
+
+Nothing (Other):
+  class_constraints:
+    - flexible_class: true
+      reason: Can freely change classes after evolution.
+    - class_wildcard: true
+      reason: Counts as correct class for dungeon events.
+  notes: >
+    0.5% * CL bonus to all classes. +30k base growth after evolution.
+    Campaign penalty of -75% becomes +75% after evolution.
+
+Nugget:
+  class_constraints:
+    - flexible_class: true
+      reason: Can freely change between classes once evolved.
+    - class_wildcard: true
+      reason: Counts as correct class for dungeon events.
+  notes: >
+    Lower specialist bonus (0.3% * CL) than Nothing (Other) (0.5% * CL).
+
+Vampire:
+  class_constraints:
+    - preferred_class: Alchemist
+      reason: >
+        As Alchemist, has DOUBLE stats in dungeons (2x all stats) and can
+        gain class XP in dungeons. This is a massive advantage.
+  special_mechanics:
+    - name: alchemist_double_stats
+      description: >
+        If Alchemist class: 2x ALL stats in dungeons. Also gains class
+        XP from dungeons (normally Alchemists don't).
+      affects: self
+      combat_relevant: true
+    - name: burn_immunity
+      description: Immune to burn status effect (Burn trap).
+      affects: self
+      combat_relevant: true
+    - name: blood_collection
+      description: >
+        Collects monster blood on killing blows. Can craft Blood Potions
+        for 100 base growth each (limited by Dungeon Level).
+      affects: self
+      combat_relevant: false
+  notes: >
+    Alchemist class is almost always optimal due to 2x stats. Burn
+    immunity makes her ideal for Volcano D4.
+
+Strategist:
+  stat_modifiers:
+    hp: +30
+    attack: -30
+  special_mechanics:
+    - name: team_health_buff
+      description: >
+        Increases HP of ALL teammates by 10%. Applied after Strategy Room
+        and class HP modifiers. Not shown in stats, only dungeon logs.
+      affects: team
+      combat_relevant: true
+  token_improvement:
+    description: >
+      Extra team HP bonus: +0.03% per 250 strategy books given, limited
+      by DL. At DL 600 with 150k books: +18% extra (28% total team HP).
+    unlocks_mechanics:
+      - enhanced_team_health
+
+Mermaid:
+  special_mechanics:
+    - name: soul_extraction
+      description: >
+        Every 3 turns, extracts soul from random non-boss enemy. Soul has
+        25% HP of original. While soul exists, all pets gain +0.03% * CL
+        speed per turn. After soul defeated: 10% max HP damage to original,
+        party shield of 0.5% * CL of max HP, speed bonus converts to
+        attack bonus for rest of room.
+      affects: team
+      combat_relevant: true
+  class_constraints:
+    - preferred_class: Supporter
+      reason: +2% * CL heal power as Supporter.
+
+Honeybadger:
+  special_mechanics:
+    - name: stun_immunity
+      description: Immune to stun. Cannot be stunned.
+      affects: self
+      combat_relevant: true
+  team_synergies:
+    - pet: Hwangeum Pig
+      reason: >
+        In Forest D4, Honeybadger as Supporter pairs well with Hwangeum
+        Pig as primary damage dealer.
+  notes: >
+    Stun immunity prevents the common Forest D4 team wipe where Supporter
+    gets stunned. Valuable as either Assassin (2% * CL) or Supporter.
+
+Hwangeum Pig:
+  element_scaling:
+    - element: wind
+      party_buff:
+        stat: wind_element
+        per_cl: 5.0
+  class_constraints:
+    - preferred_class: Assassin
+      reason: >
+        15% max HP damage to enemy every 3 turns only works as Assassin.
+        +2% * CL single-target damage.
+  special_mechanics:
+    - name: percent_hp_damage
+      description: >
+        Deals 15% max HP damage to an enemy every 3 turns. Does not work
+        in boss rooms. Only works as Assassin.
+      affects: enemies
+      combat_relevant: true
+    - name: party_wind_buff
+      description: >
+        Gives all pets in same party +5 * CL bonus to wind element.
+      affects: team
+      combat_relevant: true
+  notes: >
+    Designed to fight Ancient Mimics in Forest D4. Boss room limitation
+    is important to note.
+
+Baby Carno:
+  class_constraints:
+    - preferred_class: Assassin
+      reason: +2% * CL single-target damage as Assassin.
+  token_improvement:
+    description: >
+      Grants True Damage = ((Attack + Speed) / 3) * (0.5 * (1 + CL/50)).
+      Bypasses enemy defense. Most effective early in fights.
+    unlocks_mechanics:
+      - true_damage
+
+Alien:
+  special_mechanics:
+    - name: event_chance_multiplier
+      description: >
+        Multiplies dungeon event chance by 100% + (0.5% * CL), maxed at
+        CL 50 for +25% event chance.
+      affects: team
+      combat_relevant: false
+
+Succubus:
+  special_mechanics:
+    - name: lifesteal
+      description: >
+        Single-target attacks heal for (CL / 3)% of max HP. Self-sustaining
+        DPS.
+      affects: self
+      combat_relevant: true
+  class_constraints:
+    - preferred_class: Assassin
+      reason: +1% * CL single-target damage as Assassin.
+
+Mist Sphere:
+  team_anti_synergies:
+    - pet: Gnome
+      context: dungeon
+      reason: >
+        Mist Sphere's shields override Gnome's party-wide shield on the
+        targeted pet.
+  class_constraints:
+    - preferred_class: Supporter
+      reason: >
+        As Supporter: loses attack-based heal component, gains shield
+        generation. Shield = (40% + 0.25% * CL) of attack-based value.
+        Never attacks (always heals/shields).
+  special_mechanics:
+    - name: shield_generation
+      description: >
+        As Supporter: generates shields on healed pets. Shield caps at 50%
+        of pet's max HP. Primary target + 2 random allies (halved).
+        Shield protects against venom and reflect damage.
+      affects: team
+      combat_relevant: true
+  notes: >
+    Ideal for reflect/venom fights (Neutral Tower, Lernean Hydra, D4
+    Water Temple). Never attacks, pure support.
+
+Elemental:
+  special_mechanics:
+    - name: team_element_buff
+      description: >
+        Increases element stats of ALL pets in same team by 0.5% per CL
+        (50% at CL100).
+      affects: team
+      combat_relevant: true
+    - name: blacksmith_self_damage
+      description: >
+        As Blacksmith: own damage increased by 15% per CL (1500% at CL100).
+      affects: self
+      combat_relevant: true
+
+Black Tortoise:
+  class_constraints:
+    - preferred_class: Defender
+      reason: +10% protect chance. +1% * CL damage absorption (max 50%).
+  token_improvement:
+    description: >
+      When hit, reduces attacker's speed by 25% of Black Tortoise's defense
+      stat (enemy speed floor: 70%). In boss/tower fights: only 5% of
+      defense.
+    unlocks_mechanics:
+      - speed_reduction_on_hit
+
+Azure Dragon:
+  class_constraints:
+    - preferred_class: Supporter
+      reason: +1% * CL heal power as Supporter.
+  token_improvement:
+    description: >
+      Places healing tokens on healed pets. Tokens trigger on direct damage,
+      restoring 30% of Azure Dragon's heal power. One token per pet,
+      destroyed on death. Does NOT trigger from defender damage-sharing or
+      reflected damage.
+    unlocks_mechanics:
+      - healing_tokens
+
+Pixie Goatmother:
+  class_constraints:
+    - preferred_class: Supporter
+      reason: >
+        As Supporter: 30% less healing BUT gets an extra action every turn.
+        First heal each turn has CL% chance to give healed pet an extra
+        action next turn.
+  team_anti_synergies:
+    - pet: Sniper
+      context: dungeon
+      reason: Extra action grant does NOT work on Sniper.
+  special_mechanics:
+    - name: extra_action_grant
+      description: >
+        As Supporter: extra action every turn, 30% less healing. CL% chance
+        to grant healed pet an extra action next turn at initiative 1.
+      affects: team
+      combat_relevant: true
+
+Cherub:
+  equipment_constraints:
+    - required_weapon_type: bow
+      reason: >
+        Bow attack (when NOT Mage): 0.5% * CL chance to charm and stun
+        enemies for 3 actions. Stun does NOT work in boss rooms.
+  class_constraints:
+    - avoid_class: Mage
+      reason: Mage class disables bow stun mechanic.
+  special_mechanics:
+    - name: speed_damage_reduction
+      description: >
+        Reduces speed damage all party members take by 0.5% * CL.
+      affects: team
+      combat_relevant: true
+
+Fainting Capra:
+  equipment_constraints:
+    - reason: >
+        Knife special effects are nullified on this pet. Has built-in T4
+        knife effect instead. Do not prioritize T4 knives.
+  special_mechanics:
+    - name: damage_reduction
+      description: >
+        Chance to take less damage when attacked: 10% + DL^0.6%. DR equals
+        proc chance, caps at 50%.
+      affects: self
+      combat_relevant: true
+    - name: defense_element_shred
+      description: >
+        After evolution: shreds defense and elements by (0.01 * CL)% on
+        each attack (non-Mage only). Built-in T4 knife effect.
+      affects: enemies
+      combat_relevant: true
+  class_constraints:
+    - avoid_class: Mage
+      reason: Defense/element shred only works as non-Mage.
+
+Fool:
+  class_constraints:
+    - avoid_class: Mage
+      reason: Confuse mechanic disabled as Mage.
+  special_mechanics:
+    - name: confuse
+      description: >
+        Confuse chance: (((attacker elements/2) / defender elements) - 0.3)
+        * 100%. Needs more than 60% of enemy's elements. At 2600 vs 1000:
+        100% chance.
+      affects: enemies
+      combat_relevant: true
+  notes: >
+    Element-stacking is important for confuse chance. Prioritize total
+    element value across all equipment.
+
+Arachne:
+  class_constraints:
+    - avoid_class: Mage
+      reason: 90% poison damage penalty as Mage.
+    - avoid_class: Defender
+      reason: Poor fit for a damage-over-time attacker.
+  special_mechanics:
+    - name: poison_stacks
+      description: >
+        Normal attacks have 0.7x damage but apply one poison stack per
+        attack. Poison deals 0.003 * CL of pure Attack per stack at end
+        of round. Boss rooms: 70% reduction. If poisoned monster summons,
+        summon gets equal stacks.
+      affects: enemies
+      combat_relevant: true
+
+Ancient Mimic:
+  equipment_constraints:
+    - special_weapon: Ele Twin Dagger
+      reason: >
+        Enables dual-target attacks. Crafted from Shiny Element Stones
+        (dropped when Ancient Mimic lands killing blows on mimic enemies).
+  element_constraints:
+    # Element can be changed; affects evolution material
+  special_mechanics:
+    - name: dual_target_attack
+      description: >
+        With Ele Twin Dagger equipped: hits TWO targets at once.
+      affects: self
+      combat_relevant: true
+
+Serow:
+  special_mechanics:
+    - name: resource_saving
+      description: >
+        Reduces resource cost of dungeon events/traps by 20 + DL/2, capped
+        at 100% at DL 160. Items must be in inventory but won't be consumed.
+        Only Depths 1-3 without token.
+      affects: team
+      combat_relevant: false
+  token_improvement:
+    description: >
+      Ability works for ALL teams at 50% discount even when Serow is not
+      in the dungeon. Also extends to D4 at 25% of base value.
+    unlocks_mechanics:
+      - passive_resource_saving
+
+Sphinx:
+  special_mechanics:
+    - name: dungeon_xp_bonus
+      description: >
+        Grants dungeon XP bonus to ALL pets: (0.75 + growth/250000)%,
+        maxed at 3.75% at 750k growth.
+      affects: team
+      combat_relevant: false
+  token_improvement:
+    description: >
+      Adds (0.05 * CL)% to XP bonus, maxed at CL 75. Combined max: 7.5%
+      dungeon XP to all pets.
+    unlocks_mechanics:
+      - enhanced_xp_bonus
+
+Black Hole Chan:
+  special_mechanics:
+    - name: ubv4_scaling
+      description: >
+        Element bonuses scale with UBv4 points: 2*(25 + sqrt(U^1.01)),
+        capped at 400. Doubled in dungeons vs campaigns.
+      affects: self
+      combat_relevant: true
+  notes: >
+    Very strong dungeon pet due to neutral typing, scalable growth from
+    V4 progression, and doubled element bonuses in dungeons.
+
+Nightmare:
+  team_anti_synergies:
+    - context: campaign
+      reason: >
+        Reduces reward from other pets in same campaign by
+        (20 - 0.25 * CL)%. Minimum 1% penalty at CL76+.
+  notes: >
+    +200% campaign bonus but penalizes teammates. Best solo or with
+    expendable pets. Not primarily a dungeon pet.
+
+Corona:
+  special_mechanics:
+    - name: sickness
+      description: >
+        5% chance per hour to sicken one pet. Sick pets spread to others
+        (5% hourly) and lose 1 growth/hour above 1500 total growth
+        (floor 500). Campaign penalty: -50% after evolution.
+      affects: team
+      combat_relevant: false
+  token_improvement:
+    description: >
+      Converts campaign penalty (-50%) into +50% bonus for all campaigns.
+      Dramatic reversal.
+    unlocks_mechanics:
+      - campaign_bonus_reversal
+  team_synergies:
+    - pet: Vaccina
+      reason: Vaccina manages Corona's sickness with cures and vaccines.
+
+Vaccina:
+  team_synergies:
+    - pet: Corona
+      reason: >
+        Creates cures and vaccines for Corona's sickness. Vaccina evolution
+        requires Corona to be evolved first.
+  notes: >
+    Evolution requires Corona to be evolved first (dependency chain).
+
+Hamster:
+  stat_modifiers:
+    defense: +30
+    attack: -10
+    hp: -10
+    speed: -10
+  notes: >
+    Primarily a crafting pet (Earmuffs). Stat profile is defense-heavy but
+    weak offensively. Not ideal for dungeon combat.
