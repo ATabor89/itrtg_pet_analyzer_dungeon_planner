@@ -71,6 +71,31 @@ pub fn element_bg(element: &Element) -> Color32 {
 // =============================================================================
 
 pub fn configure_style(ctx: &egui::Context) {
+    // Load a system symbol font as fallback so ✓ ✗ ◆ etc. render properly.
+    // egui's built-in font subset doesn't include these glyphs.
+    let mut fonts = egui::FontDefinitions::default();
+    let symbol_paths = [
+        "C:\\Windows\\Fonts\\seguisym.ttf",  // Segoe UI Symbol (Windows)
+        "C:\\Windows\\Fonts\\segmdl2.ttf",    // Segoe MDL2 Assets (fallback)
+    ];
+    for path in &symbol_paths {
+        if let Ok(font_data) = std::fs::read(path) {
+            let name = "system_symbols".to_owned();
+            fonts.font_data.insert(
+                name.clone(),
+                egui::FontData::from_owned(font_data).into(),
+            );
+            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+                family.push(name.clone());
+            }
+            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+                family.push(name);
+            }
+            break; // Use the first available font
+        }
+    }
+    ctx.set_fonts(fonts);
+
     let mut visuals = Visuals::dark();
 
     visuals.panel_fill = BG_DEEP;
