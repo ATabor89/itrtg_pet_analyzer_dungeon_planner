@@ -130,21 +130,22 @@ fn parse_signed(s: &str) -> i64 {
 /// Parse an equipment string from the export.
 ///
 /// Formats:
-///   "none" or "0"                    → None
-///   "Feather Vest, S"                → name, quality (no upgrade, no enchant)
-///   "Candy Cane + 20, SSS"           → name, +20, SSS quality
-///   "Journeying Stick + 5, S (20)"   → name, +5, S quality, 20 enchant
-///   "Flame Sword + 10, SSS (1)"      → name, +10, SSS quality, 1 enchant
+///   "none" or "0"                                    → None
+///   "Feather Vest, S"                                → name, quality
+///   "Candy Cane + 20, SSS"                           → name, +20, SSS quality
+///   "Journeying Stick + 5, S (20)"                   → name, +5, S quality, 20 enchant
+///   "Flame Sword + 10, SSS (1)"                      → name, +10, SSS quality, 1 enchant
+///   "Flame Sword + 10, SSS (1), Fire gem lv 10"      → with gem
+///   "Flame Sword + 10, S, Fire gem lv 10"            → with gem, no enchant
 fn parse_equipment(s: &str) -> Option<Equipment> {
     let trimmed = s.trim();
     if trimmed.eq_ignore_ascii_case("none") || trimmed == "0" || trimmed.is_empty() {
         return None;
     }
 
-    // Regex: optional upgrade "+ N", required ", Quality", optional "(enchant)"
-    // Pattern: "Name [+ N], Quality [(enchant)]"
+    // Regex: Name [+ N], Quality [(enchant)][, Element gem lv N]
     let re = Regex::new(
-        r"^(.+?)(?:\s*\+\s*(\d+))?\s*,\s*(F|E|D|C|B|A|S|SS|SSS)(?:\s*\((\d+)\))?$"
+        r"^(.+?)(?:\s*\+\s*(\d+))?\s*,\s*(F|E|D|C|B|A|S|SS|SSS)(?:\s*\((\d+)\))?(?:\s*,\s*(Fire|Water|Wind|Earth|Neutral)\s+gem\s+lv\s+(\d+))?$"
     ).unwrap();
 
     if let Some(cap) = re.captures(trimmed) {
@@ -152,13 +153,16 @@ fn parse_equipment(s: &str) -> Option<Equipment> {
         let upgrade_level = cap.get(2).and_then(|m| m.as_str().parse().ok());
         let quality = parse_quality(&cap[3]);
         let enchant_level = cap.get(4).and_then(|m| m.as_str().parse().ok());
+        let gem = cap.get(5).map(|m| parse_element(m.as_str()));
+        let gem_level = cap.get(6).and_then(|m| m.as_str().parse().ok());
 
         return Some(Equipment {
             name,
             upgrade_level,
             quality,
             enchant_level,
-            gem: None, // TODO: parse gem data when export format is known
+            gem,
+            gem_level,
         });
     }
 
@@ -294,6 +298,43 @@ mod tests {
     fn test_parse_equipment_none() {
         assert!(parse_equipment("none").is_none());
         assert!(parse_equipment("0").is_none());
+    }
+
+    #[test]
+    fn test_parse_equipment_with_gem_and_enchant() {
+        let eq = parse_equipment("Flame Sword + 10, SSS (1), Fire gem lv 10").unwrap();
+        assert_eq!(eq.name, "Flame Sword");
+        assert_eq!(eq.upgrade_level, Some(10));
+        assert_eq!(eq.quality, Quality::SSS);
+        assert_eq!(eq.enchant_level, Some(1));
+        assert_eq!(eq.gem, Some(Element::Fire));
+        assert_eq!(eq.gem_level, Some(10));
+    }
+
+    #[test]
+    fn test_parse_equipment_with_gem_no_enchant() {
+        let eq = parse_equipment("Flame Sword + 10, S, Fire gem lv 10").unwrap();
+        assert_eq!(eq.name, "Flame Sword");
+        assert_eq!(eq.upgrade_level, Some(10));
+        assert_eq!(eq.quality, Quality::S);
+        assert_eq!(eq.enchant_level, None);
+        assert_eq!(eq.gem, Some(Element::Fire));
+        assert_eq!(eq.gem_level, Some(10));
+    }
+
+    #[test]
+    fn test_parse_equipment_no_gem() {
+        let eq = parse_equipment("Journeying Stick + 5, S (20)").unwrap();
+        assert_eq!(eq.gem, None);
+        assert_eq!(eq.gem_level, None);
+    }
+
+    #[test]
+    fn test_parse_equipment_neutral_gem() {
+        let eq = parse_equipment("Titanium Armor + 10, SSS (10), Neutral gem lv 15").unwrap();
+        assert_eq!(eq.name, "Titanium Armor");
+        assert_eq!(eq.gem, Some(Element::Neutral));
+        assert_eq!(eq.gem_level, Some(15));
     }
 
     #[test]
