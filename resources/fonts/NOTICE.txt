@@ -1,0 +1,22 @@
+Font Attribution Notice
+======================
+
+NotoSansSymbols2-Regular.ttf
+----------------------------
+Font:       Noto Sans Symbols 2
+Version:    Regular
+Copyright:  Copyright 2022 The Noto Project Authors (https://github.com/notofonts/symbols)
+License:    SIL Open Font License, Version 1.1 (see OFL.txt)
+Source:     https://github.com/google/fonts/tree/main/ofl/notosanssymbols2
+Project:    https://github.com/notofonts/symbols
+
+The SIL Open Font License allows free use, modification, and redistribution
+of the font when bundled with software. The full license text is in OFL.txt.
+
+This font is used to render Unicode symbols including:
+  - Check marks, ballot marks (U+2713, U+2717)
+  - Geometric shapes (U+25A0-U+25FF)
+  - Arrows (U+2190-U+21FF)
+  - Dingbats (U+2700-U+27FF)
+  - Box drawing characters (U+2500-U+257F)
+  - Miscellaneous symbols (U+2600-U+26FF)
