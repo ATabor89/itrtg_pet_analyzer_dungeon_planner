@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui, Vec2};
 use itrtg_models::dungeon::EquipmentCatalog;
+use itrtg_models::Quality;
 use itrtg_models::{Dungeon, Element};
 use itrtg_planner::equipment::{self, EquipmentSource};
 use itrtg_planner::solver::{
@@ -49,6 +50,16 @@ pub struct DungeonState {
     /// Equipment inventory: catalog_key → owned quantity.
     /// Only tracks limited/premium equipment. Craftable equipment is unlimited.
     pub equipment_inventory: HashMap<String, u8>,
+    /// Per-dungeon equipment standard overrides from planner config.
+    equipment_standard_overrides: HashMap<Dungeon, EquipmentStandard>,
+}
+
+/// Resolved minimum equipment standards for a dungeon.
+#[derive(Debug, Clone, Copy)]
+pub struct EquipmentStandard {
+    pub min_tier: u8,
+    pub min_quality: Quality,
+    pub min_upgrade: u8,
 }
 
 const CONSTRAINTS_PATH: &str = "data/pet_constraints.yaml";
@@ -85,6 +96,24 @@ impl DungeonState {
             .collect();
         self.force_dungeon = None; // Default: solver picks best team
         self.initialized = true;
+    }
+
+    /// Resolve equipment standards for a dungeon at a given depth.
+    /// Returns depth-based defaults (tier=depth, S+10) merged with any overrides.
+    fn standards_for(&self, dungeon: Dungeon, depth: u8) -> EquipmentStandard {
+        let default = EquipmentStandard {
+            min_tier: depth.clamp(1, 3),
+            min_quality: Quality::S,
+            min_upgrade: 10,
+        };
+        match self.equipment_standard_overrides.get(&dungeon) {
+            Some(ovr) => EquipmentStandard {
+                min_tier: ovr.min_tier.max(default.min_tier),
+                min_quality: ovr.min_quality.max(default.min_quality),
+                min_upgrade: ovr.min_upgrade.max(default.min_upgrade),
+            },
+            None => default,
+        }
     }
 
     /// Build SolverConstraints from the current UI state.
@@ -155,6 +184,18 @@ impl DungeonState {
 
         // Apply equipment inventory
         self.equipment_inventory = config.equipment_inventory;
+
+        // Apply equipment standard overrides
+        for (dungeon, ovr) in config.equipment_standards {
+            self.equipment_standard_overrides.insert(
+                dungeon,
+                EquipmentStandard {
+                    min_tier: ovr.min_tier.unwrap_or(1),
+                    min_quality: ovr.min_quality.unwrap_or(Quality::S),
+                    min_upgrade: ovr.min_upgrade.unwrap_or(10),
+                },
+            );
+        }
 
         Ok(())
     }
@@ -296,12 +337,21 @@ struct PlannerConfigFile {
     default_dungeons: Vec<DefaultDungeonEntry>,
     #[serde(default)]
     equipment_inventory: HashMap<String, u8>,
+    #[serde(default)]
+    equipment_standards: HashMap<Dungeon, EquipmentStandardOverride>,
 }
 
 #[derive(Deserialize)]
 struct DefaultDungeonEntry {
     dungeon: Dungeon,
     depth: u8,
+}
+
+#[derive(Deserialize)]
+struct EquipmentStandardOverride {
+    min_tier: Option<u8>,
+    min_quality: Option<Quality>,
+    min_upgrade: Option<u8>,
 }
 
 // =============================================================================
@@ -431,7 +481,7 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                     ui.separator();
                     ui.add_space(8.0);
                 }
-                show_plan(ui, plan, data);
+                show_plan(ui, plan, state, data);
             }
 
             // Shopping list: aggregate missing items across all plans
@@ -745,7 +795,7 @@ fn solve_all(state: &mut DungeonState, data: &DataStore) {
 // Plan display
 // =============================================================================
 
-fn show_plan(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
+fn show_plan(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: &DataStore) {
     let dungeon_name = dungeon_label(plan.dungeon);
 
     // Dungeon header
@@ -767,8 +817,9 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
 
     let slot_width = ui.available_width().min(800.0) / 3.0 - 8.0;
 
-    // Look up equipment catalog for this dungeon
+    // Look up equipment catalog and standards for this dungeon
     let equip_catalog = data.dungeon_recs.as_ref().map(|r| &r.equipment);
+    let standards = state.standards_for(plan.dungeon, plan.depth);
 
     for row_label in ["Front Row", "Back Row"] {
         ui.label(
@@ -781,7 +832,7 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
             let start = if row_label == "Front Row" { 0 } else { 3 };
             let end = start + 3;
             for i in start..end.min(plan.assignments.len()) {
-                show_slot_card(ui, &plan.assignments[i], slot_width, equip_catalog);
+                show_slot_card(ui, &plan.assignments[i], slot_width, equip_catalog, standards);
             }
         });
         ui.add_space(4.0);
@@ -1143,6 +1194,7 @@ fn show_slot_card(
     slot: &solver::SlotAssignment,
     width: f32,
     equip_catalog: Option<&EquipmentCatalog>,
+    standards: EquipmentStandard,
 ) {
     // Dynamically size based on content
     let has_equip = slot.equipment_suggestion.is_some();
@@ -1236,7 +1288,7 @@ fn show_slot_card(
             // Equipment: recommended vs current
             if let Some(suggestion) = &slot.equipment_suggestion {
                 let current_loadout = pet.export.as_ref().map(|e| &e.loadout);
-                show_equipment_comparison(&mut child, suggestion, current_loadout, equip_catalog);
+                show_equipment_comparison(&mut child, suggestion, current_loadout, equip_catalog, standards);
             }
         }
         Assignment::Empty { suggestions } => {
@@ -1256,12 +1308,14 @@ fn show_slot_card(
 
 /// Show equipment with comparison against pet's current gear.
 /// Each line shows the recommendation and a status indicator:
-/// ✓ if current gear matches, or the current gear name if different.
+/// ✓ if current gear matches (with quality/upgrade coloring), or the current gear name if different.
+/// Also shows gem status: 💎 in element color if matched, 💎— in warning if missing.
 fn show_equipment_comparison(
     ui: &mut Ui,
     suggestion: &equipment::EquipmentSuggestion,
     current_loadout: Option<&itrtg_models::Loadout>,
     catalog: Option<&EquipmentCatalog>,
+    standards: EquipmentStandard,
 ) {
     let equip = &suggestion.equipment;
     let gems = equip.gems.as_ref();
@@ -1273,7 +1327,7 @@ fn show_equipment_comparison(
         style::TEXT_NORMAL
     };
 
-    // (prefix, recommended catalog key, gem, current equipment)
+    // (prefix, recommended catalog key, rec gem, current equipment)
     let lines: [(&str, Option<&str>, Option<&Element>, Option<&itrtg_models::Equipment>); 3] = [
         ("W:", equip.weapon.as_deref(), gems.and_then(|g| g.weapon.as_ref()),
          current_loadout.and_then(|l| l.weapon.as_ref())),
@@ -1283,35 +1337,22 @@ fn show_equipment_comparison(
          current_loadout.and_then(|l| l.accessory.as_ref())),
     ];
 
-    for (prefix, rec_key, gem, current) in &lines {
+    for (prefix, rec_key, rec_gem, current) in &lines {
         if let Some(key) = rec_key {
             let rec_name = resolve_equip_name(key, catalog);
-            let gem_str = match gem {
+            let gem_str = match rec_gem {
                 Some(el) => format!(" [{el:?}]"),
                 None => String::new(),
             };
 
             // Check if current gear matches the recommendation (or is an upgrade)
-            let status = match current {
-                Some(cur) => {
-                    let matches = equip_matches_rec(&cur.name, key, catalog);
-                    if matches {
-                        // Match (or higher-tier upgrade) — show quality/upgrade info
-                        let grade = match cur.upgrade_level {
-                            Some(lv) => format!("{:?}+{lv}", cur.quality),
-                            None => format!("{:?}", cur.quality),
-                        };
-                        EquipStatus::Match(grade)
-                    } else {
-                        // Different equipment
-                        EquipStatus::Diff(cur.name.clone())
-                    }
-                }
-                None => EquipStatus::None,
+            let (matches_line, cur_equip) = match current {
+                Some(cur) => (equip_matches_rec(&cur.name, key, catalog), Some(*cur)),
+                None => (false, None),
             };
 
             ui.horizontal(|ui| {
-                // Recommendation
+                // Recommendation label
                 let mut rec_text = RichText::new(format!("{prefix} {rec_name}{gem_str}"))
                     .color(rec_color)
                     .size(10.0);
@@ -1321,22 +1362,61 @@ fn show_equipment_comparison(
                 ui.label(rec_text);
 
                 // Current status indicator
-                match &status {
-                    EquipStatus::Match(grade) => {
-                        ui.label(
-                            RichText::new(format!("✓ {grade}"))
-                                .color(style::SUCCESS)
-                                .size(9.0),
-                        );
+                match (matches_line, cur_equip) {
+                    (true, Some(cur)) => {
+                        // Equipment matches — check tier, quality, upgrade against standards
+                        let cur_tier = catalog.and_then(|cat| {
+                            cat.find_key_by_name_exact(&cur.name)
+                                .and_then(|k| cat.lookup(k))
+                                .map(|e| e.tier)
+                        });
+
+                        let tier_ok = cur_tier.map_or(true, |t| t >= standards.min_tier);
+                        let quality_ok = cur.quality >= standards.min_quality;
+                        let upgrade_ok = cur.upgrade_level.unwrap_or(0) >= standards.min_upgrade;
+
+                        if tier_ok {
+                            // Tier is fine — show ✓ with granular quality/upgrade coloring
+                            ui.label(
+                                RichText::new("✓")
+                                    .color(style::SUCCESS)
+                                    .size(9.0),
+                            );
+                            ui.label(
+                                RichText::new(format!("{:?}", cur.quality))
+                                    .color(if quality_ok { style::SUCCESS } else { style::WARNING })
+                                    .size(9.0),
+                            );
+                            if let Some(lv) = cur.upgrade_level {
+                                ui.label(
+                                    RichText::new(format!("+{lv}"))
+                                        .color(if upgrade_ok { style::SUCCESS } else { style::WARNING })
+                                        .size(9.0),
+                                );
+                            }
+                        } else {
+                            // Tier too low — flag everything in warning
+                            let grade = match cur.upgrade_level {
+                                Some(lv) => format!("✓ T{} {:?}+{lv}", cur_tier.unwrap_or(0), cur.quality),
+                                None => format!("✓ T{} {:?}", cur_tier.unwrap_or(0), cur.quality),
+                            };
+                            ui.label(
+                                RichText::new(grade)
+                                    .color(style::WARNING)
+                                    .size(9.0),
+                            );
+                        }
                     }
-                    EquipStatus::Diff(name) => {
+                    (false, Some(cur)) => {
+                        // Different equipment
                         ui.label(
-                            RichText::new(format!("✗ {name}"))
+                            RichText::new(format!("✗ {}", cur.name))
                                 .color(Color32::from_rgb(0xdd, 0x88, 0x44))
                                 .size(9.0),
                         );
                     }
-                    EquipStatus::None => {
+                    (_, None) => {
+                        // No equipment
                         ui.label(
                             RichText::new("—")
                                 .color(style::TEXT_MUTED)
@@ -1344,18 +1424,30 @@ fn show_equipment_comparison(
                         );
                     }
                 }
+
+                // Gem status
+                if let Some(needed_elem) = rec_gem {
+                    let current_gem = cur_equip.and_then(|c| c.gem);
+                    let gem_color = style::element_color(needed_elem);
+                    if current_gem == Some(**needed_elem) {
+                        // Gem matches
+                        ui.label(
+                            RichText::new("💎")
+                                .color(gem_color)
+                                .size(8.0),
+                        );
+                    } else {
+                        // Gem missing or wrong element
+                        ui.label(
+                            RichText::new(format!("💎{needed_elem:?}"))
+                                .color(style::WARNING)
+                                .size(8.0),
+                        );
+                    }
+                }
             });
         }
     }
-}
-
-enum EquipStatus {
-    /// Current gear matches recommendation — show quality+upgrade.
-    Match(String),
-    /// Current gear differs — show what's equipped.
-    Diff(String),
-    /// No equipment in this slot.
-    None,
 }
 
 /// Check if a pet's current equipment matches a recommendation (by catalog key),
