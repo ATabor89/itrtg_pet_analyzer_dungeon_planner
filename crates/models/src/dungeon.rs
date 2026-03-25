@@ -152,6 +152,64 @@ pub struct CatalogEquipment {
     /// Catalog key of the lower-tier equipment this is upgraded from.
     #[serde(default)]
     pub upgraded_from: Option<String>,
+
+    // -- Stats at Quality A, +0 --
+    /// Base stat percentages at Quality A, +0 (hp, atk, def, spd).
+    #[serde(default)]
+    pub stats_a0: Option<EquipmentStats>,
+
+    /// Element resistances at Quality A, +0.
+    #[serde(default)]
+    pub resistances: Option<EquipmentResistances>,
+
+    // -- Special / premium metadata --
+    /// Description of any special effect this equipment provides.
+    #[serde(default)]
+    pub special_effect: Option<String>,
+
+    /// How this equipment is obtained (e.g. "premium_event", "tavern_quest",
+    /// "crafted_by_hamster", "patreon_boss_reward", "ultimate_stats_challenge").
+    #[serde(default)]
+    pub source: Option<String>,
+
+    /// Maximum number obtainable. Omitted for unlimited/craftable equipment.
+    #[serde(default)]
+    pub max_quantity: Option<u8>,
+
+    /// Whether this equipment should be considered for dungeon team planning.
+    /// Defaults to `true` when absent; set to `false` for pure crafting/utility items.
+    #[serde(default)]
+    pub dungeon_relevant: Option<bool>,
+}
+
+impl CatalogEquipment {
+    /// Returns `true` if this equipment should be considered by the dungeon planner.
+    /// Items with `dungeon_relevant: false` are excluded; everything else is included.
+    pub fn is_dungeon_relevant(&self) -> bool {
+        self.dungeon_relevant.unwrap_or(true)
+    }
+}
+
+/// Base stat percentages for a piece of equipment at Quality A, +0.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EquipmentStats {
+    pub hp: i16,
+    pub atk: i16,
+    pub def: i16,
+    pub spd: i16,
+}
+
+/// Elemental resistances for a piece of equipment at Quality A, +0.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EquipmentResistances {
+    #[serde(default)]
+    pub fire: i16,
+    #[serde(default)]
+    pub water: i16,
+    #[serde(default)]
+    pub wind: i16,
+    #[serde(default)]
+    pub earth: i16,
 }
 
 // =============================================================================

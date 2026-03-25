@@ -38,9 +38,12 @@ pub struct Equipment {
     pub upgrade_level: Option<u8>,
     pub quality: Quality,
     pub enchant_level: Option<u8>,
-    /// Embedded gem element, if any. Parsed from export data when available.
+    /// Embedded gem element, if any. Parsed from export data.
     #[serde(default)]
     pub gem: Option<Element>,
+    /// Gem level, if a gem is socketed. Parsed from export data.
+    #[serde(default)]
+    pub gem_level: Option<u8>,
 }
 
 /// The full loadout for a pet (all three equipment slots).
