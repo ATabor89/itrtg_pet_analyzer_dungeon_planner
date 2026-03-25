@@ -46,6 +46,9 @@ pub struct DungeonState {
     force_dungeon: Option<Dungeon>,
     /// Data version when plans were last refreshed.
     last_data_version: u64,
+    /// Equipment inventory: catalog_key → owned quantity.
+    /// Only tracks limited/premium equipment. Craftable equipment is unlimited.
+    pub equipment_inventory: HashMap<String, u8>,
 }
 
 const CONSTRAINTS_PATH: &str = "data/pet_constraints.yaml";
@@ -127,6 +130,31 @@ impl DungeonState {
         for name in file.whitelisted.unwrap_or_default() {
             self.whitelisted_pets.insert(name);
         }
+
+        Ok(())
+    }
+
+    /// Load planner configuration from a YAML string (planner_config.yaml).
+    /// Sets default dungeon selections and equipment inventory.
+    pub fn load_planner_config(&mut self, yaml: &str) -> Result<(), String> {
+        let config: PlannerConfigFile =
+            serde_yaml::from_str(yaml).map_err(|e| format!("Planner config YAML error: {e}"))?;
+
+        // Apply default dungeon selections
+        self.ensure_init();
+        for default in &config.default_dungeons {
+            if let Some(entry) = self
+                .entries
+                .iter_mut()
+                .find(|e| e.dungeon == default.dungeon)
+            {
+                entry.enabled = true;
+                entry.depth = default.depth.clamp(1, 3);
+            }
+        }
+
+        // Apply equipment inventory
+        self.equipment_inventory = config.equipment_inventory;
 
         Ok(())
     }
@@ -256,6 +284,24 @@ struct ConstraintsFile {
 struct ForcedEntry {
     pet: String,
     dungeon: Option<Dungeon>,
+}
+
+// =============================================================================
+// Planner config YAML format
+// =============================================================================
+
+#[derive(Deserialize)]
+struct PlannerConfigFile {
+    #[serde(default)]
+    default_dungeons: Vec<DefaultDungeonEntry>,
+    #[serde(default)]
+    equipment_inventory: HashMap<String, u8>,
+}
+
+#[derive(Deserialize)]
+struct DefaultDungeonEntry {
+    dungeon: Dungeon,
+    depth: u8,
 }
 
 // =============================================================================

@@ -1,0 +1,1676 @@
+# ============================================================================
+# ITRTG Equipment Catalog
+# ============================================================================
+# All equipment in the game, organized by slot (weapons, armor, accessories).
+# Format designed for programmatic ingestion.
+#
+# Equipment tiers: T1 (Basic), T2 (Shaping), T3 (Magic), T4 (Legendary), T5 (Mythic)
+# Enhancement format: +N (e.g., +10, +20)
+# Grade format: S, SS, SSS
+# Elements: Fire, Water, Wind, Earth, Neutral
+#
+# Stats (stats_a0): HP, Atk, Def, Spd percentages at Quality A, +0
+# Resistances: Absolute element values at Quality A, +0
+# source: How equipment is obtained (crafted, premium_event, tavern_quest, etc.)
+# max_quantity: Maximum number obtainable (omitted = unlimited/craftable)
+# dungeon_relevant: false if item should be excluded from dungeon planning
+# ============================================================================
+
+weapons:
+  # -- Tier 1 --
+  iron_sword:
+    name: "Iron Sword"
+    type: Weapon
+    tier: 1
+    element: Neutral
+    stats_a0:
+      hp: 2
+      atk: 15
+      def: 3
+      spd: -5
+
+  fire_sword:
+    name: "Fire Sword"
+    type: Weapon
+    tier: 1
+    element: Fire
+    stats_a0:
+      hp: 0
+      atk: 20
+      def: -5
+      spd: 0
+    resistances:
+      fire: 10
+      water: -30
+
+  water_spear:
+    name: "Water Spear"
+    type: Weapon
+    tier: 1
+    element: Water
+    stats_a0:
+      hp: 0
+      atk: 15
+      def: 0
+      spd: 0
+    resistances:
+      water: 10
+      earth: -30
+
+  wood_axe:
+    name: "Wood Axe"
+    type: Weapon
+    tier: 1
+    element: Earth
+    stats_a0:
+      hp: 5
+      atk: 10
+      def: 0
+      spd: 0
+    resistances:
+      earth: 10
+      wind: -30
+
+  feather_bow:
+    name: "Feather Bow"
+    type: Weapon
+    tier: 1
+    element: Wind
+    stats_a0:
+      hp: 0
+      atk: 11
+      def: -3
+      spd: 7
+    resistances:
+      wind: 10
+      fire: -30
+
+  forging_hammer:
+    name: "Forging Hammer"
+    type: Weapon
+    tier: 1
+    element: Fire
+    stats_a0:
+      hp: 0
+      atk: 10
+      def: 0
+      spd: 0
+    resistances:
+      fire: 10
+    special_effect: "Increases Blacksmith crafting quality and speed up to 16.67%"
+
+  walking_stick:
+    name: "Walking Stick"
+    type: Weapon
+    tier: 1
+    element: Earth
+    stats_a0:
+      hp: 0
+      atk: 1
+      def: 0
+      spd: 9
+    resistances:
+      earth: 10
+    special_effect: "Increases campaign bonus for equipped pet up to 16.67%"
+
+  iron_pot:
+    name: "Iron Pot"
+    type: Weapon
+    tier: 1
+    element: Neutral
+    stats_a0:
+      hp: 0
+      atk: 0
+      def: 10
+      spd: 0
+    resistances:
+      fire: 2
+      water: 2
+      wind: 2
+      earth: 2
+    special_effect: "Increases Alchemist crafting speed up to 16.67%"
+
+  training_sword:
+    name: "Training Sword"
+    type: Weapon
+    tier: 1
+    element: Water
+    stats_a0:
+      hp: 4
+      atk: 6
+      def: 0
+      spd: 0
+    resistances:
+      fire: -5
+      water: 10
+      wind: -5
+      earth: -5
+    special_effect: "Increases exp gained, steals up to 33.33% of gained exp from other pets"
+
+  howling_knives:
+    name: "Howling Knives"
+    type: Weapon
+    tier: 1
+    element: Wind
+    stats_a0:
+      hp: -3
+      atk: 7
+      def: -3
+      spd: 7
+    resistances:
+      fire: -10
+      wind: 10
+    special_effect: "Lowers enemy defense up to 0.33% per hit (non-effective on Mages)"
+
+  ear_muffs:
+    name: "Ear Muffs"
+    type: Weapon
+    tier: 1
+    element: Neutral
+    source: crafted_by_hamster
+    dungeon_relevant: false
+    special_effect: "Improves crafting speed of any Blacksmith or Alchemist (max +10% at SSS+20)"
+    stats_a0:
+      hp: 0
+      atk: 0
+      def: 0
+      spd: 0
+    notes: "Can only be forged by Hamster. Purely a crafting utility item."
+
+
+  # -- Tier 2 --
+  steel_sword:
+    name: "Steel Sword"
+    type: Weapon
+    tier: 2
+    element: Neutral
+    upgraded_from: "iron_sword"
+    stats_a0:
+      hp: 5
+      atk: 18
+      def: 7
+      spd: -10
+
+  flame_sword:
+    name: "Flame Sword"
+    type: Weapon
+    tier: 2
+    element: Fire
+    upgraded_from: "fire_sword"
+    stats_a0:
+      hp: 0
+      atk: 30
+      def: -10
+      spd: 0
+    resistances:
+      fire: 20
+      water: -30
+
+  flood_spear:
+    name: "Flood Spear"
+    type: Weapon
+    tier: 2
+    element: Water
+    upgraded_from: "water_spear"
+    stats_a0:
+      hp: 0
+      atk: 20
+      def: 0
+      spd: 0
+    resistances:
+      water: 20
+      earth: -30
+
+  tree_axe:
+    name: "Tree Axe"
+    type: Weapon
+    tier: 2
+    element: Earth
+    upgraded_from: "wood_axe"
+    stats_a0:
+      hp: 7
+      atk: 13
+      def: 0
+      spd: 0
+    resistances:
+      earth: 20
+      wind: -30
+
+  storm_bow:
+    name: "Storm Bow"
+    type: Weapon
+    tier: 2
+    element: Wind
+    upgraded_from: "feather_bow"
+    stats_a0:
+      hp: 0
+      atk: 15
+      def: -5
+      spd: 10
+    resistances:
+      wind: 20
+      fire: -30
+
+  shaping_hammer:
+    name: "Shaping Hammer"
+    type: Weapon
+    tier: 2
+    element: Fire
+    upgraded_from: "forging_hammer"
+    stats_a0:
+      hp: 0
+      atk: 20
+      def: 0
+      spd: 0
+    resistances:
+      fire: 20
+    special_effect: "Increases Blacksmith crafting quality and speed up to 33.33%"
+
+  journeying_stick:
+    name: "Journeying Stick"
+    type: Weapon
+    tier: 2
+    element: Earth
+    upgraded_from: "walking_stick"
+    stats_a0:
+      hp: 0
+      atk: 2
+      def: 0
+      spd: 18
+    resistances:
+      earth: 20
+    special_effect: "Increases campaign bonus for equipped pet up to 33.33%"
+
+  steel_pot:
+    name: "Steel Pot"
+    type: Weapon
+    tier: 2
+    element: Neutral
+    upgraded_from: "iron_pot"
+    stats_a0:
+      hp: 0
+      atk: 0
+      def: 20
+      spd: 0
+    resistances:
+      fire: 5
+      water: 5
+      wind: 5
+      earth: 5
+    special_effect: "Increases Alchemist crafting speed up to 33.33%"
+
+  leeching_sword:
+    name: "Leeching Sword"
+    type: Weapon
+    tier: 2
+    element: Water
+    upgraded_from: "training_sword"
+    stats_a0:
+      hp: 8
+      atk: 12
+      def: 0
+      spd: 0
+    resistances:
+      fire: -7
+      water: 20
+      wind: -7
+      earth: -7
+    special_effect: "Increases exp gained, steals up to 66.67% of gained exp from other pets"
+
+  thundering_knives:
+    name: "Thundering Knives"
+    type: Weapon
+    tier: 2
+    element: Wind
+    upgraded_from: "howling_knives"
+    stats_a0:
+      hp: -6
+      atk: 14
+      def: -6
+      spd: 14
+    resistances:
+      fire: -20
+      wind: 20
+    special_effect: "Lowers enemy defense up to 0.67% per hit (non-effective on Mages)"
+
+  # -- Tier 3 --
+  titanium_sword:
+    name: "Titanium Sword"
+    type: Weapon
+    tier: 3
+    element: Neutral
+    upgraded_from: "steel_sword"
+    stats_a0:
+      hp: 8
+      atk: 22
+      def: 10
+      spd: -15
+    resistances:
+      fire: 5
+      water: 5
+      wind: 5
+      earth: 5
+
+  inferno_sword:
+    name: "Inferno Sword"
+    type: Weapon
+    tier: 3
+    element: Fire
+    upgraded_from: "flame_sword"
+    stats_a0:
+      hp: 0
+      atk: 40
+      def: -15
+      spd: 0
+    resistances:
+      fire: 30
+      water: -30
+
+  tsunami_spear:
+    name: "Tsunami Spear"
+    type: Weapon
+    tier: 3
+    element: Water
+    upgraded_from: "flood_spear"
+    stats_a0:
+      hp: 0
+      atk: 25
+      def: 0
+      spd: 0
+    resistances:
+      water: 30
+      earth: -30
+
+  forest_axe:
+    name: "Forest Axe"
+    type: Weapon
+    tier: 3
+    element: Earth
+    upgraded_from: "tree_axe"
+    stats_a0:
+      hp: 10
+      atk: 15
+      def: 0
+      spd: 0
+    resistances:
+      earth: 30
+      wind: -30
+
+  hurricane_bow:
+    name: "Hurricane Bow"
+    type: Weapon
+    tier: 3
+    element: Wind
+    upgraded_from: "storm_bow"
+    stats_a0:
+      hp: 0
+      atk: 22
+      def: -10
+      spd: 13
+    resistances:
+      wind: 30
+      fire: -30
+
+  magic_hammer:
+    name: "Magic Hammer"
+    type: Weapon
+    tier: 3
+    element: Fire
+    upgraded_from: "shaping_hammer"
+    stats_a0:
+      hp: 0
+      atk: 30
+      def: 0
+      spd: 0
+    resistances:
+      fire: 20
+    special_effect: "Increases Blacksmith crafting quality and speed up to 50%"
+
+  magic_stick:
+    name: "Magic Stick"
+    type: Weapon
+    tier: 3
+    element: Earth
+    upgraded_from: "journeying_stick"
+    stats_a0:
+      hp: 0
+      atk: 3
+      def: 0
+      spd: 27
+    resistances:
+      earth: 30
+    special_effect: "Increases campaign bonus for equipped pet up to 50%"
+
+  magic_pot:
+    name: "Magic Pot"
+    type: Weapon
+    tier: 3
+    element: Neutral
+    upgraded_from: "steel_pot"
+    stats_a0:
+      hp: 0
+      atk: 0
+      def: 30
+      spd: 0
+    resistances:
+      fire: 7
+      water: 7
+      wind: 7
+      earth: 7
+    special_effect: "Increases Alchemist crafting speed up to 50%"
+
+  ego_sword:
+    name: "Ego Sword"
+    type: Weapon
+    tier: 3
+    element: Water
+    upgraded_from: "leeching_sword"
+    stats_a0:
+      hp: 10
+      atk: 20
+      def: 0
+      spd: 0
+    resistances:
+      fire: -10
+      water: 30
+      wind: -10
+      earth: -10
+    special_effect: "Increases exp gained, steals up to 100% of gained exp from other pets"
+
+  burning_knives:
+    name: "Burning Knives"
+    type: Weapon
+    tier: 3
+    element: Wind
+    upgraded_from: "thundering_knives"
+    stats_a0:
+      hp: -9
+      atk: 21
+      def: -9
+      spd: 21
+    resistances:
+      fire: -30
+      wind: 30
+    special_effect: "Lowers enemy defense up to 1% per hit (non-effective on Mages)"
+
+  # -- Tier 4 --
+  mythril_shield:
+    name: "Mythril Shield"
+    type: Weapon
+    tier: 4
+    element: Neutral
+    upgraded_from: "titanium_sword"
+    stats_a0:
+      hp: 30
+      atk: -20
+      def: 55
+      spd: -10
+    resistances:
+      fire: 5
+      water: 5
+      wind: 5
+      earth: 5
+
+  sun_sword:
+    name: "Sun Sword"
+    type: Weapon
+    tier: 4
+    element: Fire
+    upgraded_from: "inferno_sword"
+    stats_a0:
+      hp: 0
+      atk: 65
+      def: -10
+      spd: 0
+    resistances:
+      fire: 90
+      water: -90
+
+  ocean_spear:
+    name: "Ocean Spear"
+    type: Weapon
+    tier: 4
+    element: Water
+    upgraded_from: "tsunami_spear"
+    stats_a0:
+      hp: 0
+      atk: 55
+      def: 0
+      spd: 0
+    resistances:
+      water: 90
+      earth: -90
+
+  jungle_axe:
+    name: "Jungle Axe"
+    type: Weapon
+    tier: 4
+    element: Earth
+    upgraded_from: "forest_axe"
+    stats_a0:
+      hp: 10
+      atk: 45
+      def: 10
+      spd: -10
+    resistances:
+      earth: 90
+      wind: -90
+
+  sky_bow:
+    name: "Sky Bow"
+    type: Weapon
+    tier: 4
+    element: Wind
+    upgraded_from: "hurricane_bow"
+    stats_a0:
+      hp: 0
+      atk: 40
+      def: -10
+      spd: 25
+    resistances:
+      wind: 90
+      fire: -90
+
+  demonic_sword:
+    name: "Demonic Sword"
+    type: Weapon
+    tier: 4
+    element: None
+
+  divine_bow:
+    name: "Divine Bow"
+    type: Weapon
+    tier: 4
+    element: None
+
+  legend_hammer:
+    name: "Legend Hammer"
+    type: Weapon
+    tier: 4
+    element: Fire
+    upgraded_from: "magic_hammer"
+    stats_a0:
+      hp: 0
+      atk: 45
+      def: 0
+      spd: 0
+    resistances:
+      fire: 30
+    special_effect: "Increases Blacksmith crafting quality and speed up to 100%"
+
+  legendary_stick:
+    name: "Legendary Stick"
+    type: Weapon
+    tier: 4
+    element: Earth
+    upgraded_from: "magic_stick"
+    stats_a0:
+      hp: 0
+      atk: 5
+      def: 0
+      spd: 40
+    resistances:
+      earth: 60
+    special_effect: "Increases campaign bonus for equipped pet up to 100%"
+
+  legendary_pot:
+    name: "Legendary Pot"
+    type: Weapon
+    tier: 4
+    element: Neutral
+    upgraded_from: "magic_pot"
+    stats_a0:
+      hp: 0
+      atk: 0
+      def: 45
+      spd: 0
+    resistances:
+      fire: 15
+      water: 15
+      wind: 15
+      earth: 15
+    special_effect: "Increases Alchemist crafting speed up to 100%"
+
+  soul_sword:
+    name: "Soul Sword"
+    type: Weapon
+    tier: 4
+    element: Water
+    upgraded_from: "ego_sword"
+    stats_a0:
+      hp: 15
+      atk: 30
+      def: 0
+      spd: 0
+    resistances:
+      fire: -20
+      water: 60
+      wind: -20
+      earth: -20
+    special_effect: "Increases exp gained, steals up to 100%. Increases god HP regen by up to 5%"
+
+  exploding_knives:
+    name: "Exploding Knives"
+    type: Weapon
+    tier: 4
+    element: Wind
+    upgraded_from: "bursting_knives"
+    stats_a0:
+      hp: -15
+      atk: 40
+      def: -15
+      spd: 35
+    resistances:
+      fire: -60
+      wind: 60
+    special_effect: "Lowers enemy defense and elements up to 1% per hit (non-effective on Mages, elements capped at 50%)"
+
+  ele_twin_dagger:
+    name: "Ele Twin Dagger"
+    type: Weapon
+    tier: 5
+    element: Neutral
+    stats_a0:
+      hp: -10
+      atk: 80
+      def: -10
+      spd: 45
+    resistances:
+      fire: 50
+      water: 50
+      wind: 50
+      earth: 50
+
+  # -- Unique / Premium / Quest Weapons --
+  gram:
+    name: "Gram"
+    type: Weapon
+    tier: 4
+    element: Neutral
+    source: patreon_boss_reward
+    max_quantity: 1
+    dungeon_relevant: true
+    special_effect: "Increases dungeon XP by 20% + 2% per Patreon boss defeated. Power scales with bosses defeated."
+    stats_a0:
+      hp: 0
+      atk: 18
+      def: 0
+      spd: 0
+    resistances:
+      fire: 7
+      water: 7
+      wind: 7
+      earth: 7
+    notes: "Obtained stats are ~73% atk, 82 all res. Atk = 18% + level/2%. Disables Flying Eyeball and Bat bonuses if any teammate equips it."
+
+  candy_cane:
+    name: "Candy Cane"
+    type: Weapon
+    tier: 4
+    element: Neutral
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: true
+    special_effect: "Increases campaign bonus for equipped pet by up to 150%"
+    stats_a0:
+      hp: 0
+      atk: 5
+      def: 0
+      spd: 40
+    resistances:
+      fire: 10
+      water: 10
+      wind: 10
+      earth: 10
+    notes: "2022 Christmas event. Available via IAP or pet stones. High speed makes it decent for dungeons."
+
+  magic_egg_weapon:
+    name: "Magic Egg"
+    type: Weapon
+    tier: 4
+    element: Neutral
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: true
+    special_effect: "Increases current growth and growth from dungeon events by 30%. Shortcuts evolution growth requirements."
+    stats_a0:
+      hp: 10
+      atk: 30
+      def: 10
+      spd: 10
+    resistances:
+      fire: 10
+      water: 10
+      wind: 10
+      earth: 10
+    notes: "2023 Easter event. Available via IAP or pet stones. Well-rounded stats make it a solid dungeon weapon."
+
+  godly_hammer:
+    name: "Godly Hammer"
+    type: Weapon
+    tier: 4
+    element: Earth
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: true
+    special_effect: "Increases building speed by 25% (additive) and 10% (multiplicative)"
+    stats_a0:
+      hp: 0
+      atk: 0
+      def: 35
+      spd: 10
+    resistances:
+      fire: 0
+      water: -120
+      wind: 0
+      earth: 160
+    notes: "2023 Halloween event. Available via IAP or pet stones. Massive +160 Earth element ideal for token-improved Rabbit."
+
+  haposti:
+    name: "Haposti"
+    type: Weapon
+    tier: 4
+    element: Neutral
+    source: tavern_quest
+    max_quantity: 1
+    dungeon_relevant: true
+    special_effect: "Confers the bonuses of a Hammer, a Pot, and a Stick simultaneously"
+    stats_a0:
+      hp: 15
+      atk: 15
+      def: 15
+      spd: 15
+    resistances:
+      fire: 10
+      water: 10
+      wind: 10
+      earth: 10
+    notes: "Tavern quest reward. Only 1 obtainable. Balanced stats plus triple crafting/campaign utility."
+
+  wonder_axe:
+    name: "WonderAxe"
+    type: Weapon
+    tier: 5
+    element: Neutral
+    source: tavern_quest
+    max_quantity: 1
+    dungeon_relevant: true
+    special_effect: "Non-Mage user has 10% chance to ignore enemy defense"
+    stats_a0:
+      hp: 10
+      atk: 75
+      def: 10
+      spd: 10
+    resistances:
+      fire: 50
+      water: 50
+      wind: 50
+      earth: 50
+    notes: "Tavern quest reward. Only 1 obtainable. Best-in-slot weapon for most non-Mage roles."
+
+
+armor:
+  # -- Tier 1 --
+  iron_vest:
+    name: "Iron Vest"
+    type: Armor
+    tier: 1
+    element: Neutral
+    stats_a0:
+      hp: 15
+      atk: 0
+      def: 10
+      spd: -5
+
+  fire_vest:
+    name: "Fire Vest"
+    type: Armor
+    tier: 1
+    element: Fire
+    stats_a0:
+      hp: 5
+      atk: 8
+      def: 7
+      spd: 0
+    resistances:
+      fire: 20
+      water: -40
+
+  water_vest:
+    name: "Water Vest"
+    type: Armor
+    tier: 1
+    element: Water
+    stats_a0:
+      hp: 15
+      atk: 0
+      def: 5
+      spd: 0
+    resistances:
+      water: 20
+      earth: -40
+
+  wooden_vest:
+    name: "Wooden Vest"
+    type: Armor
+    tier: 1
+    element: Earth
+    stats_a0:
+      hp: 10
+      atk: 0
+      def: 10
+      spd: 0
+    resistances:
+      earth: 20
+      wind: -40
+
+  feather_vest:
+    name: "Feather Vest"
+    type: Armor
+    tier: 1
+    element: Wind
+    stats_a0:
+      hp: 6
+      atk: 0
+      def: 7
+      spd: 7
+    resistances:
+      wind: 20
+      fire: -40
+
+  # -- Tier 2 --
+  steel_armor:
+    name: "Steel Armor"
+    type: Armor
+    tier: 2
+    element: Neutral
+    upgraded_from: "iron_vest"
+    stats_a0:
+      hp: 25
+      atk: 0
+      def: 15
+      spd: -10
+
+  flame_armor:
+    name: "Flame Armor"
+    type: Armor
+    tier: 2
+    element: Fire
+    upgraded_from: "fire_vest"
+    stats_a0:
+      hp: 7
+      atk: 13
+      def: 10
+      spd: 0
+    resistances:
+      fire: 40
+      water: -40
+
+  flood_armor:
+    name: "Flood Armor"
+    type: Armor
+    tier: 2
+    element: Water
+    upgraded_from: "water_vest"
+    stats_a0:
+      hp: 20
+      atk: 0
+      def: 10
+      spd: 0
+    resistances:
+      water: 40
+      earth: -40
+
+  tree_armor:
+    name: "Tree Armor"
+    type: Armor
+    tier: 2
+    element: Earth
+    upgraded_from: "wooden_vest"
+    stats_a0:
+      hp: 15
+      atk: 0
+      def: 15
+      spd: 0
+    resistances:
+      earth: 40
+      wind: -40
+
+  storm_armor:
+    name: "Storm Armor"
+    type: Armor
+    tier: 2
+    element: Wind
+    upgraded_from: "feather_vest"
+    stats_a0:
+      hp: 8
+      atk: 0
+      def: 11
+      spd: 11
+    resistances:
+      wind: 40
+      fire: -40
+
+  # -- Tier 3 --
+  titanium_armor:
+    name: "Titanium Armor"
+    type: Armor
+    tier: 3
+    element: Neutral
+    upgraded_from: "steel_armor"
+    stats_a0:
+      hp: 35
+      atk: 0
+      def: 20
+      spd: -15
+    resistances:
+      fire: 5
+      water: 5
+      wind: 5
+      earth: 5
+
+  inferno_armor:
+    name: "Inferno Armor"
+    type: Armor
+    tier: 3
+    element: Fire
+    upgraded_from: "flame_armor"
+    stats_a0:
+      hp: 10
+      atk: 15
+      def: 15
+      spd: 0
+    resistances:
+      fire: 60
+      water: -40
+
+  tsunami_armor:
+    name: "Tsunami Armor"
+    type: Armor
+    tier: 3
+    element: Water
+    upgraded_from: "flood_armor"
+    stats_a0:
+      hp: 25
+      atk: 0
+      def: 15
+      spd: 0
+    resistances:
+      water: 60
+      earth: -40
+
+  forest_armor:
+    name: "Forest Armor"
+    type: Armor
+    tier: 3
+    element: Earth
+    upgraded_from: "tree_armor"
+    stats_a0:
+      hp: 20
+      atk: 0
+      def: 20
+      spd: 0
+    resistances:
+      earth: 60
+      wind: -40
+
+  hurricane_armor:
+    name: "Hurricane Armor"
+    type: Armor
+    tier: 3
+    element: Wind
+    upgraded_from: "storm_armor"
+    stats_a0:
+      hp: 10
+      atk: 0
+      def: 15
+      spd: 15
+    resistances:
+      wind: 60
+      fire: -40
+
+  # -- Tier 4 --
+  # In order: Mythril armor, sun armor, ocean armor, jungle armor, sky armor, demonic armor, divine armor, robe of economy
+  mythril_armor:
+    name: "Mythril Armor"
+    type: Armor
+    tier: 5
+    element: Neutral
+    upgraded_from: "titanium_armor"
+    stats_a0:
+      hp: 40
+      atk: 0
+      def: 35
+      spd: -5
+    resistances:
+      fire: 5
+      water: 5
+      wind: 5
+      earth: 5
+
+  sun_armor:
+    name: "Sun Armor"
+    type: Armor
+    tier: 4
+    element: Fire
+    upgraded_from: "inferno_armor"
+    stats_a0:
+      hp: 10
+      atk: 30
+      def: 25
+      spd: 5
+    resistances:
+      fire: 90
+      water: -90
+
+  ocean_armor:
+    name: "Ocean Armor"
+    type: Armor
+    tier: 4
+    element: Water
+    upgraded_from: "tsunami_armor"
+    stats_a0:
+      hp: 30
+      atk: 5
+      def: 25
+      spd: 10
+    resistances:
+      water: 90
+      earth: -90
+
+  jungle_armor:
+    name: "Jungle Armor"
+    type: Armor
+    tier: 4
+    element: Earth
+    upgraded_from: "forest_armor"
+    stats_a0:
+      hp: 30
+      atk: 5
+      def: 35
+      spd: 0
+    resistances:
+      earth: 90
+      wind: -90
+
+  sky_armor:
+    name: "Sky Armor"
+    type: Armor
+    tier: 4
+    element: Wind
+    upgraded_from: "hurricane_armor"
+    stats_a0:
+      hp: 15
+      atk: 5
+      def: 25
+      spd: 25
+    resistances:
+      wind: 90
+      fire: -90
+
+  demonic_armor:
+    name: "Demonic Armor"
+    type: Armor
+    tier: 4
+    element: None
+
+  divine_armor:
+    name: "Divine Armor"
+    type: Armor
+    tier: 4
+    element: None
+
+  robe_of_economy:
+    name: "Robe of Economy"
+    type: Armor
+    tier: 4
+    element: Wind
+    stats_a0:
+      hp: 20
+      atk: 0
+      def: 15
+      spd: 30
+    resistances:
+      fire: -50
+      water: -20
+      wind: 90
+      earth: -20
+    special_effect: "With Mana Cape on an alchemist, decreases T4 material crafting costs"
+
+  # -- Unique / Premium / Quest Armor --
+  rune_patch:
+    name: "Rune Patch"
+    type: Armor
+    tier: 4
+    element: Neutral
+    source: ultimate_stats_challenge
+    max_quantity: 1
+    dungeon_relevant: true
+    special_effect: "Crafting speed/quality by USC completed (max 25%). At max, also +25% non-mage or +50% mage damage if equipped by blacksmith."
+    stats_a0:
+      hp: 30
+      atk: 10
+      def: 20
+      spd: 0
+    resistances:
+      fire: 10
+      water: 10
+      wind: 10
+      earth: 10
+    notes: "Not upgradeable by crafting. Obtained stats: 41% hp, 14% atk, 27% def, 78 all res. Only 1 obtainable."
+
+  creators_vest:
+    name: "Creators Vest"
+    type: Armor
+    tier: 4
+    element: Fire
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: true
+    special_effect: "Increases creating speed by 25% (additive) and 10% (multiplicative)"
+    stats_a0:
+      hp: 10
+      atk: 35
+      def: 0
+      spd: 0
+    resistances:
+      fire: 160
+      water: 0
+      wind: -120
+      earth: 0
+    notes: "2023 Summer event. Available via IAP or pet stones. Very high attack for armor."
+
+  merry_mantle:
+    name: "Merry Mantle"
+    type: Armor
+    tier: 4
+    element: Water
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: true
+    special_effect: "Increases campaign bonus for equipped pet by up to 150%"
+    stats_a0:
+      hp: 17
+      atk: 0
+      def: 28
+      spd: 0
+    resistances:
+      fire: -15
+      water: 80
+      wind: 5
+      earth: 5
+    notes: "2023 Christmas event. Available via IAP or pet stones. Strong defensive armor."
+
+  learning_coat:
+    name: "Learning Coat"
+    type: Armor
+    tier: 4
+    element: Water
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: true
+    special_effect: "Increases class XP gain of pet outside dungeon by 50% (additive to Owl/Bat bonuses)"
+    stats_a0:
+      hp: 15
+      atk: 15
+      def: 15
+      spd: 15
+    resistances:
+      fire: 20
+      water: 160
+      wind: 20
+      earth: -150
+    notes: "2023 Valentine event. Available via IAP or pet stones. Balanced stats but extreme earth vulnerability."
+
+  enlightment_vest:
+    name: "EnlightmentVest"
+    type: Armor
+    tier: 5
+    element: Neutral
+    source: tavern_quest
+    max_quantity: 1
+    dungeon_relevant: true
+    special_effect: "Increases crafting speed by 50% (multiplicative)"
+    stats_a0:
+      hp: 10
+      atk: 10
+      def: 10
+      spd: 75
+    resistances:
+      fire: 50
+      water: 50
+      wind: 50
+      earth: 50
+    notes: "Tavern quest reward. Only 1 obtainable. Massive speed bonus."
+
+
+accessories:
+  # -- Tier 1 --
+  iron_ring:
+    name: "Iron Ring"
+    type: Accessory
+    tier: 1
+    element: Neutral
+    stats_a0:
+      hp: 5
+      atk: 5
+      def: 5
+      spd: -5
+
+  fire_gloves:
+    name: "Fire Gloves"
+    type: Accessory
+    tier: 1
+    element: Fire
+    stats_a0:
+      hp: -5
+      atk: 15
+      def: -5
+      spd: 5
+    resistances:
+      fire: 25
+      water: -50
+
+  water_necklace:
+    name: "Water Necklace"
+    type: Accessory
+    tier: 1
+    element: Water
+    stats_a0:
+      hp: 0
+      atk: 5
+      def: 5
+      spd: 0
+    resistances:
+      water: 25
+      earth: -50
+
+  wood_bracelet:
+    name: "Wood Bracelet"
+    type: Accessory
+    tier: 1
+    element: Earth
+    stats_a0:
+      hp: 5
+      atk: 0
+      def: 5
+      spd: 0
+    resistances:
+      earth: 25
+      wind: -50
+
+  feather_ring:
+    name: "Feather Ring"
+    type: Accessory
+    tier: 1
+    element: Wind
+    stats_a0:
+      hp: 0
+      atk: -5
+      def: 0
+      spd: 15
+    resistances:
+      wind: 25
+      fire: -50
+
+  # -- Tier 2 --
+  steel_ring:
+    name: "Steel Ring"
+    type: Accessory
+    tier: 2
+    element: Neutral
+    upgraded_from: "iron_ring"
+    stats_a0:
+      hp: 7
+      atk: 7
+      def: 7
+      spd: -7
+
+  flame_gloves:
+    name: "Flame Gloves"
+    type: Accessory
+    tier: 2
+    element: Fire
+    upgraded_from: "fire_gloves"
+    stats_a0:
+      hp: -7
+      atk: 21
+      def: -7
+      spd: 7
+    resistances:
+      fire: 50
+      water: -50
+
+  flood_necklace:
+    name: "Flood Necklace"
+    type: Accessory
+    tier: 2
+    element: Water
+    upgraded_from: "water_necklace"
+    stats_a0:
+      hp: 0
+      atk: 7
+      def: 7
+      spd: 0
+    resistances:
+      water: 50
+      earth: -50
+
+  tree_bracelet:
+    name: "Tree Bracelet"
+    type: Accessory
+    tier: 2
+    element: Earth
+    upgraded_from: "wood_bracelet"
+    stats_a0:
+      hp: 7
+      atk: 0
+      def: 7
+      spd: 0
+    resistances:
+      earth: 50
+      wind: -50
+
+  storm_ring:
+    name: "Storm Ring"
+    type: Accessory
+    tier: 2
+    element: Wind
+    upgraded_from: "feather_ring"
+    stats_a0:
+      hp: 0
+      atk: -7
+      def: 0
+      spd: 21
+    resistances:
+      wind: 50
+      fire: -50
+
+  # -- Tier 3 --
+  titanium_ring:
+    name: "Titanium Ring"
+    type: Accessory
+    tier: 3
+    element: Neutral
+    upgraded_from: "steel_ring"
+    stats_a0:
+      hp: 10
+      atk: 10
+      def: 10
+      spd: -10
+    resistances:
+      fire: 10
+      water: 10
+      wind: 10
+      earth: 10
+
+  inferno_gloves:
+    name: "Inferno Gloves"
+    type: Accessory
+    tier: 3
+    element: Fire
+    upgraded_from: "flame_gloves"
+    stats_a0:
+      hp: -10
+      atk: 30
+      def: -10
+      spd: 10
+    resistances:
+      fire: 75
+      water: -50
+
+  tsunami_necklace:
+    name: "Tsunami Necklace"
+    type: Accessory
+    tier: 3
+    element: Water
+    upgraded_from: "flood_necklace"
+    stats_a0:
+      hp: 0
+      atk: 10
+      def: 10
+      spd: 0
+    resistances:
+      water: 75
+      earth: -50
+
+  forest_bracelet:
+    name: "Forest Bracelet"
+    type: Accessory
+    tier: 3
+    element: Earth
+    upgraded_from: "tree_bracelet"
+    stats_a0:
+      hp: 10
+      atk: 0
+      def: 10
+      spd: 0
+    resistances:
+      earth: 75
+      wind: -50
+
+  hurricane_ring:
+    name: "Hurricane Ring"
+    type: Accessory
+    tier: 3
+    element: Wind
+    upgraded_from: "storm_ring"
+    stats_a0:
+      hp: 0
+      atk: -10
+      def: 0
+      spd: 30
+    resistances:
+      wind: 75
+      fire: -50
+
+  alchemist_cape:
+    name: "Alchemist Cape"
+    type: Accessory
+    tier: 3
+    element: Neutral
+    notes: "Crafted at SSS+10 by default; no additional enhancement needed."
+    stats_a0:
+      hp: 6
+      atk: 6
+      def: 6
+      spd: 6
+    resistances:
+      fire: 13
+      water: 13
+      wind: 13
+      earth: 13
+    special_effect: "Allows alchemists to craft Tier 3 materials"
+
+  # -- Tier 4 --
+  mythril_ring:
+    name: "Mythril Ring"
+    type: Accessory
+    tier: 4
+    element: Neutral
+    upgraded_from: "titanium_ring"
+    stats_a0:
+      hp: 25
+      atk: 0
+      def: 30
+      spd: -10
+    resistances:
+      fire: 25
+      water: 25
+      wind: 25
+      earth: 25
+
+  sun_gloves:
+    name: "Sun Gloves"
+    type: Accessory
+    tier: 4
+    element: Fire
+    upgraded_from: "inferno_gloves"
+    stats_a0:
+      hp: -10
+      atk: 45
+      def: -10
+      spd: 20
+    resistances:
+      fire: 150
+      water: -100
+
+  ocean_necklace:
+    name: "Ocean Necklace"
+    type: Accessory
+    tier: 4
+    element: Water
+    upgraded_from: "tsunami_necklace"
+    stats_a0:
+      hp: 0
+      atk: 25
+      def: 20
+      spd: 0
+    resistances:
+      water: 150
+      earth: -100
+
+  jungle_bracelet:
+    name: "Jungle Bracelet"
+    type: Accessory
+    tier: 4
+    element: Earth
+    upgraded_from: "forest_bracelet"
+    stats_a0:
+      hp: 25
+      atk: 0
+      def: 25
+      spd: 0
+    resistances:
+      earth: 150
+      wind: -100
+
+  sky_ring:
+    name: "Sky Ring"
+    type: Accessory
+    tier: 4
+    element: Wind
+    upgraded_from: "hurricane_ring"
+    stats_a0:
+      hp: 0
+      atk: -10
+      def: 0
+      spd: 55
+    resistances:
+      wind: 150
+      fire: -100
+
+  demonic_ring:
+    name: "Demonic Ring"
+    type: Accessory
+    tier: 4
+    element: None
+
+  divine_ring:
+    name: "Divine Ring"
+    type: Accessory
+    tier: 4
+    element: None
+
+  mana_cape:
+    name: "Mana Cape"
+    type: Accessory
+    tier: 4
+    element: Neutral
+    upgraded_from: "alchemist_cape"
+    stats_a0:
+      hp: 12
+      atk: 12
+      def: 12
+      spd: 12
+    resistances:
+      fire: 24
+      water: 24
+      wind: 24
+      earth: 24
+    special_effect: "Allows alchemists to craft Tier 3 and Tier 4 materials if quality is SSS"
+
+  # -- Unique / Premium / Quest Accessories --
+  spectrometers:
+    name: "Spectrometers"
+    type: Accessory
+    tier: 4
+    element: Neutral
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: true
+    special_effect: "Allows any alchemist to craft T3/T4 materials. Chance to not consume resources (stacks with Bottle)."
+    stats_a0:
+      hp: 6
+      atk: 19
+      def: 6
+      spd: 19
+    resistances:
+      fire: 5
+      water: 5
+      wind: 15
+      earth: 15
+    notes: "2022 Summer event. Available via IAP or pet stones."
+
+  master_gloves:
+    name: "Master Gloves"
+    type: Accessory
+    tier: 4
+    element: Wind
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: false
+    special_effect: "Increases Blacksmith crafting speed by up to 30%"
+    stats_a0:
+      hp: 25
+      atk: 0
+      def: 0
+      spd: 25
+    resistances:
+      fire: -160
+      water: 10
+      wind: 140
+      earth: 10
+    notes: "2022 Halloween event. Available via IAP or pet stones. Crafting utility only - terrible fire res makes it unsuitable for dungeons."
+
+  growing_love_pendant:
+    name: "Growing Love Pendant"
+    type: Accessory
+    tier: 4
+    element: Earth
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: false
+    special_effect: "Once per hour, gives up to 1 base growth per evolved pet. Wearer must not be in top 10 by total growth."
+    stats_a0:
+      hp: 55
+      atk: 0
+      def: 0
+      spd: 0
+    resistances:
+      fire: -40
+      water: -40
+      wind: -40
+      earth: 220
+    notes: "2024 Valentine event. Available via IAP or pet stones. Growth utility - extreme negative res makes it poor for dungeons."
+
+  christmas_boots:
+    name: "Christmas Boots"
+    type: Accessory
+    tier: 4
+    element: Wind
+    source: premium_event
+    max_quantity: 2
+    dungeon_relevant: true
+    special_effect: "Increases campaign bonus for equipped pet by up to 150%"
+    stats_a0:
+      hp: 0
+      atk: 0
+      def: 0
+      spd: 50
+    resistances:
+      fire: -20
+      water: 20
+      wind: 80
+      earth: -20
+    notes: "2024 Christmas event. Available via IAP or pet stones. Excellent speed accessory for dungeons."

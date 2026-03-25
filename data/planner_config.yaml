@@ -1,0 +1,48 @@
+# ============================================================================
+# Planner Configuration
+# ============================================================================
+# User-specific settings for the dungeon planner.
+#
+# default_dungeons: Which dungeons and depths to enable on startup.
+#   Each entry has a dungeon name and a depth (1, 2, or 3).
+#   Dungeon names: Scrapyard, WaterTemple, Volcano, Mountain, Forest
+#
+# equipment_inventory: Unique/limited equipment you actually own.
+#   Keys are catalog IDs from equipment_catalog.yaml.
+#   Values are the quantity you own.
+#   Only list equipment with max_quantity limits (premium, quest, unique).
+#   Craftable equipment is assumed unlimited and should NOT be listed here.
+#   The planner will not assign more copies than you own.
+# ============================================================================
+
+default_dungeons:
+  - dungeon: Scrapyard
+    depth: 2
+  - dungeon: WaterTemple
+    depth: 2
+  - dungeon: Forest
+    depth: 2
+
+equipment_inventory:
+  # Premium event weapons
+  godly_hammer: 2
+  candy_cane: 2
+  magic_egg_weapon: 2
+  haposti: 0
+
+  # Unique weapons
+  gram: 0
+  wonder_axe: 0
+
+  # Premium event armor
+  rune_patch: 0
+  creators_vest: 2
+  merry_mantle: 2
+  learning_coat: 2
+  enlightment_vest: 2
+
+  # Premium event accessories
+  spectrometers: 2
+  master_gloves: 2
+  growing_love_pendant: 2
+  christmas_boots: 2

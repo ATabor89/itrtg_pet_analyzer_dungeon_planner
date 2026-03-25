@@ -1,6 +1,8 @@
 use std::sync::mpsc;
 
-use itrtg_models::dungeon::DungeonRecommendations;
+use itrtg_models::dungeon::{
+    DungeonRecommendations, DungeonRecommendationsFile, EquipmentCatalog,
+};
 use itrtg_models::{ExportPet, WikiPet};
 use itrtg_planner::merge::{self, MergedPet};
 
@@ -130,19 +132,23 @@ impl DataStore {
         }
     }
 
-    /// Load dungeon recommendations from a YAML string.
-    pub fn load_dungeon_recs(&mut self, yaml: &str) {
-        match serde_yaml::from_str::<DungeonRecommendations>(yaml) {
-            Ok(recs) => {
-                self.dungeon_recs = Some(recs);
-            }
+    /// Load dungeon recommendations from the two YAML sources.
+    pub fn load_dungeon_recs(&mut self, equipment_yaml: &str, dungeons_yaml: &str) {
+        let equipment: EquipmentCatalog = match serde_yaml::from_str(equipment_yaml) {
+            Ok(eq) => eq,
             Err(e) => {
-                self.import_status = Some((
-                    format!("Dungeon recs error: {e}"),
-                    true,
-                ));
+                self.import_status = Some((format!("Equipment catalog error: {e}"), true));
+                return;
             }
-        }
+        };
+        let file: DungeonRecommendationsFile = match serde_yaml::from_str(dungeons_yaml) {
+            Ok(f) => f,
+            Err(e) => {
+                self.import_status = Some((format!("Dungeon recs error: {e}"), true));
+                return;
+            }
+        };
+        self.dungeon_recs = Some(DungeonRecommendations::new(equipment, file));
     }
 }
 
