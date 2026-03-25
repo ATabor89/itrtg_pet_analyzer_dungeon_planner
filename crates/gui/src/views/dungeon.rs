@@ -1309,7 +1309,7 @@ fn show_slot_card(
 /// Show equipment with comparison against pet's current gear.
 /// Each line shows the recommendation and a status indicator:
 /// ✓ if current gear matches (with quality/upgrade coloring), or the current gear name if different.
-/// Also shows gem status: 💎 in element color if matched, 💎— in warning if missing.
+/// Also shows gem status: 💎 in element color if matched, 💎Element in warning if missing.
 fn show_equipment_comparison(
     ui: &mut Ui,
     suggestion: &equipment::EquipmentSuggestion,
