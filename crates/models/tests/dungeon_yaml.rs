@@ -1,7 +1,11 @@
-use itrtg_models::dungeon::DungeonRecommendations;
+use itrtg_models::dungeon::{DungeonRecommendations, DungeonRecommendationsFile, EquipmentCatalog};
 use itrtg_models::{Class, Dungeon, Element, EquipmentSlot};
 
-const YAML_PATH: &str = concat!(
+const EQUIPMENT_YAML_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../data/equipment_catalog.yaml"
+);
+const DUNGEONS_YAML_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../data/dungeon_recommendations.yaml"
 );
@@ -175,6 +179,9 @@ fn gem_slots_use_core_element() {
 }
 
 fn load() -> DungeonRecommendations {
-    let contents = std::fs::read_to_string(YAML_PATH).unwrap();
-    serde_yaml::from_str(&contents).unwrap()
+    let equipment_yaml = std::fs::read_to_string(EQUIPMENT_YAML_PATH).unwrap();
+    let dungeons_yaml = std::fs::read_to_string(DUNGEONS_YAML_PATH).unwrap();
+    let equipment: EquipmentCatalog = serde_yaml::from_str(&equipment_yaml).unwrap();
+    let file: DungeonRecommendationsFile = serde_yaml::from_str(&dungeons_yaml).unwrap();
+    DungeonRecommendations::new(equipment, file)
 }

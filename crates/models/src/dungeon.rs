@@ -9,12 +9,34 @@ use crate::{Class, Dungeon, Element, EquipmentSlot};
 // Top-level structure
 // =============================================================================
 
-/// The full dungeon recommendations file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// All dungeon data: equipment catalog + dungeon configurations + items.
+///
+/// Equipment lives in `equipment_catalog.yaml` and dungeon/item data lives in
+/// `dungeon_recommendations.yaml`.  Construct this by deserializing each file
+/// separately and combining with [`DungeonRecommendations::new`].
+#[derive(Debug, Clone, Serialize)]
 pub struct DungeonRecommendations {
     pub equipment: EquipmentCatalog,
     pub items: ItemCatalog,
     pub dungeons: BTreeMap<Dungeon, DungeonData>,
+}
+
+/// The dungeon recommendations YAML file (items + dungeons, no equipment).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DungeonRecommendationsFile {
+    pub items: ItemCatalog,
+    pub dungeons: BTreeMap<Dungeon, DungeonData>,
+}
+
+impl DungeonRecommendations {
+    /// Assemble from a separately-loaded equipment catalog and dungeon file.
+    pub fn new(equipment: EquipmentCatalog, file: DungeonRecommendationsFile) -> Self {
+        Self {
+            equipment,
+            items: file.items,
+            dungeons: file.dungeons,
+        }
+    }
 }
 
 // =============================================================================

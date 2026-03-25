@@ -29,19 +29,33 @@ impl App {
 
         let mut data = DataStore::new();
 
-        // Try to load dungeon recommendations from data directory
+        // Try to load dungeon data from data directory
+        let equip_path = std::path::Path::new("data/equipment_catalog.yaml");
         let recs_path = std::path::Path::new("data/dungeon_recommendations.yaml");
-        if recs_path.exists() {
-            if let Ok(yaml) = std::fs::read_to_string(recs_path) {
-                data.load_dungeon_recs(&yaml);
+        if equip_path.exists() && recs_path.exists() {
+            if let (Ok(equip_yaml), Ok(recs_yaml)) = (
+                std::fs::read_to_string(equip_path),
+                std::fs::read_to_string(recs_path),
+            ) {
+                data.load_dungeon_recs(&equip_yaml, &recs_yaml);
             }
         }
 
         // Auto-fetch wiki on startup
         data.fetch_wiki();
 
-        // Load default pet constraints
+        // Load planner configuration and pet constraints
         let mut dungeon_state = dungeon::DungeonState::default();
+
+        let config_path = std::path::Path::new("data/planner_config.yaml");
+        if config_path.exists() {
+            if let Ok(yaml) = std::fs::read_to_string(config_path) {
+                if let Err(e) = dungeon_state.load_planner_config(&yaml) {
+                    data.import_status = Some((e, true));
+                }
+            }
+        }
+
         let constraints_path = std::path::Path::new("data/pet_constraints.yaml");
         if constraints_path.exists() {
             if let Ok(yaml) = std::fs::read_to_string(constraints_path) {
