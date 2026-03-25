@@ -1,12 +1,6 @@
 # Next Features
 
-## 1. Dungeon Planner: Slightly Smarter Recommendations
-
-The current implementation of the dungeon planner is missing one edge case when checking for equipment satisfaction. Specifically, it doesn't account for tier-levels.
-
-Note: Ignore this for now. Currently adding more items to the catalog, so determining if this is actually a bug or not.
-
-## 2. Pet Pairing Constraints
+## 1. Pet Pairing Constraints
 
 Add support for positive and negative pairing constraints between pets. These will be provided manually in a data file (format TBD — consider what works best).
 
@@ -39,7 +33,7 @@ This system should be generic enough to handle synergy pairings between any two 
 
 ---
 
-## 3. Custom Pet Information / Special Abilities
+## 2. Custom Pet Information / Special Abilities
 
 Add support for custom per-pet information that can influence team building and equipment recommendations.
 
