@@ -891,7 +891,8 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
     }
 
     let pet_count = assigned_exports.len();
-    let avg_dungeon_level = assigned_exports.iter().map(|e| e.dungeon_level as u64).sum::<u64>() / pet_count as u64;
+    // Always divide by 6 (full team size) so empty slots count as DL 0.
+    let avg_dungeon_level = assigned_exports.iter().map(|e| e.dungeon_level as u64).sum::<u64>() / 6;
     let min_class_level = assigned_exports.iter().map(|e| e.class_level).min().unwrap_or(0);
     let min_growth = assigned_exports.iter().map(|e| e.growth).min().unwrap_or(0);
 
