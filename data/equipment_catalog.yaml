@@ -477,8 +477,8 @@ weapons:
       earth: -10
     special_effect: "Increases exp gained, steals up to 100% of gained exp from other pets"
 
-  burning_knives:
-    name: "Burning Knives"
+  bursting_knives:
+    name: "Bursting Knives"
     type: Weapon
     tier: 3
     element: Wind
