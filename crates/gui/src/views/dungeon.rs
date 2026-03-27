@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui, Vec2};
-use itrtg_models::dungeon::EquipmentCatalog;
+use itrtg_models::dungeon::{DungeonRecommendations, EquipmentCatalog};
 use itrtg_models::Quality;
 use itrtg_models::{Dungeon, Element};
 use itrtg_planner::equipment::{self, EquipmentSource};
@@ -25,6 +25,8 @@ struct DungeonEntry {
     label: &'static str,
     enabled: bool,
     depth: u8,
+    /// Whether the requirements/party preview is expanded.
+    show_preview: bool,
 }
 
 #[derive(Default)]
@@ -92,6 +94,7 @@ impl DungeonState {
                 label,
                 enabled: false,
                 depth: 1,
+                show_preview: false,
             })
             .collect();
         self.force_dungeon = None; // Default: solver picks best team
@@ -396,6 +399,8 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     )
     .default_open(state.plans.is_empty())
     .show(ui, |ui| {
+        let equip_catalog = data.dungeon_recs.as_ref().map(|r| &r.equipment);
+
         for entry in &mut state.entries {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut entry.enabled, "");
@@ -428,7 +433,27 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                         entry.depth = depth;
                     }
                 }
+
+                // Preview toggle
+                let preview_label = if entry.show_preview { "▼ Preview" } else { "▶ Preview" };
+                if ui
+                    .add(egui::Button::new(
+                        RichText::new(preview_label)
+                            .color(if entry.show_preview { style::ACCENT } else { style::TEXT_MUTED })
+                            .size(11.0),
+                    ).fill(Color32::TRANSPARENT))
+                    .clicked()
+                {
+                    entry.show_preview = !entry.show_preview;
+                }
             });
+
+            // Preview panel
+            if entry.show_preview {
+                if let Some(recs) = &data.dungeon_recs {
+                    show_dungeon_preview(ui, entry.dungeon, entry.depth, recs, equip_catalog);
+                }
+            }
         }
     });
 
@@ -789,6 +814,167 @@ fn solve_all(state: &mut DungeonState, data: &DataStore) {
 
     // Mark plans as current
     state.last_data_version = data.data_version;
+}
+
+// =============================================================================
+// Dungeon preview (static requirements & party composition)
+// =============================================================================
+
+/// Show a compact preview of a dungeon's requirements and recommended party.
+/// This is a quick-reference view — no solving/assignment, just the static YAML data.
+fn show_dungeon_preview(
+    ui: &mut Ui,
+    dungeon: Dungeon,
+    depth: u8,
+    recs: &DungeonRecommendations,
+    catalog: Option<&EquipmentCatalog>,
+) {
+    let Some(dungeon_data) = recs.dungeons.get(&dungeon) else {
+        return;
+    };
+    let Some(depth_data) = dungeon_data.depths.get(&depth) else {
+        ui.label(
+            RichText::new(format!("  No data for D{depth}"))
+                .color(style::TEXT_MUTED)
+                .italics()
+                .size(11.0),
+        );
+        return;
+    };
+
+    ui.indent(format!("preview_{dungeon:?}_{depth}"), |ui| {
+        // Requirements
+        let reqs = &depth_data.requirements;
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Requirements:")
+                    .color(style::TEXT_MUTED)
+                    .size(11.0)
+                    .strong(),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "Avg DL {}  |  CL {}  |  {} rooms × {} monsters",
+                    reqs.dungeon_level_avg, reqs.class_level,
+                    depth_data.rooms, depth_data.monsters_per_room,
+                ))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0),
+            );
+        });
+
+        // Party composition — compact table
+        ui.add_space(2.0);
+        ui.label(
+            RichText::new("Recommended Party:")
+                .color(style::TEXT_MUTED)
+                .size(11.0)
+                .strong(),
+        );
+
+        for (i, slot) in depth_data.party.iter().enumerate() {
+            let row_label = if i < 3 { "F" } else { "B" };
+            let pos = i + 1;
+
+            ui.horizontal(|ui| {
+                // Position
+                ui.label(
+                    RichText::new(format!("  {row_label}{pos}"))
+                        .color(style::TEXT_MUTED)
+                        .size(10.0)
+                        .family(egui::FontFamily::Monospace),
+                );
+
+                // Class
+                match &slot.class {
+                    Some(class) => widgets::class_label(ui, class),
+                    None => {
+                        ui.label(RichText::new("Any").color(style::TEXT_MUTED).size(12.0));
+                    }
+                }
+
+                // Element
+                match &slot.element {
+                    Some(el) => widgets::element_badge(ui, el),
+                    None => {
+                        ui.label(RichText::new("any").color(style::TEXT_MUTED).size(10.0));
+                    }
+                }
+
+                // Equipment (if specified and not generic)
+                if let Some(equip) = &slot.equipment {
+                    let parts: Vec<String> = [
+                        equip.weapon.as_deref().map(|k| resolve_equip_name(k, catalog)),
+                        equip.armor.as_deref().map(|k| resolve_equip_name(k, catalog)),
+                        equip.accessory.as_deref().map(|k| resolve_equip_name(k, catalog)),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect();
+
+                    if !parts.is_empty() {
+                        ui.label(
+                            RichText::new(format!("  {}", parts.join(" / ")))
+                                .color(Color32::from_rgb(0x88, 0x99, 0xcc))
+                                .size(10.0),
+                        );
+                    }
+
+                    // Gem recommendations
+                    if let Some(gems) = &equip.gems {
+                        let gem_parts: Vec<String> = [
+                            gems.weapon.as_ref().map(|e| format!("{e:?}")),
+                            gems.armor.as_ref().map(|e| format!("{e:?}")),
+                            gems.accessory.as_ref().map(|e| format!("{e:?}")),
+                        ]
+                        .into_iter()
+                        .flatten()
+                        .collect();
+
+                        if !gem_parts.is_empty() {
+                            ui.label(
+                                RichText::new(format!("💎{}", gem_parts.join("/")))
+                                    .color(Color32::from_rgb(0xcc, 0x99, 0xff))
+                                    .size(9.0),
+                            );
+                        }
+                    }
+                }
+            });
+        }
+
+        // Items needed
+        if !depth_data.party_items.is_empty() {
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Items:")
+                        .color(style::TEXT_MUTED)
+                        .size(11.0)
+                        .strong(),
+                );
+                let item_strs: Vec<String> = depth_data
+                    .party_items
+                    .iter()
+                    .map(|pi| {
+                        let name = recs
+                            .items
+                            .get(&pi.item)
+                            .map(|i| i.name.as_str())
+                            .unwrap_or(&pi.item);
+                        format!("{}×{}", pi.quantity, name)
+                    })
+                    .collect();
+                ui.label(
+                    RichText::new(item_strs.join("  "))
+                        .color(style::TEXT_NORMAL)
+                        .size(11.0),
+                );
+            });
+        }
+
+        ui.add_space(4.0);
+    });
 }
 
 // =============================================================================
