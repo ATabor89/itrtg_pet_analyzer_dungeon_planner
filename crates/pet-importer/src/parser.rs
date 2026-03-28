@@ -62,6 +62,15 @@ pub fn parse_export(source: &str) -> anyhow::Result<Vec<ExportPet>> {
 
         let has_partner = fields[23].trim().eq_ignore_ascii_case("yes");
 
+        // If the pet has a Magic Egg equipped, the export growth already
+        // includes the 30% bonus.  Store the true base growth instead.
+        let has_magic_egg = loadout.weapon.as_ref().is_some_and(|w| w.name == "Magic Egg");
+        let growth = if has_magic_egg {
+            (growth as f64 / 1.3).round() as u64
+        } else {
+            growth
+        };
+
         pets.push(ExportPet {
             export_name,
             element,
