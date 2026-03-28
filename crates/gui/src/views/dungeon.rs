@@ -1613,11 +1613,11 @@ fn show_equipment_comparison(
                 }
 
                 // Gem status
+                let current_gem = cur_equip.and_then(|c| c.gem);
                 if let Some(needed_elem) = rec_gem {
-                    let current_gem = cur_equip.and_then(|c| c.gem);
                     let gem_color = style::element_color(needed_elem);
                     if current_gem == Some(**needed_elem) {
-                        // Gem matches
+                        // Gem matches recommendation
                         ui.label(
                             RichText::new("◆")
                                 .color(gem_color)
@@ -1631,6 +1631,13 @@ fn show_equipment_comparison(
                                 .size(8.0),
                         );
                     }
+                } else if let Some(cur_gem) = current_gem {
+                    // No recommendation, but pet has a gem — show it informally
+                    ui.label(
+                        RichText::new("◆")
+                            .color(style::element_color(&cur_gem))
+                            .size(8.0),
+                    );
                 }
             });
         }
