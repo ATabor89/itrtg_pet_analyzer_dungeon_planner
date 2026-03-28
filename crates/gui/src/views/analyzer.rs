@@ -406,6 +406,20 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
                 );
                 ui.end_row();
 
+                ui.label(
+                    RichText::new("w/ Magic Egg:")
+                        .color(style::TEXT_MUTED)
+                        .size(12.0),
+                );
+                let egg_growth = (export.growth as f64 * 1.3).round() as u64;
+                ui.label(
+                    RichText::new(format_number(egg_growth))
+                        .color(style::TEXT_NORMAL)
+                        .size(12.0)
+                        .family(egui::FontFamily::Monospace),
+                );
+                ui.end_row();
+
                 ui.label(RichText::new("Dungeon Lv:").color(style::TEXT_MUTED).size(12.0));
                 ui.label(
                     RichText::new(export.dungeon_level.to_string())
