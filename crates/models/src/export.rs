@@ -43,3 +43,22 @@ pub struct ExportPet {
     pub other: Option<String>,
     pub has_partner: bool,
 }
+
+impl ExportPet {
+    /// Whether this pet currently has a Magic Egg equipped.
+    pub fn has_magic_egg(&self) -> bool {
+        self.loadout
+            .weapon
+            .as_ref()
+            .is_some_and(|w| w.name == "Magic Egg")
+    }
+
+    /// Growth value the game uses (includes 30% Magic Egg bonus if equipped).
+    pub fn effective_growth(&self) -> u64 {
+        if self.has_magic_egg() {
+            (self.growth as f64 * 1.3).round() as u64
+        } else {
+            self.growth
+        }
+    }
+}

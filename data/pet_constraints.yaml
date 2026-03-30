@@ -23,9 +23,6 @@ forbidden:
   - Witch
 
 forced:
-  # - pet: Hourglass
-  # Temporarily lock in my actual teams to leverage the solver's equipment recommendations
-  # Scrapyard first
   - pet: Egg/Chicken
     dungeon: Scrapyard
   - pet: Rudolph
@@ -38,7 +35,6 @@ forced:
     dungeon: Scrapyard
   - pet: Slime
     dungeon: Scrapyard
-  # Now Water temple
   - pet: Penguin
     dungeon: WaterTemple
   - pet: Clam
@@ -49,18 +45,17 @@ forced:
     dungeon: WaterTemple
   - pet: Rabbit
     dungeon: WaterTemple
-  # Now Forest
   - pet: Cat
     dungeon: Forest
   - pet: Squirrel
     dungeon: Forest
   - pet: Armadillo
     dungeon: Forest
-  - pet: Hourglass
-    dungeon: Forest
   - pet: Sylph
     dungeon: Forest
   - pet: Valkyrie
+    dungeon: Forest
+  - pet: Mist Sphere
     dungeon: Forest
 
 whitelisted:

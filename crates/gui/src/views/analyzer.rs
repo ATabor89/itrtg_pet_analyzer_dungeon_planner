@@ -538,7 +538,7 @@ fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
             .iter()
             .filter_map(|p| p.export.as_ref())
             .filter(|e| e.unlocked)
-            .map(|e| e.growth)
+            .map(|e| e.effective_growth())
             .sum();
         if total_growth > 0 {
             ui.separator();
@@ -750,7 +750,7 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
         .column(Column::initial(70.0).at_least(50.0))    // Element
         .column(Column::initial(140.0).at_least(80.0))   // Rec Class
         .column(Column::initial(50.0).at_least(40.0))    // Evo
-        .column(Column::initial(85.0).at_least(60.0))    // Growth
+        .column(Column::initial(130.0).at_least(85.0))   // Growth
         .column(Column::initial(55.0).at_least(40.0))    // Dng Lv
         .column(Column::initial(100.0).at_least(70.0))   // Class
         .column(Column::initial(50.0).at_least(40.0))    // CL
@@ -822,12 +822,30 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                 // Growth
                 row.col(|ui| {
                     if let Some(export) = &pet.export {
-                        ui.label(
-                            RichText::new(format_number(export.growth))
-                                .color(text_color)
-                                .size(12.0)
-                                .family(egui::FontFamily::Monospace),
-                        );
+                        if export.has_magic_egg() {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 2.0;
+                                ui.label(
+                                    RichText::new(format_number(export.growth))
+                                        .color(style::TEXT_MUTED)
+                                        .size(12.0)
+                                        .family(egui::FontFamily::Monospace),
+                                );
+                                ui.label(
+                                    RichText::new(format!("({})", format_number(export.effective_growth())))
+                                        .color(style::SUCCESS)
+                                        .size(12.0)
+                                        .family(egui::FontFamily::Monospace),
+                                );
+                            });
+                        } else {
+                            ui.label(
+                                RichText::new(format_number(export.growth))
+                                    .color(text_color)
+                                    .size(12.0)
+                                    .family(egui::FontFamily::Monospace),
+                            );
+                        }
                     }
                 });
 
@@ -1169,8 +1187,8 @@ fn filter_and_sort<'a>(pets: &'a [MergedPet], state: &AnalyzerState) -> Vec<&'a 
     // Sort — growth descending is the universal tiebreaker (strongest first in ties)
     let asc = state.sort_ascending;
     filtered.sort_by(|a, b| {
-        let ga = a.export.as_ref().map(|e| e.growth).unwrap_or(0);
-        let gb = b.export.as_ref().map(|e| e.growth).unwrap_or(0);
+        let ga = a.export.as_ref().map(|e| e.effective_growth()).unwrap_or(0);
+        let gb = b.export.as_ref().map(|e| e.effective_growth()).unwrap_or(0);
 
         let ord = match state.sort_column {
             SortColumn::Name => a.name.cmp(&b.name),
