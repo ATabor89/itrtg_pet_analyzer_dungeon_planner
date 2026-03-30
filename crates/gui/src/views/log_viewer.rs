@@ -264,20 +264,30 @@ fn show_overview(ui: &mut Ui, log: &DungeonLog) {
 
     let totals = log_parser::compute_totals(log);
 
-    // Pet cards in a grid
+    // Pet cards in a 2×3 grid (front row / back row mirrors in-game party layout).
+    // We lock column width so the Grid cannot expand cards to fill the whole panel.
     let available_width = ui.available_width();
-    let card_width = 200.0_f32;
-    let cols = ((available_width / (card_width + 8.0)) as usize).max(1).min(6);
+    const COLS: usize = 3;
+    let col_spacing = 8.0_f32;
+    let card_width = ((available_width - col_spacing * (COLS as f32 - 1.0)) / COLS as f32)
+        .max(160.0)
+        .floor();
 
     egui::Grid::new("pet_cards_grid")
-        .num_columns(cols)
-        .spacing([8.0, 8.0])
+        .num_columns(COLS)
+        .min_col_width(card_width)
+        .max_col_width(card_width)
+        .spacing([col_spacing, 8.0])
         .show(ui, |ui| {
             for (i, pet) in log.pets.iter().enumerate() {
                 show_pet_card(ui, pet, &totals, card_width);
-                if (i + 1) % cols == 0 {
+                if (i + 1) % COLS == 0 {
                     ui.end_row();
                 }
+            }
+            // If fewer than a full final row, close it.
+            if log.pets.len() % COLS != 0 {
+                ui.end_row();
             }
         });
 
@@ -548,30 +558,38 @@ fn show_pet_card(
     ui: &mut Ui,
     pet: &log_parser::PetInfo,
     totals: &std::collections::HashMap<String, (u64, u64, u64)>,
-    width: f32,
+    _width: f32,
 ) {
+    let class_str = if pet.class.is_empty() || pet.class == "None" {
+        "—"
+    } else {
+        &pet.class
+    };
     let color = class_color(&pet.class);
 
     egui::Frame::new()
         .fill(style::BG_SURFACE)
         .corner_radius(CornerRadius::same(6))
-        .stroke(Stroke::new(1.0, color.linear_multiply(0.3)))
+        .stroke(Stroke::new(1.0, color.linear_multiply(0.35)))
         .inner_margin(8.0)
         .show(ui, |ui| {
-            ui.set_min_width(width - 20.0);
-
-            // Name + class
+            // Row 1: Name • Class  (simple left-to-right, no expanding layouts)
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(&pet.name)
                         .color(style::TEXT_BRIGHT)
-                        .size(13.0)
+                        .size(14.0)
                         .strong(),
                 );
-                ui.label(RichText::new(&pet.class).color(color).size(11.0));
+                ui.label(
+                    RichText::new(class_str)
+                        .color(color)
+                        .size(11.0)
+                        .strong(),
+                );
             });
 
-            // Stats
+            // Row 2: Growth  Lv X  CLv X
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(format!("Growth {}", pet.growth))
@@ -579,52 +597,64 @@ fn show_pet_card(
                         .size(11.0),
                 );
                 ui.label(
-                    RichText::new(format!("Lv{}", pet.level))
+                    RichText::new(format!("Lv {}", pet.level))
                         .color(style::TEXT_NORMAL)
                         .size(11.0),
                 );
                 ui.label(
-                    RichText::new(format!("CLv{}", pet.class_level))
+                    RichText::new(format!("CLv {}", pet.class_level))
                         .color(style::TEXT_MUTED)
                         .size(11.0),
                 );
             });
 
-            // Total damage if available
+            // Row 3: Dungeon-run stats (class-aware ordering)
             if let Some(&(done, taken, healed)) = totals.get(&pet.name) {
-                ui.add_space(2.0);
+                let is_supporter = pet.class == "Supporter";
+                let is_defender = pet.class == "Defender";
+
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(format_number(done))
-                            .color(style::TEXT_NORMAL)
-                            .size(11.0),
-                    );
-                    ui.label(
-                        RichText::new("dmg")
-                            .color(style::TEXT_MUTED)
-                            .size(10.0),
-                    );
+                    if is_supporter {
+                        // Supporters lead with healed
+                        if healed > 0 {
+                            ui.label(
+                                RichText::new(format!("{} healed", format_number(healed)))
+                                    .color(style::SUCCESS)
+                                    .size(11.0),
+                            );
+                        }
+                        if done > 0 {
+                            ui.label(
+                                RichText::new(format!("{} dmg", format_number(done)))
+                                    .color(style::TEXT_MUTED)
+                                    .size(10.0),
+                            );
+                        }
+                    } else {
+                        // Everyone else leads with damage done
+                        ui.label(
+                            RichText::new(format!("{} dmg", format_number(done)))
+                                .color(style::TEXT_NORMAL)
+                                .size(11.0),
+                        );
+                        if healed > 0 {
+                            ui.label(
+                                RichText::new(format!("{} healed", format_number(healed)))
+                                    .color(style::SUCCESS)
+                                    .size(10.0),
+                            );
+                        }
+                    }
+
+                    // Damage taken — amber for defenders, muted red for others
                     if taken > 0 {
                         ui.label(
-                            RichText::new(format_number(taken))
-                                .color(style::WARNING)
-                                .size(11.0),
-                        );
-                        ui.label(
-                            RichText::new("taken")
-                                .color(style::TEXT_MUTED)
-                                .size(10.0),
-                        );
-                    }
-                    if healed > 0 {
-                        ui.label(
-                            RichText::new(format_number(healed))
-                                .color(style::SUCCESS)
-                                .size(11.0),
-                        );
-                        ui.label(
-                            RichText::new("healed")
-                                .color(style::TEXT_MUTED)
+                            RichText::new(format!("{} taken", format_number(taken)))
+                                .color(if is_defender {
+                                    style::WARNING
+                                } else {
+                                    style::ERROR.linear_multiply(0.8)
+                                })
                                 .size(10.0),
                         );
                     }
@@ -647,20 +677,27 @@ fn show_room_stats(ui: &mut Ui, log: &DungeonLog, selected_pet: &mut usize) {
         return;
     }
 
-    // Pet selector
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new("Pet:")
-                .color(style::TEXT_MUTED)
-                .size(13.0),
-        );
+    // Pet selector — show name + class for clarity
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new("Pet:").color(style::TEXT_MUTED).size(13.0));
         for (i, pet_rooms) in log.room_stats.iter().enumerate() {
+            let class_label = log
+                .pets
+                .iter()
+                .find(|p| p.name == pet_rooms.pet_name)
+                .map(|p| {
+                    if p.class.is_empty() || p.class == "None" {
+                        pet_rooms.pet_name.clone()
+                    } else {
+                        format!("{} ({})", pet_rooms.pet_name, p.class)
+                    }
+                })
+                .unwrap_or_else(|| pet_rooms.pet_name.clone());
+
             if ui
                 .selectable_label(
                     *selected_pet == i,
-                    RichText::new(&pet_rooms.pet_name)
-                        .color(pet_color(i))
-                        .size(13.0),
+                    RichText::new(&class_label).color(pet_color(i)).size(13.0),
                 )
                 .clicked()
             {
@@ -677,48 +714,172 @@ fn show_room_stats(ui: &mut Ui, log: &DungeonLog, selected_pet: &mut usize) {
 
     let pet_rooms = &log.room_stats[*selected_pet];
 
-    // Bar chart of damage done per room
-    show_room_bar_chart(ui, pet_rooms, *selected_pet);
+    // Find the pet's class so we can choose the most meaningful chart metric.
+    let pet_class = log
+        .pets
+        .iter()
+        .find(|p| p.name == pet_rooms.pet_name)
+        .map(|p| p.class.as_str())
+        .unwrap_or("");
+
+    let is_supporter = pet_class == "Supporter";
+    let chart_mode = ChartMode::for_class(pet_class);
+
+    // Bar chart — metric depends on class
+    show_room_bar_chart(ui, pet_rooms, *selected_pet, chart_mode);
 
     ui.add_space(12.0);
 
-    // Detailed table
+    // For supporters: show party-wide damage taken per room so the player can
+    // see whether healing kept up with the team's incoming damage.
+    if is_supporter {
+        // Build a map from room number → total party damage taken
+        let mut party_taken_by_room: std::collections::HashMap<u32, i64> =
+            std::collections::HashMap::new();
+        for pet_rs in &log.room_stats {
+            for r in &pet_rs.rooms {
+                let taken = r.damage_taken.replace(',', "").parse::<i64>().unwrap_or(0);
+                *party_taken_by_room.entry(r.room).or_default() += taken;
+            }
+        }
+
+        // Render as a secondary bar chart
+        let party_values: Vec<f32> = pet_rooms
+            .rooms
+            .iter()
+            .map(|r| *party_taken_by_room.get(&r.room).unwrap_or(&0) as f32)
+            .collect();
+        let max_party = party_values.iter().copied().fold(0.0f32, f32::max).max(1.0);
+
+        if max_party > 1.0 {
+            let chart_height = 80.0;
+            let available_width = ui.available_width().min(800.0);
+            let bar_width = ((available_width - 40.0) / party_values.len() as f32)
+                .min(30.0)
+                .max(8.0);
+            let total_width = bar_width * party_values.len() as f32 + 40.0;
+
+            ui.label(
+                RichText::new("Party Damage Taken per Room")
+                    .color(style::WARNING)
+                    .size(11.0),
+            );
+
+            let (rect, _) =
+                ui.allocate_exact_size(Vec2::new(total_width, chart_height), egui::Sense::hover());
+            let chart_left = rect.left() + 40.0;
+            let chart_bottom = rect.bottom();
+            let chart_top = rect.top();
+
+            ui.painter().text(
+                egui::pos2(chart_left - 4.0, chart_top),
+                egui::Align2::RIGHT_TOP,
+                format_number(max_party as u64),
+                egui::FontId::new(9.0, egui::FontFamily::Proportional),
+                style::TEXT_MUTED,
+            );
+
+            // Draw healed overlay (green) on top of taken (orange)
+            let healed_values: Vec<f32> = pet_rooms
+                .rooms
+                .iter()
+                .map(|r| {
+                    r.healed
+                        .as_ref()
+                        .map(|h| h.replace(',', "").parse::<f32>().unwrap_or(0.0))
+                        .unwrap_or(0.0)
+                })
+                .collect();
+
+            for (i, (&taken_val, &healed_val)) in
+                party_values.iter().zip(healed_values.iter()).enumerate()
+            {
+                let x = chart_left + i as f32 * bar_width + 2.0;
+                let taken_h = (taken_val / max_party) * (chart_bottom - chart_top - 4.0);
+                let taken_rect = egui::Rect::from_min_size(
+                    egui::pos2(x, chart_bottom - taken_h),
+                    Vec2::new(bar_width - 4.0, taken_h),
+                );
+                ui.painter()
+                    .rect_filled(taken_rect, CornerRadius::same(2), style::WARNING.linear_multiply(0.5));
+
+                // Healed capped to taken bar height for overlay
+                let healed_h = ((healed_val / max_party) * (chart_bottom - chart_top - 4.0))
+                    .min(taken_h);
+                if healed_h > 0.5 {
+                    let healed_rect = egui::Rect::from_min_size(
+                        egui::pos2(x, chart_bottom - healed_h),
+                        Vec2::new(bar_width - 4.0, healed_h),
+                    );
+                    ui.painter()
+                        .rect_filled(healed_rect, CornerRadius::same(2), style::SUCCESS.linear_multiply(0.6));
+                }
+            }
+        }
+
+        ui.add_space(8.0);
+    }
+
+    // Detailed table — always show all columns
     egui::Grid::new("room_stats_table")
         .num_columns(5)
         .spacing([12.0, 3.0])
         .striped(true)
         .show(ui, |ui| {
-            // Header
             ui.label(RichText::new("Room").color(style::TEXT_MUTED).size(11.0).strong());
             ui.label(RichText::new("Dmg Done").color(style::TEXT_MUTED).size(11.0).strong());
-            ui.label(RichText::new("Dmg Taken").color(style::TEXT_MUTED).size(11.0).strong());
+            // Supporters: label changes to reflect the party-wide column
+            let taken_header = if is_supporter { "Party Taken" } else { "Dmg Taken" };
+            ui.label(RichText::new(taken_header).color(style::TEXT_MUTED).size(11.0).strong());
             ui.label(RichText::new("Healed").color(style::TEXT_MUTED).size(11.0).strong());
             ui.label(RichText::new("Net").color(style::TEXT_MUTED).size(11.0).strong());
             ui.end_row();
 
+            // Build party taken lookup for supporters
+            let party_taken_map: std::collections::HashMap<u32, i64> = if is_supporter {
+                let mut m = std::collections::HashMap::new();
+                for pet_rs in &log.room_stats {
+                    for r in &pet_rs.rooms {
+                        let taken = r.damage_taken.replace(',', "").parse::<i64>().unwrap_or(0);
+                        *m.entry(r.room).or_default() += taken;
+                    }
+                }
+                m
+            } else {
+                std::collections::HashMap::new()
+            };
+
             for r in &pet_rooms.rooms {
                 let done = r.damage_done.replace(',', "").parse::<i64>().unwrap_or(0);
-                let taken = r.damage_taken.replace(',', "").parse::<i64>().unwrap_or(0);
+                let my_taken = r.damage_taken.replace(',', "").parse::<i64>().unwrap_or(0);
                 let healed = r
                     .healed
                     .as_ref()
                     .map(|h| h.replace(',', "").parse::<i64>().unwrap_or(0))
                     .unwrap_or(0);
-                let net = done - taken + healed;
 
-                ui.label(
-                    RichText::new(format!("{}", r.room))
-                        .color(style::ACCENT)
-                        .size(11.0),
-                );
+                // For supporters, show party-wide taken in the taken column.
+                let display_taken = if is_supporter {
+                    *party_taken_map.get(&r.room).unwrap_or(&my_taken)
+                } else {
+                    my_taken
+                };
+                // Net: for supporters this is "healed vs party taken"
+                let net = if is_supporter {
+                    healed - display_taken
+                } else {
+                    done - my_taken + healed
+                };
+
+                ui.label(RichText::new(format!("{}", r.room)).color(style::ACCENT).size(11.0));
                 ui.label(
                     RichText::new(&r.damage_done)
-                        .color(style::TEXT_NORMAL)
+                        .color(if done > 0 { style::TEXT_NORMAL } else { style::TEXT_MUTED })
                         .size(11.0),
                 );
                 ui.label(
-                    RichText::new(&r.damage_taken)
-                        .color(if taken > 0 { style::WARNING } else { style::TEXT_MUTED })
+                    RichText::new(format_number(display_taken as u64))
+                        .color(if display_taken > 0 { style::WARNING } else { style::TEXT_MUTED })
                         .size(11.0),
                 );
                 ui.label(
@@ -736,24 +897,94 @@ fn show_room_stats(ui: &mut Ui, log: &DungeonLog, selected_pet: &mut usize) {
         });
 }
 
-fn show_room_bar_chart(ui: &mut Ui, pet_rooms: &log_parser::PetRoomStats, pet_idx: usize) {
-    let values: Vec<f32> = pet_rooms
-        .rooms
-        .iter()
-        .map(|r| r.damage_done.replace(',', "").parse::<f32>().unwrap_or(0.0))
-        .collect();
+/// Which metric to feature in the room bar chart, chosen by pet class.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ChartMode {
+    DamageDone,
+    DamageTaken,
+    Healed,
+}
+
+impl ChartMode {
+    fn for_class(class: &str) -> Self {
+        match class {
+            "Supporter" => Self::Healed,
+            "Defender" => Self::DamageTaken,
+            _ => Self::DamageDone,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::DamageDone => "Damage Dealt per Room",
+            Self::DamageTaken => "Damage Absorbed per Room",
+            Self::Healed => "Healing Done per Room",
+        }
+    }
+
+    fn color(self) -> Color32 {
+        match self {
+            Self::DamageDone => Color32::from_rgb(0xff, 0x88, 0x55), // orange-red
+            Self::DamageTaken => style::WARNING,
+            Self::Healed => style::SUCCESS,
+        }
+    }
+
+    fn value(self, r: &log_parser::RoomStat) -> f32 {
+        match self {
+            Self::DamageDone => r.damage_done.replace(',', "").parse::<f32>().unwrap_or(0.0),
+            Self::DamageTaken => r.damage_taken.replace(',', "").parse::<f32>().unwrap_or(0.0),
+            Self::Healed => r
+                .healed
+                .as_ref()
+                .map(|h| h.replace(',', "").parse::<f32>().unwrap_or(0.0))
+                .unwrap_or(0.0),
+        }
+    }
+}
+
+fn show_room_bar_chart(
+    ui: &mut Ui,
+    pet_rooms: &log_parser::PetRoomStats,
+    pet_idx: usize,
+    mode: ChartMode,
+) {
+    let values: Vec<f32> = pet_rooms.rooms.iter().map(|r| mode.value(r)).collect();
     let max_val = values.iter().copied().fold(0.0f32, f32::max).max(1.0);
 
-    let bar_color = pet_color(pet_idx);
+    // Use the mode's semantic colour blended with the pet's identity colour.
+    let semantic_color = mode.color();
+    let identity_color = pet_color(pet_idx);
+    let bar_color = Color32::from_rgb(
+        ((semantic_color.r() as u16 + identity_color.r() as u16) / 2) as u8,
+        ((semantic_color.g() as u16 + identity_color.g() as u16) / 2) as u8,
+        ((semantic_color.b() as u16 + identity_color.b() as u16) / 2) as u8,
+    );
+
+    // If there's nothing to display (e.g. a Supporter with no healing data),
+    // show a short explanatory note instead of an empty chart.
+    if max_val <= 1.0 && values.iter().all(|&v| v == 0.0) {
+        ui.label(
+            RichText::new(format!(
+                "No {} data recorded for this pet.",
+                mode.label().to_lowercase()
+            ))
+            .color(style::TEXT_MUTED)
+            .size(11.0),
+        );
+        return;
+    }
+
     let chart_height = 120.0;
     let available_width = ui.available_width().min(800.0);
-    let bar_width = ((available_width - 40.0) / values.len() as f32).min(30.0).max(8.0);
+    let bar_width = ((available_width - 40.0) / values.len() as f32)
+        .min(30.0)
+        .max(8.0);
     let total_width = bar_width * values.len() as f32 + 40.0;
 
-    // Y-axis label
     ui.label(
-        RichText::new("Damage Done per Room")
-            .color(style::TEXT_MUTED)
+        RichText::new(mode.label())
+            .color(semantic_color)
             .size(11.0),
     );
 
@@ -766,7 +997,6 @@ fn show_room_bar_chart(ui: &mut Ui, pet_rooms: &log_parser::PetRoomStats, pet_id
     let chart_bottom = rect.bottom() - 18.0;
     let chart_top = rect.top();
 
-    // Y axis
     ui.painter().line_segment(
         [
             egui::pos2(chart_left, chart_top),
@@ -775,7 +1005,6 @@ fn show_room_bar_chart(ui: &mut Ui, pet_rooms: &log_parser::PetRoomStats, pet_id
         Stroke::new(1.0, style::TEXT_MUTED.linear_multiply(0.3)),
     );
 
-    // Max value label
     ui.painter().text(
         egui::pos2(chart_left - 4.0, chart_top),
         egui::Align2::RIGHT_TOP,
@@ -784,7 +1013,6 @@ fn show_room_bar_chart(ui: &mut Ui, pet_rooms: &log_parser::PetRoomStats, pet_id
         style::TEXT_MUTED,
     );
 
-    // Bars
     for (i, &val) in values.iter().enumerate() {
         let x = chart_left + i as f32 * bar_width + 2.0;
         let height = (val / max_val) * (chart_bottom - chart_top - 4.0);
@@ -793,9 +1021,8 @@ fn show_room_bar_chart(ui: &mut Ui, pet_rooms: &log_parser::PetRoomStats, pet_id
             Vec2::new(bar_width - 4.0, height),
         );
         ui.painter()
-            .rect_filled(bar_rect, CornerRadius::same(2), bar_color.linear_multiply(0.7));
+            .rect_filled(bar_rect, CornerRadius::same(2), bar_color.linear_multiply(0.8));
 
-        // Room number label
         ui.painter().text(
             egui::pos2(x + (bar_width - 4.0) / 2.0, chart_bottom + 2.0),
             egui::Align2::CENTER_TOP,
@@ -850,12 +1077,34 @@ fn show_combat(ui: &mut Ui, log: &DungeonLog, expanded_rooms: &mut Vec<bool>) {
         }
 
         let expanded = &mut expanded_rooms[idx];
+        let monster_str = if room.has_monster_header {
+            format!("{} monsters", room.monsters.len())
+        } else if room.event_type.is_some() {
+            "monsters unknown".to_string()
+        } else {
+            "0 monsters".to_string()
+        };
+
+        let event_prefix = room
+            .event_type
+            .as_ref()
+            .map(|e| format!("[{e}] "))
+            .unwrap_or_default();
+
         let header_text = format!(
-            "Room {} \u{2022} {} monsters \u{2022} {} turns",
+            "{}Room {} \u{2022} {} \u{2022} {} turns",
+            event_prefix,
             room.room_number,
-            room.monsters.len(),
+            monster_str,
             room.turns.len(),
         );
+
+        // Event rooms use a distinct warm color; normal rooms use the accent.
+        let header_color = if room.event_type.is_some() {
+            style::WARNING
+        } else {
+            style::ACCENT
+        };
 
         let toggle = ui
             .horizontal(|ui| {
@@ -863,7 +1112,7 @@ fn show_combat(ui: &mut Ui, log: &DungeonLog, expanded_rooms: &mut Vec<bool>) {
                 let resp = ui.selectable_label(
                     false,
                     RichText::new(format!("{arrow} {header_text}"))
-                        .color(style::ACCENT)
+                        .color(header_color)
                         .size(13.0)
                         .strong(),
                 );
