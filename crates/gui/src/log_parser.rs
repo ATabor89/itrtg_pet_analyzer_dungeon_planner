@@ -98,9 +98,15 @@ pub struct RoomStat {
 #[derive(Debug, Clone)]
 pub struct RoomCombatLog {
     pub room_number: u32,
+    /// Set when the room is an event room (e.g. "Treasure", "Fog", "Wounded Pet").
+    pub event_type: Option<String>,
     pub pet_hp: Vec<(String, String)>,
+    /// Empty when the log has no Monsters: header (some event rooms omit it).
     pub monsters: Vec<(String, String)>,
+    /// `true` when a Monsters: header was present (even if zero monsters).
+    pub has_monster_header: bool,
     pub traps: String,
+    /// Pre-combat notes: event narrative, modifier notices (e.g. "Mist Sphere decreases...").
     pub notes: Vec<String>,
     pub turns: Vec<TurnInfo>,
     pub drops: Vec<String>,
@@ -658,6 +664,56 @@ fn parse_room_stat_line(line: &str) -> Option<RoomStat> {
     })
 }
 
+/// Parse a list of "Name N,NNN HP" entries from a room header line.
+///
+/// Numbers in HP values may contain commas (e.g. "Armadillo 3,901 HP"), so we
+/// cannot split the whole line on ", ". Instead we find each " HP" occurrence
+/// and work backwards to extract the number and name.
+fn parse_creature_hp_list(line: &str) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+    let mut remaining = line;
+
+    loop {
+        let hp_pos = match remaining.find(" HP") {
+            Some(p) => p,
+            None => break,
+        };
+        let creature_str = &remaining[..hp_pos];
+        // The HP number is the last whitespace-separated token.
+        if let Some(space) = creature_str.rfind(' ') {
+            let name = creature_str[..space].to_string();
+            let hp = creature_str[space + 1..].to_string();
+            result.push((name, hp));
+        }
+        // Advance past " HP" and the optional ", " separator.
+        let after = &remaining[hp_pos + 3..]; // len(" HP") == 3
+        if after.starts_with(", ") {
+            remaining = &after[2..];
+        } else {
+            break;
+        }
+    }
+
+    result
+}
+
+/// Returns true if `line` looks like the start of a combat turn or action.
+fn is_combat_start(line: &str) -> bool {
+    // Turn header: "Turn 1", "Turn 1:", "Turn 2: Rudolph hp:..."
+    if line.starts_with("Turn ") {
+        return true;
+    }
+    // Priority-ordered action: "842: Squirrel attacked..."
+    // A number optionally with commas, followed by ": "
+    if let Some(colon) = line.find(": ") {
+        let prefix = &line[..colon];
+        if prefix.chars().all(|c| c.is_ascii_digit() || c == ',') && !prefix.is_empty() {
+            return true;
+        }
+    }
+    false
+}
+
 fn parse_room_combat(lines: &[&str], idx: &mut usize) -> RoomCombatLog {
     // "Room 1" header
     let header = lines[*idx];
@@ -667,73 +723,70 @@ fn parse_room_combat(lines: &[&str], idx: &mut usize) -> RoomCombatLog {
         .unwrap_or(0);
     *idx += 1;
 
-    // Skip blanks
-    while *idx < lines.len() && lines[*idx].is_empty() {
-        *idx += 1;
-    }
-
-    // Pet HP line: "Pets: Dragon 1,234 HP, ..."
-    let mut pet_hp = Vec::new();
-    if *idx < lines.len() && lines[*idx].starts_with("Pets:") {
-        let rest = lines[*idx].strip_prefix("Pets: ").unwrap_or("");
-        for chunk in rest.split(", ") {
-            let parts: Vec<&str> = chunk.rsplitn(2, ' ').collect();
-            if parts.len() >= 2 {
-                let hp = parts[0].replace("HP", "").trim().to_string();
-                let name = parts[1].to_string();
-                pet_hp.push((name, hp));
-            }
-        }
-        *idx += 1;
-    }
-
-    // Monster line
-    let mut monsters = Vec::new();
-    if *idx < lines.len() && lines[*idx].starts_with("Monsters:") {
-        let rest = lines[*idx].strip_prefix("Monsters: ").unwrap_or("");
-        for chunk in rest.split(", ") {
-            let parts: Vec<&str> = chunk.rsplitn(2, ' ').collect();
-            if parts.len() >= 2 {
-                let hp = parts[0].replace("HP", "").trim().to_string();
-                let name = parts[1].to_string();
-                monsters.push((name, hp));
-            }
-        }
-        *idx += 1;
-    }
-
-    // Traps line
+    // -------------------------------------------------------------------------
+    // Pre-combat scan — flexible order.
+    //
+    // Normal rooms:     Pets → Monsters → Traps → [notes] → Turn N
+    // Event rooms:      "Event Xxx:" → narrative → Pets → Monsters → Traps → Turn N
+    // Treasure/Fog evt: "Event Xxx:" → narrative → Pets → Turn N  (no Monsters/Traps)
+    //
+    // We scan every line until the first Turn/action line, routing each line to
+    // the appropriate bucket.  Blanks are skipped silently.
+    // -------------------------------------------------------------------------
+    let mut pet_hp: Vec<(String, String)> = Vec::new();
+    let mut monsters: Vec<(String, String)> = Vec::new();
+    let mut has_monster_header = false;
     let mut traps = "None".to_string();
-    if *idx < lines.len() && lines[*idx].starts_with("Traps:") {
-        traps = lines[*idx]
-            .strip_prefix("Traps: ")
-            .unwrap_or("None")
-            .to_string();
-        *idx += 1;
-    }
+    let mut notes: Vec<String> = Vec::new();
+    let mut event_type: Option<String> = None;
 
-    // Optional notes (e.g. Santa stat modifier)
-    let mut notes = Vec::new();
-    while *idx < lines.len() && lines[*idx].is_empty() {
-        *idx += 1;
-    }
-    while *idx < lines.len()
-        && !lines[*idx].is_empty()
-        && !lines[*idx].starts_with("Turn ")
-        && !lines[*idx].starts_with("Room ")
-        && !lines[*idx].contains(" gave ")
-        && !lines[*idx].contains(" dropped ")
-    {
-        // Check if it looks like a combat action (starts with a number)
-        if lines[*idx].chars().next().map_or(false, |c| c.is_ascii_digit()) {
+    loop {
+        if *idx >= lines.len() {
             break;
         }
-        notes.push(lines[*idx].to_string());
-        *idx += 1;
-    }
+        let line = lines[*idx];
 
-    while *idx < lines.len() && lines[*idx].is_empty() {
-        *idx += 1;
+        // Blank lines — skip silently.
+        if line.is_empty() {
+            *idx += 1;
+            continue;
+        }
+
+        // Start of combat — stop pre-combat scan.
+        if is_combat_start(line) {
+            break;
+        }
+
+        // End of room from the outside — stop.
+        if (line.starts_with("Room ") && !line.contains("damage"))
+            || line.contains(" gave ")
+            || line.contains(" dropped ")
+        {
+            break;
+        }
+
+        if line.starts_with("Pets:") {
+            let rest = line.strip_prefix("Pets: ").unwrap_or("");
+            pet_hp = parse_creature_hp_list(rest);
+            *idx += 1;
+        } else if line.starts_with("Monsters:") {
+            let rest = line.strip_prefix("Monsters: ").unwrap_or("");
+            monsters = parse_creature_hp_list(rest);
+            has_monster_header = true;
+            *idx += 1;
+        } else if line.starts_with("Traps:") {
+            traps = line.strip_prefix("Traps: ").unwrap_or("None").to_string();
+            *idx += 1;
+        } else {
+            // Event header or narrative, modifier notice, etc.
+            // Detect "Event Xxx:" lines (e.g. "Event Fog:", "Event Treasure:").
+            if let Some(rest) = line.strip_prefix("Event ") {
+                let kind = rest.trim_end_matches(':').to_string();
+                event_type = Some(kind);
+            }
+            notes.push(line.to_string());
+            *idx += 1;
+        }
     }
 
     // Turns
@@ -833,8 +886,10 @@ fn parse_room_combat(lines: &[&str], idx: &mut usize) -> RoomCombatLog {
 
     RoomCombatLog {
         room_number,
+        event_type,
         pet_hp,
         monsters,
+        has_monster_header,
         traps,
         notes,
         turns,
