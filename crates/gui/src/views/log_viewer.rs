@@ -28,8 +28,12 @@ pub struct LogViewerState {
     section: LogSection,
     /// Which rooms are expanded in combat view.
     expanded_rooms: Vec<bool>,
-    /// Which pet is selected for room stats chart (index into log.pets).
+    /// Which pet is selected for room stats chart (index into log.room_stats).
     selected_pet: usize,
+    /// Display order for pet cards, derived from dungeon_recommendations.yaml.
+    /// Contains indices into log.pets, length == log.pets.len().
+    /// Falls back to [0,1,2,...] when no recommendation is available.
+    party_order: Vec<usize>,
 }
 
 impl LogViewerState {
@@ -39,6 +43,8 @@ impl LogViewerState {
                 let room_count = log.rooms.len().max(log.room_count as usize);
                 self.expanded_rooms = vec![false; room_count];
                 self.selected_pet = 0;
+                self.party_order =
+                    compute_party_order(&log.pets, &log.dungeon_name, &log.dungeon_level);
                 self.log = Some(log);
                 self.filename = filename;
                 self.error = None;
@@ -50,7 +56,125 @@ impl LogViewerState {
             }
         }
     }
+}
 
+// =============================================================================
+// Party ordering from dungeon_recommendations.yaml
+// =============================================================================
+
+/// Compute the display order for pet cards by matching pets against the slot
+/// requirements for the given dungeon and depth from the recommendations file.
+///
+/// Returns a `Vec<usize>` of indices into `pets`, length == `pets.len()`.
+/// Falls back to `[0, 1, 2, …]` when the YAML file is missing or the dungeon
+/// / depth combination has no party data.
+fn compute_party_order(
+    pets: &[log_parser::PetInfo],
+    dungeon_name: &str,
+    dungeon_level: &str,
+) -> Vec<usize> {
+    let default_order: Vec<usize> = (0..pets.len()).collect();
+
+    // Parse the depth number.
+    let depth_num: u64 = match dungeon_level.parse() {
+        Ok(n) => n,
+        Err(_) => return default_order,
+    };
+
+    // Load YAML.
+    let yaml_str = match std::fs::read_to_string("data/dungeon_recommendations.yaml") {
+        Ok(s) => s,
+        Err(_) => return default_order,
+    };
+    let yaml: serde_yaml::Value = match serde_yaml::from_str(&yaml_str) {
+        Ok(v) => v,
+        Err(_) => return default_order,
+    };
+
+    // Navigate: dungeons -> dungeon_name -> depths
+    let depths = match yaml
+        .get("dungeons")
+        .and_then(|d| d.get(dungeon_name))
+        .and_then(|dn| dn.get("depths"))
+    {
+        Some(d) => d,
+        None => return default_order,
+    };
+
+    // depths is a YAML mapping with integer keys (e.g. `2:`)
+    let party_seq = if let serde_yaml::Value::Mapping(m) = depths {
+        m.iter()
+            .find(|(k, _)| {
+                // Keys may parse as u64 or as string
+                k.as_u64() == Some(depth_num)
+                    || k.as_str()
+                        .and_then(|s| s.parse::<u64>().ok())
+                        == Some(depth_num)
+            })
+            .and_then(|(_, v)| v.get("party"))
+    } else {
+        None
+    };
+
+    let slots = match party_seq {
+        Some(serde_yaml::Value::Sequence(s)) => s,
+        _ => return default_order,
+    };
+
+    // Extract the class requirement for each slot ("any" or a specific class).
+    let slot_classes: Vec<&str> = slots
+        .iter()
+        .map(|slot| {
+            slot.get("class")
+                .and_then(|c| c.as_str())
+                .unwrap_or("any")
+        })
+        .collect();
+
+    // Two-pass greedy assignment.
+    let mut assigned: Vec<Option<usize>> = vec![None; slot_classes.len()];
+    let mut used = vec![false; pets.len()];
+
+    // Pass 1: fill specific-class slots with the first matching unassigned pet.
+    for (slot_idx, &slot_class) in slot_classes.iter().enumerate() {
+        if slot_class == "any" {
+            continue;
+        }
+        for (pet_idx, pet) in pets.iter().enumerate() {
+            if !used[pet_idx] && pet.class == slot_class {
+                assigned[slot_idx] = Some(pet_idx);
+                used[pet_idx] = true;
+                break;
+            }
+        }
+    }
+
+    // Pass 2: fill wildcard slots with remaining pets in original order.
+    let remaining: Vec<usize> = (0..pets.len()).filter(|&i| !used[i]).collect();
+    let mut rem_iter = remaining.into_iter();
+    for (slot_idx, &slot_class) in slot_classes.iter().enumerate() {
+        if slot_class != "any" {
+            continue;
+        }
+        if let Some(pet_idx) = rem_iter.next() {
+            assigned[slot_idx] = Some(pet_idx);
+        }
+    }
+
+    // Build result: assigned slots in slot-order, then any overflow pets.
+    let mut order: Vec<usize> = assigned.into_iter().flatten().collect();
+    // Append pets that never got a slot (party has fewer slots than pets, rare).
+    for i in 0..pets.len() {
+        if !order.contains(&i) {
+            order.push(i);
+        }
+    }
+
+    if order.len() == pets.len() {
+        order
+    } else {
+        default_order
+    }
 }
 
 // =============================================================================
@@ -178,6 +302,7 @@ pub fn show(ui: &mut Ui, state: &mut LogViewerState) {
     ui.separator();
 
     let section = state.section;
+    let party_order = state.party_order.clone();
     let selected_pet = &mut state.selected_pet;
     let expanded_rooms = &mut state.expanded_rooms;
     let log = state.log.as_ref().unwrap();
@@ -185,8 +310,8 @@ pub fn show(ui: &mut Ui, state: &mut LogViewerState) {
     egui::ScrollArea::vertical()
         .auto_shrink([false; 2])
         .show(ui, |ui| match section {
-            LogSection::Overview => show_overview(ui, log),
-            LogSection::RoomStats => show_room_stats(ui, log, selected_pet),
+            LogSection::Overview => show_overview(ui, log, &party_order),
+            LogSection::RoomStats => show_room_stats(ui, log, selected_pet, &party_order),
             LogSection::Combat => show_combat(ui, log, expanded_rooms),
         });
 }
@@ -252,7 +377,7 @@ fn show_empty_state(ui: &mut Ui, state: &LogViewerState) {
 // Overview section
 // =============================================================================
 
-fn show_overview(ui: &mut Ui, log: &DungeonLog) {
+fn show_overview(ui: &mut Ui, log: &DungeonLog, party_order: &[usize]) {
     // Pet cards
     ui.label(
         RichText::new("Party")
@@ -263,6 +388,14 @@ fn show_overview(ui: &mut Ui, log: &DungeonLog) {
     ui.add_space(4.0);
 
     let totals = log_parser::compute_totals(log);
+
+    // Effective display order: use party_order when it covers all pets exactly,
+    // otherwise fall back to the original [0, 1, 2, …] order.
+    let effective_order: Vec<usize> = if party_order.len() == log.pets.len() {
+        party_order.to_vec()
+    } else {
+        (0..log.pets.len()).collect()
+    };
 
     // Pet cards in a 2×3 grid (front row / back row mirrors in-game party layout).
     // We lock column width so the Grid cannot expand cards to fill the whole panel.
@@ -279,9 +412,10 @@ fn show_overview(ui: &mut Ui, log: &DungeonLog) {
         .max_col_width(card_width)
         .spacing([col_spacing, 8.0])
         .show(ui, |ui| {
-            for (i, pet) in log.pets.iter().enumerate() {
+            for (grid_pos, &pet_idx) in effective_order.iter().enumerate() {
+                let pet = &log.pets[pet_idx];
                 show_pet_card(ui, pet, &totals, card_width);
-                if (i + 1) % COLS == 0 {
+                if (grid_pos + 1) % COLS == 0 {
                     ui.end_row();
                 }
             }
@@ -608,12 +742,14 @@ fn show_pet_card(
                 );
             });
 
-            // Row 3: Dungeon-run stats (class-aware ordering)
-            if let Some(&(done, taken, healed)) = totals.get(&pet.name) {
-                let is_supporter = pet.class == "Supporter";
-                let is_defender = pet.class == "Defender";
+            // Row 3: Dungeon-run stats — always rendered for uniform card height.
+            // When no stats are recorded for this pet, show a placeholder dash.
+            let run_stats = totals.get(&pet.name).copied();
+            ui.horizontal(|ui| {
+                if let Some((done, taken, healed)) = run_stats {
+                    let is_supporter = pet.class == "Supporter";
+                    let is_defender = pet.class == "Defender";
 
-                ui.horizontal(|ui| {
                     if is_supporter {
                         // Supporters lead with healed
                         if healed > 0 {
@@ -658,8 +794,18 @@ fn show_pet_card(
                                 .size(10.0),
                         );
                     }
-                });
-            }
+
+                    // If all three are zero (no combat), show a dash so row has height.
+                    if done == 0 && taken == 0 && healed == 0 {
+                        ui.label(
+                            RichText::new("—").color(style::TEXT_MUTED).size(11.0),
+                        );
+                    }
+                } else {
+                    // No room stats recorded for this pet.
+                    ui.label(RichText::new("—").color(style::TEXT_MUTED).size(11.0));
+                }
+            });
         });
 }
 
@@ -667,7 +813,12 @@ fn show_pet_card(
 // Room Stats section
 // =============================================================================
 
-fn show_room_stats(ui: &mut Ui, log: &DungeonLog, selected_pet: &mut usize) {
+fn show_room_stats(
+    ui: &mut Ui,
+    log: &DungeonLog,
+    selected_pet: &mut usize,
+    party_order: &[usize],
+) {
     if log.room_stats.is_empty() {
         ui.label(
             RichText::new("No room stats available in this log.")
@@ -677,31 +828,44 @@ fn show_room_stats(ui: &mut Ui, log: &DungeonLog, selected_pet: &mut usize) {
         return;
     }
 
-    // Pet selector — show name + class for clarity
+    // Pet selector — iterate in party_order so buttons appear in the same order
+    // as the pet cards on the Overview tab.  Colour is keyed to the room_stats
+    // index so it stays consistent with the bar chart below.
+    let effective_order: Vec<usize> = if party_order.len() == log.pets.len() {
+        party_order.to_vec()
+    } else {
+        (0..log.pets.len()).collect()
+    };
+
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new("Pet:").color(style::TEXT_MUTED).size(13.0));
-        for (i, pet_rooms) in log.room_stats.iter().enumerate() {
-            let class_label = log
-                .pets
+        for &pet_idx in &effective_order {
+            let pet = &log.pets[pet_idx];
+            // Find the corresponding room_stats entry (may not exist for every pet).
+            let stats_idx = log
+                .room_stats
                 .iter()
-                .find(|p| p.name == pet_rooms.pet_name)
-                .map(|p| {
-                    if p.class.is_empty() || p.class == "None" {
-                        pet_rooms.pet_name.clone()
-                    } else {
-                        format!("{} ({})", pet_rooms.pet_name, p.class)
-                    }
-                })
-                .unwrap_or_else(|| pet_rooms.pet_name.clone());
+                .position(|rs| rs.pet_name == pet.name);
+            let Some(stats_idx) = stats_idx else {
+                continue;
+            };
+
+            let class_label = if pet.class.is_empty() || pet.class == "None" {
+                pet.name.clone()
+            } else {
+                format!("{} ({})", pet.name, pet.class)
+            };
 
             if ui
                 .selectable_label(
-                    *selected_pet == i,
-                    RichText::new(&class_label).color(pet_color(i)).size(13.0),
+                    *selected_pet == stats_idx,
+                    RichText::new(&class_label)
+                        .color(pet_color(stats_idx))
+                        .size(13.0),
                 )
                 .clicked()
             {
-                *selected_pet = i;
+                *selected_pet = stats_idx;
             }
         }
     });
