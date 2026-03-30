@@ -1,5 +1,6 @@
 mod app;
 mod data;
+mod log_parser;
 mod style;
 mod views;
 

@@ -2,7 +2,7 @@ use eframe::egui::{self, RichText};
 
 use crate::data::DataStore;
 use crate::style;
-use crate::views::{analyzer, dungeon};
+use crate::views::{analyzer, dungeon, log_viewer};
 
 // =============================================================================
 // App
@@ -12,6 +12,7 @@ use crate::views::{analyzer, dungeon};
 enum Tab {
     Analyzer,
     DungeonPlanner,
+    DungeonLog,
 }
 
 pub struct App {
@@ -19,6 +20,7 @@ pub struct App {
     data: DataStore,
     analyzer_state: analyzer::AnalyzerState,
     dungeon_state: dungeon::DungeonState,
+    log_viewer_state: log_viewer::LogViewerState,
     show_import_dialog: bool,
     import_text: String,
 }
@@ -70,6 +72,7 @@ impl App {
             data,
             analyzer_state: analyzer::AnalyzerState::default(),
             dungeon_state,
+            log_viewer_state: log_viewer::LogViewerState::default(),
             show_import_dialog: false,
             import_text: String::new(),
         }
@@ -84,12 +87,30 @@ impl eframe::App for App {
         // Handle dropped files
         ctx.input(|i| {
             for file in &i.raw.dropped_files {
+                let is_html = file
+                    .path
+                    .as_ref()
+                    .map(|p| {
+                        p.extension()
+                            .map(|e| e.eq_ignore_ascii_case("html") || e.eq_ignore_ascii_case("htm"))
+                            .unwrap_or(false)
+                    })
+                    .unwrap_or(false);
+
                 if let Some(bytes) = &file.bytes {
                     let text = String::from_utf8_lossy(bytes);
-                    if text.starts_with("Name;") {
+                    if is_html || text.contains("<br>") || text.contains("<BR>") {
+                        // Dungeon log HTML
+                        let fname = file
+                            .path
+                            .as_ref()
+                            .and_then(|p| p.file_name())
+                            .map(|n| n.to_string_lossy().to_string());
+                        self.log_viewer_state.load_html(&text, fname);
+                        self.tab = Tab::DungeonLog;
+                    } else if text.starts_with("Name;") {
                         self.data.import_export(&text);
                     } else if text.contains("{| class=\"wikitable") || text.contains("[[Mouse]]") {
-                        // Looks like wiki source
                         match wiki_extractor::parser::parse_pets(&text) {
                             Ok(pets) => {
                                 let count = pets.len();
@@ -107,14 +128,18 @@ impl eframe::App for App {
                         }
                     } else {
                         self.data.import_status = Some((
-                            "Unrecognized file format. Expected pet export or wiki source."
+                            "Unrecognized file format. Expected pet export, wiki source, or dungeon log HTML."
                                 .to_string(),
                             true,
                         ));
                     }
                 } else if let Some(path) = &file.path {
                     if let Ok(text) = std::fs::read_to_string(path) {
-                        if text.starts_with("Name;") {
+                        if is_html || text.contains("<br>") || text.contains("<BR>") {
+                            let fname = path.file_name().map(|n| n.to_string_lossy().to_string());
+                            self.log_viewer_state.load_html(&text, fname);
+                            self.tab = Tab::DungeonLog;
+                        } else if text.starts_with("Name;") {
                             self.data.import_export(&text);
                         } else {
                             match wiki_extractor::parser::parse_pets(&text) {
@@ -170,8 +195,38 @@ impl eframe::App for App {
                 {
                     self.tab = Tab::DungeonPlanner;
                 }
+                if ui
+                    .selectable_label(
+                        self.tab == Tab::DungeonLog,
+                        RichText::new("Dungeon Log").size(14.0),
+                    )
+                    .clicked()
+                {
+                    self.tab = Tab::DungeonLog;
+                }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Open dungeon log file
+                    if ui
+                        .button(RichText::new("\u{1F4C2} Open Log File").size(12.0))
+                        .clicked()
+                    {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Dungeon Log", &["html", "htm"])
+                            .set_directory("data/dungeon_logs")
+                            .pick_file()
+                        {
+                            if let Ok(text) = std::fs::read_to_string(&path) {
+                                let fname =
+                                    path.file_name().map(|n| n.to_string_lossy().to_string());
+                                self.log_viewer_state.load_html(&text, fname);
+                                self.tab = Tab::DungeonLog;
+                            }
+                        }
+                    }
+
+                    ui.separator();
+
                     // Wiki refresh
                     if self.data.wiki_loading {
                         ui.spinner();
@@ -263,6 +318,9 @@ impl eframe::App for App {
                 }
                 Tab::DungeonPlanner => {
                     dungeon::show(ui, &mut self.dungeon_state, &self.data);
+                }
+                Tab::DungeonLog => {
+                    log_viewer::show(ui, &mut self.log_viewer_state);
                 }
             }
         });
