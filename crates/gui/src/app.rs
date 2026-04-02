@@ -74,6 +74,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Poll async operations
         self.data.poll_wiki();
+        self.data.poll_clipboard();
 
         // Handle dropped files
         ctx.input(|i| {
@@ -227,8 +228,6 @@ impl eframe::App for App {
                         ui.separator();
                     }
 
-                    // Import from clipboard (native only — WASM uses paste export dialog)
-                    #[cfg(not(target_arch = "wasm32"))]
                     if ui
                         .button(RichText::new("\u{1F4CB} Import Clipboard").size(12.0))
                         .clicked()
