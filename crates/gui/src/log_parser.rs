@@ -2,7 +2,6 @@
 ///
 /// These files are plain HTML with `<br>` line breaks and `<b>` bold tags,
 /// containing structured dungeon run data (pets, stats, items, events, combat).
-
 use std::collections::HashMap;
 
 // =============================================================================
@@ -250,18 +249,12 @@ pub fn parse_dungeon_log(html: &str) -> Result<DungeonLog, String> {
             let parts: Vec<&str> = rest.split_whitespace().collect();
             if parts.len() >= 3 {
                 let turns = parts[0].parse().unwrap_or(0);
-                let room = parts[1]
-                    .strip_prefix("(room")
-                    .or_else(|| parts.get(2).and_then(|p| p.strip_prefix("(room")))
-                    .unwrap_or("0");
-                // Try extracting room from "(room X)"
-                let room_str = rest
+                let room_num = rest
                     .split("(room ")
                     .nth(1)
                     .and_then(|s| s.split(')').next())
-                    .unwrap_or("0");
-                let room_num = room_str.trim().parse().unwrap_or(0);
-                let _ = room; // suppress unused warning
+                    .and_then(|s| s.trim().parse().ok())
+                    .unwrap_or(0);
                 longest_turn = Some((turns, room_num));
             }
         } else if line.contains("exp leech weapon") {
@@ -733,11 +726,7 @@ fn parse_creature_hp_list(line: &str) -> Vec<(String, String)> {
     let mut result = Vec::new();
     let mut remaining = line;
 
-    loop {
-        let hp_pos = match remaining.find(" HP") {
-            Some(p) => p,
-            None => break,
-        };
+    while let Some(hp_pos) = remaining.find(" HP") {
         let creature_str = &remaining[..hp_pos];
         // The HP number is the last whitespace-separated token.
         if let Some(space) = creature_str.rfind(' ') {
@@ -746,9 +735,9 @@ fn parse_creature_hp_list(line: &str) -> Vec<(String, String)> {
             result.push((name, hp));
         }
         // Advance past " HP" and the optional ", " separator.
-        let after = &remaining[hp_pos + 3..]; // len(" HP") == 3
-        if after.starts_with(", ") {
-            remaining = &after[2..];
+        remaining = &remaining[hp_pos + 3..]; // len(" HP") == 3
+        if remaining.starts_with(", ") {
+            remaining = &remaining[2..];
         } else {
             break;
         }
@@ -976,4 +965,397 @@ pub fn compute_totals(log: &DungeonLog) -> HashMap<String, (u64, u64, u64)> {
         }
     }
     totals
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper: build a minimal valid log HTML from `<br>` separated lines.
+    fn make_log(body: &str) -> String {
+        // The parser splits on <br> and strips tags, so raw text with <br> works.
+        body.to_string()
+    }
+
+    // -------------------------------------------------------------------------
+    // strip_tags / html_to_lines
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_strip_tags() {
+        assert_eq!(strip_tags("<b>hello</b> world"), "hello world");
+        assert_eq!(strip_tags("no tags"), "no tags");
+        assert_eq!(strip_tags("<br/>"), "");
+    }
+
+    #[test]
+    fn test_html_to_lines() {
+        let lines = html_to_lines("one<br>two<BR>three<br/>four");
+        assert_eq!(lines, vec!["one", "two", "three", "four"]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Individual line parsers
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_pet_line() {
+        let pet = parse_pet_line("Rudolph, Rogue: Growth 8,634, Level 43, Class Level 10")
+            .expect("should parse");
+        assert_eq!(pet.name, "Rudolph");
+        assert_eq!(pet.class, "Rogue");
+        assert_eq!(pet.growth, "8,634");
+        assert_eq!(pet.level, 43);
+        assert_eq!(pet.class_level, 10);
+    }
+
+    #[test]
+    fn test_parse_pet_line_none_class() {
+        let pet = parse_pet_line("Bat, None: Growth 100, Level 1, Class Level 0")
+            .expect("should parse");
+        assert_eq!(pet.class, "None");
+        assert_eq!(pet.level, 1);
+    }
+
+    #[test]
+    fn test_parse_dungeon_header() {
+        let (name, level, rating, rooms) =
+            parse_dungeon_header("Dungeon result for Scrapyard 2 (8/1/0/0), 15 rooms");
+        assert_eq!(name, "Scrapyard");
+        assert_eq!(level, "2");
+        assert_eq!(rating, "(8/1/0/0)");
+        assert_eq!(rooms, 15);
+    }
+
+    #[test]
+    fn test_parse_dungeon_header_multi_word_name() {
+        let (name, level, _, rooms) =
+            parse_dungeon_header("Dungeon result for Water Temple 3 (5/2/1/0), 20 rooms");
+        assert_eq!(name, "Water Temple");
+        assert_eq!(level, "3");
+        assert_eq!(rooms, 20);
+    }
+
+    #[test]
+    fn test_parse_item_line() {
+        let item = parse_item_line("4 x Torch (29 + 32 left)").expect("should parse");
+        assert_eq!(item.count, 4);
+        assert_eq!(item.name, "Torch");
+        assert!(item.detail.is_some());
+
+        let item2 = parse_item_line("8 x Herb").expect("should parse");
+        assert_eq!(item2.count, 8);
+        assert_eq!(item2.name, "Herb");
+        assert!(item2.detail.is_none());
+    }
+
+    #[test]
+    fn test_parse_event_line() {
+        let ev = parse_event_line("Event in Room 6, Wounded Pet: failed to clear.")
+            .expect("should parse");
+        assert_eq!(ev.room, 6);
+        assert_eq!(ev.event_type, "Wounded Pet");
+        assert_eq!(ev.outcome, "failed to clear");
+        assert!(ev.detail.is_none());
+
+        let ev2 = parse_event_line(
+            "Event in Room 10, Fog: cleared with success. Your experience is increased by 100%",
+        )
+        .expect("should parse");
+        assert_eq!(ev2.room, 10);
+        assert_eq!(ev2.outcome, "cleared with success");
+        assert_eq!(
+            ev2.detail.as_deref(),
+            Some("Your experience is increased by 100%")
+        );
+    }
+
+    #[test]
+    fn test_parse_death_line() {
+        let d = parse_death_line("Dragon was killed by Microbots in room 12, turn 2.")
+            .expect("should parse");
+        assert_eq!(d.pet_name, "Dragon");
+        assert_eq!(d.killed_by, "Microbots");
+        assert_eq!(d.room, 12);
+        assert_eq!(d.turn, 2);
+    }
+
+    #[test]
+    fn test_parse_depth_stat_line() {
+        let ds = parse_depth_stat_line("Depth 1: 3,277 damage done, 0 damage taken.")
+            .expect("should parse");
+        assert_eq!(ds.depth, 1);
+        assert_eq!(ds.damage_done, "3,277");
+        assert_eq!(ds.damage_taken, "0");
+        assert!(ds.healed.is_none());
+    }
+
+    #[test]
+    fn test_parse_depth_stat_with_healed() {
+        let ds = parse_depth_stat_line(
+            "Depth 2: 1,141 damage done, 1,016 damage taken, healed 8,134 hp.",
+        )
+        .expect("should parse");
+        assert_eq!(ds.depth, 2);
+        assert_eq!(ds.damage_done, "1,141");
+        assert_eq!(ds.damage_taken, "1,016");
+        assert_eq!(ds.healed.as_deref(), Some("8,134"));
+    }
+
+    #[test]
+    fn test_parse_room_stat_line() {
+        let rs =
+            parse_room_stat_line("Room 1: 791 damage done, 0 damage taken.").expect("should parse");
+        assert_eq!(rs.room, 1);
+        assert_eq!(rs.damage_done, "791");
+        assert_eq!(rs.damage_taken, "0");
+    }
+
+    #[test]
+    fn test_parse_creature_hp_list() {
+        let list = parse_creature_hp_list("Rudolph 1,234 HP, Dog 567 HP");
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0], ("Rudolph".into(), "1,234".into()));
+        assert_eq!(list[1], ("Dog".into(), "567".into()));
+    }
+
+    #[test]
+    fn test_parse_creature_hp_list_single() {
+        let list = parse_creature_hp_list("Slime 999 HP");
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0], ("Slime".into(), "999".into()));
+    }
+
+    // -------------------------------------------------------------------------
+    // Full log parsing — minimal log
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_minimal_log() {
+        let html = make_log(
+            "<br>Pets used: \
+             <br>Alpha, Rogue: Growth 100, Level 5, Class Level 2\
+             <br>Beta, Mage: Growth 200, Level 10, Class Level 4\
+             <br>\
+             <br>Dungeon result for Forest 1 (3/0/0/0), 3 rooms\
+             <br>\
+             <br>Summary\
+             <br>\
+             <br>Alpha gained a total of 500 experience.\
+             <br>Beta gained a total of 500 experience.\
+             <br>\
+             <br>Longest turn counter: 2 (room 3)\
+             <br>",
+        );
+        let log = parse_dungeon_log(&html).expect("should parse minimal log");
+        assert_eq!(log.pets.len(), 2);
+        assert_eq!(log.pets[0].name, "Alpha");
+        assert_eq!(log.pets[1].name, "Beta");
+        assert_eq!(log.dungeon_name, "Forest");
+        assert_eq!(log.dungeon_level, "1");
+        assert_eq!(log.room_count, 3);
+        assert_eq!(log.summary.xp_gained.len(), 2);
+        assert_eq!(log.summary.xp_gained[0].1, "500");
+        assert_eq!(log.summary.longest_turn, Some((2, 3)));
+    }
+
+    #[test]
+    fn test_parse_log_with_wipe() {
+        let html = make_log(
+            "<br>Pets used: \
+             <br>Alpha, Rogue: Growth 100, Level 5, Class Level 2\
+             <br>\
+             <br>Dungeon result for Scrapyard 2 (8/1/0/0), 32 rooms\
+             <br>\
+             <br>Summary\
+             <br>\
+             <br>Alpha gained a total of 1,000 experience.\
+             <br>\
+             <br>Longest turn counter: 5 (room 16)\
+             <br>Your whole party died in room 32, turn 14 and they lost all items they found!\
+             <br>",
+        );
+        let log = parse_dungeon_log(&html).expect("should parse wipe log");
+        assert!(log.summary.wipe_line.is_some());
+        assert!(log.summary.wipe_line.unwrap().contains("whole party died"));
+    }
+
+    #[test]
+    fn test_parse_log_with_deaths_and_party_wipe_narrative() {
+        // Simulates: individual deaths followed by an "All pets died" narrative
+        // line that does NOT contain "was killed by".
+        let html = make_log(
+            "<br>Pets used: \
+             <br>Alpha, Rogue: Growth 100, Level 5, Class Level 2\
+             <br>Beta, Mage: Growth 200, Level 10, Class Level 4\
+             <br>\
+             <br>Dungeon result for Scrapyard 2 (8/1/0/0), 32 rooms\
+             <br>\
+             <br>Alpha gained a total of 1,000 experience.\
+             <br>Beta gained a total of 1,000 experience.\
+             <br>\
+             <br>Alpha was killed by MURDER in room 16, turn 1.\
+             <br>Beta was killed by MURDER in room 16, turn 4.\
+             <br>All pets died in room 32, turn 14 from a combined, ultimate attack.\
+             <br>\
+             <br>Alpha:\
+             <br>Depth 1: 100 damage done, 50 damage taken.\
+             <br>\
+             <br>Beta:\
+             <br>Depth 1: 200 damage done, 30 damage taken.\
+             <br>",
+        );
+        let log = parse_dungeon_log(&html).expect("should parse death + wipe log");
+        assert_eq!(log.deaths.len(), 2);
+        assert_eq!(log.deaths[0].pet_name, "Alpha");
+        assert_eq!(log.deaths[1].pet_name, "Beta");
+        // Depth stats should still be parsed correctly after the wipe narrative line.
+        assert_eq!(log.depth_stats.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_log_with_leech_and_free_exp() {
+        let html = make_log(
+            "<br>Pets used: \
+             <br>Alpha, Rogue: Growth 100, Level 5, Class Level 2\
+             <br>\
+             <br>Dungeon result for Forest 1 (3/0/0/0), 3 rooms\
+             <br>\
+             <br>Alpha gained a total of 500 experience.\
+             <br>\
+             <br>Items Used:\
+             <br>4 x Torch (29 + 32 left)\
+             <br>\
+             <br>Your 2 pets with an exp leech weapon outside dungeons received a total of 450 experience additionally.\
+             <br>Your free exp pool gained 1,629 (921 from patreons) experience.\
+             <br>",
+        );
+        let log = parse_dungeon_log(&html).expect("should parse leech/free exp log");
+        assert!(log.summary.leech_line.is_some());
+        assert!(log.summary.free_exp_line.is_some());
+        assert_eq!(log.items_used.len(), 1);
+        assert_eq!(log.items_used[0].name, "Torch");
+    }
+
+    // -------------------------------------------------------------------------
+    // compute_totals
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_compute_totals() {
+        let log = DungeonLog {
+            pets: vec![],
+            dungeon_name: String::new(),
+            dungeon_level: String::new(),
+            rating: String::new(),
+            room_count: 0,
+            summary: SummaryInfo {
+                xp_gained: vec![],
+                longest_turn: None,
+                leech_line: None,
+                free_exp_line: None,
+                wipe_line: None,
+            },
+            items_used: vec![],
+            items_found: vec![],
+            items_from_events: vec![],
+            events: vec![],
+            deaths: vec![],
+            depth_stats: vec![],
+            room_stats: vec![PetRoomStats {
+                pet_name: "Alpha".into(),
+                rooms: vec![
+                    RoomStat {
+                        room: 1,
+                        damage_done: "1,000".into(),
+                        damage_taken: "200".into(),
+                        healed: Some("50".into()),
+                    },
+                    RoomStat {
+                        room: 2,
+                        damage_done: "500".into(),
+                        damage_taken: "100".into(),
+                        healed: None,
+                    },
+                ],
+            }],
+            rooms: vec![],
+        };
+        let totals = compute_totals(&log);
+        let (done, taken, healed) = totals.get("Alpha").expect("should have Alpha");
+        assert_eq!(*done, 1500);
+        assert_eq!(*taken, 300);
+        assert_eq!(*healed, 50);
+    }
+
+    // -------------------------------------------------------------------------
+    // Real file parsing (integration-style, only runs when files exist)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_real_scrapyard_log() {
+        let path = "data/dungeon_logs/2026-03-29_21-33_Scrapyard.html";
+        let html = match std::fs::read_to_string(path) {
+            Ok(h) => h,
+            Err(_) => return, // skip if file not present
+        };
+        let log = parse_dungeon_log(&html).expect("should parse real Scrapyard log");
+        assert_eq!(log.dungeon_name, "Scrapyard");
+        assert_eq!(log.dungeon_level, "2");
+        assert_eq!(log.room_count, 15);
+        assert_eq!(log.pets.len(), 6);
+        assert_eq!(log.deaths.len(), 1);
+        assert_eq!(log.deaths[0].pet_name, "Dragon");
+        assert_eq!(log.events.len(), 2);
+        assert!(!log.rooms.is_empty());
+        assert!(!log.depth_stats.is_empty());
+        assert!(!log.room_stats.is_empty());
+    }
+
+    #[test]
+    fn test_parse_real_death_log() {
+        let path = "data/dungeon_logs/death_2026-03-30_09-36_Scrapyard.html";
+        let html = match std::fs::read_to_string(path) {
+            Ok(h) => h,
+            Err(_) => return,
+        };
+        let log = parse_dungeon_log(&html).expect("should parse real death log");
+        assert_eq!(log.dungeon_name, "Scrapyard");
+        assert_eq!(log.pets.len(), 6);
+        assert!(log.summary.wipe_line.is_some());
+        assert!(log.deaths.len() >= 2);
+        // Leech/free-exp should be captured even when they appear after Items sections
+        assert!(log.summary.leech_line.is_some());
+        assert!(log.summary.free_exp_line.is_some());
+        assert!(!log.depth_stats.is_empty());
+        assert!(!log.room_stats.is_empty());
+    }
+
+    #[test]
+    fn test_parse_real_forest_log() {
+        let path = "data/dungeon_logs/2026-03-29_21-33_Forest.html";
+        let html = match std::fs::read_to_string(path) {
+            Ok(h) => h,
+            Err(_) => return,
+        };
+        let log = parse_dungeon_log(&html).expect("should parse real Forest log");
+        assert_eq!(log.dungeon_name, "Forest");
+        assert!(!log.rooms.is_empty());
+    }
+
+    #[test]
+    fn test_parse_real_water_temple_log() {
+        let path = "data/dungeon_logs/2026-03-29_21-33_WaterTemple.html";
+        let html = match std::fs::read_to_string(path) {
+            Ok(h) => h,
+            Err(_) => return,
+        };
+        let log = parse_dungeon_log(&html).expect("should parse real WaterTemple log");
+        // WaterTemple is two words — parser should handle it
+        assert!(
+            log.dungeon_name.contains("Water") || log.dungeon_name.contains("Temple"),
+            "Expected 'Water Temple' but got '{}'",
+            log.dungeon_name
+        );
+    }
 }
