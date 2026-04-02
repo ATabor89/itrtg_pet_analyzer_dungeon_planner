@@ -28,6 +28,7 @@ reqwest = { version = "0.12", features = ["blocking"] }
 
 # WASM-only dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
 reqwest = { version = "0.12" }
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Storage", "Window"] }
+web-sys = { version = "0.3", features = ["Clipboard", "Navigator", "Storage", "Window"] }

@@ -56,6 +56,8 @@ pub struct DungeonState {
     pub equipment_inventory: HashMap<String, u8>,
     /// Per-dungeon equipment standard overrides from planner config.
     equipment_standard_overrides: HashMap<Dungeon, EquipmentStandard>,
+    /// Snapshot of serialized constraints from last save, used to detect changes.
+    last_saved_constraints: String,
 }
 
 /// Resolved minimum equipment standards for a dungeon.
@@ -166,6 +168,9 @@ impl DungeonState {
             self.whitelisted_pets.insert(name);
         }
 
+        // Snapshot the loaded state so auto_save doesn't trigger immediately
+        self.last_saved_constraints = self.serialize_constraints_yaml();
+
         Ok(())
     }
 
@@ -244,9 +249,24 @@ impl DungeonState {
     }
 
     /// Save current constraints to storage.
-    pub fn save_constraints_to_file(&self) -> Result<(), String> {
+    pub fn save_constraints_to_file(&mut self) -> Result<(), String> {
         let yaml = self.serialize_constraints_yaml();
-        platform::save_pet_constraints(&yaml)
+        let result = platform::save_pet_constraints(&yaml);
+        if result.is_ok() {
+            self.last_saved_constraints = yaml;
+        }
+        result
+    }
+
+    /// Auto-save constraints if they've changed since last save.
+    /// Called once per frame to keep persistent storage in sync.
+    pub fn auto_save_constraints(&mut self) {
+        let current = self.serialize_constraints_yaml();
+        if current != self.last_saved_constraints {
+            if platform::save_pet_constraints(&current).is_ok() {
+                self.last_saved_constraints = current;
+            }
+        }
     }
 
     /// Serialize current constraints to a YAML string with explanatory comments.
@@ -363,6 +383,9 @@ struct EquipmentStandardOverride {
 
 pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     state.ensure_init();
+
+    // Auto-save constraints when they change (keeps localStorage/disk in sync)
+    state.auto_save_constraints();
 
     // Auto-refresh plans when pet data changes (import/wiki refresh)
     state.refresh_plans(data);

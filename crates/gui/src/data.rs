@@ -20,6 +20,9 @@ pub struct DataStore {
     pub wiki_loading: bool,
     pub wiki_error: Option<String>,
 
+    /// Channel for receiving async clipboard read results (WASM).
+    clipboard_rx: Option<mpsc::Receiver<Result<String, String>>>,
+
     /// Status message for imports.
     pub import_status: Option<(String, bool)>, // (message, is_error)
 
@@ -37,6 +40,7 @@ impl DataStore {
             wiki_rx: None,
             wiki_loading: false,
             wiki_error: None,
+            clipboard_rx: None,
             import_status: None,
             data_version: 0,
         }
@@ -158,11 +162,72 @@ impl DataStore {
         }
     }
 
-    /// Import from clipboard (native only).
-    #[cfg(not(target_arch = "wasm32"))]
+    /// Import from clipboard.
+    ///
+    /// On native: reads synchronously via arboard.
+    /// On WASM: kicks off an async clipboard read; poll with `poll_clipboard`.
     pub fn import_from_clipboard(&mut self) {
-        match arboard::Clipboard::new() {
-            Ok(mut clipboard) => match clipboard.get_text() {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            match arboard::Clipboard::new() {
+                Ok(mut clipboard) => match clipboard.get_text() {
+                    Ok(text) => {
+                        if text.starts_with("Name;") {
+                            self.import_export(&text);
+                        } else {
+                            self.import_status = Some((
+                                "Clipboard doesn't contain a pet export (expected \"Name;\" header)"
+                                    .to_string(),
+                                true,
+                            ));
+                        }
+                    }
+                    Err(e) => {
+                        self.import_status =
+                            Some((format!("Clipboard read error: {e}"), true));
+                    }
+                },
+                Err(e) => {
+                    self.import_status =
+                        Some((format!("Clipboard access error: {e}"), true));
+                }
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            use eframe::wasm_bindgen::JsCast;
+
+            let (tx, rx) = mpsc::channel();
+            self.clipboard_rx = Some(rx);
+
+            wasm_bindgen_futures::spawn_local(async move {
+                let result: Result<String, String> = async {
+                    let window = web_sys::window()
+                        .ok_or_else(|| "No window object".to_string())?;
+                    let clipboard = window.navigator().clipboard();
+                    let promise = clipboard.read_text();
+                    let js_value = wasm_bindgen_futures::JsFuture::from(promise)
+                        .await
+                        .map_err(|e| format!("Clipboard read failed: {e:?}"))?;
+                    js_value
+                        .dyn_into::<js_sys::JsString>()
+                        .map(String::from)
+                        .map_err(|_| "Clipboard did not return text".to_string())
+                }
+                .await;
+                let _ = tx.send(result);
+            });
+        }
+    }
+
+    /// Poll for async clipboard read completion (WASM). Call every frame.
+    pub fn poll_clipboard(&mut self) {
+        if let Some(rx) = &self.clipboard_rx
+            && let Ok(result) = rx.try_recv()
+        {
+            self.clipboard_rx = None;
+            match result {
                 Ok(text) => {
                     if text.starts_with("Name;") {
                         self.import_export(&text);
@@ -175,11 +240,8 @@ impl DataStore {
                     }
                 }
                 Err(e) => {
-                    self.import_status = Some((format!("Clipboard read error: {e}"), true));
+                    self.import_status = Some((format!("Clipboard error: {e}"), true));
                 }
-            },
-            Err(e) => {
-                self.import_status = Some((format!("Clipboard access error: {e}"), true));
             }
         }
     }
