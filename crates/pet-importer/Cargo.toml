@@ -14,7 +14,13 @@ path = "src/main.rs"
 [dependencies]
 itrtg-models = { path = "../models" }
 anyhow = "1"
-clap = { version = "4", features = ["derive"] }
 regex = "1"
 serde_yaml = "0.9"
-arboard = "3"
+
+# Binary-only deps (not needed when used as a library from the GUI)
+clap = { version = "4", features = ["derive"], optional = true }
+arboard = { version = "3", optional = true }
+
+[features]
+default = ["cli"]
+cli = ["dep:clap", "dep:arboard"]

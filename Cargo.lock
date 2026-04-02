@@ -1981,11 +1981,14 @@ dependencies = [
  "egui_extras",
  "itrtg-models",
  "itrtg-planner",
+ "log",
  "pet-importer",
  "reqwest",
  "rfd",
  "serde",
  "serde_yaml",
+ "wasm-bindgen-futures",
+ "web-sys",
  "wiki-extractor",
 ]
 

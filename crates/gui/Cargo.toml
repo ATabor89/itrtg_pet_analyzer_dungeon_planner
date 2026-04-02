@@ -10,14 +10,24 @@ path = "src/main.rs"
 [dependencies]
 itrtg-models = { path = "../models" }
 itrtg-planner = { path = "../planner" }
-pet-importer = { path = "../pet-importer" }
-wiki-extractor = { path = "../wiki-extractor" }
+pet-importer = { path = "../pet-importer", default-features = false }
+wiki-extractor = { path = "../wiki-extractor", default-features = false }
 
 eframe = "0.31"
 egui_extras = { version = "0.31", features = ["default"] }
-arboard = "3"
-rfd = "0.15"
-reqwest = { version = "0.12", features = ["blocking"] }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
+log = "0.4"
+
+# Native-only dependencies
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+arboard = "3"
+rfd = "0.15"
+reqwest = { version = "0.12", features = ["blocking"] }
+
+# WASM-only dependencies
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+reqwest = { version = "0.12" }
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Storage", "Window"] }
