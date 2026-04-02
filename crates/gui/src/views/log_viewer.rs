@@ -420,7 +420,7 @@ fn show_overview(ui: &mut Ui, log: &DungeonLog, party_order: &[usize]) {
                 }
             }
             // If fewer than a full final row, close it.
-            if log.pets.len() % COLS != 0 {
+            if !log.pets.len().is_multiple_of(COLS) {
                 ui.end_row();
             }
         });
@@ -926,9 +926,8 @@ fn show_room_stats(
         if max_party > 1.0 {
             let chart_height = 80.0;
             let available_width = ui.available_width().min(800.0);
-            let bar_width = ((available_width - 40.0) / party_values.len() as f32)
-                .min(30.0)
-                .max(8.0);
+            let bar_width =
+                ((available_width - 40.0) / party_values.len() as f32).clamp(8.0, 30.0);
             let total_width = bar_width * party_values.len() as f32 + 40.0;
 
             ui.label(
@@ -1149,9 +1148,7 @@ fn show_room_bar_chart(
 
     let chart_height = 120.0;
     let available_width = ui.available_width().min(800.0);
-    let bar_width = ((available_width - 40.0) / values.len() as f32)
-        .min(30.0)
-        .max(8.0);
+    let bar_width = ((available_width - 40.0) / values.len() as f32).clamp(8.0, 30.0);
     let total_width = bar_width * values.len() as f32 + 40.0;
 
     ui.label(
@@ -1281,14 +1278,13 @@ fn show_combat(ui: &mut Ui, log: &DungeonLog, expanded_rooms: &mut Vec<bool>) {
         let toggle = ui
             .horizontal(|ui| {
                 let arrow = if *expanded { "\u{25BC}" } else { "\u{25B6}" };
-                let resp = ui.selectable_label(
+                ui.selectable_label(
                     false,
                     RichText::new(format!("{arrow} {header_text}"))
                         .color(header_color)
                         .size(13.0)
                         .strong(),
-                );
-                resp
+                )
             })
             .inner;
 
