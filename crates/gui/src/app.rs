@@ -34,14 +34,13 @@ impl App {
         // Try to load dungeon data from data directory
         let equip_path = std::path::Path::new("data/equipment_catalog.yaml");
         let recs_path = std::path::Path::new("data/dungeon_recommendations.yaml");
-        if equip_path.exists() && recs_path.exists() {
-            if let (Ok(equip_yaml), Ok(recs_yaml)) = (
+        if equip_path.exists() && recs_path.exists()
+            && let (Ok(equip_yaml), Ok(recs_yaml)) = (
                 std::fs::read_to_string(equip_path),
                 std::fs::read_to_string(recs_path),
             ) {
                 data.load_dungeon_recs(&equip_yaml, &recs_yaml);
             }
-        }
 
         // Auto-fetch wiki on startup
         data.fetch_wiki();
@@ -50,22 +49,18 @@ impl App {
         let mut dungeon_state = dungeon::DungeonState::default();
 
         let config_path = std::path::Path::new("data/planner_config.yaml");
-        if config_path.exists() {
-            if let Ok(yaml) = std::fs::read_to_string(config_path) {
-                if let Err(e) = dungeon_state.load_planner_config(&yaml) {
+        if config_path.exists()
+            && let Ok(yaml) = std::fs::read_to_string(config_path)
+                && let Err(e) = dungeon_state.load_planner_config(&yaml) {
                     data.import_status = Some((e, true));
                 }
-            }
-        }
 
         let constraints_path = std::path::Path::new("data/pet_constraints.yaml");
-        if constraints_path.exists() {
-            if let Ok(yaml) = std::fs::read_to_string(constraints_path) {
-                if let Err(e) = dungeon_state.load_constraints_yaml(&yaml) {
+        if constraints_path.exists()
+            && let Ok(yaml) = std::fs::read_to_string(constraints_path)
+                && let Err(e) = dungeon_state.load_constraints_yaml(&yaml) {
                     data.import_status = Some((e, true));
                 }
-            }
-        }
 
         Self {
             tab: Tab::Analyzer,
@@ -133,8 +128,8 @@ impl eframe::App for App {
                             true,
                         ));
                     }
-                } else if let Some(path) = &file.path {
-                    if let Ok(text) = std::fs::read_to_string(path) {
+                } else if let Some(path) = &file.path
+                    && let Ok(text) = std::fs::read_to_string(path) {
                         if is_html || text.contains("<br>") || text.contains("<BR>") {
                             let fname = path.file_name().map(|n| n.to_string_lossy().to_string());
                             self.log_viewer_state.load_html(&text, fname);
@@ -159,7 +154,6 @@ impl eframe::App for App {
                             }
                         }
                     }
-                }
             }
         });
 
@@ -210,20 +204,16 @@ impl eframe::App for App {
                     if ui
                         .button(RichText::new("\u{1F4C2} Open Log File").size(12.0))
                         .clicked()
-                    {
-                        if let Some(path) = rfd::FileDialog::new()
+                        && let Some(path) = rfd::FileDialog::new()
                             .add_filter("Dungeon Log", &["html", "htm"])
                             .set_directory("data/dungeon_logs")
                             .pick_file()
-                        {
-                            if let Ok(text) = std::fs::read_to_string(&path) {
+                            && let Ok(text) = std::fs::read_to_string(&path) {
                                 let fname =
                                     path.file_name().map(|n| n.to_string_lossy().to_string());
                                 self.log_viewer_state.load_html(&text, fname);
                                 self.tab = Tab::DungeonLog;
                             }
-                        }
-                    }
 
                     ui.separator();
 

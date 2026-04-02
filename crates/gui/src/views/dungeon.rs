@@ -267,7 +267,7 @@ impl DungeonState {
         out.push_str("# from dungeon runs (e.g. special abilities, class XP exceptions).\n");
         out.push_str("#\n");
         out.push_str("# Dungeon names: Scrapyard, WaterTemple, Volcano, Mountain, Forest\n");
-        out.push_str("\n");
+        out.push('\n');
 
         // Forbidden
         out.push_str("forbidden:\n");
@@ -280,7 +280,7 @@ impl DungeonState {
                 out.push_str(&format!("  - {name}\n"));
             }
         }
-        out.push_str("\n");
+        out.push('\n');
 
         // Forced
         out.push_str("forced:\n");
@@ -295,7 +295,7 @@ impl DungeonState {
                 }
             }
         }
-        out.push_str("\n");
+        out.push('\n');
 
         // Whitelisted
         out.push_str("whitelisted:\n");
@@ -449,11 +449,10 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             });
 
             // Preview panel
-            if entry.show_preview {
-                if let Some(recs) = &data.dungeon_recs {
+            if entry.show_preview
+                && let Some(recs) = &data.dungeon_recs {
                     show_dungeon_preview(ui, entry.dungeon, entry.depth, recs, equip_catalog);
                 }
-            }
         }
     });
 
@@ -652,11 +651,9 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 ))
                 .on_hover_text("Save current constraints to data/pet_constraints.yaml")
                 .clicked()
-            {
-                if let Err(e) = state.save_constraints_to_file() {
+                && let Err(e) = state.save_constraints_to_file() {
                     eprintln!("Failed to save constraints: {e}");
                 }
-            }
 
             if ui
                 .add(egui::Button::new(
@@ -1128,7 +1125,7 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
             let cl_ok = min_class_level >= reqs.class_level;
 
             // Per-pet growth check: "total growth" is per-pet, not team sum
-            let growth_ok = reqs.total_growth.map_or(true, |req| min_growth >= req);
+            let growth_ok = reqs.total_growth.is_none_or(|req| min_growth >= req);
 
             let max_diff = dl_diff.min(10);
 
@@ -1231,11 +1228,10 @@ fn show_shopping_list(ui: &mut Ui, plans: &[DungeonPlan], data: &DataStore) {
                                 (&gem_slots.armor, current_armor_gem),
                                 (&gem_slots.accessory, current_acc_gem),
                             ] {
-                                if let Some(needed) = rec {
-                                    if cur != Some(*needed) {
+                                if let Some(needed) = rec
+                                    && cur != Some(*needed) {
                                         *gems_needed.entry(*needed).or_insert(0) += 1;
                                     }
-                                }
                             }
                         }
                     }
@@ -1514,8 +1510,8 @@ fn show_equipment_comparison(
         style::TEXT_NORMAL
     };
 
-    // (prefix, recommended catalog key, rec gem, current equipment)
-    let lines: [(&str, Option<&str>, Option<&Element>, Option<&itrtg_models::Equipment>); 3] = [
+    type EquipLine<'a> = (&'a str, Option<&'a str>, Option<&'a Element>, Option<&'a itrtg_models::Equipment>);
+    let lines: [EquipLine<'_>; 3] = [
         ("W:", equip.weapon.as_deref(), gems.and_then(|g| g.weapon.as_ref()),
          current_loadout.and_then(|l| l.weapon.as_ref())),
         ("A:", equip.armor.as_deref(), gems.and_then(|g| g.armor.as_ref()),
@@ -1558,7 +1554,7 @@ fn show_equipment_comparison(
                                 .map(|e| e.tier)
                         });
 
-                        let tier_ok = cur_tier.map_or(true, |t| t >= standards.min_tier);
+                        let tier_ok = cur_tier.is_none_or(|t| t >= standards.min_tier);
                         let quality_ok = cur.quality >= standards.min_quality;
                         let upgrade_ok = cur.upgrade_level.unwrap_or(0) >= standards.min_upgrade;
 
@@ -1674,14 +1670,12 @@ fn equip_matches_rec(
 
 /// Resolve a catalog key to a display name.
 fn resolve_equip_name(key: &str, catalog: Option<&EquipmentCatalog>) -> String {
-    if let Some(cat) = catalog {
-        if let Some(entry) = cat.lookup(key) {
+    if let Some(cat) = catalog
+        && let Some(entry) = cat.lookup(key) {
             return entry.name.clone();
         }
-    }
     // Humanize generic keys: "generic_t2_s10" → "Generic T2"
-    if key.starts_with("generic_t") {
-        let rest = &key["generic_t".len()..];
+    if let Some(rest) = key.strip_prefix("generic_t") {
         let tier: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
         if !tier.is_empty() {
             return format!("Generic T{tier}");

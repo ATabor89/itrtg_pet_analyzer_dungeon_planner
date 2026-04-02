@@ -145,16 +145,16 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
         return UnlockCondition::DefeatGods;
     }
 
-    if let Some(rest) = trimmed.strip_prefix("Defeat P.Baal v") {
-        if let Ok(n) = rest.trim().parse::<u32>() {
-            return UnlockCondition::DefeatPBaalVersion(n);
-        }
+    if let Some(rest) = trimmed.strip_prefix("Defeat P.Baal v")
+        && let Ok(n) = rest.trim().parse::<u32>()
+    {
+        return UnlockCondition::DefeatPBaalVersion(n);
     }
 
-    if let Some(rest) = trimmed.strip_prefix("Defeat P.Baal ") {
-        if let Ok(n) = rest.trim().parse::<u32>() {
-            return UnlockCondition::DefeatPBaal(n);
-        }
+    if let Some(rest) = trimmed.strip_prefix("Defeat P.Baal ")
+        && let Ok(n) = rest.trim().parse::<u32>()
+    {
+        return UnlockCondition::DefeatPBaal(n);
     }
 
     if trimmed == "Special Task" {

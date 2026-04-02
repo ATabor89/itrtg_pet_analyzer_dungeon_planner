@@ -872,8 +872,8 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
 
                 // Class Level
                 row.col(|ui| {
-                    if let Some(export) = &pet.export {
-                        if export.class.is_some() {
+                    if let Some(export) = &pet.export
+                        && export.class.is_some() {
                             ui.label(
                                 RichText::new(export.class_level.to_string())
                                     .color(text_color)
@@ -881,7 +881,6 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                                     .family(egui::FontFamily::Monospace),
                             );
                         }
-                    }
                 });
 
                 // Improvable / Improved
@@ -903,8 +902,8 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                                 .color(action_color(&export.action))
                                 .size(11.0),
                         );
-                    } else if let Some(wiki) = &pet.wiki {
-                        if let Some(special) = &wiki.special_ability {
+                    } else if let Some(wiki) = &pet.wiki
+                        && let Some(special) = &wiki.special_ability {
                             ui.label(
                                 RichText::new(special)
                                     .color(style::TEXT_MUTED)
@@ -912,7 +911,6 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                                     .size(11.0),
                             );
                         }
-                    }
                 });
             });
         });
@@ -1107,25 +1105,22 @@ fn filter_and_sort<'a>(pets: &'a [MergedPet], state: &AnalyzerState) -> Vec<&'a 
             }
 
             // Element
-            if let Some(ref filter_el) = state.filter_element {
-                if pet.element().as_ref() != Some(filter_el) {
+            if let Some(ref filter_el) = state.filter_element
+                && pet.element().as_ref() != Some(filter_el) {
                     return false;
                 }
-            }
 
             // Unlocked
-            if let Some(filter_unlock) = state.filter_unlocked {
-                if pet.is_unlocked() != filter_unlock {
+            if let Some(filter_unlock) = state.filter_unlocked
+                && pet.is_unlocked() != filter_unlock {
                     return false;
                 }
-            }
 
             // Evolved
-            if let Some(filter_evo) = state.filter_evolved {
-                if pet.is_evolved() != filter_evo {
+            if let Some(filter_evo) = state.filter_evolved
+                && pet.is_evolved() != filter_evo {
                     return false;
                 }
-            }
 
             // Unlock type
             if state.filter_unlock_type != UnlockTypeFilter::All {
@@ -1152,11 +1147,10 @@ fn filter_and_sort<'a>(pets: &'a [MergedPet], state: &AnalyzerState) -> Vec<&'a 
             }
 
             // My class (actual evolved class)
-            if state.filter_my_class != MyClassFilter::All {
-                if !state.filter_my_class.matches(pet.evolved_class()) {
+            if state.filter_my_class != MyClassFilter::All
+                && !state.filter_my_class.matches(pet.evolved_class()) {
                     return false;
                 }
-            }
 
             // Improvable filter
             match state.filter_improvable {
