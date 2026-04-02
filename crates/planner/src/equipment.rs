@@ -43,18 +43,18 @@ pub fn enrich_equipment(plan: &mut DungeonPlan, catalog: &EquipmentCatalog) {
     let depth = plan.depth;
 
     for sa in &mut plan.assignments {
-        let is_generic = sa.slot.equipment.as_ref().is_some_and(|eq| has_generic_keys(eq));
+        let is_generic = sa.slot.equipment.as_ref().is_some_and(has_generic_keys);
         let is_missing = sa.slot.equipment.is_none();
 
-        if let Some(equip) = &sa.slot.equipment {
-            if !is_generic {
-                // Static equipment from YAML — tag and preserve
-                sa.equipment_suggestion = Some(EquipmentSuggestion {
-                    equipment: equip.clone(),
-                    source: EquipmentSource::Static,
-                });
-                continue;
-            }
+        if let Some(equip) = &sa.slot.equipment
+            && !is_generic
+        {
+            // Static equipment from YAML — tag and preserve
+            sa.equipment_suggestion = Some(EquipmentSuggestion {
+                equipment: equip.clone(),
+                source: EquipmentSource::Static,
+            });
+            continue;
         }
 
         // Need to compute: get the pet's effective class
@@ -104,7 +104,7 @@ pub fn recommend_equipment(
     depth: u8,
     catalog: &EquipmentCatalog,
 ) -> EquipmentSuggestion {
-    let tier = depth.min(3).max(1);
+    let tier = depth.clamp(1, 3);
     let dungeon_element = dungeon.element();
 
     let weapon_key = recommend_weapon(class, tier, catalog);
@@ -136,11 +136,11 @@ pub fn recommend_equipment(
 /// - Defender: Neutral sword (balanced stats, pure tank)
 /// - Rogue: Knives (always — speed + defense reduction)
 /// - Blacksmith: Knives at D2+ (useful for v4 fights), hammer at D1
-fn recommend_weapon<'a>(
+fn recommend_weapon(
     class: Class,
     tier: u8,
-    catalog: &'a EquipmentCatalog,
-) -> Option<&'a str> {
+    catalog: &EquipmentCatalog,
+) -> Option<&str> {
     match class {
         Class::Mage | Class::Supporter => {
             // Fire sword for attack (healing scales with attack for supporters)
@@ -201,13 +201,13 @@ fn recommend_weapon<'a>(
 /// - Mage: Pet's own element ("Match the pets element" — D3 wiki)
 /// - Supporter: Dungeon-element (defensive) or neutral for Scrapyard
 /// - Rogue: Dungeon-element (defense) or neutral for Scrapyard
-fn recommend_armor<'a>(
+fn recommend_armor(
     class: Class,
     pet_element: Element,
     dungeon_element: Element,
     tier: u8,
-    catalog: &'a EquipmentCatalog,
-) -> Option<&'a str> {
+    catalog: &EquipmentCatalog,
+) -> Option<&str> {
     let element = match class {
         Class::Defender | Class::Assassin => Element::Neutral,
         Class::Mage => {
@@ -246,14 +246,14 @@ fn recommend_armor<'a>(
 /// - Mage: Alchemist Cape at T3 ("Usually Alchemist Cape"), same-element at lower tiers
 /// - Defender: Neutral ring (always)
 /// - Supporter: Fire gloves ("Inferno Gloves are a good choice — speed + healing power");
-///              Alchemist Cape at T3
+///   Alchemist Cape at T3
 /// - Rogue: Wind ring for speed; Alchemist Cape at T3
-fn recommend_accessory<'a>(
+fn recommend_accessory(
     class: Class,
     pet_element: Element,
     tier: u8,
-    catalog: &'a EquipmentCatalog,
-) -> Option<&'a str> {
+    catalog: &EquipmentCatalog,
+) -> Option<&str> {
     match class {
         Class::Assassin => {
             // "Almost always Inferno [Gloves]"

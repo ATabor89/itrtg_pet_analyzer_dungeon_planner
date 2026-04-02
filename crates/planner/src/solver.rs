@@ -35,6 +35,7 @@ pub struct SlotAssignment {
 
 /// What was assigned to a slot.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum Assignment {
     /// A pet from the player's roster was assigned.
     Filled {
@@ -301,15 +302,15 @@ pub fn solve_multi(
                 if first_open.is_none() {
                     first_open = Some((ri, si));
                 }
-                if let Some(q) = score_pet(pet, slot, true) {
-                    if best.as_ref().map_or(true, |(_, _, bq)| q < *bq) {
-                        best = Some((ri, si, q));
-                    }
+                if let Some(q) = score_pet(pet, slot, true)
+                    && best.as_ref().is_none_or(|(_, _, bq)| q < *bq)
+                {
+                    best = Some((ri, si, q));
                 }
             }
         }
 
-        let target = best.map(|(ri, si, q)| (ri, si, q))
+        let target = best
             .or_else(|| first_open.map(|(ri, si)| (ri, si, MatchQuality::Fallback)));
 
         if let Some((ri, si, quality)) = target {
@@ -554,7 +555,7 @@ pub fn suggest_unlocks_for_slot(
             // Must match element
             && pet.matches_element(slot.element)
             // Must recommend the required class (if any)
-            && slot.class.as_ref().map_or(true, |c| pet.recommends_class(c))
+            && slot.class.as_ref().is_none_or(|c| pet.recommends_class(c))
             // For "any" class slots, must be dungeon-viable
             && (slot.class.is_some() || is_dungeon_viable(pet))
         })
@@ -646,10 +647,10 @@ fn counter_satisfied(condition: &CounterCondition, team: &[&MergedPet]) -> bool 
     let required_count = condition.count.unwrap_or(1) as usize;
 
     let matching = team.iter().filter(|pet| {
-        let class_ok = condition.class.as_ref().map_or(true, |c| {
+        let class_ok = condition.class.as_ref().is_none_or(|c| {
             pet.evolved_class().as_ref() == Some(c)
         });
-        let element_ok = condition.element.as_ref().map_or(true, |el| {
+        let element_ok = condition.element.as_ref().is_none_or(|el| {
             pet.matches_element(Some(*el))
         });
         class_ok && element_ok

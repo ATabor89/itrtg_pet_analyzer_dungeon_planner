@@ -65,8 +65,8 @@ impl DataStore {
 
     /// Poll for async wiki fetch completion. Call this every frame.
     pub fn poll_wiki(&mut self) {
-        if let Some(rx) = &self.wiki_rx {
-            if let Ok(result) = rx.try_recv() {
+        if let Some(rx) = &self.wiki_rx
+            && let Ok(result) = rx.try_recv() {
                 self.wiki_loading = false;
                 match result {
                     Ok(pets) => {
@@ -86,7 +86,6 @@ impl DataStore {
                 }
                 self.wiki_rx = None;
             }
-        }
     }
 
     /// Import pet export data from a string (clipboard or file contents).
