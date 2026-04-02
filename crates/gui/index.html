@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ITRTG Pet Planner</title>
+
+    <link data-trunk rel="rust" data-wasm-opt="2" />
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #cccccc;
+            text-align: center;
+        }
+
+        #loading .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 16px auto;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #66bbff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Loading ITRTG Pet Planner...</p>
+    </div>
+
+    <canvas id="the_canvas_id"></canvas>
+
+    <script>
+        // Remove loading indicator once the WASM module has started
+        document.addEventListener("DOMContentLoaded", function() {
+            // The eframe runner will resize and show the canvas
+            var check = setInterval(function() {
+                var canvas = document.getElementById("the_canvas_id");
+                if (canvas && canvas.width > 0) {
+                    document.getElementById("loading").style.display = "none";
+                    clearInterval(check);
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>

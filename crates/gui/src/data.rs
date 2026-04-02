@@ -46,7 +46,10 @@ impl DataStore {
         self.data_version += 1;
     }
 
-    /// Start an async wiki fetch on a background thread.
+    /// Start an async wiki fetch.
+    ///
+    /// On native this spawns a background thread with blocking reqwest.
+    /// On WASM this spawns a local future with async reqwest.
     pub fn fetch_wiki(&mut self) {
         if self.wiki_loading {
             return;
@@ -57,10 +60,21 @@ impl DataStore {
         let (tx, rx) = mpsc::channel();
         self.wiki_rx = Some(rx);
 
-        std::thread::spawn(move || {
-            let result = fetch_wiki_blocking();
-            let _ = tx.send(result);
-        });
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            std::thread::spawn(move || {
+                let result = fetch_wiki_blocking();
+                let _ = tx.send(result);
+            });
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            wasm_bindgen_futures::spawn_local(async move {
+                let result = fetch_wiki_async().await;
+                let _ = tx.send(result);
+            });
+        }
     }
 
     /// Poll for async wiki fetch completion. Call this every frame.
@@ -106,7 +120,8 @@ impl DataStore {
         }
     }
 
-    /// Import from clipboard.
+    /// Import from clipboard (native only).
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn import_from_clipboard(&mut self) {
         match arboard::Clipboard::new() {
             Ok(mut clipboard) => match clipboard.get_text() {
@@ -151,6 +166,11 @@ impl DataStore {
     }
 }
 
+// =============================================================================
+// Wiki fetch — native (blocking)
+// =============================================================================
+
+#[cfg(not(target_arch = "wasm32"))]
 fn fetch_wiki_blocking() -> Result<Vec<WikiPet>, String> {
     let url = "https://itrtg.wiki.gg/wiki/Pets?action=raw";
     let client = reqwest::blocking::Client::builder()
@@ -162,5 +182,23 @@ fn fetch_wiki_blocking() -> Result<Vec<WikiPet>, String> {
         return Err(format!("HTTP {}", resp.status()));
     }
     let source = resp.text().map_err(|e| e.to_string())?;
+    wiki_extractor::parser::parse_pets(&source).map_err(|e| e.to_string())
+}
+
+// =============================================================================
+// Wiki fetch — WASM (async)
+// =============================================================================
+
+#[cfg(target_arch = "wasm32")]
+async fn fetch_wiki_async() -> Result<Vec<WikiPet>, String> {
+    let url = "https://itrtg.wiki.gg/wiki/Pets?action=raw";
+    let client = reqwest::Client::builder()
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let source = resp.text().await.map_err(|e| e.to_string())?;
     wiki_extractor::parser::parse_pets(&source).map_err(|e| e.to_string())
 }

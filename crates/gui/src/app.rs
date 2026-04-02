@@ -1,6 +1,7 @@
 use eframe::egui::{self, RichText};
 
 use crate::data::DataStore;
+use crate::platform;
 use crate::style;
 use crate::views::{analyzer, dungeon, log_viewer};
 
@@ -31,36 +32,31 @@ impl App {
 
         let mut data = DataStore::new();
 
-        // Try to load dungeon data from data directory
-        let equip_path = std::path::Path::new("data/equipment_catalog.yaml");
-        let recs_path = std::path::Path::new("data/dungeon_recommendations.yaml");
-        if equip_path.exists() && recs_path.exists()
-            && let (Ok(equip_yaml), Ok(recs_yaml)) = (
-                std::fs::read_to_string(equip_path),
-                std::fs::read_to_string(recs_path),
-            ) {
-                data.load_dungeon_recs(&equip_yaml, &recs_yaml);
-            }
+        // Load game data (baked on WASM, from disk on native)
+        if let (Some(equip_yaml), Some(recs_yaml)) = (
+            platform::load_equipment_catalog(),
+            platform::load_dungeon_recommendations(),
+        ) {
+            data.load_dungeon_recs(&equip_yaml, &recs_yaml);
+        }
 
         // Auto-fetch wiki on startup
         data.fetch_wiki();
 
-        // Load planner configuration and pet constraints
+        // Load per-user configuration (localStorage on WASM, filesystem on native)
         let mut dungeon_state = dungeon::DungeonState::default();
 
-        let config_path = std::path::Path::new("data/planner_config.yaml");
-        if config_path.exists()
-            && let Ok(yaml) = std::fs::read_to_string(config_path)
-                && let Err(e) = dungeon_state.load_planner_config(&yaml) {
-                    data.import_status = Some((e, true));
-                }
+        if let Some(yaml) = platform::load_planner_config()
+            && let Err(e) = dungeon_state.load_planner_config(&yaml)
+        {
+            data.import_status = Some((e, true));
+        }
 
-        let constraints_path = std::path::Path::new("data/pet_constraints.yaml");
-        if constraints_path.exists()
-            && let Ok(yaml) = std::fs::read_to_string(constraints_path)
-                && let Err(e) = dungeon_state.load_constraints_yaml(&yaml) {
-                    data.import_status = Some((e, true));
-                }
+        if let Some(yaml) = platform::load_pet_constraints()
+            && let Err(e) = dungeon_state.load_constraints_yaml(&yaml)
+        {
+            data.import_status = Some((e, true));
+        }
 
         Self {
             tab: Tab::Analyzer,
@@ -90,17 +86,31 @@ impl eframe::App for App {
                             .map(|e| e.eq_ignore_ascii_case("html") || e.eq_ignore_ascii_case("htm"))
                             .unwrap_or(false)
                     })
-                    .unwrap_or(false);
+                    .unwrap_or(false)
+                    || file.name.ends_with(".html")
+                    || file.name.ends_with(".htm");
 
-                if let Some(bytes) = &file.bytes {
-                    let text = String::from_utf8_lossy(bytes);
+                // On WASM, eframe provides file contents as bytes.
+                // On native, bytes may be None and we fall back to reading the path.
+                let text = if let Some(bytes) = &file.bytes {
+                    Some(String::from_utf8_lossy(bytes).into_owned())
+                } else {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    { file.path.as_ref().and_then(|p| std::fs::read_to_string(p).ok()) }
+                    #[cfg(target_arch = "wasm32")]
+                    { None }
+                };
+
+                let fname = file.path.as_ref()
+                    .and_then(|p| p.file_name())
+                    .map(|n| n.to_string_lossy().to_string())
+                    .or_else(|| {
+                        let n = &file.name;
+                        if n.is_empty() { None } else { Some(n.clone()) }
+                    });
+
+                if let Some(text) = text {
                     if is_html || text.contains("<br>") || text.contains("<BR>") {
-                        // Dungeon log HTML
-                        let fname = file
-                            .path
-                            .as_ref()
-                            .and_then(|p| p.file_name())
-                            .map(|n| n.to_string_lossy().to_string());
                         self.log_viewer_state.load_html(&text, fname);
                         self.tab = Tab::DungeonLog;
                     } else if text.starts_with("Name;") {
@@ -112,7 +122,7 @@ impl eframe::App for App {
                                 self.data.wiki_pets = pets;
                                 self.data.rebuild_merged();
                                 self.data.import_status = Some((
-                                    format!("Loaded {count} pets from dropped wiki file"),
+                                    format!("Loaded {count} pets from dropped file"),
                                     false,
                                 ));
                             }
@@ -128,32 +138,7 @@ impl eframe::App for App {
                             true,
                         ));
                     }
-                } else if let Some(path) = &file.path
-                    && let Ok(text) = std::fs::read_to_string(path) {
-                        if is_html || text.contains("<br>") || text.contains("<BR>") {
-                            let fname = path.file_name().map(|n| n.to_string_lossy().to_string());
-                            self.log_viewer_state.load_html(&text, fname);
-                            self.tab = Tab::DungeonLog;
-                        } else if text.starts_with("Name;") {
-                            self.data.import_export(&text);
-                        } else {
-                            match wiki_extractor::parser::parse_pets(&text) {
-                                Ok(pets) => {
-                                    let count = pets.len();
-                                    self.data.wiki_pets = pets;
-                                    self.data.rebuild_merged();
-                                    self.data.import_status = Some((
-                                        format!("Loaded {count} pets from {}", path.display()),
-                                        false,
-                                    ));
-                                }
-                                Err(e) => {
-                                    self.data.import_status =
-                                        Some((format!("Parse error: {e}"), true));
-                                }
-                            }
-                        }
-                    }
+                }
             }
         });
 
@@ -200,22 +185,26 @@ impl eframe::App for App {
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Open dungeon log file
-                    if ui
-                        .button(RichText::new("\u{1F4C2} Open Log File").size(12.0))
-                        .clicked()
-                        && let Some(path) = rfd::FileDialog::new()
-                            .add_filter("Dungeon Log", &["html", "htm"])
-                            .set_directory("data/dungeon_logs")
-                            .pick_file()
-                            && let Ok(text) = std::fs::read_to_string(&path) {
-                                let fname =
-                                    path.file_name().map(|n| n.to_string_lossy().to_string());
-                                self.log_viewer_state.load_html(&text, fname);
-                                self.tab = Tab::DungeonLog;
-                            }
+                    // Open dungeon log file (native only — WASM uses drag-and-drop)
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        if ui
+                            .button(RichText::new("\u{1F4C2} Open Log File").size(12.0))
+                            .clicked()
+                            && let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Dungeon Log", &["html", "htm"])
+                                .set_directory("data/dungeon_logs")
+                                .pick_file()
+                                && let Ok(text) = std::fs::read_to_string(&path)
+                        {
+                            let fname =
+                                path.file_name().map(|n| n.to_string_lossy().to_string());
+                            self.log_viewer_state.load_html(&text, fname);
+                            self.tab = Tab::DungeonLog;
+                        }
 
-                    ui.separator();
+                        ui.separator();
+                    }
 
                     // Wiki refresh
                     if self.data.wiki_loading {
@@ -225,27 +214,26 @@ impl eframe::App for App {
                                 .color(style::TEXT_MUTED)
                                 .size(12.0),
                         );
-                    } else {
-                        if ui
-                            .button(RichText::new("↻ Refresh Wiki").size(12.0))
-                            .clicked()
-                        {
-                            self.data.fetch_wiki();
-                        }
+                    } else if ui
+                        .button(RichText::new("\u{21BB} Refresh Wiki").size(12.0))
+                        .clicked()
+                    {
+                        self.data.fetch_wiki();
                     }
 
                     ui.separator();
 
-                    // Import buttons
+                    // Import from clipboard (native only — WASM uses paste export dialog)
+                    #[cfg(not(target_arch = "wasm32"))]
                     if ui
-                        .button(RichText::new("📋 Import Clipboard").size(12.0))
+                        .button(RichText::new("\u{1F4CB} Import Clipboard").size(12.0))
                         .clicked()
                     {
                         self.data.import_from_clipboard();
                     }
 
                     if ui
-                        .button(RichText::new("📝 Paste Export").size(12.0))
+                        .button(RichText::new("\u{1F4DD} Paste Export").size(12.0))
                         .clicked()
                     {
                         self.show_import_dialog = !self.show_import_dialog;

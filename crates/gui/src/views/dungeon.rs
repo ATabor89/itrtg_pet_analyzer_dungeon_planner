@@ -8,6 +8,8 @@ use itrtg_planner::equipment::{self, EquipmentSource};
 use itrtg_planner::solver::{
     self, Assignment, CoverageKind, DungeonPlan, DungeonRequest, MatchQuality, SolverConstraints,
 };
+
+use crate::platform;
 use serde::Deserialize;
 
 use crate::data::DataStore;
@@ -64,6 +66,7 @@ pub struct EquipmentStandard {
     pub min_upgrade: u8,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 const CONSTRAINTS_PATH: &str = "data/pet_constraints.yaml";
 
 const DUNGEONS: &[(Dungeon, &str)] = &[
@@ -228,25 +231,22 @@ impl DungeonState {
         }
     }
 
-    /// Clear all constraints and reload from the YAML file.
+    /// Clear all constraints and reload from storage.
     pub fn reset_constraints_from_file(&mut self) -> Result<(), String> {
         self.forbidden_pets.clear();
         self.forced_pets.clear();
         self.whitelisted_pets.clear();
 
-        let path = std::path::Path::new(CONSTRAINTS_PATH);
-        if path.exists() {
-            let yaml =
-                std::fs::read_to_string(path).map_err(|e| format!("Read error: {e}"))?;
+        if let Some(yaml) = platform::load_pet_constraints() {
             self.load_constraints_yaml(&yaml)?;
         }
         Ok(())
     }
 
-    /// Save current constraints to the YAML file with nice comments.
+    /// Save current constraints to storage.
     pub fn save_constraints_to_file(&self) -> Result<(), String> {
         let yaml = self.serialize_constraints_yaml();
-        std::fs::write(CONSTRAINTS_PATH, yaml).map_err(|e| format!("Write error: {e}"))
+        platform::save_pet_constraints(&yaml)
     }
 
     /// Serialize current constraints to a YAML string with explanatory comments.
@@ -635,6 +635,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
 
         // File management buttons
         ui.horizontal(|ui| {
+            #[cfg(not(target_arch = "wasm32"))]
             if ui
                 .add(egui::Button::new(
                     RichText::new("Open File").color(style::TEXT_MUTED).size(11.0),
@@ -753,7 +754,8 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     });
 }
 
-/// Open the constraints YAML file in the OS default editor.
+/// Open the constraints YAML file in the OS default editor (native only).
+#[cfg(not(target_arch = "wasm32"))]
 fn open_constraints_file() {
     let path = CONSTRAINTS_PATH;
     #[cfg(target_os = "windows")]

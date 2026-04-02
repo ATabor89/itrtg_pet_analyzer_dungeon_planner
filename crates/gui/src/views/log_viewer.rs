@@ -82,9 +82,9 @@ fn compute_party_order(
     };
 
     // Load YAML.
-    let yaml_str = match std::fs::read_to_string("data/dungeon_recommendations.yaml") {
-        Ok(s) => s,
-        Err(_) => return default_order,
+    let yaml_str = match crate::platform::load_dungeon_recommendations() {
+        Some(s) => s,
+        None => return default_order,
     };
     let yaml: serde_yaml::Value = match serde_yaml::from_str(&yaml_str) {
         Ok(v) => v,
