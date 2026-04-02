@@ -448,4 +448,28 @@ mod tests {
             other => panic!("Expected Village(Fisher), got {:?}", other),
         }
     }
+
+    /// One-shot helper: fetch wiki, parse pets, write to data/wiki_pets.yaml.
+    /// Run with: cargo test -p wiki-extractor --features cli generate_wiki_pets_yaml -- --ignored
+    #[test]
+    #[ignore]
+    #[cfg(feature = "cli")]
+    fn generate_wiki_pets_yaml() {
+        let url = "https://itrtg.wiki.gg/wiki/Pets?action=raw";
+        let client = reqwest::blocking::Client::builder()
+            .user_agent("pet_extractor/0.1.0 (ITRTG tool)")
+            .build()
+            .expect("failed to build HTTP client");
+        let resp = client.get(url).send().expect("failed to fetch wiki");
+        assert!(resp.status().is_success(), "HTTP {}", resp.status());
+        let source = resp.text().expect("failed to read response body");
+
+        let pets = parse_pets(&source).expect("failed to parse wiki pets");
+        println!("Parsed {} pets from wiki", pets.len());
+
+        let yaml = serde_yaml::to_string(&pets).expect("failed to serialize to YAML");
+        std::fs::write("../../data/wiki_pets.yaml", &yaml)
+            .expect("failed to write data/wiki_pets.yaml");
+        println!("Wrote data/wiki_pets.yaml ({} bytes)", yaml.len());
+    }
 }

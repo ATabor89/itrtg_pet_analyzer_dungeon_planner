@@ -21,6 +21,25 @@ pub fn load_dungeon_recommendations() -> Option<String> {
     )
 }
 
+/// Load the wiki pets YAML (pre-parsed pet data).
+pub fn load_wiki_pets() -> Option<String> {
+    load_game_data(
+        "data/wiki_pets.yaml",
+        include_str!("../../../data/wiki_pets.yaml"),
+    )
+}
+
+/// Save updated wiki pets YAML to disk (native only, no-op on WASM).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn save_wiki_pets(yaml: &str) -> Result<(), String> {
+    std::fs::write("data/wiki_pets.yaml", yaml).map_err(|e| format!("Write error: {e}"))
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn save_wiki_pets(_yaml: &str) -> Result<(), String> {
+    Ok(()) // No persistent storage for wiki data on web
+}
+
 /// On native, try to read `path` from disk (falling back to the baked-in data
 /// if the file is missing). On WASM, always return the baked-in data.
 #[cfg(not(target_arch = "wasm32"))]

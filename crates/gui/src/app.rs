@@ -40,8 +40,8 @@ impl App {
             data.load_dungeon_recs(&equip_yaml, &recs_yaml);
         }
 
-        // Auto-fetch wiki on startup
-        data.fetch_wiki();
+        // Load wiki pet data from YAML (baked on WASM, from disk on native)
+        data.load_wiki_pets_from_yaml();
 
         // Load per-user configuration (localStorage on WASM, filesystem on native)
         let mut dungeon_state = dungeon::DungeonState::default();
@@ -207,21 +207,25 @@ impl eframe::App for App {
                     }
 
                     // Wiki refresh
-                    if self.data.wiki_loading {
-                        ui.spinner();
-                        ui.label(
-                            RichText::new("Fetching wiki...")
-                                .color(style::TEXT_MUTED)
-                                .size(12.0),
-                        );
-                    } else if ui
-                        .button(RichText::new("\u{21BB} Refresh Wiki").size(12.0))
-                        .clicked()
+                    // Wiki refresh (native only — CORS blocks this on WASM)
+                    #[cfg(not(target_arch = "wasm32"))]
                     {
-                        self.data.fetch_wiki();
-                    }
+                        if self.data.wiki_loading {
+                            ui.spinner();
+                            ui.label(
+                                RichText::new("Fetching wiki...")
+                                    .color(style::TEXT_MUTED)
+                                    .size(12.0),
+                            );
+                        } else if ui
+                            .button(RichText::new("\u{21BB} Refresh Wiki").size(12.0))
+                            .clicked()
+                        {
+                            self.data.fetch_wiki();
+                        }
 
-                    ui.separator();
+                        ui.separator();
+                    }
 
                     // Import from clipboard (native only — WASM uses paste export dialog)
                     #[cfg(not(target_arch = "wasm32"))]
