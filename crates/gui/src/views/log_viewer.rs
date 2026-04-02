@@ -453,6 +453,14 @@ fn show_overview(ui: &mut Ui, log: &DungeonLog, party_order: &[usize]) {
             );
         }
 
+        if let Some(wipe) = &log.summary.wipe_line {
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("\u{26A0}").color(style::ERROR).size(13.0));
+                ui.label(RichText::new(wipe).color(style::ERROR).size(12.0));
+            });
+        }
+
         if let Some(line) = &log.summary.leech_line {
             ui.label(RichText::new(line).color(style::TEXT_MUTED).size(11.0));
         }

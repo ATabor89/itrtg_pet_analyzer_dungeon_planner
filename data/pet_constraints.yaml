@@ -29,8 +29,6 @@ forced:
     dungeon: Scrapyard
   - pet: Dog
     dungeon: Scrapyard
-  - pet: Santa
-    dungeon: Scrapyard
   - pet: Dragon
     dungeon: Scrapyard
   - pet: Slime
@@ -53,10 +51,12 @@ forced:
     dungeon: Forest
   - pet: Sylph
     dungeon: Forest
-  - pet: Valkyrie
-    dungeon: Forest
   - pet: Mist Sphere
     dungeon: Forest
+  - pet: Serow
+    dungeon: Forest
+  - pet: Salamander
+    dungeon: Scrapyard
 
 whitelisted:
   # - Pet Name
