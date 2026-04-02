@@ -42,6 +42,9 @@ pub struct SummaryInfo {
     pub longest_turn: Option<(u32, u32)>,
     pub leech_line: Option<String>,
     pub free_exp_line: Option<String>,
+    /// Set when the whole party was wiped, e.g.
+    /// "Your whole party died in room 32, turn 14 and they lost all items they found!"
+    pub wipe_line: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -177,6 +180,8 @@ pub fn parse_dungeon_log(html: &str) -> Result<DungeonLog, String> {
         }
         idx += 1;
     }
+    // Build the name lookup immediately so it can be used throughout the parser.
+    let pet_names: Vec<String> = pets.iter().map(|p| p.name.clone()).collect();
 
     // Skip blanks
     while idx < lines.len() && lines[idx].is_empty() {
@@ -211,6 +216,7 @@ pub fn parse_dungeon_log(html: &str) -> Result<DungeonLog, String> {
     let mut longest_turn = None;
     let mut leech_line = None;
     let mut free_exp_line = None;
+    let mut wipe_line = None;
 
     while idx < lines.len() {
         let line = lines[idx];
@@ -262,6 +268,8 @@ pub fn parse_dungeon_log(html: &str) -> Result<DungeonLog, String> {
             leech_line = Some(line.to_string());
         } else if line.contains("free exp pool") {
             free_exp_line = Some(line.to_string());
+        } else if line.contains("whole party died") || line.contains("all items they found") {
+            wipe_line = Some(line.to_string());
         } else if line.starts_with("Items Used:")
             || line.starts_with("You found")
             || line.starts_with("Event in Room")
@@ -275,12 +283,8 @@ pub fn parse_dungeon_log(html: &str) -> Result<DungeonLog, String> {
         idx += 1;
     }
 
-    let summary = SummaryInfo {
-        xp_gained,
-        longest_turn,
-        leech_line,
-        free_exp_line,
-    };
+    // SummaryInfo is constructed *after* the items sections so that any
+    // leech/free-exp lines that appear after "Items Used:" are also captured.
 
     // --- Items Used ---
     let mut items_used = Vec::new();
@@ -330,6 +334,44 @@ pub fn parse_dungeon_log(html: &str) -> Result<DungeonLog, String> {
         idx += 1;
     }
 
+    // Some logs print leech/free-exp summary lines *after* the Items sections
+    // (e.g. death logs where "You found" sections are absent).  Consume any
+    // such lingering summary / narrative lines before the Events section.
+    // We stop as soon as we reach an "Event in Room" line, a "was killed by"
+    // death line, or a line that looks like the start of depth stats.
+    while idx < lines.len() && !lines[idx].is_empty() {
+        let line = lines[idx];
+        if line.starts_with("Event in Room") || line.contains("was killed by") {
+            break;
+        }
+        let trimmed = line.trim_end_matches(':');
+        if pet_names.contains(&trimmed.to_string()) {
+            break; // beginning of depth-stats section
+        }
+        // Capture leech / free-exp lines wherever they appear.
+        if line.contains("exp leech weapon") {
+            leech_line = Some(line.to_string());
+        } else if line.contains("free exp pool") {
+            free_exp_line = Some(line.to_string());
+        }
+        // All other unrecognised narrative lines are silently consumed.
+        idx += 1;
+    }
+
+    while idx < lines.len() && lines[idx].is_empty() {
+        idx += 1;
+    }
+
+    // Build SummaryInfo here, after all items and post-items summary lines have
+    // been consumed, so leech_line / free_exp_line are fully populated.
+    let summary = SummaryInfo {
+        xp_gained,
+        longest_turn,
+        leech_line,
+        free_exp_line,
+        wipe_line,
+    };
+
     // --- Events ---
     let mut events = Vec::new();
     while idx < lines.len() && lines[idx].starts_with("Event in Room") {
@@ -352,12 +394,30 @@ pub fn parse_dungeon_log(html: &str) -> Result<DungeonLog, String> {
         idx += 1;
     }
 
-    while idx < lines.len() && lines[idx].is_empty() {
+    // After individual pet deaths the log may include a party-wipe notification
+    // such as "All pets died in room 32, turn 14 from a combined, ultimate
+    // attack." which does not contain "was killed by".  Skip any such
+    // narrative lines before the depth-stats section without losing our place.
+    while idx < lines.len() {
+        let line = lines[idx];
+        if line.is_empty() {
+            idx += 1;
+            continue;
+        }
+        // Reached depth-stats section (a pet name followed by ':').
+        let trimmed = line.trim_end_matches(':');
+        if pet_names.contains(&trimmed.to_string()) {
+            break;
+        }
+        // Reached combat-log section.
+        if line.starts_with("Room ") && !line.contains("damage") {
+            break;
+        }
+        // Any other non-blank line here is a narrative/wipe notification — skip.
         idx += 1;
     }
 
     // --- Depth stats ---
-    let pet_names: Vec<String> = pets.iter().map(|p| p.name.clone()).collect();
     let mut depth_stats = Vec::new();
 
     while idx < lines.len() {
