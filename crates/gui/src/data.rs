@@ -6,6 +6,8 @@ use itrtg_models::dungeon::{
 use itrtg_models::{ExportPet, WikiPet};
 use itrtg_planner::merge::{self, MergedPet};
 
+use crate::platform;
+
 /// All loaded data, centralized to keep the App struct clean.
 pub struct DataStore {
     pub wiki_pets: Vec<WikiPet>,
@@ -40,16 +42,36 @@ impl DataStore {
         }
     }
 
+    /// Load wiki pets from the baked-in / on-disk YAML file.
+    /// This is the primary data source on both native and WASM.
+    pub fn load_wiki_pets_from_yaml(&mut self) {
+        if let Some(yaml) = platform::load_wiki_pets() {
+            match serde_yaml::from_str::<Vec<WikiPet>>(&yaml) {
+                Ok(pets) => {
+                    let count = pets.len();
+                    self.wiki_pets = pets;
+                    self.rebuild_merged();
+                    self.import_status =
+                        Some((format!("Loaded {count} pets from data"), false));
+                }
+                Err(e) => {
+                    self.import_status =
+                        Some((format!("Failed to parse wiki pets YAML: {e}"), true));
+                }
+            }
+        }
+    }
+
     /// Re-merge wiki + export data after either side changes.
     pub fn rebuild_merged(&mut self) {
         self.merged = merge::merge_pets(&self.wiki_pets, &self.export_pets);
         self.data_version += 1;
     }
 
-    /// Start an async wiki fetch.
+    /// Start an async wiki fetch (native only — CORS blocks this on WASM).
+    #[allow(dead_code)]
     ///
     /// On native this spawns a background thread with blocking reqwest.
-    /// On WASM this spawns a local future with async reqwest.
     pub fn fetch_wiki(&mut self) {
         if self.wiki_loading {
             return;
@@ -70,36 +92,55 @@ impl DataStore {
 
         #[cfg(target_arch = "wasm32")]
         {
-            wasm_bindgen_futures::spawn_local(async move {
-                let result = fetch_wiki_async().await;
-                let _ = tx.send(result);
-            });
+            // CORS prevents fetching from itrtg.wiki.gg in the browser.
+            let _ = tx.send(Err(
+                "Wiki refresh is not available in the web version (CORS). \
+                 Pet data is loaded from the bundled snapshot."
+                    .to_string(),
+            ));
         }
     }
 
     /// Poll for async wiki fetch completion. Call this every frame.
     pub fn poll_wiki(&mut self) {
         if let Some(rx) = &self.wiki_rx
-            && let Ok(result) = rx.try_recv() {
-                self.wiki_loading = false;
-                match result {
-                    Ok(pets) => {
-                        let count = pets.len();
-                        self.wiki_pets = pets;
-                        self.rebuild_merged();
-                        self.import_status = Some((
-                            format!("Wiki refreshed: {count} pets loaded"),
-                            false,
-                        ));
-                        self.wiki_error = None;
+            && let Ok(result) = rx.try_recv()
+        {
+            self.wiki_loading = false;
+            match result {
+                Ok(pets) => {
+                    let count = pets.len();
+                    let old_count = self.wiki_pets.len();
+
+                    // On native, persist the refreshed data to disk if it changed.
+                    if count != old_count {
+                        if let Ok(yaml) = serde_yaml::to_string(&pets) {
+                            if let Err(e) = platform::save_wiki_pets(&yaml) {
+                                log::warn!("Failed to save wiki pets: {e}");
+                            }
+                        }
                     }
-                    Err(e) => {
-                        self.wiki_error = Some(e.clone());
-                        self.import_status = Some((format!("Wiki error: {e}"), true));
-                    }
+
+                    self.wiki_pets = pets;
+                    self.rebuild_merged();
+
+                    let msg = if count != old_count {
+                        format!(
+                            "Wiki refreshed: {count} pets loaded (was {old_count}, updated on disk)"
+                        )
+                    } else {
+                        format!("Wiki refreshed: {count} pets loaded (no changes)")
+                    };
+                    self.import_status = Some((msg, false));
+                    self.wiki_error = None;
                 }
-                self.wiki_rx = None;
+                Err(e) => {
+                    self.wiki_error = Some(e.clone());
+                    self.import_status = Some((format!("Wiki error: {e}"), true));
+                }
             }
+            self.wiki_rx = None;
+        }
     }
 
     /// Import pet export data from a string (clipboard or file contents).
@@ -109,10 +150,7 @@ impl DataStore {
                 let count = pets.len();
                 self.export_pets = pets;
                 self.rebuild_merged();
-                self.import_status = Some((
-                    format!("Imported {count} pets from export"),
-                    false,
-                ));
+                self.import_status = Some((format!("Imported {count} pets from export"), false));
             }
             Err(e) => {
                 self.import_status = Some((format!("Import error: {e}"), true));
@@ -182,23 +220,5 @@ fn fetch_wiki_blocking() -> Result<Vec<WikiPet>, String> {
         return Err(format!("HTTP {}", resp.status()));
     }
     let source = resp.text().map_err(|e| e.to_string())?;
-    wiki_extractor::parser::parse_pets(&source).map_err(|e| e.to_string())
-}
-
-// =============================================================================
-// Wiki fetch — WASM (async)
-// =============================================================================
-
-#[cfg(target_arch = "wasm32")]
-async fn fetch_wiki_async() -> Result<Vec<WikiPet>, String> {
-    let url = "https://itrtg.wiki.gg/wiki/Pets?action=raw";
-    let client = reqwest::Client::builder()
-        .build()
-        .map_err(|e| e.to_string())?;
-    let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
-    let source = resp.text().await.map_err(|e| e.to_string())?;
     wiki_extractor::parser::parse_pets(&source).map_err(|e| e.to_string())
 }
