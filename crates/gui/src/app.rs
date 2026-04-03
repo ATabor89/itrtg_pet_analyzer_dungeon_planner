@@ -91,8 +91,9 @@ impl eframe::App for App {
                     || file.name.ends_with(".html")
                     || file.name.ends_with(".htm");
 
-                // On WASM, eframe provides file contents as bytes.
-                // On native, bytes may be None and we fall back to reading the path.
+                // On WASM, eframe always provides file contents as bytes.
+                // On native, bytes may be None so we fall back to reading the path.
+                #[allow(clippy::unnecessary_literal_unwrap)]
                 let text = if let Some(bytes) = &file.bytes {
                     Some(String::from_utf8_lossy(bytes).into_owned())
                 } else {

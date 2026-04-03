@@ -117,12 +117,11 @@ impl DataStore {
                     let old_count = self.wiki_pets.len();
 
                     // On native, persist the refreshed data to disk if it changed.
-                    if count != old_count {
-                        if let Ok(yaml) = serde_yaml::to_string(&pets) {
-                            if let Err(e) = platform::save_wiki_pets(&yaml) {
-                                log::warn!("Failed to save wiki pets: {e}");
-                            }
-                        }
+                    if count != old_count
+                        && let Ok(yaml) = serde_yaml::to_string(&pets)
+                        && let Err(e) = platform::save_wiki_pets(&yaml)
+                    {
+                        log::warn!("Failed to save wiki pets: {e}");
                     }
 
                     self.wiki_pets = pets;
