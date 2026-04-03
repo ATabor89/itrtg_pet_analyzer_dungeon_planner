@@ -236,7 +236,8 @@ impl DungeonState {
         }
     }
 
-    /// Clear all constraints and reload from storage.
+    /// Clear all constraints and reload from storage (native only).
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn reset_constraints_from_file(&mut self) -> Result<(), String> {
         self.forbidden_pets.clear();
         self.forced_pets.clear();
@@ -248,7 +249,8 @@ impl DungeonState {
         Ok(())
     }
 
-    /// Save current constraints to storage.
+    /// Save current constraints to storage (native only — WASM uses auto-save).
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn save_constraints_to_file(&mut self) -> Result<(), String> {
         let yaml = self.serialize_constraints_yaml();
         let result = platform::save_pet_constraints(&yaml);
@@ -656,9 +658,9 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 });
         });
 
-        // File management buttons
+        // File management buttons (native only — WASM auto-saves to localStorage)
+        #[cfg(not(target_arch = "wasm32"))]
         ui.horizontal(|ui| {
-            #[cfg(not(target_arch = "wasm32"))]
             if ui
                 .add(egui::Button::new(
                     RichText::new("Open File").color(style::TEXT_MUTED).size(11.0),
@@ -675,9 +677,10 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 ))
                 .on_hover_text("Save current constraints to data/pet_constraints.yaml")
                 .clicked()
-                && let Err(e) = state.save_constraints_to_file() {
-                    eprintln!("Failed to save constraints: {e}");
-                }
+                && let Err(e) = state.save_constraints_to_file()
+            {
+                eprintln!("Failed to save constraints: {e}");
+            }
 
             if ui
                 .add(egui::Button::new(
