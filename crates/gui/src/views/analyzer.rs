@@ -316,11 +316,12 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
     // Wiki data section
     if let Some(wiki) = &pet.wiki {
         // Wiki link
-        if !wiki.wiki_url.is_empty() {
-            ui.hyperlink_to(
-                RichText::new("View on Wiki →").color(style::ACCENT).size(12.0),
-                &wiki.wiki_url,
-            );
+        if !wiki.wiki_url.is_empty()
+            && ui
+                .link(RichText::new("View on Wiki \u{2192}").color(style::ACCENT).size(12.0))
+                .clicked()
+        {
+            ui.ctx().open_url(egui::OpenUrl::new_tab(&wiki.wiki_url));
         }
 
         ui.add_space(4.0);
