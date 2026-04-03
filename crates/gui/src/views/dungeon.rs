@@ -561,6 +561,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             .color(style::TEXT_MUTED)
             .size(13.0),
     )
+    .id_salt("pet_constraints")
     .default_open(false)
     .show(ui, |ui| {
         // Search + add controls
