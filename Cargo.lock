@@ -1981,6 +1981,7 @@ dependencies = [
  "egui_extras",
  "itrtg-models",
  "itrtg-planner",
+ "js-sys",
  "log",
  "pet-importer",
  "reqwest",

@@ -264,10 +264,10 @@ impl DungeonState {
     /// Called once per frame to keep persistent storage in sync.
     pub fn auto_save_constraints(&mut self) {
         let current = self.serialize_constraints_yaml();
-        if current != self.last_saved_constraints {
-            if platform::save_pet_constraints(&current).is_ok() {
-                self.last_saved_constraints = current;
-            }
+        if current != self.last_saved_constraints
+            && platform::save_pet_constraints(&current).is_ok()
+        {
+            self.last_saved_constraints = current;
         }
     }
 

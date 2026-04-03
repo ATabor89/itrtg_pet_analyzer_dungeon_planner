@@ -1,8 +1,8 @@
-/// Platform abstraction layer.
-///
-/// Provides a unified interface for operations that differ between native
-/// desktop and WASM/web builds: data file loading, user data persistence,
-/// and async task spawning.
+// Platform abstraction layer.
+//
+// Provides a unified interface for operations that differ between native
+// desktop and WASM/web builds: data file loading, user data persistence,
+// and async task spawning.
 
 // =============================================================================
 // Game data — baked into the binary on WASM, read from disk on native
