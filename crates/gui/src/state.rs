@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use itrtg_models::{Dungeon, Quality};
 
 use crate::platform;
+use crate::views::analyzer::AnalyzerState;
 
 /// Bump when the on-disk schema changes in a non-backwards-compatible way.
 pub const CURRENT_VERSION: u32 = 1;
@@ -24,6 +25,7 @@ pub struct AppState {
     pub inventory: BTreeMap<String, u8>,
     pub equipment_standards: BTreeMap<Dungeon, EquipmentStandardOverride>,
     pub constraints: ConstraintsState,
+    pub analyzer: AnalyzerState,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

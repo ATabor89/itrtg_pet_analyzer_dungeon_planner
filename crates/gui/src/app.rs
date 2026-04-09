@@ -51,11 +51,13 @@ impl App {
         let (app_state, last_saved_yaml) = state::load();
         let mut dungeon_state = dungeon::DungeonState::default();
         dungeon_state.apply_app_state(&app_state);
+        let mut analyzer_state = analyzer::AnalyzerState::default();
+        analyzer_state.apply_app_state(&app_state);
 
         Self {
             tab: Tab::Analyzer,
             data,
-            analyzer_state: analyzer::AnalyzerState::default(),
+            analyzer_state,
             dungeon_state,
             log_viewer_state: log_viewer::LogViewerState::default(),
             show_import_dialog: false,
@@ -72,6 +74,7 @@ impl App {
             ..AppState::default()
         };
         self.dungeon_state.write_into(&mut snapshot);
+        self.analyzer_state.write_into(&mut snapshot);
         let yaml = state::serialize(&snapshot);
         if yaml != self.last_saved_yaml && platform::save_app_state(&yaml).is_ok() {
             self.last_saved_yaml = yaml;
