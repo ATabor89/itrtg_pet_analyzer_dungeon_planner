@@ -1,0 +1,7 @@
+# Repo-level cargo configuration.
+
+[alias]
+# Pull the latest pet data from itrtg.wiki.gg and overwrite data/wiki_pets.yaml.
+# Run before committing if you want fresh wiki data without waiting for the
+# weekly GitHub Actions refresh.
+update-wiki = "run -p wiki-extractor --features cli --quiet -- --output data/wiki_pets.yaml"

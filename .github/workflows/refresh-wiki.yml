@@ -1,0 +1,52 @@
+name: Refresh wiki data
+
+on:
+  schedule:
+    # Sundays at 04:23 UTC. Off-hour to avoid the cron rush.
+    - cron: '23 4 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-wiki
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: refresh-wiki
+
+      - name: Fetch latest wiki pet data
+        run: cargo run -p wiki-extractor --features cli --quiet -- --output data/wiki_pets.yaml
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet -- data/wiki_pets.yaml; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes to data/wiki_pets.yaml."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "data/wiki_pets.yaml changed:"
+            git diff --stat -- data/wiki_pets.yaml
+          fi
+
+      - name: Commit and push
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/wiki_pets.yaml
+          git commit -m "Refresh wiki_pets.yaml from itrtg.wiki.gg"
+          git push origin HEAD:main
