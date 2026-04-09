@@ -285,13 +285,16 @@ fn lookup_element(
 
 /// Select the weapon, applying pet-level constraints from `pet_special_info`.
 ///
-/// Order of precedence:
-///   1. Forbidden weapon kind (e.g. Ghost cannot equip knives) — if the
-///      class default would pick that kind, we substitute a neutral sword.
-///   2. Required weapon kind (e.g. Archer/Cherub need a bow) — force that
-///      kind, keeping the default element.
-///   3. Class-default selector with element override from
-///      `priority_element_override` (e.g. Sylph prioritizing Wind).
+/// Order of precedence (most specific first):
+///   1. Required weapon kind (e.g. Archer/Cherub need a bow) — force that
+///      kind, preferring the priority element override if set, otherwise
+///      keeping the class default element.
+///   2. Forbidden weapon kind (e.g. Ghost cannot equip knives) — if the
+///      class default would pick that kind, substitute a sword instead.
+///      The element is the priority override if set, otherwise Neutral.
+///   3. Priority element override without a kind change (e.g. Sylph
+///      prioritizing Wind) — keep the class default kind, swap element.
+///   4. Plain class-default selector.
 fn select_weapon(
     rule: &ResolvedRule<'_>,
     special: Option<&itrtg_models::planner_config::PetSpecialInfo>,
@@ -309,7 +312,12 @@ fn select_weapon(
         }
 
         // Forbidden kind — if the default would use it, fall back to a
-        // class-appropriate neutral sword (safe generic choice).
+        // sword. Element comes from the priority override if set
+        // (e.g. a hypothetical pet that forbids knives and scales with
+        // fire would get a fire sword); otherwise Neutral for the safe
+        // generic choice. In practice today Ghost is the only pet with a
+        // forbidden kind and has no priority override, so this resolves
+        // to a plain neutral sword.
         if let Some(forbidden) = info.forbidden_weapon_kind()
             && base_kind
                 .as_deref()

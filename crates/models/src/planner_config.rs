@@ -484,14 +484,14 @@ by_class:
 
         // At depth 3 the mage uses its base armor rule (pet_element).
         let d3 = rules.resolve(Class::Mage, 3);
-        matches!(d3.armor, EquipmentSelector::PetElement { .. });
+        assert!(matches!(d3.armor, EquipmentSelector::PetElement { .. }));
 
         // At depth 2 the override kicks in.
         let d2 = rules.resolve(Class::Mage, 2);
-        matches!(d2.armor, EquipmentSelector::DungeonElement { .. });
+        assert!(matches!(d2.armor, EquipmentSelector::DungeonElement { .. }));
 
         // Weapon is inherited from the base rule on both.
-        matches!(d2.weapon, EquipmentSelector::Fixed { .. });
+        assert!(matches!(d2.weapon, EquipmentSelector::Fixed { .. }));
     }
 
     #[test]

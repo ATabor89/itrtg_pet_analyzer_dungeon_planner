@@ -271,9 +271,15 @@ impl DataStore {
     }
 
     /// Load planner config from its two YAML sources (equipment rules + per-pet
-    /// special info). Errors are surfaced via `import_status` and leave
-    /// `planner_config` as `None` — the equipment recommender will then skip
-    /// computed suggestions rather than crash the app.
+    /// special info).
+    ///
+    /// On success, `planner_config` is replaced with the newly parsed config.
+    /// On parse error, the previous value is left unchanged (so a reload that
+    /// hits a malformed file keeps the app running on the last good config)
+    /// and the error is surfaced via `import_status`. At startup the previous
+    /// value is `None`, so a failed first load leaves the equipment
+    /// recommender without a config — the dungeon view skips computed
+    /// suggestions rather than crashing.
     pub fn load_planner_config(
         &mut self,
         config_yaml: &str,
