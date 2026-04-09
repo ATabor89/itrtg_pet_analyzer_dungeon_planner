@@ -2,6 +2,7 @@ mod app;
 mod data;
 mod log_parser;
 mod platform;
+mod state;
 mod style;
 mod views;
 

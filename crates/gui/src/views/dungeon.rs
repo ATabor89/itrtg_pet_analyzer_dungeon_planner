@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui, Vec2};
 use itrtg_models::dungeon::{DungeonRecommendations, EquipmentCatalog};
@@ -9,10 +9,11 @@ use itrtg_planner::solver::{
     self, Assignment, CoverageKind, DungeonPlan, DungeonRequest, MatchQuality, SolverConstraints,
 };
 
-use crate::platform;
-use serde::Deserialize;
-
 use crate::data::DataStore;
+use crate::state::{
+    AppState, ConstraintsState, DungeonSelection, EquipmentStandardOverride as StateStandardOverride,
+    ForcedEntry,
+};
 use crate::style;
 use super::widgets;
 
@@ -54,10 +55,8 @@ pub struct DungeonState {
     /// Equipment inventory: catalog_key → owned quantity.
     /// Only tracks limited/premium equipment. Craftable equipment is unlimited.
     pub equipment_inventory: HashMap<String, u8>,
-    /// Per-dungeon equipment standard overrides from planner config.
+    /// Per-dungeon equipment standard overrides from app state.
     equipment_standard_overrides: HashMap<Dungeon, EquipmentStandard>,
-    /// Snapshot of serialized constraints from last save, used to detect changes.
-    last_saved_constraints: String,
 }
 
 /// Resolved minimum equipment standards for a dungeon.
@@ -67,9 +66,6 @@ pub struct EquipmentStandard {
     pub min_quality: Quality,
     pub min_upgrade: u8,
 }
-
-#[cfg(not(target_arch = "wasm32"))]
-const CONSTRAINTS_PATH: &str = "data/pet_constraints.yaml";
 
 const DUNGEONS: &[(Dungeon, &str)] = &[
     (Dungeon::Scrapyard, "Scrapyard"),
@@ -146,60 +142,37 @@ impl DungeonState {
         }
     }
 
-    /// Load constraints from a YAML string (pet_constraints.yaml).
-    /// Merges into current state — existing manual constraints are preserved.
-    pub fn load_constraints_yaml(&mut self, yaml: &str) -> Result<(), String> {
-        let file: ConstraintsFile =
-            serde_yaml::from_str(yaml).map_err(|e| format!("Constraints YAML error: {e}"))?;
-
-        for name in file.forbidden.unwrap_or_default() {
-            self.forbidden_pets.insert(name);
-        }
-        for entry in file.forced.unwrap_or_default() {
-            let already = self
-                .forced_pets
-                .iter()
-                .any(|(d, n)| n == &entry.pet && *d == entry.dungeon);
-            if !already {
-                self.forced_pets.push((entry.dungeon, entry.pet));
-            }
-        }
-        for name in file.whitelisted.unwrap_or_default() {
-            self.whitelisted_pets.insert(name);
-        }
-
-        // Snapshot the loaded state so auto_save doesn't trigger immediately
-        self.last_saved_constraints = self.serialize_constraints_yaml();
-
-        Ok(())
-    }
-
-    /// Load planner configuration from a YAML string (planner_config.yaml).
-    /// Sets default dungeon selections and equipment inventory.
-    pub fn load_planner_config(&mut self, yaml: &str) -> Result<(), String> {
-        let config: PlannerConfigFile =
-            serde_yaml::from_str(yaml).map_err(|e| format!("Planner config YAML error: {e}"))?;
-
-        // Apply default dungeon selections
+    /// Absorb the persisted `AppState` into this in-memory dungeon state.
+    /// Replaces constraint sets, inventory, standards, and default-dungeon
+    /// selections — the file is the sole source of truth.
+    pub fn apply_app_state(&mut self, state: &AppState) {
         self.ensure_init();
-        for default in &config.default_dungeons {
+
+        // Reset all dungeon selections before reapplying.
+        for entry in &mut self.entries {
+            entry.enabled = false;
+            entry.depth = 1;
+        }
+        for selection in &state.default_dungeons {
             if let Some(entry) = self
                 .entries
                 .iter_mut()
-                .find(|e| e.dungeon == default.dungeon)
+                .find(|e| e.dungeon == selection.dungeon)
             {
                 entry.enabled = true;
-                entry.depth = default.depth.clamp(1, 3);
+                entry.depth = selection.depth.clamp(1, 3);
             }
         }
 
-        // Apply equipment inventory
-        self.equipment_inventory = config.equipment_inventory;
+        // Inventory is copied wholesale — order is irrelevant to the solver.
+        self.equipment_inventory = state.inventory.iter().map(|(k, v)| (k.clone(), *v)).collect();
 
-        // Apply equipment standard overrides
-        for (dungeon, ovr) in config.equipment_standards {
+        // Standards: convert from the persistable override form (all Option
+        // fields) to the in-memory form (concrete defaults).
+        self.equipment_standard_overrides.clear();
+        for (dungeon, ovr) in &state.equipment_standards {
             self.equipment_standard_overrides.insert(
-                dungeon,
+                *dungeon,
                 EquipmentStandard {
                     min_tier: ovr.min_tier.unwrap_or(1),
                     min_quality: ovr.min_quality.unwrap_or(Quality::S),
@@ -208,7 +181,72 @@ impl DungeonState {
             );
         }
 
-        Ok(())
+        // Constraints: replace all three sets.
+        self.forbidden_pets.clear();
+        self.forbidden_pets.extend(state.constraints.forbidden.iter().cloned());
+        self.whitelisted_pets.clear();
+        self.whitelisted_pets.extend(state.constraints.whitelisted.iter().cloned());
+        self.forced_pets.clear();
+        self.forced_pets.extend(
+            state
+                .constraints
+                .forced
+                .iter()
+                .map(|f| (f.dungeon, f.pet.clone())),
+        );
+    }
+
+    /// Fill an `AppState` with the persistable bits of the current dungeon state.
+    /// Output ordering is deterministic so frame-to-frame diff detection is stable.
+    pub fn write_into(&self, state: &mut AppState) {
+        // Default dungeons: iterate in the canonical `DUNGEONS` order so that
+        // toggling selections doesn't reorder the list in the saved file.
+        state.default_dungeons = self
+            .entries
+            .iter()
+            .filter(|e| e.enabled)
+            .map(|e| DungeonSelection { dungeon: e.dungeon, depth: e.depth })
+            .collect();
+
+        // Inventory → BTreeMap for sorted iteration on serialize.
+        state.inventory = self
+            .equipment_inventory
+            .iter()
+            .map(|(k, v)| (k.clone(), *v))
+            .collect::<BTreeMap<_, _>>();
+
+        // Standards → BTreeMap keyed by Dungeon. Only emit fields that deviate
+        // from the depth-based defaults; the in-memory form keeps concrete values.
+        state.equipment_standards = self
+            .equipment_standard_overrides
+            .iter()
+            .map(|(d, s)| {
+                (
+                    *d,
+                    StateStandardOverride {
+                        min_tier: Some(s.min_tier),
+                        min_quality: Some(s.min_quality),
+                        min_upgrade: Some(s.min_upgrade),
+                    },
+                )
+            })
+            .collect();
+
+        // Constraints: sort forbidden/whitelisted alphabetically for stable YAML.
+        let mut forbidden: Vec<String> = self.forbidden_pets.iter().cloned().collect();
+        forbidden.sort();
+        let mut whitelisted: Vec<String> = self.whitelisted_pets.iter().cloned().collect();
+        whitelisted.sort();
+
+        state.constraints = ConstraintsState {
+            forbidden,
+            whitelisted,
+            forced: self
+                .forced_pets
+                .iter()
+                .map(|(dungeon, pet)| ForcedEntry { pet: pet.clone(), dungeon: *dungeon })
+                .collect(),
+        };
     }
 
     /// Refresh pet data in existing plans without re-solving.
@@ -236,147 +274,6 @@ impl DungeonState {
         }
     }
 
-    /// Clear all constraints and reload from storage (native only).
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn reset_constraints_from_file(&mut self) -> Result<(), String> {
-        self.forbidden_pets.clear();
-        self.forced_pets.clear();
-        self.whitelisted_pets.clear();
-
-        if let Some(yaml) = platform::load_pet_constraints() {
-            self.load_constraints_yaml(&yaml)?;
-        }
-        Ok(())
-    }
-
-    /// Save current constraints to storage (native only — WASM uses auto-save).
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn save_constraints_to_file(&mut self) -> Result<(), String> {
-        let yaml = self.serialize_constraints_yaml();
-        let result = platform::save_pet_constraints(&yaml);
-        if result.is_ok() {
-            self.last_saved_constraints = yaml;
-        }
-        result
-    }
-
-    /// Auto-save constraints if they've changed since last save.
-    /// Called once per frame to keep persistent storage in sync.
-    pub fn auto_save_constraints(&mut self) {
-        let current = self.serialize_constraints_yaml();
-        if current != self.last_saved_constraints
-            && platform::save_pet_constraints(&current).is_ok()
-        {
-            self.last_saved_constraints = current;
-        }
-    }
-
-    /// Serialize current constraints to a YAML string with explanatory comments.
-    fn serialize_constraints_yaml(&self) -> String {
-        let mut out = String::new();
-        out.push_str("# Pet Constraints for the Dungeon Planner\n");
-        out.push_str("#\n");
-        out.push_str("# Forbidden: pets excluded from ALL dungeon teams.\n");
-        out.push_str("# Use this for pets you want to keep on campaigns, village jobs,\n");
-        out.push_str("# or otherwise don't want the solver touching.\n");
-        out.push_str("#\n");
-        out.push_str("# Forced: pets that MUST appear in a dungeon team.\n");
-        out.push_str("# Optionally specify a dungeon to pin them to a specific team.\n");
-        out.push_str("# Omit the dungeon to let the solver pick the best fit.\n");
-        out.push_str("#\n");
-        out.push_str("# Whitelisted: pets that bypass the non-dungeon class filter.\n");
-        out.push_str("# Use for Blacksmiths/Alchemists/Adventurers that actually benefit\n");
-        out.push_str("# from dungeon runs (e.g. special abilities, class XP exceptions).\n");
-        out.push_str("#\n");
-        out.push_str("# Dungeon names: Scrapyard, WaterTemple, Volcano, Mountain, Forest\n");
-        out.push('\n');
-
-        // Forbidden
-        out.push_str("forbidden:\n");
-        if self.forbidden_pets.is_empty() {
-            out.push_str("  # - Pet Name\n");
-        } else {
-            let mut sorted: Vec<&String> = self.forbidden_pets.iter().collect();
-            sorted.sort();
-            for name in sorted {
-                out.push_str(&format!("  - {name}\n"));
-            }
-        }
-        out.push('\n');
-
-        // Forced
-        out.push_str("forced:\n");
-        if self.forced_pets.is_empty() {
-            out.push_str("  # - pet: Pet Name\n");
-            out.push_str("  #   dungeon: Forest\n");
-        } else {
-            for (dungeon, name) in &self.forced_pets {
-                out.push_str(&format!("  - pet: {name}\n"));
-                if let Some(d) = dungeon {
-                    out.push_str(&format!("    dungeon: {d:?}\n"));
-                }
-            }
-        }
-        out.push('\n');
-
-        // Whitelisted
-        out.push_str("whitelisted:\n");
-        if self.whitelisted_pets.is_empty() {
-            out.push_str("  # - Pet Name\n");
-        } else {
-            let mut sorted: Vec<&String> = self.whitelisted_pets.iter().collect();
-            sorted.sort();
-            for name in sorted {
-                out.push_str(&format!("  - {name}\n"));
-            }
-        }
-
-        out
-    }
-}
-
-// =============================================================================
-// Constraints YAML format
-// =============================================================================
-
-#[derive(Deserialize)]
-struct ConstraintsFile {
-    forbidden: Option<Vec<String>>,
-    forced: Option<Vec<ForcedEntry>>,
-    whitelisted: Option<Vec<String>>,
-}
-
-#[derive(Deserialize)]
-struct ForcedEntry {
-    pet: String,
-    dungeon: Option<Dungeon>,
-}
-
-// =============================================================================
-// Planner config YAML format
-// =============================================================================
-
-#[derive(Deserialize)]
-struct PlannerConfigFile {
-    #[serde(default)]
-    default_dungeons: Vec<DefaultDungeonEntry>,
-    #[serde(default)]
-    equipment_inventory: HashMap<String, u8>,
-    #[serde(default)]
-    equipment_standards: HashMap<Dungeon, EquipmentStandardOverride>,
-}
-
-#[derive(Deserialize)]
-struct DefaultDungeonEntry {
-    dungeon: Dungeon,
-    depth: u8,
-}
-
-#[derive(Deserialize)]
-struct EquipmentStandardOverride {
-    min_tier: Option<u8>,
-    min_quality: Option<Quality>,
-    min_upgrade: Option<u8>,
 }
 
 // =============================================================================
@@ -385,9 +282,6 @@ struct EquipmentStandardOverride {
 
 pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     state.ensure_init();
-
-    // Auto-save constraints when they change (keeps localStorage/disk in sync)
-    state.auto_save_constraints();
 
     // Auto-refresh plans when pet data changes (import/wiki refresh)
     state.refresh_plans(data);
@@ -659,41 +553,6 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 });
         });
 
-        // File management buttons (native only — WASM auto-saves to localStorage)
-        #[cfg(not(target_arch = "wasm32"))]
-        ui.horizontal(|ui| {
-            if ui
-                .add(egui::Button::new(
-                    RichText::new("Open File").color(style::TEXT_MUTED).size(11.0),
-                ))
-                .on_hover_text("Open pet_constraints.yaml in your default editor")
-                .clicked()
-            {
-                open_constraints_file();
-            }
-
-            if ui
-                .add(egui::Button::new(
-                    RichText::new("Save to File").color(style::TEXT_MUTED).size(11.0),
-                ))
-                .on_hover_text("Save current constraints to data/pet_constraints.yaml")
-                .clicked()
-                && let Err(e) = state.save_constraints_to_file()
-            {
-                eprintln!("Failed to save constraints: {e}");
-            }
-
-            if ui
-                .add(egui::Button::new(
-                    RichText::new("Reset from File").color(style::TEXT_MUTED).size(11.0),
-                ))
-                .on_hover_text("Clear all constraints and reload from data/pet_constraints.yaml")
-                .clicked()
-            {
-                let _ = state.reset_constraints_from_file();
-            }
-        });
-
         // Show active constraints
         let has_any = !state.forbidden_pets.is_empty()
             || !state.forced_pets.is_empty()
@@ -779,26 +638,6 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             }
         }
     });
-}
-
-/// Open the constraints YAML file in the OS default editor (native only).
-#[cfg(not(target_arch = "wasm32"))]
-fn open_constraints_file() {
-    let path = CONSTRAINTS_PATH;
-    #[cfg(target_os = "windows")]
-    {
-        let _ = std::process::Command::new("cmd")
-            .args(["/C", "start", "", path])
-            .spawn();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = std::process::Command::new("open").arg(path).spawn();
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let _ = std::process::Command::new("xdg-open").arg(path).spawn();
-    }
 }
 
 // =============================================================================

@@ -2,6 +2,7 @@ use eframe::egui::{self, RichText};
 
 use crate::data::DataStore;
 use crate::platform;
+use crate::state::{self, AppState};
 use crate::style;
 use crate::views::{analyzer, dungeon, log_viewer};
 
@@ -24,6 +25,9 @@ pub struct App {
     log_viewer_state: log_viewer::LogViewerState,
     show_import_dialog: bool,
     import_text: String,
+    /// Last successfully persisted serialization of `AppState`. Used by
+    /// `update` to skip writes when nothing has changed frame-to-frame.
+    last_saved_yaml: String,
 }
 
 impl App {
@@ -43,20 +47,10 @@ impl App {
         // Load wiki pet data from YAML (baked on WASM, from disk on native)
         data.load_wiki_pets_from_yaml();
 
-        // Load per-user configuration (localStorage on WASM, filesystem on native)
+        // Load the unified app state (localStorage on WASM, filesystem on native)
+        let (app_state, last_saved_yaml) = state::load();
         let mut dungeon_state = dungeon::DungeonState::default();
-
-        if let Some(yaml) = platform::load_planner_config()
-            && let Err(e) = dungeon_state.load_planner_config(&yaml)
-        {
-            data.import_status = Some((e, true));
-        }
-
-        if let Some(yaml) = platform::load_pet_constraints()
-            && let Err(e) = dungeon_state.load_constraints_yaml(&yaml)
-        {
-            data.import_status = Some((e, true));
-        }
+        dungeon_state.apply_app_state(&app_state);
 
         Self {
             tab: Tab::Analyzer,
@@ -66,6 +60,21 @@ impl App {
             log_viewer_state: log_viewer::LogViewerState::default(),
             show_import_dialog: false,
             import_text: String::new(),
+            last_saved_yaml,
+        }
+    }
+
+    /// Snapshot the current in-memory state and write it to the platform
+    /// backing store if it has changed since the last save.
+    fn auto_save_app_state(&mut self) {
+        let mut snapshot = AppState {
+            version: state::CURRENT_VERSION,
+            ..AppState::default()
+        };
+        self.dungeon_state.write_into(&mut snapshot);
+        let yaml = state::serialize(&snapshot);
+        if yaml != self.last_saved_yaml && platform::save_app_state(&yaml).is_ok() {
+            self.last_saved_yaml = yaml;
         }
     }
 }
@@ -75,6 +84,9 @@ impl eframe::App for App {
         // Poll async operations
         self.data.poll_wiki();
         self.data.poll_clipboard();
+
+        // Persist any user-visible state changes from the previous frame.
+        self.auto_save_app_state();
 
         // Handle dropped files
         ctx.input(|i| {

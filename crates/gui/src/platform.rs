@@ -61,22 +61,17 @@ fn load_game_data(_path: &str, baked: &str) -> Option<String> {
 // User data — localStorage on WASM, filesystem on native
 // =============================================================================
 
-const PLANNER_CONFIG_KEY: &str = "planner_config";
-const PET_CONSTRAINTS_KEY: &str = "pet_constraints";
+const APP_STATE_KEY: &str = "app_state";
+const APP_STATE_PATH: &str = "data/app_state.yaml";
 
-/// Load the planner configuration YAML (per-user).
-pub fn load_planner_config() -> Option<String> {
-    load_user_data("data/planner_config.yaml", PLANNER_CONFIG_KEY)
+/// Load the unified app state YAML (per-user).
+pub fn load_app_state() -> Option<String> {
+    load_user_data(APP_STATE_PATH, APP_STATE_KEY)
 }
 
-/// Load the pet constraints YAML (per-user).
-pub fn load_pet_constraints() -> Option<String> {
-    load_user_data("data/pet_constraints.yaml", PET_CONSTRAINTS_KEY)
-}
-
-/// Save the pet constraints YAML (per-user).
-pub fn save_pet_constraints(yaml: &str) -> Result<(), String> {
-    save_user_data("data/pet_constraints.yaml", PET_CONSTRAINTS_KEY, yaml)
+/// Save the unified app state YAML (per-user).
+pub fn save_app_state(yaml: &str) -> Result<(), String> {
+    save_user_data(APP_STATE_PATH, APP_STATE_KEY, yaml)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
