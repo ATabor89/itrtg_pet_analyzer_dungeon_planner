@@ -5,6 +5,7 @@ mod action;
 mod export;
 mod names;
 pub mod dungeon;
+pub mod planner_config;
 
 pub use self::core::*;
 pub use wiki::*;
