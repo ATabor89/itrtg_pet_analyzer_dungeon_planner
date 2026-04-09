@@ -1,2 +1,5 @@
 /target
 /crates/gui/dist
+
+# Per-user app state — auto-maintained by the tool, not source-controlled.
+/data/app_state.yaml
