@@ -268,8 +268,10 @@ impl DungeonState {
                 }
             }
             // Re-enrich equipment with updated pet data
-            if let Some(recs) = &data.dungeon_recs {
-                equipment::enrich_equipment(plan, &recs.equipment);
+            if let (Some(recs), Some(cfg)) =
+                (&data.dungeon_recs, &data.planner_config)
+            {
+                equipment::enrich_equipment(plan, &recs.equipment, cfg);
             }
         }
     }
@@ -672,9 +674,13 @@ fn solve_all(state: &mut DungeonState, data: &DataStore) {
     // Solve all dungeons simultaneously — no pet reuse across teams
     state.plans = solver::solve_multi(&requests, &data.merged, &constraints);
 
-    // Enrich with equipment suggestions (resolves generic keys to real gear)
-    for plan in &mut state.plans {
-        equipment::enrich_equipment(plan, &recs.equipment);
+    // Enrich with equipment suggestions (resolves generic keys to real gear).
+    // Skipped cleanly if the planner config hasn't loaded (we'd have nothing
+    // to turn generic keys into).
+    if let Some(cfg) = &data.planner_config {
+        for plan in &mut state.plans {
+            equipment::enrich_equipment(plan, &recs.equipment, cfg);
+        }
     }
 
     // Mark plans as current

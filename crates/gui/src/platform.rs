@@ -29,6 +29,22 @@ pub fn load_wiki_pets() -> Option<String> {
     )
 }
 
+/// Load the planner config YAML (equipment selection rules).
+pub fn load_planner_config() -> Option<String> {
+    load_game_data(
+        "data/planner_config.yaml",
+        include_str!("../../../data/planner_config.yaml"),
+    )
+}
+
+/// Load the pet special info YAML (per-pet quirks).
+pub fn load_pet_special_info() -> Option<String> {
+    load_game_data(
+        "data/pet_special_info.yaml",
+        include_str!("../../../data/pet_special_info.yaml"),
+    )
+}
+
 /// Save updated wiki pets YAML to disk (native only, no-op on WASM).
 #[cfg(not(target_arch = "wasm32"))]
 pub fn save_wiki_pets(yaml: &str) -> Result<(), String> {
