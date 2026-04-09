@@ -7,8 +7,10 @@ use itrtg_models::{
     VillageJob,
 };
 use itrtg_planner::merge::MergedPet;
+use serde::{Deserialize, Serialize};
 
 use crate::data::DataStore;
+use crate::state::AppState;
 use crate::style;
 use super::widgets;
 
@@ -16,7 +18,7 @@ use super::widgets;
 // Filter enums
 // =============================================================================
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnlockTypeFilter {
     #[default]
     All,
@@ -72,7 +74,7 @@ impl UnlockTypeFilter {
     }
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RecClassFilter {
     #[default]
     All,
@@ -139,7 +141,7 @@ fn rec_includes_class(rec: &RecommendedClass, target: Class) -> bool {
     }
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MyClassFilter {
     #[default]
     All,
@@ -189,7 +191,7 @@ impl MyClassFilter {
     }
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ImprovableFilter {
     #[default]
     All,
@@ -213,8 +215,11 @@ impl ImprovableFilter {
 // State
 // =============================================================================
 
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AnalyzerState {
+    /// Search text — intentionally not persisted; feels stale on relaunch.
+    #[serde(skip)]
     pub search: String,
     pub filter_element: Option<Element>,
     pub filter_unlocked: Option<bool>,
@@ -225,12 +230,55 @@ pub struct AnalyzerState {
     pub filter_improvable: ImprovableFilter,
     pub sort_column: SortColumn,
     pub sort_ascending: bool,
-    sort_initialized: bool,
-    /// Name of the currently selected pet for the detail card.
+    /// Name of the currently selected pet for the detail card —
+    /// not persisted; a detail window reopening on launch feels stale.
+    #[serde(skip)]
     pub selected_pet: Option<String>,
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+impl Default for AnalyzerState {
+    fn default() -> Self {
+        // `sort_ascending` must match `SortColumn::default().default_ascending()`
+        // so that fresh state and deserialized state agree.
+        Self {
+            search: String::new(),
+            filter_element: None,
+            filter_unlocked: None,
+            filter_evolved: None,
+            filter_unlock_type: UnlockTypeFilter::default(),
+            filter_rec_class: RecClassFilter::default(),
+            filter_my_class: MyClassFilter::default(),
+            filter_improvable: ImprovableFilter::default(),
+            sort_column: SortColumn::default(),
+            sort_ascending: SortColumn::default().default_ascending(),
+            selected_pet: None,
+        }
+    }
+}
+
+impl AnalyzerState {
+    /// Absorb persisted analyzer state from the unified `AppState`.
+    /// Preserves ephemeral fields (`search`, `selected_pet`).
+    pub fn apply_app_state(&mut self, state: &AppState) {
+        let src = &state.analyzer;
+        self.filter_element = src.filter_element;
+        self.filter_unlocked = src.filter_unlocked;
+        self.filter_evolved = src.filter_evolved;
+        self.filter_unlock_type = src.filter_unlock_type;
+        self.filter_rec_class = src.filter_rec_class;
+        self.filter_my_class = src.filter_my_class;
+        self.filter_improvable = src.filter_improvable;
+        self.sort_column = src.sort_column;
+        self.sort_ascending = src.sort_ascending;
+    }
+
+    /// Copy persistable analyzer state into the unified `AppState`.
+    pub fn write_into(&self, state: &mut AppState) {
+        state.analyzer = self.clone();
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SortColumn {
     #[default]
     Name,
@@ -260,12 +308,6 @@ impl SortColumn {
 // =============================================================================
 
 pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
-    // Initialize default sort direction on first frame
-    if !state.sort_initialized {
-        state.sort_ascending = state.sort_column.default_ascending();
-        state.sort_initialized = true;
-    }
-
     // Pet detail window (rendered before table so it floats above)
     show_detail_window(ui, state, data);
 
