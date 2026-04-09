@@ -267,11 +267,16 @@ impl DungeonState {
                     }
                 }
             }
-            // Re-enrich equipment with updated pet data
-            if let (Some(recs), Some(cfg)) =
-                (&data.dungeon_recs, &data.planner_config)
-            {
-                equipment::enrich_equipment(plan, &recs.equipment, cfg);
+            // Re-enrich equipment with updated pet data. The config is
+            // passed through as `Option` so that static (non-generic)
+            // equipment keeps getting tagged even when the planner config
+            // failed to load.
+            if let Some(recs) = &data.dungeon_recs {
+                equipment::enrich_equipment(
+                    plan,
+                    &recs.equipment,
+                    data.planner_config.as_ref(),
+                );
             }
         }
     }
@@ -674,13 +679,16 @@ fn solve_all(state: &mut DungeonState, data: &DataStore) {
     // Solve all dungeons simultaneously — no pet reuse across teams
     state.plans = solver::solve_multi(&requests, &data.merged, &constraints);
 
-    // Enrich with equipment suggestions (resolves generic keys to real gear).
-    // Skipped cleanly if the planner config hasn't loaded (we'd have nothing
-    // to turn generic keys into).
-    if let Some(cfg) = &data.planner_config {
-        for plan in &mut state.plans {
-            equipment::enrich_equipment(plan, &recs.equipment, cfg);
-        }
+    // Enrich with equipment suggestions. Static (non-generic) gear is
+    // always tagged; computed suggestions for generic/missing slots need
+    // the planner config, which is passed through as `Option` so a
+    // missing config still lets the static path run.
+    for plan in &mut state.plans {
+        equipment::enrich_equipment(
+            plan,
+            &recs.equipment,
+            data.planner_config.as_ref(),
+        );
     }
 
     // Mark plans as current

@@ -50,23 +50,30 @@ pub struct EquipmentSuggestion {
 /// Enrich a solved plan with equipment suggestions.
 ///
 /// - Static (YAML-defined, non-generic) equipment is preserved and tagged as `Static`.
-/// - Generic or missing equipment is replaced with computed suggestions tagged as `Computed`.
+/// - Generic or missing equipment is replaced with computed suggestions tagged
+///   as `Computed`, provided a `config` is available.
+///
+/// `config` is optional so that a missing or failed-to-parse `planner_config`
+/// does not silently drop the *static* tagging path — callers can pass `None`
+/// and still have hand-curated YAML equipment flow through to the UI, at the
+/// cost of no computed fallbacks for generic or missing slots.
 pub fn enrich_equipment(
     plan: &mut DungeonPlan,
     catalog: &EquipmentCatalog,
-    config: &PlannerConfig,
+    config: Option<&PlannerConfig>,
 ) {
     let dungeon = plan.dungeon;
     let depth = plan.depth;
 
     for sa in &mut plan.assignments {
         let is_generic = sa.slot.equipment.as_ref().is_some_and(has_generic_keys);
-        let is_missing = sa.slot.equipment.is_none();
 
         if let Some(equip) = &sa.slot.equipment
             && !is_generic
         {
-            // Static equipment from YAML — tag and preserve
+            // Static equipment from YAML — tag and preserve. This branch
+            // does not depend on the planner config, so it runs whether or
+            // not the caller managed to load one.
             sa.equipment_suggestion = Some(EquipmentSuggestion {
                 equipment: equip.clone(),
                 source: EquipmentSource::Static,
@@ -74,7 +81,10 @@ pub fn enrich_equipment(
             continue;
         }
 
-        // Need to compute: get the pet's effective class
+        // Computed path — requires a planner config. Without it we leave
+        // the slot blank (the UI already handles the no-suggestion case).
+        let Some(config) = config else { continue };
+
         let Assignment::Filled { pet, .. } = &sa.assignment else {
             continue; // No pet assigned — can't recommend equipment
         };
@@ -87,8 +97,6 @@ pub fn enrich_equipment(
                 pet, class, pet_element, dungeon, depth, catalog, config,
             );
             sa.equipment_suggestion = Some(suggestion);
-        } else if is_missing || is_generic {
-            // No class info at all — skip, leave as None
         }
     }
 }
@@ -939,5 +947,95 @@ accessories:
         // (pet_element with Neutral fallback). With the override, the
         // priority element (wind) takes over.
         assert_eq!(s.equipment.accessory.as_deref(), Some("storm_ring"));
+    }
+
+    // -------- enrich_equipment: static tagging survives missing config --------
+
+    /// When `planner_config` is `None`, static (non-generic) gear should
+    /// still be tagged as `Static` and passed through to the UI. Only the
+    /// computed path for generic/missing slots should be skipped. This
+    /// guards against a past regression where the GUI dropped enrichment
+    /// entirely whenever the planner config failed to load, hiding the
+    /// hand-curated D2/D3 equipment from the dungeon view.
+    #[test]
+    fn test_enrich_equipment_without_config_still_tags_static() {
+        use crate::solver::{DungeonPlan, SlotAssignment};
+        use std::collections::BTreeMap;
+
+        let cat = test_catalog();
+
+        let static_equip = PartyEquipment {
+            weapon: Some("flame_sword".to_string()),
+            armor: Some("steel_armor".to_string()),
+            accessory: Some("flame_gloves".to_string()),
+            gems: None,
+        };
+        let generic_equip = PartyEquipment {
+            weapon: Some("generic_t2_s10".to_string()),
+            armor: Some("generic_t2_s10".to_string()),
+            accessory: Some("generic_t2_s10".to_string()),
+            gems: None,
+        };
+
+        let mut plan = DungeonPlan {
+            dungeon: Dungeon::Scrapyard,
+            depth: 2,
+            assignments: vec![
+                // Slot 0: hand-curated static gear, no pet assigned — must
+                // still be tagged even without a planner config.
+                SlotAssignment {
+                    slot: PartySlot {
+                        class: Some(Class::Mage),
+                        element: None,
+                        equipment: Some(static_equip.clone()),
+                    },
+                    position: 0,
+                    assignment: Assignment::Empty { suggestions: vec![] },
+                    equipment_suggestion: None,
+                },
+                // Slot 1: generic placeholder — without a config this
+                // should be left blank (the computed path can't run).
+                SlotAssignment {
+                    slot: PartySlot {
+                        class: Some(Class::Mage),
+                        element: None,
+                        equipment: Some(generic_equip),
+                    },
+                    position: 1,
+                    assignment: Assignment::Empty { suggestions: vec![] },
+                    equipment_suggestion: None,
+                },
+            ],
+            warnings: vec![],
+        };
+
+        enrich_equipment(&mut plan, &cat, None);
+
+        // Slot 0: static gear tagged and preserved verbatim.
+        let sa0 = &plan.assignments[0];
+        let suggestion0 = sa0.equipment_suggestion.as_ref().unwrap();
+        assert_eq!(suggestion0.source, EquipmentSource::Static);
+        assert_eq!(suggestion0.equipment.weapon.as_deref(), Some("flame_sword"));
+
+        // Slot 1: generic, no config → no suggestion computed.
+        assert!(plan.assignments[1].equipment_suggestion.is_none());
+
+        // With a config, the same generic slot now gets resolved. Use a
+        // filled assignment here so the computed path has a pet to work
+        // with.
+        let rules_yaml = include_str!("../../../data/planner_config.yaml");
+        let file: PlannerConfigFile = serde_yaml::from_str(rules_yaml).unwrap();
+        let cfg = PlannerConfig::new(file, BTreeMap::new());
+
+        plan.assignments[1].assignment = Assignment::Filled {
+            pet: mock_pet("TestMage", Element::Fire, Some(Class::Mage)),
+            quality: crate::solver::MatchQuality::Exact,
+        };
+
+        enrich_equipment(&mut plan, &cat, Some(&cfg));
+        let sa1 = &plan.assignments[1];
+        let suggestion1 = sa1.equipment_suggestion.as_ref().unwrap();
+        assert_eq!(suggestion1.source, EquipmentSource::Computed);
+        assert!(suggestion1.equipment.weapon.is_some());
     }
 }
