@@ -926,6 +926,7 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: &DataS
                 CoverageKind::Trap => "Trap",
                 CoverageKind::Event => "Event",
                 CoverageKind::Equipment => "Gear",
+                CoverageKind::Synergy => "Team",
             };
             ui.horizontal(|ui| {
                 ui.label(

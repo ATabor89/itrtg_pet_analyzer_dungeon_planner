@@ -101,6 +101,11 @@ pub enum CoverageKind {
     /// equipment name + which pet is holding it; the planner itself does
     /// not auto-swap gear.
     Equipment,
+    /// Two pets with a dungeon-context anti-synergy ended up on the same
+    /// team. The greedy solver filters these out, but user-forced
+    /// assignments bypass the filter — this variant reports the resulting
+    /// conflict so the user can adjust.
+    Synergy,
 }
 
 // =============================================================================
@@ -214,11 +219,19 @@ pub struct DungeonRequest<'a> {
 /// Also applies per-pet special info when `config` is `Some`:
 /// - **Locked class** pets (e.g. Basilisk) can only fill slots requiring that
 ///   class, and are never considered reclassable.
-/// - **Avoid-class / preferred-class** hints adjust scoring without
-///   hard-filtering.
-/// - **Anti-synergies** (Hourglass + Undine) prevent co-assignment to the
-///   same team.
+/// - **Avoid-class** hints downgrade match quality without hard-filtering,
+///   so an Ape-as-Mage match still works as a last resort.
+/// - **Flexible-class** pets (Holy ITRTG Book, Nothing, Nugget, Gray's
+///   children) match any class slot without the usual reclass penalty.
+/// - **Anti-synergies** (Hourglass + Undine) prevent co-assignment during
+///   greedy selection, and trigger post-solve warnings if two forced pets
+///   were pre-assigned into a conflict.
 /// - **Positive synergies** act as a tiebreaker during greedy selection.
+///
+/// Note: `preferred_class` from `pet_special_info.yaml` is *not* consumed
+/// here — the wiki's `recommended_class` already drives scoring and the
+/// two fields are redundant for every pet currently in the YAML. The
+/// typed accessor exists for display purposes.
 pub fn solve_multi(
     requests: &[DungeonRequest],
     roster: &[MergedPet],
@@ -530,7 +543,21 @@ pub fn solve_multi(
                 })
                 .collect();
 
-            let warnings = check_coverage(req.data, req.depth, &assigned_pets, config);
+            let mut warnings =
+                check_coverage(req.data, req.depth, &assigned_pets, config);
+            // The greedy phase filters anti-synergies out of its candidate
+            // pool, but Phase 1 / 1b (forced and forced_any pre-assignment)
+            // honors explicit user intent without rejecting the choice.
+            // If two forced pets ended up on the same team despite a
+            // dungeon-context anti-synergy, surface that to the user as a
+            // warning rather than silently overriding their selection.
+            if let Some(cfg) = config {
+                warnings.extend(check_team_anti_synergies(
+                    &assigned_pets,
+                    req.depth,
+                    cfg,
+                ));
+            }
 
             DungeonPlan {
                 dungeon: req.dungeon,
@@ -585,10 +612,13 @@ fn score_pet(
     let avoided = slot
         .class
         .zip(special)
-        .is_some_and(|(c, info)| info.avoid_classes().contains(&c));
+        .is_some_and(|(c, info)| info.avoid_classes().any(|ac| ac == c));
+    // Downgrades a positive match to `Reclassable` so any equally-qualified
+    // non-avoiding candidate wins the head-to-head. Existing `Reclassable`
+    // and `Fallback` qualities are passed through unchanged — we never make
+    // an avoided match *worse* than the caller's starting quality.
     let apply_avoid = |q: MatchQuality| -> MatchQuality {
         if avoided {
-            // Never exact: at best a reluctant reclass.
             match q {
                 MatchQuality::Exact | MatchQuality::Evolvable => MatchQuality::Reclassable,
                 other => other,
@@ -754,6 +784,48 @@ fn synergy_score(
     }
 
     score
+}
+
+/// Scan a finalized team for dungeon-context anti-synergies and emit one
+/// warning per conflict. The greedy assignment step already filters these
+/// out, but Phase 1 / 1b respects user-forced assignments without rejecting
+/// them — so two forced pets with an anti-synergy can legitimately end up
+/// together, and this check surfaces that to the user instead of silently
+/// letting it slide.
+///
+/// Conflicts are reported only once per unordered `{pet_a, pet_b}` pair,
+/// using lexicographic ordering on the names so the warning is stable
+/// across runs.
+fn check_team_anti_synergies(
+    team: &[&MergedPet],
+    depth: u8,
+    config: &PlannerConfig,
+) -> Vec<CoverageWarning> {
+    let mut warnings = Vec::new();
+
+    for (i, pet_a) in team.iter().enumerate() {
+        let Some(info_a) = config.special_info(&pet_a.name) else { continue };
+        for pet_b in &team[i + 1..] {
+            if info_a.has_dungeon_anti_synergy_with(&pet_b.name) {
+                let (first, second) = if pet_a.name <= pet_b.name {
+                    (pet_a.name.as_str(), pet_b.name.as_str())
+                } else {
+                    (pet_b.name.as_str(), pet_a.name.as_str())
+                };
+                warnings.push(CoverageWarning {
+                    source_depth: depth,
+                    kind: CoverageKind::Synergy,
+                    name: format!("{first} + {second}"),
+                    detail: format!(
+                        "{first} and {second} have a dungeon anti-synergy and \
+                         were both forced onto the team"
+                    ),
+                });
+            }
+        }
+    }
+
+    warnings
 }
 
 // =============================================================================
@@ -1494,6 +1566,101 @@ mod tests {
         assert!(matches!(&plans[0].assignments[1].assignment,
             Assignment::Filled { pet, .. } if pet.name == "Frog"),
             "Undine should have been filtered out by anti-synergy, leaving Frog");
+    }
+
+    #[test]
+    fn test_forced_anti_synergy_emits_warning_but_keeps_assignment() {
+        // User explicitly forces both Hourglass AND Undine into the same
+        // dungeon. The greedy filter would normally reject Undine, but
+        // the forced phase respects user intent without rejecting the
+        // choice. We should surface the conflict as a Synergy warning
+        // rather than silently letting it pass.
+        let pets = vec![
+            mock_pet(
+                "Hourglass",
+                Element::Water,
+                Some(Class::Supporter),
+                RecommendedClass::Single(Class::Supporter),
+                true,
+            ),
+            mock_pet(
+                "Undine",
+                Element::Water,
+                Some(Class::Supporter),
+                RecommendedClass::Single(Class::Supporter),
+                true,
+            ),
+        ];
+
+        let mut info = std::collections::BTreeMap::new();
+        info.insert(
+            "Hourglass".to_string(),
+            special_info_from_yaml(
+                "team_anti_synergies:\n  - pet: Undine\n    context: all\n",
+            ),
+        );
+        let cfg = config_with(info);
+
+        let dd = DungeonData {
+            name: "Test".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 5, monsters_per_room: 2, gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                        class_level: 3, total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                    party: vec![
+                        make_slot(Some(Class::Supporter), Some(Element::Water)),
+                        make_slot(Some(Class::Supporter), Some(Element::Water)),
+                    ],
+                    party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+                });
+                m
+            },
+        };
+
+        let mut constraints = SolverConstraints::default();
+        constraints.forced.insert(
+            Dungeon::WaterTemple,
+            vec!["Hourglass".to_string(), "Undine".to_string()],
+        );
+
+        let requests = [DungeonRequest {
+            dungeon: Dungeon::WaterTemple, depth: 1, data: &dd,
+        }];
+        let plans = solve_multi(&requests, &pets, &constraints, Some(&cfg));
+
+        // Both forced pets are on the team — user intent is respected.
+        let names: Vec<&str> = plans[0]
+            .assignments
+            .iter()
+            .filter_map(|a| match &a.assignment {
+                Assignment::Filled { pet, .. } => Some(pet.name.as_str()),
+                Assignment::Empty { .. } => None,
+            })
+            .collect();
+        assert!(names.contains(&"Hourglass"));
+        assert!(names.contains(&"Undine"));
+
+        // …but a Synergy warning should surface the conflict.
+        let synergy_warnings: Vec<_> = plans[0]
+            .warnings
+            .iter()
+            .filter(|w| matches!(w.kind, CoverageKind::Synergy))
+            .collect();
+        assert_eq!(
+            synergy_warnings.len(),
+            1,
+            "expected exactly one synergy warning, got {:?}",
+            plans[0].warnings,
+        );
+        // Names are reported in lexicographic order for stability.
+        assert_eq!(synergy_warnings[0].name, "Hourglass + Undine");
+        assert!(synergy_warnings[0].detail.contains("anti-synergy"));
     }
 
     // -- Positive synergy tiebreaker -----------------------------------------

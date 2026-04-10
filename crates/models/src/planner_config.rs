@@ -302,7 +302,13 @@ impl PetSpecialInfo {
     }
 
     /// Preferred class (soft hint) — the class whose bonuses this pet gets
-    /// the most out of. Used as a scoring tiebreaker.
+    /// the most out of.
+    ///
+    /// Currently *not* consumed by the solver: the wiki's `recommended_class`
+    /// already drives scoring, and `preferred_class` in special_info is
+    /// redundant with it for every pet in `pet_special_info.yaml` (Hourglass
+    /// → Supporter, Sylph → Mage, etc.). The accessor exists for display
+    /// purposes and future scoring work, not an active tiebreaker today.
     pub fn preferred_class(&self) -> Option<Class> {
         self.class_constraints
             .iter()
@@ -310,12 +316,13 @@ impl PetSpecialInfo {
     }
 
     /// Classes to avoid (soft). Multiple `avoid_class` entries are possible —
-    /// e.g. Arachne avoids both Mage and Defender.
-    pub fn avoid_classes(&self) -> Vec<Class> {
+    /// e.g. Arachne avoids both Mage and Defender. Returns an iterator to
+    /// avoid per-call allocation on the solver's scoring hot path; callers
+    /// can use `.any()` for membership tests without materializing a `Vec`.
+    pub fn avoid_classes(&self) -> impl Iterator<Item = Class> + '_ {
         self.class_constraints
             .iter()
             .filter_map(|cc| cc.avoid_class.as_deref().and_then(parse_class_name))
-            .collect()
     }
 
     /// Whether this pet satisfies *any* class requirement for dungeon events
@@ -387,9 +394,14 @@ impl PetSpecialInfo {
     // -- Equipment team-level constraints ------------------------------------
 
     /// Equipment (by display name) that must not be present on ANY teammate.
-    /// Used by the equipment post-pass to rewrite recommendations for pets
-    /// like Bat and Flying Eyeball whose class-XP / damage bonuses are
-    /// disabled when Ego Sword or Gram is on the team.
+    /// Used by the equipment post-pass to *warn about* team compositions
+    /// where a pet like Bat or Flying Eyeball would lose its class-XP /
+    /// damage bonus because a teammate has Ego Sword or Gram equipped.
+    ///
+    /// The post-pass deliberately does not rewrite the offending gear — it
+    /// emits one `CoverageKind::Equipment` warning per hit and leaves the
+    /// final call to the user, so hand-curated static equipment from
+    /// `dungeon_recommendations.yaml` isn't silently overridden.
     pub fn forbidden_team_equipment(&self) -> impl Iterator<Item = &str> {
         self.equipment_constraints
             .iter()
