@@ -1,8 +1,10 @@
+use std::collections::BTreeMap;
 use std::sync::mpsc;
 
 use itrtg_models::dungeon::{
     DungeonRecommendations, DungeonRecommendationsFile, EquipmentCatalog,
 };
+use itrtg_models::planner_config::{PetSpecialInfo, PlannerConfig, PlannerConfigFile};
 use itrtg_models::{ExportPet, WikiPet};
 use itrtg_planner::merge::{self, MergedPet};
 
@@ -14,6 +16,9 @@ pub struct DataStore {
     pub export_pets: Vec<ExportPet>,
     pub merged: Vec<MergedPet>,
     pub dungeon_recs: Option<DungeonRecommendations>,
+    /// Planner config (equipment rules + pet special info). Loaded at startup
+    /// from `planner_config.yaml` + `pet_special_info.yaml`.
+    pub planner_config: Option<PlannerConfig>,
 
     /// Channel for receiving async wiki fetch results.
     wiki_rx: Option<mpsc::Receiver<Result<Vec<WikiPet>, String>>>,
@@ -37,6 +42,7 @@ impl DataStore {
             export_pets: Vec::new(),
             merged: Vec::new(),
             dungeon_recs: None,
+            planner_config: None,
             wiki_rx: None,
             wiki_loading: false,
             wiki_error: None,
@@ -262,6 +268,55 @@ impl DataStore {
             }
         };
         self.dungeon_recs = Some(DungeonRecommendations::new(equipment, file));
+    }
+
+    /// Load planner config from its two YAML sources (equipment rules + per-pet
+    /// special info).
+    ///
+    /// The two sources are not equally essential:
+    ///
+    /// - **Rules** drive every computed equipment recommendation. If they
+    ///   fail to parse there's nothing sensible to fall back to, so the
+    ///   previous config is left in place (keeping the app usable on a bad
+    ///   reload) and the error is surfaced via `import_status`. At startup
+    ///   the previous value is `None`, which makes the dungeon view skip
+    ///   computed suggestions entirely — static (hand-curated) gear still
+    ///   flows through.
+    ///
+    /// - **Special info** is a set of per-pet overrides. A missing or
+    ///   malformed file is a warning, not a hard failure: we substitute an
+    ///   empty map so the rest of the planner still works, and log the
+    ///   details to the status bar.
+    pub fn load_planner_config(
+        &mut self,
+        config_yaml: &str,
+        special_info_yaml: &str,
+    ) {
+        let file: PlannerConfigFile = match serde_yaml::from_str(config_yaml) {
+            Ok(f) => f,
+            Err(e) => {
+                self.import_status = Some((format!("Planner config error: {e}"), true));
+                return;
+            }
+        };
+        let special_info: BTreeMap<String, PetSpecialInfo> =
+            match serde_yaml::from_str(special_info_yaml) {
+                Ok(m) => m,
+                Err(e) => {
+                    // Rules are still usable without per-pet overrides, so
+                    // warn and keep going with an empty special-info map.
+                    log::warn!("Pet special info parse failed: {e}");
+                    self.import_status = Some((
+                        format!(
+                            "Pet special info unavailable ({e}); using empty \
+                             overrides — per-pet equipment quirks will be skipped"
+                        ),
+                        true,
+                    ));
+                    BTreeMap::new()
+                }
+            };
+        self.planner_config = Some(PlannerConfig::new(file, special_info));
     }
 }
 

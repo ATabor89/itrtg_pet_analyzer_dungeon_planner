@@ -44,6 +44,14 @@ impl App {
             data.load_dungeon_recs(&equip_yaml, &recs_yaml);
         }
 
+        // Load planner config (equipment rules + per-pet special info)
+        if let (Some(cfg_yaml), Some(info_yaml)) = (
+            platform::load_planner_config(),
+            platform::load_pet_special_info(),
+        ) {
+            data.load_planner_config(&cfg_yaml, &info_yaml);
+        }
+
         // Load wiki pet data from YAML (baked on WASM, from disk on native)
         data.load_wiki_pets_from_yaml();
 
