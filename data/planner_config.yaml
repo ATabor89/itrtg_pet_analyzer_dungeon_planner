@@ -1,0 +1,304 @@
+# =============================================================================
+# ITRTG Pet Planner — Equipment Rules Configuration
+# =============================================================================
+# Drives equipment recommendations for dungeon party slots that have generic
+# or missing gear. Replaces hardcoded match statements in the planner crate.
+#
+# Structure:
+#   equipment_rules:
+#     by_class:
+#       <Class>:
+#         weapon:    <EquipmentSelector>
+#         armor:     <EquipmentSelector>
+#         accessory: <EquipmentSelector>
+#         gems:      <GemRules>              # optional
+#         depth_overrides:                    # optional
+#           <depth>:
+#             weapon: ...                     # any/all slots optional
+#             armor: ...
+#             accessory: ...
+#             gems: ...
+#     fallback:
+#       # Same shape as a class rule. Used when the slot has no class (or a
+#       # class we don't know about).
+#
+# Selector strategies:
+#   fixed             — A specific `element`, optionally filtered by `kind`
+#                        (e.g. "sword", "knives", "hammer", "ring").
+#   pet_element       — Use the pet's own element. `fallback` is used when
+#                        the pet is Neutral/All.
+#   pet_weakness      — The element the pet is weak to (wiki "CounterElement").
+#   dungeon_element   — The dungeon's primary element. `fallback` for Neutral
+#                        dungeons (Scrapyard, Newbie).
+#   dungeon_counter   — The element that counters the dungeon (wiki
+#                        "DungeonCounter").
+#   by_name           — Case-insensitive substring match on equipment name.
+#                        Good for unique items like "Alchemist Cape".
+#   chain             — Try each `options` selector in order, first match wins.
+#
+# Gem rules (d1/d2/d3):
+#   Each depth maps to a GemSlots object (weapon/armor/accessory).
+#   D1: generally unused
+#   D2: weapon gem only (other slots typically null)
+#   D3: all three slots
+#
+# Element values: Fire, Water, Wind, Earth, Neutral
+#
+# Sources:
+#   - https://itrtg.wiki.gg/wiki/Dungeon_Equipment_Recommendations
+#   - https://itrtg.wiki.gg/wiki/Introduction_to_Dungeons
+# =============================================================================
+
+version: 1
+
+equipment_rules:
+
+  # --------------------------------------------------------------------------
+  # Fallback rule — used when a slot has no class requirement (wildcard slots)
+  # or when the pet's class isn't otherwise represented.
+  # --------------------------------------------------------------------------
+  fallback:
+    weapon:
+      strategy: fixed
+      element: Neutral
+      kind: sword
+    armor:
+      strategy: fixed
+      element: Neutral
+    accessory:
+      strategy: fixed
+      element: Neutral
+      kind: ring
+    gems:
+      d2:
+        weapon: Fire
+        armor: null
+        accessory: null
+      d3:
+        weapon: Fire
+        armor: Water
+        accessory: Neutral
+
+  by_class:
+
+    # ------------------------------------------------------------------------
+    # Defender — pure tank. Neutral gear everywhere, HP gems in dungeons.
+    # Source: wiki D1, D2, D3 recommendations.
+    # ------------------------------------------------------------------------
+    Defender:
+      weapon:
+        strategy: fixed
+        element: Neutral
+        kind: sword
+      armor:
+        strategy: fixed
+        element: Neutral
+      accessory:
+        strategy: fixed
+        element: Neutral
+        kind: ring
+      gems:
+        d2:
+          weapon: Water
+          armor: null
+          accessory: null
+        d3:
+          weapon: Water
+          armor: Water
+          accessory: Water
+
+    # ------------------------------------------------------------------------
+    # Supporter — healing scales with attack. Fire weapon + fire gloves.
+    # At T3 switch the accessory to Alchemist Cape (defensive).
+    # Source: wiki D3 Supporter "Inferno Gloves are a good choice — speed +
+    # healing power"; Alchemist Cape for T3.
+    # ------------------------------------------------------------------------
+    Supporter:
+      weapon:
+        strategy: fixed
+        element: Fire
+        kind: sword
+      armor:
+        strategy: dungeon_element
+        fallback: Neutral
+      accessory:
+        strategy: fixed
+        element: Fire
+        kind: gloves
+      gems:
+        d2:
+          weapon: Fire
+          armor: null
+          accessory: null
+        d3:
+          weapon: Fire
+          armor: Water
+          accessory: Neutral
+      depth_overrides:
+        3:
+          accessory:
+            strategy: chain
+            options:
+              - strategy: by_name
+                name_contains: alchemist
+              - strategy: fixed
+                element: Fire
+                kind: gloves
+
+    # ------------------------------------------------------------------------
+    # Mage — primary DPS. Fire sword at every depth.
+    #
+    # Armor is the key adjustment: the D3 wiki says "match the pet's element"
+    # but at D2 mages tend to die if they're wearing offensive same-element
+    # armor. So D2 uses a more defensive choice (dungeon element fallback to
+    # neutral). D1 also uses defensive armor since survivability matters more
+    # than damage output at the bottom of the tier.
+    # Source: wiki D3 Mage "Armor: match the pets element"; D1 "T1 Same
+    # Element (Offensive), T1 Counter Element or T1 Neutral (Defensive)".
+    # ------------------------------------------------------------------------
+    Mage:
+      weapon:
+        strategy: fixed
+        element: Fire
+        kind: sword
+      armor:
+        strategy: pet_element
+        fallback: Neutral
+      accessory:
+        strategy: pet_element
+        fallback: Neutral
+      gems:
+        d2:
+          weapon: Fire
+          armor: null
+          accessory: null
+        d3:
+          weapon: Fire
+          armor: Water
+          accessory: Neutral
+      depth_overrides:
+        1:
+          # D1 mages: defensive — match dungeon element (fallback neutral)
+          armor:
+            strategy: dungeon_element
+            fallback: Neutral
+          accessory:
+            strategy: dungeon_element
+            fallback: Neutral
+        2:
+          # D2 mages were dying too much on same-element armor. Switch to a
+          # defensive choice: dungeon element (falls back to neutral on
+          # Scrapyard). Accessory stays same-element for offense; consider
+          # switching if we see further survivability problems.
+          armor:
+            strategy: dungeon_element
+            fallback: Neutral
+        3:
+          # D3: "Usually Alchemist Cape, or whatever is needed to cover an
+          # elemental weakness." Chain: Alchemist Cape first, fall back to
+          # pet element.
+          accessory:
+            strategy: chain
+            options:
+              - strategy: by_name
+                name_contains: alchemist
+              - strategy: pet_element
+                fallback: Neutral
+
+    # ------------------------------------------------------------------------
+    # Assassin — primary single-target DPS. Knives (defense reduction) +
+    # Fire gloves ("Almost always Inferno").
+    # Source: wiki D3 Assassin recommendations.
+    # ------------------------------------------------------------------------
+    Assassin:
+      weapon:
+        strategy: fixed
+        element: Wind
+        kind: knives
+      armor:
+        strategy: fixed
+        element: Neutral
+      accessory:
+        strategy: fixed
+        element: Fire
+        kind: gloves
+      gems:
+        d2:
+          weapon: Fire
+          armor: null
+          accessory: null
+        d3:
+          # Wiki: "Fire/Neutral/Water for gems is a good mix"
+          weapon: Fire
+          armor: Neutral
+          accessory: Water
+
+    # ------------------------------------------------------------------------
+    # Rogue — speed + loot. Always knives.
+    # Source: wiki D3 Rogue recommendations.
+    # ------------------------------------------------------------------------
+    Rogue:
+      weapon:
+        strategy: fixed
+        element: Wind
+        kind: knives
+      armor:
+        strategy: dungeon_element
+        fallback: Neutral
+      accessory:
+        strategy: fixed
+        element: Wind
+        kind: ring
+      gems:
+        d2:
+          weapon: Wind
+          armor: null
+          accessory: null
+        d3:
+          weapon: Fire
+          armor: Water
+          accessory: Neutral
+      depth_overrides:
+        3:
+          accessory:
+            strategy: chain
+            options:
+              - strategy: by_name
+                name_contains: alchemist
+              - strategy: fixed
+                element: Wind
+                kind: ring
+
+    # ------------------------------------------------------------------------
+    # Blacksmith — hammer at D1, knives at D2+.
+    # Source: wiki D3 Blacksmith "Knives (very useful for v4 fights)".
+    # ------------------------------------------------------------------------
+    Blacksmith:
+      weapon:
+        strategy: fixed
+        element: Wind
+        kind: knives
+      armor:
+        strategy: dungeon_element
+        fallback: Neutral
+      accessory:
+        strategy: fixed
+        element: Neutral
+        kind: ring
+      gems:
+        d2:
+          weapon: Fire
+          armor: null
+          accessory: null
+        d3:
+          # Wiki: "mix of HP and Defense"
+          weapon: Water
+          armor: Water
+          accessory: Earth
+      depth_overrides:
+        1:
+          # D1: the hammer slot was the historical default.
+          weapon:
+            strategy: fixed
+            element: Fire
+            kind: hammer
