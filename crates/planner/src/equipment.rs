@@ -21,7 +21,7 @@ use itrtg_models::planner_config::{
 use itrtg_models::*;
 
 use crate::merge::MergedPet;
-use crate::solver::{Assignment, DungeonPlan};
+use crate::solver::{Assignment, CoverageKind, CoverageWarning, DungeonPlan};
 
 // =============================================================================
 // Types
@@ -99,6 +99,87 @@ pub fn enrich_equipment(
             sa.equipment_suggestion = Some(suggestion);
         }
     }
+
+    // After the per-slot recommendations are in place, flag any
+    // team-level equipment conflicts — e.g. Bat or Flying Eyeball losing
+    // their bonus because another teammate has Ego Sword / Gram.
+    if let Some(cfg) = config {
+        let conflict_warnings = check_forbidden_team_equipment(plan, catalog, cfg);
+        plan.warnings.extend(conflict_warnings);
+    }
+}
+
+/// Scan the plan for `forbidden_team_equipment` violations and return one
+/// warning per hit. The planner does NOT auto-swap gear — the warning
+/// tells the user so they can pick a replacement themselves, which keeps
+/// deliberately-curated static equipment from being silently overridden.
+fn check_forbidden_team_equipment(
+    plan: &DungeonPlan,
+    catalog: &EquipmentCatalog,
+    config: &PlannerConfig,
+) -> Vec<CoverageWarning> {
+    use std::collections::HashMap;
+
+    // Collect all forbidden display names paired with the pet that forbade
+    // them, then resolve each to a catalog key. Multiple pets may
+    // contribute; we record the first contributor per key which is
+    // sufficient for the warning detail. Items not present in the catalog
+    // are skipped silently — the YAML may name equipment we don't ship yet.
+    let mut forbidden_keys: HashMap<String, String> = HashMap::new();
+    for sa in &plan.assignments {
+        let Assignment::Filled { pet, .. } = &sa.assignment else { continue };
+        let Some(info) = config.special_info(&pet.name) else { continue };
+        for name in info.forbidden_team_equipment() {
+            if let Some(key) = catalog.find_key_by_name_exact(name) {
+                forbidden_keys
+                    .entry(key.to_string())
+                    .or_insert_with(|| pet.name.clone());
+            }
+        }
+    }
+
+    if forbidden_keys.is_empty() {
+        return Vec::new();
+    }
+
+    // Walk every slot's suggestion and record conflicts. Each weapon /
+    // armor / accessory is checked independently because a pet might have
+    // multiple problematic pieces on at once.
+    let mut warnings = Vec::new();
+    for sa in &plan.assignments {
+        let Some(suggestion) = &sa.equipment_suggestion else { continue };
+        let pet_name = match &sa.assignment {
+            Assignment::Filled { pet, .. } => pet.name.as_str(),
+            Assignment::Empty { .. } => continue,
+        };
+
+        for slot_key in [
+            suggestion.equipment.weapon.as_deref(),
+            suggestion.equipment.armor.as_deref(),
+            suggestion.equipment.accessory.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if let Some(forbidder) = forbidden_keys.get(slot_key) {
+                // Look up the display name for a friendlier warning.
+                let display = catalog
+                    .lookup(slot_key)
+                    .map(|e| e.name.as_str())
+                    .unwrap_or(slot_key);
+                warnings.push(CoverageWarning {
+                    source_depth: plan.depth,
+                    kind: CoverageKind::Equipment,
+                    name: display.to_string(),
+                    detail: format!(
+                        "{pet_name} holds {display}, which disables {forbidder}'s bonus"
+                    ),
+                });
+            }
+        }
+    }
+
+    warnings
 }
 
 /// Check if a PartyEquipment contains any generic placeholder keys.
@@ -505,6 +586,11 @@ weapons:
     type: Weapon
     tier: 3
     element: Fire
+  ego_sword:
+    name: "Ego Sword"
+    type: Weapon
+    tier: 3
+    element: Water
   feather_bow:
     name: "Feather Bow"
     type: Weapon
@@ -1037,5 +1123,159 @@ accessories:
         let suggestion1 = sa1.equipment_suggestion.as_ref().unwrap();
         assert_eq!(suggestion1.source, EquipmentSource::Computed);
         assert!(suggestion1.equipment.weapon.is_some());
+    }
+
+    // -------- forbidden_team_equipment post-pass --------
+
+    /// When a pet on the team forbids specific equipment (Bat's 40% class-XP
+    /// bonus dies if any teammate has Ego Sword or Gram), `enrich_equipment`
+    /// should emit a coverage warning for each teammate whose recommended
+    /// gear hits the forbidden list. The gear is NOT auto-swapped — the
+    /// warning tells the user to adjust manually so deliberately-curated
+    /// static equipment isn't silently overridden.
+    #[test]
+    fn test_forbidden_team_equipment_emits_warning() {
+        use crate::solver::{CoverageKind, DungeonPlan, SlotAssignment};
+        use itrtg_models::planner_config::PetSpecialInfo;
+        use std::collections::BTreeMap;
+
+        let cat = test_catalog();
+
+        let bat = mock_pet("Bat", Element::Neutral, Some(Class::Assassin));
+        let other_mage = mock_pet("OtherMage", Element::Water, Some(Class::Mage));
+
+        // Bat's teammate is hand-curated with an Ego Sword — the forbidden
+        // trigger. Bat itself has a normal loadout.
+        let mut plan = DungeonPlan {
+            dungeon: Dungeon::WaterTemple,
+            depth: 3,
+            assignments: vec![
+                SlotAssignment {
+                    slot: PartySlot {
+                        class: Some(Class::Assassin),
+                        element: None,
+                        equipment: None,
+                    },
+                    position: 0,
+                    assignment: Assignment::Filled {
+                        pet: bat,
+                        quality: crate::solver::MatchQuality::Exact,
+                    },
+                    equipment_suggestion: None,
+                },
+                SlotAssignment {
+                    slot: PartySlot {
+                        class: Some(Class::Mage),
+                        element: None,
+                        equipment: Some(PartyEquipment {
+                            weapon: Some("ego_sword".to_string()),
+                            armor: Some("tsunami_armor".to_string()),
+                            accessory: Some("alchemist_cape".to_string()),
+                            gems: None,
+                        }),
+                    },
+                    position: 1,
+                    assignment: Assignment::Filled {
+                        pet: other_mage,
+                        quality: crate::solver::MatchQuality::Exact,
+                    },
+                    equipment_suggestion: None,
+                },
+            ],
+            warnings: vec![],
+        };
+
+        let info: PetSpecialInfo = serde_yaml::from_str(
+            "equipment_constraints:\n  - forbidden_team_equipment:\n      - Ego Sword\n      - Gram\n",
+        )
+        .unwrap();
+        let mut map = BTreeMap::new();
+        map.insert("Bat".to_string(), info);
+
+        let rules_yaml = include_str!("../../../data/planner_config.yaml");
+        let file: PlannerConfigFile = serde_yaml::from_str(rules_yaml).unwrap();
+        let cfg = PlannerConfig::new(file, map);
+
+        enrich_equipment(&mut plan, &cat, Some(&cfg));
+
+        // The Ego Sword on OtherMage must trigger a warning naming both
+        // the gear and Bat as the pet whose bonus is disabled.
+        let equipment_warnings: Vec<_> = plan
+            .warnings
+            .iter()
+            .filter(|w| matches!(w.kind, CoverageKind::Equipment))
+            .collect();
+        assert_eq!(
+            equipment_warnings.len(),
+            1,
+            "expected exactly one equipment warning, got {:?}",
+            plan.warnings,
+        );
+        assert_eq!(equipment_warnings[0].name, "Ego Sword");
+        assert!(
+            equipment_warnings[0].detail.contains("OtherMage"),
+            "warning should name the offending teammate: {}",
+            equipment_warnings[0].detail
+        );
+        assert!(
+            equipment_warnings[0].detail.contains("Bat"),
+            "warning should name whose bonus is lost: {}",
+            equipment_warnings[0].detail
+        );
+
+        // The gear is NOT auto-swapped — OtherMage keeps the ego_sword.
+        let mage_suggestion = plan.assignments[1].equipment_suggestion.as_ref().unwrap();
+        assert_eq!(mage_suggestion.equipment.weapon.as_deref(), Some("ego_sword"));
+    }
+
+    /// Sanity check: when no pet on the team forbids anything, the
+    /// forbidden-equipment pass is a no-op and emits no warnings. Guards
+    /// against false positives breaking the base case.
+    #[test]
+    fn test_no_forbidden_equipment_no_warnings() {
+        use crate::solver::{CoverageKind, DungeonPlan, SlotAssignment};
+        use std::collections::BTreeMap;
+
+        let cat = test_catalog();
+
+        let mage = mock_pet("RandoMage", Element::Fire, Some(Class::Mage));
+
+        let mut plan = DungeonPlan {
+            dungeon: Dungeon::Scrapyard,
+            depth: 3,
+            assignments: vec![SlotAssignment {
+                slot: PartySlot {
+                    class: Some(Class::Mage),
+                    element: None,
+                    equipment: Some(PartyEquipment {
+                        weapon: Some("ego_sword".to_string()),
+                        armor: Some("tsunami_armor".to_string()),
+                        accessory: Some("alchemist_cape".to_string()),
+                        gems: None,
+                    }),
+                },
+                position: 0,
+                assignment: Assignment::Filled {
+                    pet: mage,
+                    quality: crate::solver::MatchQuality::Exact,
+                },
+                equipment_suggestion: None,
+            }],
+            warnings: vec![],
+        };
+
+        let rules_yaml = include_str!("../../../data/planner_config.yaml");
+        let file: PlannerConfigFile = serde_yaml::from_str(rules_yaml).unwrap();
+        let cfg = PlannerConfig::new(file, BTreeMap::new());
+
+        enrich_equipment(&mut plan, &cat, Some(&cfg));
+
+        assert!(
+            !plan
+                .warnings
+                .iter()
+                .any(|w| matches!(w.kind, CoverageKind::Equipment)),
+            "no pet forbids anything, so no equipment warnings"
+        );
     }
 }
