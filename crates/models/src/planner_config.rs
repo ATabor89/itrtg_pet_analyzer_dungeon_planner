@@ -290,6 +290,111 @@ impl PetSpecialInfo {
             .iter()
             .find_map(|ec| ec.forbidden_weapon_type.as_deref())
     }
+
+    // -- Class constraints (parsed into Class enum) --------------------------
+
+    /// The locked class for this pet, if any. A pet like Basilisk that has
+    /// `locked_class: Mage` can never fulfill a slot requiring another class.
+    pub fn locked_class(&self) -> Option<Class> {
+        self.class_constraints
+            .iter()
+            .find_map(|cc| cc.locked_class.as_deref().and_then(parse_class_name))
+    }
+
+    /// Preferred class (soft hint) — the class whose bonuses this pet gets
+    /// the most out of. Used as a scoring tiebreaker.
+    pub fn preferred_class(&self) -> Option<Class> {
+        self.class_constraints
+            .iter()
+            .find_map(|cc| cc.preferred_class.as_deref().and_then(parse_class_name))
+    }
+
+    /// Classes to avoid (soft). Multiple `avoid_class` entries are possible —
+    /// e.g. Arachne avoids both Mage and Defender.
+    pub fn avoid_classes(&self) -> Vec<Class> {
+        self.class_constraints
+            .iter()
+            .filter_map(|cc| cc.avoid_class.as_deref().and_then(parse_class_name))
+            .collect()
+    }
+
+    /// Whether this pet satisfies *any* class requirement for dungeon events
+    /// (Holy ITRTG Book, Nothing, Nugget). Unlike [`Self::locked_class`], this
+    /// doesn't affect scoring — it only changes how events are counted.
+    pub fn is_class_wildcard(&self) -> bool {
+        self.class_constraints
+            .iter()
+            .any(|cc| cc.class_wildcard == Some(true))
+    }
+
+    /// Whether the pet can freely switch classes (Gray, Holy ITRTG Book,
+    /// Nothing, Nugget). Used to let such pets fill any class slot without
+    /// the usual `Reclassable` penalty.
+    pub fn is_flexible_class(&self) -> bool {
+        self.class_constraints
+            .iter()
+            .any(|cc| cc.flexible_class == Some(true))
+    }
+
+    // -- Element constraints -------------------------------------------------
+
+    /// Whether this pet counts as *all non-neutral elements* for dungeon
+    /// events (Tödlicher Löffel). Multi-element pets still attack with their
+    /// own element — this only affects event coverage.
+    pub fn is_multi_element(&self) -> bool {
+        self.element_constraints
+            .as_ref()
+            .and_then(|ec| ec.multi_element)
+            .unwrap_or(false)
+    }
+
+    /// Whether this pet counts as *any element* for dungeon events
+    /// (Chameleon). Already covered by `Element::All` in most code paths —
+    /// kept here for the coverage-checking path that distinguishes element
+    /// wildcards from multi-element pets.
+    pub fn is_element_wildcard(&self) -> bool {
+        self.element_constraints
+            .as_ref()
+            .and_then(|ec| ec.element_wildcard)
+            .unwrap_or(false)
+    }
+
+    // -- Team synergies ------------------------------------------------------
+
+    /// Iterate over the other pets this pet benefits from pairing with.
+    /// Includes both specific pet names and class-level hints.
+    pub fn team_synergies(&self) -> &[TeamSynergy] {
+        &self.team_synergies
+    }
+
+    /// Whether this pet has an anti-synergy with another pet in a dungeon
+    /// context. Campaign-only anti-synergies are ignored by the solver since
+    /// we only plan dungeon teams.
+    pub fn has_dungeon_anti_synergy_with(&self, other_pet: &str) -> bool {
+        self.team_anti_synergies.iter().any(|a| {
+            let context_matches = a
+                .context
+                .as_deref()
+                .map(|c| c.eq_ignore_ascii_case("all") || c.eq_ignore_ascii_case("dungeon"))
+                .unwrap_or(true); // missing context defaults to "all"
+            context_matches
+                && a.pet
+                    .as_deref()
+                    .is_some_and(|p| p.eq_ignore_ascii_case(other_pet))
+        })
+    }
+
+    // -- Equipment team-level constraints ------------------------------------
+
+    /// Equipment (by display name) that must not be present on ANY teammate.
+    /// Used by the equipment post-pass to rewrite recommendations for pets
+    /// like Bat and Flying Eyeball whose class-XP / damage bonuses are
+    /// disabled when Ego Sword or Gram is on the team.
+    pub fn forbidden_team_equipment(&self) -> impl Iterator<Item = &str> {
+        self.equipment_constraints
+            .iter()
+            .flat_map(|ec| ec.forbidden_team_equipment.iter().map(String::as_str))
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -410,6 +515,22 @@ fn parse_element_name(s: &str) -> Option<Element> {
         "earth" => Some(Element::Earth),
         "neutral" => Some(Element::Neutral),
         "all" => Some(Element::All),
+        _ => None,
+    }
+}
+
+/// Parse a case-insensitive class name from a string. Used by the class
+/// constraint accessors to turn raw YAML strings into `Class` enums.
+fn parse_class_name(s: &str) -> Option<Class> {
+    match s.trim().to_lowercase().as_str() {
+        "adventurer" => Some(Class::Adventurer),
+        "blacksmith" => Some(Class::Blacksmith),
+        "alchemist" => Some(Class::Alchemist),
+        "defender" => Some(Class::Defender),
+        "supporter" => Some(Class::Supporter),
+        "rogue" => Some(Class::Rogue),
+        "assassin" => Some(Class::Assassin),
+        "mage" => Some(Class::Mage),
         _ => None,
     }
 }

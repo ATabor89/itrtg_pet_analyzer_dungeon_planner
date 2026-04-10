@@ -676,8 +676,15 @@ fn solve_all(state: &mut DungeonState, data: &DataStore) {
     // Build constraints from UI state
     let constraints = state.build_constraints();
 
-    // Solve all dungeons simultaneously — no pet reuse across teams
-    state.plans = solver::solve_multi(&requests, &data.merged, &constraints);
+    // Solve all dungeons simultaneously — no pet reuse across teams.
+    // The planner config is passed as Option so the solver falls back to
+    // the generic wiki-driven behavior if the config failed to load.
+    state.plans = solver::solve_multi(
+        &requests,
+        &data.merged,
+        &constraints,
+        data.planner_config.as_ref(),
+    );
 
     // Enrich with equipment suggestions. Static (non-generic) gear is
     // always tagged; computed suggestions for generic/missing slots need

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use itrtg_models::dungeon::*;
+use itrtg_models::planner_config::{PetSpecialInfo, PlannerConfig};
 use itrtg_models::*;
 
 use crate::merge::MergedPet;
@@ -159,18 +160,23 @@ fn is_dungeon_viable(pet: &MergedPet) -> bool {
 // =============================================================================
 
 /// Solve the dungeon party assignment problem for a single dungeon.
+///
+/// The planner config is optional; when `None`, per-pet special info
+/// (anti-synergies, locked classes, class/element wildcards, etc.) is
+/// ignored and the solver falls back to the generic wiki-driven behavior.
 pub fn solve(
     dungeon: Dungeon,
     target_depth: u8,
     dungeon_data: &DungeonData,
     roster: &[MergedPet],
+    config: Option<&PlannerConfig>,
 ) -> DungeonPlan {
     let requests = [DungeonRequest {
         dungeon,
         depth: target_depth,
         data: dungeon_data,
     }];
-    let mut plans = solve_multi(&requests, roster, &SolverConstraints::default());
+    let mut plans = solve_multi(&requests, roster, &SolverConstraints::default(), config);
     plans.pop().unwrap_or(DungeonPlan {
         dungeon,
         depth: target_depth,
@@ -198,10 +204,20 @@ pub struct DungeonRequest<'a> {
 /// - **Forbidden** pets are excluded entirely from the available pool.
 /// - **Forced** pets are pre-assigned to the best-fitting slot in their target
 ///   dungeon before the greedy solve runs for remaining slots.
+///
+/// Also applies per-pet special info when `config` is `Some`:
+/// - **Locked class** pets (e.g. Basilisk) can only fill slots requiring that
+///   class, and are never considered reclassable.
+/// - **Avoid-class / preferred-class** hints adjust scoring without
+///   hard-filtering.
+/// - **Anti-synergies** (Hourglass + Undine) prevent co-assignment to the
+///   same team.
+/// - **Positive synergies** act as a tiebreaker during greedy selection.
 pub fn solve_multi(
     requests: &[DungeonRequest],
     roster: &[MergedPet],
     constraints: &SolverConstraints,
+    config: Option<&PlannerConfig>,
 ) -> Vec<DungeonPlan> {
     // Only consider unlocked pets that aren't village pets or forbidden
     let available: Vec<&MergedPet> = roster
@@ -246,7 +262,7 @@ pub fn solve_multi(
                 .iter()
                 .enumerate()
                 .filter(|(si, _)| !assignment_map.contains_key(&(ri, *si)))
-                .filter_map(|(si, slot)| score_pet(pet, slot, true).map(|q| (si, q)))
+                .filter_map(|(si, slot)| score_pet(pet, slot, true, config).map(|q| (si, q)))
                 .min_by_key(|(_, q)| *q);
 
             // If no slot matches constraints, force into the first open slot anyway
@@ -302,7 +318,7 @@ pub fn solve_multi(
                 if first_open.is_none() {
                     first_open = Some((ri, si));
                 }
-                if let Some(q) = score_pet(pet, slot, true)
+                if let Some(q) = score_pet(pet, slot, true, config)
                     && best.as_ref().is_none_or(|(_, _, bq)| q < *bq)
                 {
                     best = Some((ri, si, q));
@@ -354,7 +370,7 @@ pub fn solve_multi(
                     .filter(|(pi, _)| !used.contains(pi))
                     .filter_map(|(pi, pet)| {
                         let wl = constraints.whitelisted.contains(&pet.name);
-                        score_pet(pet, slot, wl).map(|q| (pi, q))
+                        score_pet(pet, slot, wl, config).map(|q| (pi, q))
                     })
                     .collect();
                 all_slots.push(GlobalSlot {
@@ -373,10 +389,31 @@ pub fn solve_multi(
 
     // Phase 3: Greedy assignment across all dungeons
     for gs in &all_slots {
+        // Build the current team for this dungeon so we can filter out
+        // anti-synergies and score positive synergies against already-placed
+        // pets. This is rebuilt per slot because placement is greedy and
+        // teammates may have been added by earlier iterations. Slot indices
+        // are not necessarily contiguous (forced pets may have landed in
+        // any slot), so scan all assignment_map entries for this request.
+        let current_team: Vec<&MergedPet> = assignment_map
+            .iter()
+            .filter(|((ri, _), _)| *ri == gs.req_idx)
+            .filter_map(|(_, sa)| match &sa.assignment {
+                Assignment::Filled { pet, .. } => Some(pet),
+                Assignment::Empty { .. } => None,
+            })
+            .collect();
+
         let best = gs
             .candidates
             .iter()
             .filter(|(pi, _)| !used.contains(pi))
+            // Hard filter: anti-synergies with pets already on this team.
+            .filter(|(pi, _)| {
+                config.is_none_or(|cfg| {
+                    !conflicts_with_team(available[*pi], &current_team, cfg)
+                })
+            })
             .min_by(|(pi_a, qa), (pi_b, qb)| {
                 qa.cmp(qb).then_with(|| {
                     // For Evolvable matches, prefer easier evo difficulty
@@ -394,6 +431,17 @@ pub fn solve_multi(
                         let evo_cmp = evo_a.cmp(&evo_b);
                         if evo_cmp != std::cmp::Ordering::Equal {
                             return evo_cmp;
+                        }
+                    }
+                    // Positive-synergy tiebreaker: pets that synergize with
+                    // already-placed teammates win over equally-good
+                    // candidates that don't. Higher synergy score first.
+                    if let Some(cfg) = config {
+                        let sa = synergy_score(available[*pi_a], &current_team, cfg);
+                        let sb = synergy_score(available[*pi_b], &current_team, cfg);
+                        let syn_cmp = sb.cmp(&sa);
+                        if syn_cmp != std::cmp::Ordering::Equal {
+                            return syn_cmp;
                         }
                     }
                     // Higher growth = better tiebreak (prefer stronger pets)
@@ -419,7 +467,7 @@ pub fn solve_multi(
             }
         } else {
             // Generate unlock suggestions from the full roster
-            let suggestions = suggest_unlocks_for_slot(gs.slot, roster);
+            let suggestions = suggest_unlocks_for_slot(gs.slot, roster, config);
             Assignment::Empty { suggestions }
         };
 
@@ -476,7 +524,7 @@ pub fn solve_multi(
                 })
                 .collect();
 
-            let warnings = check_coverage(req.data, req.depth, &assigned_pets);
+            let warnings = check_coverage(req.data, req.depth, &assigned_pets, config);
 
             DungeonPlan {
                 dungeon: req.dungeon,
@@ -493,11 +541,56 @@ pub fn solve_multi(
 // =============================================================================
 
 /// Score how well a pet matches a slot. Returns None if completely unsuitable.
-fn score_pet(pet: &MergedPet, slot: &PartySlot, whitelisted: bool) -> Option<MatchQuality> {
-    let element_ok = pet.matches_element(slot.element);
+///
+/// When `config` carries special info for the pet, scoring also honors:
+/// - `locked_class`: the pet may only fill a slot whose required class
+///   matches the lock, and slots without a class requirement still need
+///   the locked class to be dungeon-viable (it is by construction).
+/// - `avoid_class`: matching into an avoided class degrades the quality to
+///   `Reclassable` or `Fallback` — we still consider the pet, but only
+///   when nothing better exists.
+/// - `flexible_class`: the pet can fill any class slot without the usual
+///   `Reclassable` penalty (Holy ITRTG Book, Nothing, Nugget, Gray's
+///   children).
+fn score_pet(
+    pet: &MergedPet,
+    slot: &PartySlot,
+    whitelisted: bool,
+    config: Option<&PlannerConfig>,
+) -> Option<MatchQuality> {
+    let special = config.and_then(|c| c.special_info(&pet.name));
+    let element_ok = matches_slot_element(pet, slot.element, special);
     if !element_ok {
         return None;
     }
+
+    // Locked-class hard filter. If the pet is locked to class X and the
+    // slot demands a different class, reject. Slots without a class
+    // requirement still accept locked-class pets.
+    if let Some(locked) = special.and_then(PetSpecialInfo::locked_class)
+        && let Some(required) = slot.class
+        && required != locked
+    {
+        return None;
+    }
+
+    // Avoid-class penalty modifier. Used to downgrade an otherwise-exact
+    // match when the slot's class is on this pet's avoid list.
+    let avoided = slot
+        .class
+        .zip(special)
+        .is_some_and(|(c, info)| info.avoid_classes().contains(&c));
+    let apply_avoid = |q: MatchQuality| -> MatchQuality {
+        if avoided {
+            // Never exact: at best a reluctant reclass.
+            match q {
+                MatchQuality::Exact | MatchQuality::Evolvable => MatchQuality::Reclassable,
+                other => other,
+            }
+        } else {
+            q
+        }
+    };
 
     // If slot has no class requirement, any dungeon-viable pet works
     let Some(required_class) = &slot.class else {
@@ -511,17 +604,27 @@ fn score_pet(pet: &MergedPet, slot: &PartySlot, whitelisted: bool) -> Option<Mat
         return Some(MatchQuality::Evolvable);
     };
 
+    // Flexible-class pets (Holy ITRTG Book etc.) count as a clean match for
+    // any class without the reclass penalty.
+    if special.is_some_and(PetSpecialInfo::is_flexible_class) {
+        return Some(apply_avoid(if pet.is_evolved() {
+            MatchQuality::Exact
+        } else {
+            MatchQuality::Evolvable
+        }));
+    }
+
     // Exact: evolved into the required class + element matches
     if let Some(actual_class) = pet.evolved_class() {
         if actual_class == *required_class {
-            return Some(MatchQuality::Exact);
+            return Some(apply_avoid(MatchQuality::Exact));
         }
 
         // Reclassable: evolved into something else, but the pet is a wildcard type
         // or was evolved differently from recommendation and the needed class is
         // among its recommended options. Village pets are excluded by the caller.
         if pet.recommends_class(required_class) {
-            return Some(MatchQuality::Reclassable);
+            return Some(apply_avoid(MatchQuality::Reclassable));
         }
 
         // Evolved into the wrong class and doesn't recommend the target — skip
@@ -530,10 +633,121 @@ fn score_pet(pet: &MergedPet, slot: &PartySlot, whitelisted: bool) -> Option<Mat
 
     // Unevolved: check if the pet's recommended class includes what we need
     if pet.recommends_class(required_class) {
-        return Some(MatchQuality::Evolvable);
+        return Some(apply_avoid(MatchQuality::Evolvable));
     }
 
     None
+}
+
+/// Element-matching check that also understands multi-element pets
+/// (Tödlicher Löffel counts as every non-neutral element) and element
+/// wildcards (Chameleon, already handled via `Element::All` but we
+/// double-cover for pets whose YAML special info says so explicitly).
+fn matches_slot_element(
+    pet: &MergedPet,
+    slot_element: Option<Element>,
+    special: Option<&PetSpecialInfo>,
+) -> bool {
+    let Some(target) = slot_element else {
+        return true; // "any" element slot
+    };
+
+    if pet.matches_element(Some(target)) {
+        return true;
+    }
+
+    if let Some(info) = special {
+        if info.is_element_wildcard() {
+            return true;
+        }
+        if info.is_multi_element() && target != Element::Neutral {
+            return true;
+        }
+    }
+
+    false
+}
+
+// =============================================================================
+// Team synergies / anti-synergies
+// =============================================================================
+
+/// Whether placing `candidate` on a team that already contains `team` would
+/// violate any dungeon-context anti-synergy. Anti-synergies are checked in
+/// both directions — Hourglass listing "don't pair with Undine" means a
+/// team containing Undine cannot add Hourglass, and vice versa.
+fn conflicts_with_team(
+    candidate: &MergedPet,
+    team: &[&MergedPet],
+    config: &PlannerConfig,
+) -> bool {
+    let cand_info = config.special_info(&candidate.name);
+
+    for teammate in team {
+        // Candidate's anti-synergies mention this teammate.
+        if let Some(info) = cand_info
+            && info.has_dungeon_anti_synergy_with(&teammate.name)
+        {
+            return true;
+        }
+        // Teammate's anti-synergies mention the candidate (symmetric).
+        if let Some(tm_info) = config.special_info(&teammate.name)
+            && tm_info.has_dungeon_anti_synergy_with(&candidate.name)
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Score a candidate's positive synergy with the current team. Higher is
+/// better. Used as a tiebreaker in the greedy solver — candidates with
+/// equal match quality but stronger synergies win.
+///
+/// A synergy is counted either if:
+/// - The candidate lists a teammate by name, or
+/// - The candidate lists a class that a teammate is evolved into, or
+/// - A teammate lists the candidate by name (symmetric).
+fn synergy_score(
+    candidate: &MergedPet,
+    team: &[&MergedPet],
+    config: &PlannerConfig,
+) -> u32 {
+    let mut score = 0u32;
+
+    if let Some(cand_info) = config.special_info(&candidate.name) {
+        for synergy in cand_info.team_synergies() {
+            for teammate in team {
+                if let Some(pet_name) = &synergy.pet
+                    && pet_name.eq_ignore_ascii_case(&teammate.name)
+                {
+                    score += 2; // name-level synergy is stronger
+                }
+                if let Some(class_name) = &synergy.class
+                    && let Some(teammate_class) = teammate.evolved_class()
+                    && format!("{teammate_class:?}").eq_ignore_ascii_case(class_name)
+                {
+                    score += 1;
+                }
+            }
+        }
+    }
+
+    // Symmetric: teammates that like the candidate.
+    for teammate in team {
+        if let Some(tm_info) = config.special_info(&teammate.name) {
+            for synergy in tm_info.team_synergies() {
+                if let Some(pet_name) = &synergy.pet
+                    && pet_name.eq_ignore_ascii_case(&candidate.name)
+                {
+                    score += 2;
+                }
+            }
+        }
+    }
+
+    score
 }
 
 // =============================================================================
@@ -544,18 +758,30 @@ fn score_pet(pet: &MergedPet, slot: &PartySlot, whitelisted: bool) -> Option<Mat
 pub fn suggest_unlocks_for_slot(
     slot: &PartySlot,
     all_pets: &[MergedPet],
+    config: Option<&PlannerConfig>,
 ) -> Vec<UnlockSuggestion> {
     let mut suggestions: Vec<UnlockSuggestion> = all_pets
         .iter()
         .filter(|pet| {
+            let special = config.and_then(|c| c.special_info(&pet.name));
+            // Locked-class filter: never suggest a Basilisk for a Defender slot.
+            if let Some(locked) = special.and_then(PetSpecialInfo::locked_class)
+                && let Some(required) = slot.class
+                && required != locked
+            {
+                return false;
+            }
             // Must not be unlocked
             !pet.is_unlocked()
             // Must not be a village pet
             && !pet.is_village_pet()
-            // Must match element
-            && pet.matches_element(slot.element)
-            // Must recommend the required class (if any)
-            && slot.class.as_ref().is_none_or(|c| pet.recommends_class(c))
+            // Must match element (accounting for multi_element / element wildcards)
+            && matches_slot_element(pet, slot.element, special)
+            // Must recommend the required class, or be a flexible-class pet
+            && slot.class.as_ref().is_none_or(|c| {
+                pet.recommends_class(c)
+                    || special.is_some_and(PetSpecialInfo::is_flexible_class)
+            })
             // For "any" class slots, must be dungeon-viable
             && (slot.class.is_some() || is_dungeon_viable(pet))
         })
@@ -599,6 +825,7 @@ fn check_coverage(
     dungeon_data: &DungeonData,
     target_depth: u8,
     team: &[&MergedPet],
+    config: Option<&PlannerConfig>,
 ) -> Vec<CoverageWarning> {
     let mut warnings = Vec::new();
 
@@ -609,7 +836,7 @@ fn check_coverage(
 
         // Check traps
         for trap in &dd.traps {
-            if !counter_satisfied(&trap.countered_by, team) {
+            if !counter_satisfied(&trap.countered_by, team, config) {
                 warnings.push(CoverageWarning {
                     source_depth: depth,
                     kind: CoverageKind::Trap,
@@ -622,7 +849,7 @@ fn check_coverage(
         // Check events
         for event in &dd.events {
             for condition in &event.countered_by {
-                if !counter_satisfied(condition, team) {
+                if !counter_satisfied(condition, team, config) {
                     warnings.push(CoverageWarning {
                         source_depth: depth,
                         kind: CoverageKind::Event,
@@ -638,7 +865,18 @@ fn check_coverage(
 }
 
 /// Check if a counter condition is satisfied by the team.
-fn counter_satisfied(condition: &CounterCondition, team: &[&MergedPet]) -> bool {
+///
+/// Honors per-pet special info when `config` is `Some`:
+/// - Pets with `class_wildcard` (Holy ITRTG Book, Nothing, Nugget) satisfy
+///   any class requirement.
+/// - Pets with `multi_element` (Tödlicher Löffel) satisfy any non-Neutral
+///   element requirement.
+/// - Element wildcards (Chameleon) already work via `pet.matches_element`.
+fn counter_satisfied(
+    condition: &CounterCondition,
+    team: &[&MergedPet],
+    config: Option<&PlannerConfig>,
+) -> bool {
     // Item-only conditions are satisfied by bringing items, not by team composition
     if condition.item.is_some() && condition.class.is_none() && condition.element.is_none() {
         return true; // Items are handled separately
@@ -646,15 +884,25 @@ fn counter_satisfied(condition: &CounterCondition, team: &[&MergedPet]) -> bool 
 
     let required_count = condition.count.unwrap_or(1) as usize;
 
-    let matching = team.iter().filter(|pet| {
-        let class_ok = condition.class.as_ref().is_none_or(|c| {
-            pet.evolved_class().as_ref() == Some(c)
-        });
-        let element_ok = condition.element.as_ref().is_none_or(|el| {
-            pet.matches_element(Some(*el))
-        });
-        class_ok && element_ok
-    }).count();
+    let matching = team
+        .iter()
+        .filter(|pet| {
+            let special = config.and_then(|c| c.special_info(&pet.name));
+
+            let class_ok = condition.class.as_ref().is_none_or(|c| {
+                pet.evolved_class().as_ref() == Some(c)
+                    || special.is_some_and(PetSpecialInfo::is_class_wildcard)
+            });
+            let element_ok = condition.element.as_ref().is_none_or(|el| {
+                pet.matches_element(Some(*el))
+                    || special.is_some_and(|info| {
+                        info.is_element_wildcard()
+                            || (info.is_multi_element() && *el != Element::Neutral)
+                    })
+            });
+            class_ok && element_ok
+        })
+        .count();
 
     matching >= required_count
 }
@@ -764,7 +1012,7 @@ mod tests {
         let available: Vec<&MergedPet> = pets.iter().collect();
 
         let slot = make_slot(Some(Class::Supporter), Some(Element::Water));
-        let score = score_pet(&available[0], &slot, false);
+        let score = score_pet(&available[0], &slot, false, None);
         assert_eq!(score, Some(MatchQuality::Exact));
     }
 
@@ -772,14 +1020,14 @@ mod tests {
     fn test_evolvable_match() {
         let pet = mock_pet("Rabbit", Element::Earth, None, RecommendedClass::Single(Class::Mage), true);
         let slot = make_slot(Some(Class::Mage), Some(Element::Earth));
-        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Evolvable));
+        assert_eq!(score_pet(&pet, &slot, false, None), Some(MatchQuality::Evolvable));
     }
 
     #[test]
     fn test_element_mismatch_rejected() {
         let pet = mock_pet("Frog", Element::Water, Some(Class::Supporter), RecommendedClass::Single(Class::Supporter), true);
         let slot = make_slot(Some(Class::Supporter), Some(Element::Fire));
-        assert_eq!(score_pet(&pet, &slot, false), None);
+        assert_eq!(score_pet(&pet, &slot, false, None), None);
     }
 
     #[test]
@@ -793,21 +1041,21 @@ mod tests {
     fn test_wildcard_reclassable() {
         let pet = mock_pet("Mouse", Element::Earth, Some(Class::Adventurer), RecommendedClass::Wildcard, true);
         let slot = make_slot(Some(Class::Defender), Some(Element::Earth));
-        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Reclassable));
+        assert_eq!(score_pet(&pet, &slot, false, None), Some(MatchQuality::Reclassable));
     }
 
     #[test]
     fn test_any_slot_accepts_dungeon_class() {
         let pet = mock_pet("Dog", Element::Neutral, Some(Class::Defender), RecommendedClass::Single(Class::Defender), true);
         let slot = make_slot(None, None);
-        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Exact));
+        assert_eq!(score_pet(&pet, &slot, false, None), Some(MatchQuality::Exact));
     }
 
     #[test]
     fn test_non_dungeon_class_excluded_from_any_slot() {
         let pet = mock_pet("Mouse", Element::Earth, Some(Class::Adventurer), RecommendedClass::Wildcard, true);
         let slot = make_slot(None, None);
-        assert_eq!(score_pet(&pet, &slot, false), None);
+        assert_eq!(score_pet(&pet, &slot, false, None), None);
     }
 
     #[test]
@@ -815,22 +1063,22 @@ mod tests {
         // Whitelisted pets bypass the non-dungeon class filter for "any" slots
         let pet = mock_pet("Bee", Element::Wind, Some(Class::Alchemist), RecommendedClass::Single(Class::Alchemist), true);
         let slot = make_slot(None, None);
-        assert_eq!(score_pet(&pet, &slot, false), None); // Normally excluded
-        assert_eq!(score_pet(&pet, &slot, true), Some(MatchQuality::Exact)); // Whitelisted: allowed
+        assert_eq!(score_pet(&pet, &slot, false, None), None); // Normally excluded
+        assert_eq!(score_pet(&pet, &slot, true, None), Some(MatchQuality::Exact)); // Whitelisted: allowed
     }
 
     #[test]
     fn test_non_dungeon_class_allowed_when_required() {
         let pet = mock_pet("Smith", Element::Fire, Some(Class::Blacksmith), RecommendedClass::Single(Class::Blacksmith), true);
         let slot = make_slot(Some(Class::Blacksmith), Some(Element::Fire));
-        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Exact));
+        assert_eq!(score_pet(&pet, &slot, false, None), Some(MatchQuality::Exact));
     }
 
     #[test]
     fn test_chameleon_matches_any_element() {
         let pet = mock_pet("Chameleon", Element::All, Some(Class::Mage), RecommendedClass::DungeonWildcard, true);
         let slot = make_slot(Some(Class::Mage), Some(Element::Fire));
-        assert_eq!(score_pet(&pet, &slot, false), Some(MatchQuality::Exact));
+        assert_eq!(score_pet(&pet, &slot, false, None), Some(MatchQuality::Exact));
     }
 
     #[test]
@@ -880,7 +1128,7 @@ mod tests {
             },
         };
 
-        let plan = solve(Dungeon::Scrapyard, 1, &dungeon_data, &pets);
+        let plan = solve(Dungeon::Scrapyard, 1, &dungeon_data, &pets, None);
 
         for (i, a) in plan.assignments.iter().enumerate() {
             assert_eq!(a.position, i);
@@ -927,7 +1175,7 @@ mod tests {
             DungeonRequest { dungeon: Dungeon::WaterTemple, depth: 1, data: &dd2 },
         ];
 
-        let plans = solve_multi(&requests, &pets, &SolverConstraints::default());
+        let plans = solve_multi(&requests, &pets, &SolverConstraints::default(), None);
         assert_eq!(plans.len(), 2);
 
         assert!(matches!(&plans[0].assignments[0].assignment,
@@ -963,7 +1211,7 @@ mod tests {
             },
         };
 
-        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets);
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
         // EasyEvo should be preferred despite lower growth, because evo difficulty is lower
         assert!(matches!(&plan.assignments[0].assignment,
             Assignment::Filled { pet, quality: MatchQuality::Evolvable } if pet.name == "EasyEvo"));
@@ -999,7 +1247,7 @@ mod tests {
         constraints.forbidden.insert("Frog".to_string());
 
         let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
-        let plans = solve_multi(&requests, &pets, &constraints);
+        let plans = solve_multi(&requests, &pets, &constraints, None);
 
         // Frog is forbidden, so Cat should be assigned
         assert!(matches!(&plans[0].assignments[0].assignment,
@@ -1036,10 +1284,409 @@ mod tests {
         constraints.forced.insert(Dungeon::Scrapyard, vec!["Cat".to_string()]);
 
         let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
-        let plans = solve_multi(&requests, &pets, &constraints);
+        let plans = solve_multi(&requests, &pets, &constraints, None);
 
         // Cat is forced, so Cat should be assigned even though Frog might be "better"
         assert!(matches!(&plans[0].assignments[0].assignment,
             Assignment::Filled { pet, .. } if pet.name == "Cat"));
+    }
+
+    // ========================================================================
+    // Pet special info — class constraints, synergies, wildcards
+    // ========================================================================
+
+    use itrtg_models::planner_config::{
+        PetSpecialInfo, PlannerConfig, PlannerConfigFile,
+    };
+
+    /// Build a planner config from the checked-in `planner_config.yaml` plus
+    /// an arbitrary map of pet special info. Tests can focus on the
+    /// special-info behavior without having to hand-roll equipment rules.
+    fn config_with(info: std::collections::BTreeMap<String, PetSpecialInfo>) -> PlannerConfig {
+        let rules_yaml = include_str!("../../../data/planner_config.yaml");
+        let file: PlannerConfigFile = serde_yaml::from_str(rules_yaml).unwrap();
+        PlannerConfig::new(file, info)
+    }
+
+    fn special_info_from_yaml(yaml: &str) -> PetSpecialInfo {
+        serde_yaml::from_str(yaml).unwrap()
+    }
+
+    // -- Locked class --------------------------------------------------------
+
+    #[test]
+    fn test_locked_class_rejects_other_class_slots() {
+        // Basilisk is always Mage — it must not fill a Defender slot.
+        let basilisk = mock_pet(
+            "Basilisk",
+            Element::Fire,
+            Some(Class::Mage),
+            RecommendedClass::Single(Class::Mage),
+            true,
+        );
+
+        let mut info = std::collections::BTreeMap::new();
+        info.insert(
+            "Basilisk".to_string(),
+            special_info_from_yaml(
+                "class_constraints:\n  - locked_class: Mage\n",
+            ),
+        );
+        let cfg = config_with(info);
+
+        let mage_slot = make_slot(Some(Class::Mage), Some(Element::Fire));
+        let defender_slot = make_slot(Some(Class::Defender), Some(Element::Fire));
+
+        assert_eq!(
+            score_pet(&basilisk, &mage_slot, false, Some(&cfg)),
+            Some(MatchQuality::Exact)
+        );
+        assert_eq!(
+            score_pet(&basilisk, &defender_slot, false, Some(&cfg)),
+            None,
+            "Basilisk should not be considered for a Defender slot"
+        );
+    }
+
+    #[test]
+    fn test_avoid_class_downgrades_match_quality() {
+        // Ape should avoid being a Mage. If the slot demands Mage and the
+        // pet recommends Mage, the match quality degrades from Evolvable
+        // to Reclassable — so another Mage candidate would beat it, but
+        // the solver can still fall back on Ape if nothing else fits.
+        let ape = mock_pet(
+            "Ape",
+            Element::Fire,
+            None,
+            RecommendedClass::Single(Class::Mage),
+            true,
+        );
+
+        let mut info = std::collections::BTreeMap::new();
+        info.insert(
+            "Ape".to_string(),
+            special_info_from_yaml(
+                "class_constraints:\n  - avoid_class: Mage\n",
+            ),
+        );
+        let cfg = config_with(info);
+
+        let slot = make_slot(Some(Class::Mage), Some(Element::Fire));
+        assert_eq!(
+            score_pet(&ape, &slot, false, Some(&cfg)),
+            Some(MatchQuality::Reclassable)
+        );
+    }
+
+    #[test]
+    fn test_flexible_class_matches_any_slot() {
+        // Holy ITRTG Book / Nothing / Nugget can freely switch classes —
+        // they match an Assassin slot as Exact even if the pet is evolved
+        // as something else.
+        let nothing = mock_pet(
+            "Nothing (Other)",
+            Element::Neutral,
+            Some(Class::Adventurer),
+            RecommendedClass::AllClasses,
+            true,
+        );
+
+        let mut info = std::collections::BTreeMap::new();
+        info.insert(
+            "Nothing (Other)".to_string(),
+            special_info_from_yaml(
+                "class_constraints:\n  - flexible_class: true\n",
+            ),
+        );
+        let cfg = config_with(info);
+
+        let slot = make_slot(Some(Class::Assassin), Some(Element::Neutral));
+        assert_eq!(
+            score_pet(&nothing, &slot, false, Some(&cfg)),
+            Some(MatchQuality::Exact)
+        );
+    }
+
+    // -- Anti-synergies ------------------------------------------------------
+
+    #[test]
+    fn test_anti_synergy_prevents_co_assignment() {
+        // Hourglass + Undine must not end up on the same team. Both are
+        // water pets here so they'd both be viable for a water Supporter
+        // slot on equal quality. The solver should pick the one that
+        // sorts first lexicographically for stability (Hourglass) in one
+        // slot, then reject Undine from a second slot.
+        let pets = vec![
+            mock_pet(
+                "Hourglass",
+                Element::Water,
+                Some(Class::Supporter),
+                RecommendedClass::Single(Class::Supporter),
+                true,
+            ),
+            mock_pet(
+                "Undine",
+                Element::Water,
+                Some(Class::Supporter),
+                RecommendedClass::Single(Class::Supporter),
+                true,
+            ),
+            mock_pet(
+                "Frog",
+                Element::Water,
+                Some(Class::Supporter),
+                RecommendedClass::Single(Class::Supporter),
+                true,
+            ),
+        ];
+
+        let mut info = std::collections::BTreeMap::new();
+        info.insert(
+            "Hourglass".to_string(),
+            special_info_from_yaml(
+                "team_anti_synergies:\n  - pet: Undine\n    context: all\n",
+            ),
+        );
+        let cfg = config_with(info);
+
+        let dd = DungeonData {
+            name: "Test".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 5, monsters_per_room: 2, gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                        class_level: 3, total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                    party: vec![
+                        make_slot(Some(Class::Supporter), Some(Element::Water)),
+                        make_slot(Some(Class::Supporter), Some(Element::Water)),
+                    ],
+                    party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+                });
+                m
+            },
+        };
+
+        // Force Hourglass into the team so we know it will be placed.
+        let mut constraints = SolverConstraints::default();
+        constraints.forced.insert(Dungeon::WaterTemple, vec!["Hourglass".to_string()]);
+
+        let requests = [DungeonRequest {
+            dungeon: Dungeon::WaterTemple, depth: 1, data: &dd,
+        }];
+        let plans = solve_multi(&requests, &pets, &constraints, Some(&cfg));
+
+        // Assignment 0: Hourglass (forced).
+        assert!(matches!(&plans[0].assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Hourglass"));
+        // Assignment 1: Frog should have been picked — Undine was filtered
+        // out by the anti-synergy check.
+        assert!(matches!(&plans[0].assignments[1].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Frog"),
+            "Undine should have been filtered out by anti-synergy, leaving Frog");
+    }
+
+    // -- Positive synergy tiebreaker -----------------------------------------
+
+    #[test]
+    fn test_positive_synergy_breaks_ties() {
+        // Two equally-ranked Mage candidates, one with a positive synergy
+        // to an already-placed Student. The synergy candidate should win.
+        let pets = vec![
+            mock_pet_with_evo(
+                "Student",
+                Element::Earth,
+                Some(Class::Mage),
+                RecommendedClass::Single(Class::Mage),
+                true, 1, 1, 10000,
+            ),
+            mock_pet_with_evo(
+                "Basilisk",
+                Element::Fire,
+                Some(Class::Mage),
+                RecommendedClass::Single(Class::Mage),
+                true, 1, 1, 10000,
+            ),
+            mock_pet_with_evo(
+                "RandoMage",
+                Element::Fire,
+                Some(Class::Mage),
+                RecommendedClass::Single(Class::Mage),
+                true, 1, 1, 10000,
+            ),
+        ];
+
+        let mut info = std::collections::BTreeMap::new();
+        info.insert(
+            "Basilisk".to_string(),
+            special_info_from_yaml(
+                "team_synergies:\n  - pet: Student\n",
+            ),
+        );
+        let cfg = config_with(info);
+
+        let dd = DungeonData {
+            name: "Test".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 5, monsters_per_room: 2, gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                        class_level: 3, total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                    party: vec![
+                        make_slot(Some(Class::Mage), Some(Element::Earth)),
+                        make_slot(Some(Class::Mage), Some(Element::Fire)),
+                    ],
+                    party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+                });
+                m
+            },
+        };
+
+        let requests = [DungeonRequest {
+            dungeon: Dungeon::Volcano, depth: 1, data: &dd,
+        }];
+        let plans = solve_multi(
+            &requests, &pets, &SolverConstraints::default(), Some(&cfg),
+        );
+
+        // Slot 0 (Earth Mage) goes to Student — the only earth mage.
+        assert!(matches!(&plans[0].assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Student"));
+        // Slot 1 (Fire Mage) has two equally-qualified candidates; the
+        // synergy tiebreaker should favor Basilisk.
+        assert!(matches!(&plans[0].assignments[1].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Basilisk"),
+            "Basilisk should beat RandoMage on the positive synergy tiebreaker");
+    }
+
+    // -- Coverage: class wildcard --------------------------------------------
+
+    #[test]
+    fn test_class_wildcard_satisfies_event_class_requirement() {
+        // Holy ITRTG Book (class_wildcard) counts as any class for event
+        // coverage. A D1 event demanding a Rogue should be satisfied by a
+        // Holy Book even when nobody else on the team is a Rogue.
+        let book = mock_pet(
+            "Holy ITRTG Book",
+            Element::Neutral,
+            Some(Class::Defender),
+            RecommendedClass::AllClasses,
+            true,
+        );
+
+        let mut info = std::collections::BTreeMap::new();
+        info.insert(
+            "Holy ITRTG Book".to_string(),
+            special_info_from_yaml(
+                "class_constraints:\n  - class_wildcard: true\n",
+            ),
+        );
+        let cfg = config_with(info);
+
+        let condition = CounterCondition {
+            item: None,
+            class: Some(Class::Rogue),
+            element: None,
+            count: None,
+            quantity_per_clear: None,
+            notes: None,
+        };
+        let team = vec![&book];
+
+        assert!(
+            counter_satisfied(&condition, &team, Some(&cfg)),
+            "class_wildcard pet should satisfy any class event requirement"
+        );
+        assert!(
+            !counter_satisfied(&condition, &team, None),
+            "without config the event should remain uncovered"
+        );
+    }
+
+    // -- Coverage: multi-element ---------------------------------------------
+
+    #[test]
+    fn test_multi_element_satisfies_any_non_neutral_event() {
+        // Tödlicher Löffel counts as every non-neutral element for events.
+        // A team of one Löffel should satisfy a 1x Fire event, 1x Water
+        // event, etc. — but *not* a Neutral one.
+        let loffel = mock_pet(
+            "Tödlicher Löffel",
+            Element::Neutral,
+            Some(Class::Mage),
+            RecommendedClass::Single(Class::Mage),
+            true,
+        );
+
+        let mut info = std::collections::BTreeMap::new();
+        info.insert(
+            "Tödlicher Löffel".to_string(),
+            special_info_from_yaml("element_constraints:\n  multi_element: true\n"),
+        );
+        let cfg = config_with(info);
+
+        let team = vec![&loffel];
+
+        for el in [Element::Fire, Element::Water, Element::Wind, Element::Earth] {
+            let cond = CounterCondition {
+                item: None, class: None, element: Some(el),
+                count: None, quantity_per_clear: None, notes: None,
+            };
+            assert!(
+                counter_satisfied(&cond, &team, Some(&cfg)),
+                "multi-element pet should satisfy {el:?} event"
+            );
+        }
+
+        // Neutral is NOT covered — multi_element only claims non-neutral.
+        let neutral_cond = CounterCondition {
+            item: None, class: None, element: Some(Element::Neutral),
+            count: None, quantity_per_clear: None, notes: None,
+        };
+        // Löffel's export element is Neutral, so it does match a Neutral
+        // condition via the normal path. This assertion is a cross-check
+        // that the multi_element branch doesn't accidentally *exclude*
+        // neutral-matching pets.
+        assert!(counter_satisfied(&neutral_cond, &team, Some(&cfg)));
+    }
+
+    // -- Element matching with multi_element in slot filling -----------------
+
+    #[test]
+    fn test_multi_element_pet_fills_any_element_slot() {
+        // A multi-element pet should be eligible for any non-neutral
+        // element slot (Wind in this test).
+        let loffel = mock_pet(
+            "Tödlicher Löffel",
+            Element::Neutral,
+            Some(Class::Mage),
+            RecommendedClass::Single(Class::Mage),
+            true,
+        );
+
+        let mut info = std::collections::BTreeMap::new();
+        info.insert(
+            "Tödlicher Löffel".to_string(),
+            special_info_from_yaml("element_constraints:\n  multi_element: true\n"),
+        );
+        let cfg = config_with(info);
+
+        let slot = make_slot(Some(Class::Mage), Some(Element::Wind));
+        assert_eq!(
+            score_pet(&loffel, &slot, false, Some(&cfg)),
+            Some(MatchQuality::Exact)
+        );
+        // Without config, the pet's Neutral export element makes it fail
+        // the wind requirement.
+        assert_eq!(score_pet(&loffel, &slot, false, None), None);
     }
 }
