@@ -925,6 +925,7 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: &DataS
             let kind_str = match warning.kind {
                 CoverageKind::Trap => "Trap",
                 CoverageKind::Event => "Event",
+                CoverageKind::Equipment => "Gear",
             };
             ui.horizontal(|ui| {
                 ui.label(

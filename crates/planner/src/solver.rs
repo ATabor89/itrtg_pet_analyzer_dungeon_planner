@@ -95,6 +95,12 @@ pub struct CoverageWarning {
 pub enum CoverageKind {
     Trap,
     Event,
+    /// A teammate's [`PetSpecialInfo::forbidden_team_equipment`] is present
+    /// on another pet in the same party — e.g. Bat loses its class XP bonus
+    /// if any teammate has Ego Sword or Gram. The warning carries the
+    /// equipment name + which pet is holding it; the planner itself does
+    /// not auto-swap gear.
+    Equipment,
 }
 
 // =============================================================================
