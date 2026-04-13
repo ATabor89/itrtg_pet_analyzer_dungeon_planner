@@ -855,10 +855,18 @@ forced:
   - pet: Cat
     dungeon: WaterTemple";
 
-/// Parse the import text as YAML, validate pet names against the roster,
-/// and replace the current constraints if everything checks out.
+/// Parse the import text as YAML, validate and normalize pet names against
+/// the roster, and replace the current constraints if everything checks out.
+///
+/// Name resolution uses the same `normalize_for_lookup` function that the
+/// merge layer uses, so variant spellings like "Honey Badger" vs
+/// "Honeybadger" or "God Power" vs "God Power (Pet)" are matched
+/// automatically — an exported YAML can always be re-imported without
+/// errors even when the canonical wiki name differs from what a human
+/// might type.
 fn import_constraints(state: &mut DungeonState, data: &DataStore) {
     use crate::state::ConstraintsState;
+    use itrtg_models::normalize_for_lookup;
 
     let text = &state.constraints_import_text;
 
@@ -870,30 +878,64 @@ fn import_constraints(state: &mut DungeonState, data: &DataStore) {
         }
     };
 
-    // Build a set of known pet names for validation
+    // Build lookup tables: exact name → canonical name, and normalized key
+    // → canonical name. The normalized key strips spaces, punctuation, and
+    // lowercases so "Honey Badger" and "Honeybadger" both map to the same
+    // canonical name.
     let known_names: HashSet<String> = data
         .merged
         .iter()
         .map(|p| p.name.clone())
         .collect();
-
-    // Validate all pet names
-    let mut errors: Vec<String> = Vec::new();
-    let all_names = parsed
-        .forbidden
+    let normalized_lookup: HashMap<String, String> = data
+        .merged
         .iter()
-        .chain(parsed.whitelisted.iter())
-        .chain(parsed.forced.iter().map(|f| &f.pet));
+        .map(|p| (normalize_for_lookup(&p.name), p.name.clone()))
+        .collect();
 
-    for name in all_names {
-        if !known_names.contains(name) {
-            let suggestion = find_closest_name(name, &known_names);
-            let msg = if let Some(closest) = suggestion {
-                format!("Unknown pet: \"{name}\" — did you mean \"{closest}\"?")
-            } else {
-                format!("Unknown pet: \"{name}\"")
-            };
-            errors.push(msg);
+    // Resolve a user-supplied name to the canonical roster name.
+    // Tries, in order: exact match → normalized match → fuzzy suggestion.
+    let resolve = |input: &str| -> Result<String, String> {
+        // Exact match (most common — exported YAML uses canonical names).
+        if known_names.contains(input) {
+            return Ok(input.to_string());
+        }
+        // Normalized match: "Honey Badger" → "honeybadger" → "Honeybadger".
+        let norm = normalize_for_lookup(input);
+        if let Some(canonical) = normalized_lookup.get(&norm) {
+            return Ok(canonical.clone());
+        }
+        // No match — build a helpful error with fuzzy suggestion.
+        let suggestion = find_closest_name(input, &known_names);
+        Err(if let Some(closest) = suggestion {
+            format!("Unknown pet: \"{input}\" — did you mean \"{closest}\"?")
+        } else {
+            format!("Unknown pet: \"{input}\"")
+        })
+    };
+
+    // Validate and resolve all pet names.
+    let mut errors: Vec<String> = Vec::new();
+    let mut resolved_forbidden: Vec<String> = Vec::new();
+    let mut resolved_whitelisted: Vec<String> = Vec::new();
+    let mut resolved_forced: Vec<(Option<Dungeon>, String)> = Vec::new();
+
+    for name in &parsed.forbidden {
+        match resolve(name) {
+            Ok(canonical) => resolved_forbidden.push(canonical),
+            Err(msg) => errors.push(msg),
+        }
+    }
+    for name in &parsed.whitelisted {
+        match resolve(name) {
+            Ok(canonical) => resolved_whitelisted.push(canonical),
+            Err(msg) => errors.push(msg),
+        }
+    }
+    for entry in &parsed.forced {
+        match resolve(&entry.pet) {
+            Ok(canonical) => resolved_forced.push((entry.dungeon, canonical)),
+            Err(msg) => errors.push(msg),
         }
     }
 
@@ -902,15 +944,11 @@ fn import_constraints(state: &mut DungeonState, data: &DataStore) {
         return;
     }
 
-    // All names valid — replace current constraints.
+    // All names valid — replace current constraints with canonical names.
     state.constraints_enabled = parsed.enabled;
-    state.forbidden_pets = parsed.forbidden.into_iter().collect();
-    state.whitelisted_pets = parsed.whitelisted.into_iter().collect();
-    state.forced_pets = parsed
-        .forced
-        .into_iter()
-        .map(|f| (f.dungeon, f.pet))
-        .collect();
+    state.forbidden_pets = resolved_forbidden.into_iter().collect();
+    state.whitelisted_pets = resolved_whitelisted.into_iter().collect();
+    state.forced_pets = resolved_forced;
 
     let count = state.forbidden_pets.len()
         + state.whitelisted_pets.len()
