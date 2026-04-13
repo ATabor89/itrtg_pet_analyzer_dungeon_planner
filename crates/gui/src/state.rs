@@ -34,12 +34,31 @@ pub struct DungeonSelection {
     pub depth: u8,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ConstraintsState {
+    /// When false the solver ignores all constraints, producing a fresh
+    /// unconstrained recommendation. The constraints themselves are still
+    /// preserved in the UI so the user can re-enable without re-entering.
+    pub enabled: bool,
     pub forbidden: Vec<String>,
     pub forced: Vec<ForcedEntry>,
     pub whitelisted: Vec<String>,
+}
+
+/// Custom Default so that `enabled` starts as `true` both when Rust code
+/// calls `ConstraintsState::default()` (fresh install via `AppState::default`)
+/// AND when serde fills in a missing field from YAML. The `#[serde(default)]`
+/// on the struct delegates to this impl for any field not present in the input.
+impl Default for ConstraintsState {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            forbidden: Vec::new(),
+            forced: Vec::new(),
+            whitelisted: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
