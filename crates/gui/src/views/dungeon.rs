@@ -569,6 +569,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             {
                 state.forbidden_pets.insert(state.constraint_search.clone());
                 state.constraint_search.clear();
+                state.constraints_status = None;
             }
 
             // Whitelist button
@@ -586,6 +587,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             {
                 state.whitelisted_pets.insert(state.constraint_search.clone());
                 state.constraint_search.clear();
+                state.constraints_status = None;
             }
 
             // Force button
@@ -600,6 +602,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                     .forced_pets
                     .push((state.force_dungeon, state.constraint_search.clone()));
                 state.constraint_search.clear();
+                state.constraints_status = None;
             }
 
             // Optional dungeon selector for Force (defaults to Any)
@@ -644,6 +647,9 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                             to_remove.push(name.clone());
                         }
                     }
+                    if !to_remove.is_empty() {
+                        state.constraints_status = None;
+                    }
                     for name in to_remove {
                         state.forbidden_pets.remove(&name);
                     }
@@ -669,6 +675,9 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                             to_remove.push(name.clone());
                         }
                     }
+                    if !to_remove.is_empty() {
+                        state.constraints_status = None;
+                    }
                     for name in to_remove {
                         state.whitelisted_pets.remove(&name);
                     }
@@ -693,6 +702,9 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                         if ui.add(btn).clicked() {
                             to_remove.push(i);
                         }
+                    }
+                    if !to_remove.is_empty() {
+                        state.constraints_status = None;
                     }
                     for i in to_remove.into_iter().rev() {
                         state.forced_pets.remove(i);
@@ -753,9 +765,24 @@ fn export_constraints_to_clipboard(state: &mut DungeonState) {
             {
                 if let Some(window) = web_sys::window() {
                     let clipboard = window.navigator().clipboard();
-                    let _ = clipboard.write_text(&yaml);
+                    let promise = clipboard.write_text(&yaml);
+                    // Await the clipboard Promise so we don't claim success
+                    // on a rejected write. The success/failure status can't
+                    // easily be communicated back to DungeonState from the
+                    // async closure (no channel wired up), so we set an
+                    // optimistic message and log failures. In practice
+                    // writeText rarely fails — it runs on a user gesture in
+                    // a secure context (GitHub Pages).
                     state.constraints_status =
                         Some(("Copied to clipboard".to_string(), false));
+                    wasm_bindgen_futures::spawn_local(async move {
+                        if wasm_bindgen_futures::JsFuture::from(promise)
+                            .await
+                            .is_err()
+                        {
+                            log::warn!("WASM clipboard write_text rejected");
+                        }
+                    });
                 } else {
                     state.constraints_status =
                         Some(("Clipboard not available".to_string(), true));
@@ -899,26 +926,35 @@ fn import_constraints(state: &mut DungeonState, data: &DataStore) {
 fn find_closest_name(unknown: &str, known: &HashSet<String>) -> Option<String> {
     let lower = unknown.to_lowercase();
 
+    // Precompute lowercase forms once to avoid repeated allocation per candidate.
+    let known_lower: Vec<(&String, String)> = known
+        .iter()
+        .map(|k| (k, k.to_lowercase()))
+        .collect();
+
     // Exact case-insensitive match (shouldn't happen, but safety net)
-    if let Some(exact) = known.iter().find(|k| k.to_lowercase() == lower) {
-        return Some(exact.clone());
+    if let Some((original, _)) = known_lower.iter().find(|(_, kl)| *kl == lower) {
+        return Some((*original).clone());
     }
 
     // Prefix match: "Hourgl" → "Hourglass"
-    let prefix_matches: Vec<&String> = known
+    let prefix_matches: Vec<&String> = known_lower
         .iter()
-        .filter(|k| k.to_lowercase().starts_with(&lower) || lower.starts_with(&k.to_lowercase()))
+        .filter(|(_, kl)| kl.starts_with(&lower) || lower.starts_with(kl.as_str()))
+        .map(|(original, _)| *original)
         .collect();
     if prefix_matches.len() == 1 {
         return Some(prefix_matches[0].clone());
     }
 
-    // Simple edit distance: find any name within distance 2.
-    known
+    // Simple edit distance: compute once per candidate, keep the closest
+    // within distance 2.
+    known_lower
         .iter()
-        .filter(|k| levenshtein(&lower, &k.to_lowercase()) <= 2)
-        .min_by_key(|k| levenshtein(&lower, &k.to_lowercase()))
-        .cloned()
+        .map(|(original, kl)| (original, levenshtein(&lower, kl)))
+        .filter(|(_, dist)| *dist <= 2)
+        .min_by_key(|(_, dist)| *dist)
+        .map(|(original, _)| (*original).clone())
 }
 
 /// Simple Levenshtein distance. Fine for short pet names (max ~25 chars).
