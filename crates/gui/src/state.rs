@@ -37,9 +37,18 @@ pub struct DungeonSelection {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ConstraintsState {
+    /// When false the solver ignores all constraints, producing a fresh
+    /// unconstrained recommendation. The constraints themselves are still
+    /// preserved in the UI so the user can re-enable without re-entering.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
     pub forbidden: Vec<String>,
     pub forced: Vec<ForcedEntry>,
     pub whitelisted: Vec<String>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

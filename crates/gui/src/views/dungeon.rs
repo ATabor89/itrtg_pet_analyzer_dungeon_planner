@@ -39,6 +39,10 @@ pub struct DungeonState {
     /// Solved plans, keyed by dungeon. Regenerated on Solve.
     plans: Vec<DungeonPlan>,
     initialized: bool,
+    /// When false the solver ignores all constraints, producing fresh
+    /// unconstrained recommendations. The constraints themselves are still
+    /// visible in the UI so the user can re-enable without re-entering.
+    constraints_enabled: bool,
     /// Pet names forbidden from all dungeon teams.
     forbidden_pets: HashSet<String>,
     /// Pets forced into dungeon teams: (optional dungeon, pet_name).
@@ -57,6 +61,13 @@ pub struct DungeonState {
     pub equipment_inventory: HashMap<String, u8>,
     /// Per-dungeon equipment standard overrides from app state.
     equipment_standard_overrides: HashMap<Dungeon, EquipmentStandard>,
+    // -- Constraints import/export UI state --
+    /// Whether the constraints import dialog is open.
+    show_constraints_import: bool,
+    /// Text buffer for the constraints import dialog.
+    constraints_import_text: String,
+    /// Status message from the last import/export attempt.
+    constraints_status: Option<(String, bool)>, // (message, is_error)
 }
 
 /// Resolved minimum equipment standards for a dungeon.
@@ -99,6 +110,7 @@ impl DungeonState {
             })
             .collect();
         self.force_dungeon = None; // Default: solver picks best team
+        self.constraints_enabled = true; // Default: constraints active
         self.initialized = true;
     }
 
@@ -121,7 +133,14 @@ impl DungeonState {
     }
 
     /// Build SolverConstraints from the current UI state.
+    ///
+    /// When `constraints_enabled` is false, returns empty constraints so
+    /// the solver produces a fresh unconstrained recommendation.
     fn build_constraints(&self) -> SolverConstraints {
+        if !self.constraints_enabled {
+            return SolverConstraints::default();
+        }
+
         let mut forced: HashMap<Dungeon, Vec<String>> = HashMap::new();
         let mut forced_any: Vec<String> = Vec::new();
         for (dungeon, name) in &self.forced_pets {
@@ -181,7 +200,8 @@ impl DungeonState {
             );
         }
 
-        // Constraints: replace all three sets.
+        // Constraints: replace all three sets + toggle state.
+        self.constraints_enabled = state.constraints.enabled;
         self.forbidden_pets.clear();
         self.forbidden_pets.extend(state.constraints.forbidden.iter().cloned());
         self.whitelisted_pets.clear();
@@ -239,6 +259,7 @@ impl DungeonState {
         whitelisted.sort();
 
         state.constraints = ConstraintsState {
+            enabled: self.constraints_enabled,
             forbidden,
             whitelisted,
             forced: self
@@ -451,20 +472,58 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     let total_constraints = state.forbidden_pets.len()
         + state.forced_pets.len()
         + state.whitelisted_pets.len();
+    let enabled = state.constraints_enabled;
     let header_text = if total_constraints > 0 {
-        format!("Pet Constraints ({total_constraints} active)")
+        let status = if enabled { "active" } else { "paused" };
+        format!("Pet Constraints ({total_constraints} {status})")
     } else {
         "Pet Constraints".to_string()
     };
 
     egui::CollapsingHeader::new(
         RichText::new(header_text)
-            .color(style::TEXT_MUTED)
+            .color(if enabled { style::TEXT_MUTED } else { Color32::from_rgb(0x66, 0x66, 0x66) })
             .size(13.0),
     )
     .id_salt("pet_constraints")
     .default_open(false)
     .show(ui, |ui| {
+        // Muted overlay alpha for constraint pills when disabled.
+        let pill_alpha = if enabled { 255 } else { 90 };
+
+        // Toolbar: toggle + import/export
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut state.constraints_enabled, "Enabled");
+
+            ui.separator();
+
+            // Export → clipboard
+            if ui
+                .button(RichText::new("\u{1F4CB} Export").size(11.0))
+                .on_hover_text("Copy constraints to clipboard as YAML")
+                .clicked()
+            {
+                export_constraints_to_clipboard(state);
+            }
+
+            // Import ← textbox
+            if ui
+                .button(RichText::new("\u{1F4DD} Import").size(11.0))
+                .on_hover_text("Import constraints from YAML text")
+                .clicked()
+            {
+                state.show_constraints_import = !state.show_constraints_import;
+            }
+
+            // Status flash from last import/export
+            if let Some((msg, is_err)) = &state.constraints_status {
+                let color = if *is_err { style::ERROR } else { style::SUCCESS };
+                ui.label(RichText::new(msg).color(color).size(11.0));
+            }
+        });
+
+        ui.add_space(2.0);
+
         // Search + add controls
         ui.horizontal(|ui| {
             ui.label(RichText::new("Pet:").color(style::TEXT_MUTED).size(12.0));
@@ -560,7 +619,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 });
         });
 
-        // Show active constraints
+        // Show active constraints (visually muted when toggle is off)
         let has_any = !state.forbidden_pets.is_empty()
             || !state.forced_pets.is_empty()
             || !state.whitelisted_pets.is_empty();
@@ -571,15 +630,16 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             // Forbidden pets
             if !state.forbidden_pets.is_empty() {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("Forbidden:").color(style::ERROR).size(11.0));
+                    let c = style::ERROR.linear_multiply(pill_alpha as f32 / 255.0);
+                    ui.label(RichText::new("Forbidden:").color(c).size(11.0));
                     let mut to_remove = Vec::new();
                     let mut sorted: Vec<&String> = state.forbidden_pets.iter().collect();
                     sorted.sort();
                     for name in sorted {
                         let btn = egui::Button::new(
-                            RichText::new(format!("{name} ×")).color(style::ERROR).size(11.0),
+                            RichText::new(format!("{name} ×")).color(c).size(11.0),
                         )
-                        .fill(Color32::from_rgb(0x30, 0x15, 0x15));
+                        .fill(Color32::from_rgba_premultiplied(0x30, 0x15, 0x15, pill_alpha));
                         if ui.add(btn).clicked() {
                             to_remove.push(name.clone());
                         }
@@ -593,21 +653,18 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             // Whitelisted pets
             if !state.whitelisted_pets.is_empty() {
                 ui.horizontal_wrapped(|ui| {
+                    let c = Color32::from_rgba_premultiplied(0x88, 0xcc, 0xff, pill_alpha);
                     ui.label(
-                        RichText::new("Whitelisted:")
-                            .color(Color32::from_rgb(0x88, 0xcc, 0xff))
-                            .size(11.0),
+                        RichText::new("Whitelisted:").color(c).size(11.0),
                     );
                     let mut to_remove = Vec::new();
                     let mut sorted: Vec<&String> = state.whitelisted_pets.iter().collect();
                     sorted.sort();
                     for name in sorted {
                         let btn = egui::Button::new(
-                            RichText::new(format!("{name} ×"))
-                                .color(Color32::from_rgb(0x88, 0xcc, 0xff))
-                                .size(11.0),
+                            RichText::new(format!("{name} ×")).color(c).size(11.0),
                         )
-                        .fill(Color32::from_rgb(0x15, 0x20, 0x30));
+                        .fill(Color32::from_rgba_premultiplied(0x15, 0x20, 0x30, pill_alpha));
                         if ui.add(btn).clicked() {
                             to_remove.push(name.clone());
                         }
@@ -621,7 +678,8 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             // Forced pets
             if !state.forced_pets.is_empty() {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("Forced:").color(style::SUCCESS).size(11.0));
+                    let c = style::SUCCESS.linear_multiply(pill_alpha as f32 / 255.0);
+                    ui.label(RichText::new("Forced:").color(c).size(11.0));
                     let mut to_remove = Vec::new();
                     for (i, (dungeon, name)) in state.forced_pets.iter().enumerate() {
                         let target = match dungeon {
@@ -629,11 +687,9 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                             None => "Any",
                         };
                         let btn = egui::Button::new(
-                            RichText::new(format!("{name} → {target} ×"))
-                                .color(style::SUCCESS)
-                                .size(11.0),
+                            RichText::new(format!("{name} → {target} ×")).color(c).size(11.0),
                         )
-                        .fill(Color32::from_rgb(0x15, 0x30, 0x15));
+                        .fill(Color32::from_rgba_premultiplied(0x15, 0x30, 0x15, pill_alpha));
                         if ui.add(btn).clicked() {
                             to_remove.push(i);
                         }
@@ -645,6 +701,248 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             }
         }
     });
+
+    // Import dialog (floating window, outside the collapsible so it doesn't
+    // get clipped — the button that opens it lives inside the section above).
+    show_constraints_import_dialog(ui.ctx(), state, data);
+}
+
+// =============================================================================
+// Constraints import / export
+// =============================================================================
+
+/// Export the current constraints to the system clipboard as YAML.
+fn export_constraints_to_clipboard(state: &mut DungeonState) {
+    use crate::state::{ConstraintsState, ForcedEntry};
+
+    let mut forbidden: Vec<String> = state.forbidden_pets.iter().cloned().collect();
+    forbidden.sort();
+    let mut whitelisted: Vec<String> = state.whitelisted_pets.iter().cloned().collect();
+    whitelisted.sort();
+
+    let export = ConstraintsState {
+        enabled: state.constraints_enabled,
+        forbidden,
+        whitelisted,
+        forced: state
+            .forced_pets
+            .iter()
+            .map(|(dungeon, pet)| ForcedEntry {
+                pet: pet.clone(),
+                dungeon: *dungeon,
+            })
+            .collect(),
+    };
+
+    match serde_yaml::to_string(&export) {
+        Ok(yaml) => {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                match arboard::Clipboard::new().and_then(|mut cb| cb.set_text(&yaml)) {
+                    Ok(()) => {
+                        state.constraints_status =
+                            Some(("Copied to clipboard".to_string(), false));
+                    }
+                    Err(e) => {
+                        state.constraints_status =
+                            Some((format!("Clipboard error: {e}"), true));
+                    }
+                }
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                if let Some(window) = web_sys::window() {
+                    let clipboard = window.navigator().clipboard();
+                    let _ = clipboard.write_text(&yaml);
+                    state.constraints_status =
+                        Some(("Copied to clipboard".to_string(), false));
+                } else {
+                    state.constraints_status =
+                        Some(("Clipboard not available".to_string(), true));
+                }
+            }
+        }
+        Err(e) => {
+            state.constraints_status = Some((format!("Serialize error: {e}"), true));
+        }
+    }
+}
+
+/// Import dialog window for pasting constraints YAML.
+fn show_constraints_import_dialog(
+    ctx: &egui::Context,
+    state: &mut DungeonState,
+    data: &DataStore,
+) {
+    if !state.show_constraints_import {
+        return;
+    }
+
+    egui::Window::new("Import Pet Constraints")
+        .collapsible(false)
+        .resizable(true)
+        .default_size([500.0, 300.0])
+        .show(ctx, |ui| {
+            ui.label(
+                RichText::new("Paste constraints YAML below. This will replace all current constraints.")
+                    .color(style::TEXT_MUTED),
+            );
+            egui::ScrollArea::vertical()
+                .max_height(200.0)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(&mut state.constraints_import_text)
+                            .desired_width(f32::INFINITY)
+                            .desired_rows(10)
+                            .font(egui::TextStyle::Monospace)
+                            .hint_text(CONSTRAINTS_HINT_TEXT),
+                    );
+                });
+
+            // Error display from last parse attempt
+            if let Some((msg, true)) = &state.constraints_status {
+                ui.label(RichText::new(msg).color(style::ERROR).size(11.0));
+            }
+
+            ui.horizontal(|ui| {
+                if ui.button("Import").clicked()
+                    && !state.constraints_import_text.is_empty()
+                {
+                    import_constraints(state, data);
+                }
+                if ui.button("Cancel").clicked() {
+                    state.show_constraints_import = false;
+                    state.constraints_status = None;
+                }
+            });
+        });
+}
+
+const CONSTRAINTS_HINT_TEXT: &str = "\
+forbidden:
+  - Hourglass
+whitelisted:
+  - Bee
+forced:
+  - pet: Frog
+  - pet: Cat
+    dungeon: WaterTemple";
+
+/// Parse the import text as YAML, validate pet names against the roster,
+/// and replace the current constraints if everything checks out.
+fn import_constraints(state: &mut DungeonState, data: &DataStore) {
+    use crate::state::ConstraintsState;
+
+    let text = &state.constraints_import_text;
+
+    let parsed: ConstraintsState = match serde_yaml::from_str(text) {
+        Ok(c) => c,
+        Err(e) => {
+            state.constraints_status = Some((format!("YAML parse error: {e}"), true));
+            return;
+        }
+    };
+
+    // Build a set of known pet names for validation
+    let known_names: HashSet<String> = data
+        .merged
+        .iter()
+        .map(|p| p.name.clone())
+        .collect();
+
+    // Validate all pet names
+    let mut errors: Vec<String> = Vec::new();
+    let all_names = parsed
+        .forbidden
+        .iter()
+        .chain(parsed.whitelisted.iter())
+        .chain(parsed.forced.iter().map(|f| &f.pet));
+
+    for name in all_names {
+        if !known_names.contains(name) {
+            let suggestion = find_closest_name(name, &known_names);
+            let msg = if let Some(closest) = suggestion {
+                format!("Unknown pet: \"{name}\" — did you mean \"{closest}\"?")
+            } else {
+                format!("Unknown pet: \"{name}\"")
+            };
+            errors.push(msg);
+        }
+    }
+
+    if !errors.is_empty() {
+        state.constraints_status = Some((errors.join("\n"), true));
+        return;
+    }
+
+    // All names valid — replace current constraints.
+    state.constraints_enabled = parsed.enabled;
+    state.forbidden_pets = parsed.forbidden.into_iter().collect();
+    state.whitelisted_pets = parsed.whitelisted.into_iter().collect();
+    state.forced_pets = parsed
+        .forced
+        .into_iter()
+        .map(|f| (f.dungeon, f.pet))
+        .collect();
+
+    let count = state.forbidden_pets.len()
+        + state.whitelisted_pets.len()
+        + state.forced_pets.len();
+    state.constraints_status = Some((format!("Imported {count} constraints"), false));
+    state.constraints_import_text.clear();
+    state.show_constraints_import = false;
+}
+
+/// Find the closest known pet name to an unknown input, for error
+/// suggestions. Uses case-insensitive prefix matching and a simple
+/// edit distance check (Levenshtein ≤ 2).
+fn find_closest_name(unknown: &str, known: &HashSet<String>) -> Option<String> {
+    let lower = unknown.to_lowercase();
+
+    // Exact case-insensitive match (shouldn't happen, but safety net)
+    if let Some(exact) = known.iter().find(|k| k.to_lowercase() == lower) {
+        return Some(exact.clone());
+    }
+
+    // Prefix match: "Hourgl" → "Hourglass"
+    let prefix_matches: Vec<&String> = known
+        .iter()
+        .filter(|k| k.to_lowercase().starts_with(&lower) || lower.starts_with(&k.to_lowercase()))
+        .collect();
+    if prefix_matches.len() == 1 {
+        return Some(prefix_matches[0].clone());
+    }
+
+    // Simple edit distance: find any name within distance 2.
+    known
+        .iter()
+        .filter(|k| levenshtein(&lower, &k.to_lowercase()) <= 2)
+        .min_by_key(|k| levenshtein(&lower, &k.to_lowercase()))
+        .cloned()
+}
+
+/// Simple Levenshtein distance. Fine for short pet names (max ~25 chars).
+#[allow(clippy::needless_range_loop)]
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let (m, n) = (a.len(), b.len());
+    let mut dp = vec![vec![0usize; n + 1]; m + 1];
+    for i in 0..=m {
+        dp[i][0] = i;
+    }
+    for j in 0..=n {
+        dp[0][j] = j;
+    }
+    for i in 1..=m {
+        for j in 1..=n {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            dp[i][j] = (dp[i - 1][j] + 1)
+                .min(dp[i][j - 1] + 1)
+                .min(dp[i - 1][j - 1] + cost);
+        }
+    }
+    dp[m][n]
 }
 
 // =============================================================================
