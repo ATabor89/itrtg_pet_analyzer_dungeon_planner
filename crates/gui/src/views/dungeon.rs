@@ -1282,14 +1282,26 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: &DataS
                 .strong()
                 .size(12.0),
         );
-        ui.horizontal(|ui| {
-            let start = if row_label == "Front Row" { 0 } else { 3 };
-            let end = start + 3;
-            for i in start..end.min(plan.assignments.len()) {
+
+        let start = if row_label == "Front Row" { 0 } else { 3 };
+        let end = start + 3;
+        let row_slots = &plan.assignments[start..end.min(plan.assignments.len())];
+
+        // Pre-compute the tallest card height in this row so all cards
+        // in the same row share the same height.
+        let row_height = row_slots
+            .iter()
+            .map(|sa| card_height(sa, data, &teammate_names))
+            .fold(0.0f32, f32::max);
+
+        // Top-align so cards with fewer lines don't float to the center.
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
+            for sa in row_slots {
                 show_slot_card(
                     ui,
-                    &plan.assignments[i],
+                    sa,
                     slot_width,
+                    row_height,
                     equip_catalog,
                     standards,
                     data,
@@ -1718,34 +1730,100 @@ fn collect_equip_diffs(
     }
 }
 
+/// Compute the height a slot card needs, based on its content.
+/// Called once per card to determine the max height for the row, then
+/// passed into `show_slot_card` so every card in the row gets the same
+/// height and top-alignment looks clean.
+fn card_height(
+    slot: &solver::SlotAssignment,
+    data: &DataStore,
+    teammate_names: &[&str],
+) -> f32 {
+    let has_equip = slot.equipment_suggestion.is_some();
+    let is_filled = matches!(&slot.assignment, Assignment::Filled { .. });
+
+    if !is_filled {
+        return 65.0;
+    }
+    if !has_equip {
+        return 80.0;
+    }
+
+    // Base: header (slot#/class/element) + pet name + class/quality/stats + 3 equip lines.
+    let base = 140.0;
+
+    let pet = match &slot.assignment {
+        Assignment::Filled { pet, .. } => pet,
+        _ => unreachable!(),
+    };
+
+    let info = data
+        .planner_config
+        .as_ref()
+        .and_then(|c| c.special_info(&pet.name));
+
+    let Some(info) = info else {
+        return base;
+    };
+
+    // Count lines the special-info renderer would actually emit.
+    let mut extra_lines = 0u32;
+
+    // Line 1: combat mechanics
+    let has_mechanics = info
+        .special_mechanics
+        .iter()
+        .any(|m| m.combat_relevant == Some(true));
+    if has_mechanics {
+        extra_lines += 1;
+    }
+
+    // Line 2: stat modifiers / token badge
+    let has_stat_mods = info.stat_modifiers.is_some();
+    let is_improved = pet.export.as_ref().is_some_and(|e| e.improved);
+    if has_stat_mods || (is_improved && info.token_improvement.is_some()) {
+        extra_lines += 1;
+    }
+
+    // Line 3: synergy/anti-synergy notes with THIS team
+    let has_team_notes = info.team_synergies.iter().any(|s| {
+        s.pet
+            .as_deref()
+            .is_some_and(|p| teammate_names.iter().any(|t| t.eq_ignore_ascii_case(p) && *t != pet.name))
+    }) || info.team_anti_synergies.iter().any(|a| {
+        let context_ok = a
+            .context
+            .as_deref()
+            .map(|c| !c.eq_ignore_ascii_case("campaign"))
+            .unwrap_or(true);
+        context_ok
+            && a.pet
+                .as_deref()
+                .is_some_and(|p| teammate_names.iter().any(|t| t.eq_ignore_ascii_case(p) && *t != pet.name))
+    });
+    if has_team_notes {
+        extra_lines += 1;
+    }
+
+    if extra_lines == 0 {
+        return base;
+    }
+
+    // ~14px per extra line (9pt text + spacing).
+    base + extra_lines as f32 * 14.0
+}
+
+#[allow(clippy::too_many_arguments)]
 fn show_slot_card(
     ui: &mut Ui,
     slot: &solver::SlotAssignment,
     width: f32,
+    height: f32,
     equip_catalog: Option<&EquipmentCatalog>,
     standards: EquipmentStandard,
     data: &DataStore,
     teammate_names: &[&str],
 ) {
-    // Dynamically size based on content.
-    let has_equip = slot.equipment_suggestion.is_some();
-    let is_filled = matches!(&slot.assignment, Assignment::Filled { .. });
-    let has_special = is_filled && {
-        let pet_name = match &slot.assignment {
-            Assignment::Filled { pet, .. } => &pet.name,
-            _ => unreachable!(),
-        };
-        data.planner_config
-            .as_ref()
-            .and_then(|c| c.special_info(pet_name))
-            .is_some()
-    };
-    let height = match (has_equip, is_filled, has_special) {
-        (true, true, true) => 175.0,   // Full card + special info line(s)
-        (true, true, false) => 140.0,  // Full card: header + pet + stats + 3 equip lines
-        (false, true, _) => 80.0,      // No equipment
-        _ => 65.0,                     // Empty slot
-    };
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), egui::Sense::hover());
 
     // Card background
