@@ -248,7 +248,9 @@ fn parse_action(s: &str) -> PetAction {
 
         match job {
             "Fishing" => return PetAction::Village(VillageJob::Fishing(sub)),
-            "Material Factory" => return PetAction::Village(VillageJob::MaterialFactory(sub)),
+            "Material Factory" | "Mat Factory" => {
+                return PetAction::Village(VillageJob::MaterialFactory(sub));
+            }
             "Questing" => return PetAction::Village(VillageJob::Questing(sub)),
             "Alchemy Hut" | "Alchemist Hut" => return PetAction::Village(VillageJob::AlchemyHut),
             _ => {}
@@ -377,6 +379,21 @@ mod tests {
         assert_eq!(
             parse_action("Alchemy Hut"),
             PetAction::Village(VillageJob::AlchemyHut)
+        );
+        // "Mat Factory, producing" and "Mat Factory, producing Special Wood"
+        // from export data — the game uses "Mat Factory" not "Material Factory".
+        assert_eq!(
+            parse_action("Mat Factory, producing "),
+            PetAction::Village(VillageJob::MaterialFactory(Some("producing".to_string())))
+        );
+        assert_eq!(
+            parse_action("Mat Factory, producing Special Wood"),
+            PetAction::Village(VillageJob::MaterialFactory(Some("producing Special Wood".to_string())))
+        );
+        // The original "Material Factory" form should still work too.
+        assert_eq!(
+            parse_action("Material Factory, producing"),
+            PetAction::Village(VillageJob::MaterialFactory(Some("producing".to_string())))
         );
     }
 
