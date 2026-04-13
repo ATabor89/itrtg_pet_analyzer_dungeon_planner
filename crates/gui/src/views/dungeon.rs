@@ -1285,6 +1285,11 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: &DataS
 
         let start = if row_label == "Front Row" { 0 } else { 3 };
         let end = start + 3;
+        // Guard: plans with fewer assignments than expected (e.g. unknown
+        // depth returning an empty Vec) must not panic on the slice.
+        if start >= plan.assignments.len() {
+            continue;
+        }
         let row_slots = &plan.assignments[start..end.min(plan.assignments.len())];
 
         // Pre-compute the tallest card height in this row so all cards
