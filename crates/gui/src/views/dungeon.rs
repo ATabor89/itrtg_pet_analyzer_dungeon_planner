@@ -1265,6 +1265,16 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: &DataS
     let equip_catalog = data.dungeon_recs.as_ref().map(|r| &r.equipment);
     let standards = state.standards_for(plan.dungeon, plan.depth);
 
+    // Collect teammate names for synergy annotation on each slot card.
+    let teammate_names: Vec<&str> = plan
+        .assignments
+        .iter()
+        .filter_map(|sa| match &sa.assignment {
+            Assignment::Filled { pet, .. } => Some(pet.name.as_str()),
+            _ => None,
+        })
+        .collect();
+
     for row_label in ["Front Row", "Back Row"] {
         ui.label(
             RichText::new(row_label)
@@ -1276,7 +1286,15 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: &DataS
             let start = if row_label == "Front Row" { 0 } else { 3 };
             let end = start + 3;
             for i in start..end.min(plan.assignments.len()) {
-                show_slot_card(ui, &plan.assignments[i], slot_width, equip_catalog, standards);
+                show_slot_card(
+                    ui,
+                    &plan.assignments[i],
+                    slot_width,
+                    equip_catalog,
+                    standards,
+                    data,
+                    &teammate_names,
+                );
             }
         });
         ui.add_space(4.0);
@@ -1428,6 +1446,71 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
             }
         }
     });
+
+    // Team synergy/anti-synergy summary line
+    if let Some(cfg) = &data.planner_config {
+        let pet_names: Vec<&str> = plan
+            .assignments
+            .iter()
+            .filter_map(|sa| match &sa.assignment {
+                Assignment::Filled { pet, .. } => Some(pet.name.as_str()),
+                _ => None,
+            })
+            .collect();
+
+        let mut synergies: Vec<String> = Vec::new();
+        let mut anti_synergies: Vec<String> = Vec::new();
+
+        // Scan each ordered pair once — use i < j naming for stability.
+        for (i, &name_a) in pet_names.iter().enumerate() {
+            let Some(info_a) = cfg.special_info(name_a) else { continue };
+
+            for &name_b in &pet_names[i + 1..] {
+                // Positive: A lists B as a synergy, or B lists A.
+                let a_likes_b = info_a.team_synergies().iter().any(|s| {
+                    s.pet.as_deref().is_some_and(|p| p.eq_ignore_ascii_case(name_b))
+                });
+                let b_likes_a = cfg
+                    .special_info(name_b)
+                    .is_some_and(|info_b| {
+                        info_b.team_synergies().iter().any(|s| {
+                            s.pet.as_deref().is_some_and(|p| p.eq_ignore_ascii_case(name_a))
+                        })
+                    });
+                if a_likes_b || b_likes_a {
+                    synergies.push(format!("{name_a} + {name_b}"));
+                }
+
+                // Negative: dungeon/all anti-synergy in either direction.
+                if info_a.has_dungeon_anti_synergy_with(name_b) {
+                    anti_synergies.push(format!("{name_a} + {name_b}"));
+                } else if let Some(info_b) = cfg.special_info(name_b)
+                    && info_b.has_dungeon_anti_synergy_with(name_a)
+                {
+                    anti_synergies.push(format!("{name_a} + {name_b}"));
+                }
+            }
+        }
+
+        if !synergies.is_empty() {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(format!("\u{2764} Synergies: {}", synergies.join(", ")))
+                        .color(Color32::from_rgb(0x66, 0xcc, 0x88))
+                        .size(11.0),
+                );
+            });
+        }
+        if !anti_synergies.is_empty() {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(format!("\u{26A0} Anti-synergies: {}", anti_synergies.join(", ")))
+                        .color(Color32::from_rgb(0xdd, 0x88, 0x66))
+                        .size(11.0),
+                );
+            });
+        }
+    }
 
     ui.add_space(2.0);
 }
@@ -1641,14 +1724,27 @@ fn show_slot_card(
     width: f32,
     equip_catalog: Option<&EquipmentCatalog>,
     standards: EquipmentStandard,
+    data: &DataStore,
+    teammate_names: &[&str],
 ) {
-    // Dynamically size based on content
+    // Dynamically size based on content.
     let has_equip = slot.equipment_suggestion.is_some();
     let is_filled = matches!(&slot.assignment, Assignment::Filled { .. });
-    let height = match (has_equip, is_filled) {
-        (true, true) => 140.0,  // Full card: header + pet + stats + 3 equip lines
-        (false, true) => 80.0,  // No equipment
-        _ => 65.0,              // Empty slot
+    let has_special = is_filled && {
+        let pet_name = match &slot.assignment {
+            Assignment::Filled { pet, .. } => &pet.name,
+            _ => unreachable!(),
+        };
+        data.planner_config
+            .as_ref()
+            .and_then(|c| c.special_info(pet_name))
+            .is_some()
+    };
+    let height = match (has_equip, is_filled, has_special) {
+        (true, true, true) => 175.0,   // Full card + special info line(s)
+        (true, true, false) => 140.0,  // Full card: header + pet + stats + 3 equip lines
+        (false, true, _) => 80.0,      // No equipment
+        _ => 65.0,                     // Empty slot
     };
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), egui::Sense::hover());
 
@@ -1734,8 +1830,19 @@ fn show_slot_card(
             // Equipment: recommended vs current
             if let Some(suggestion) = &slot.equipment_suggestion {
                 let current_loadout = pet.export.as_ref().map(|e| &e.loadout);
-                show_equipment_comparison(&mut child, suggestion, current_loadout, equip_catalog, standards);
+                show_equipment_comparison(
+                    &mut child,
+                    suggestion,
+                    current_loadout,
+                    equip_catalog,
+                    standards,
+                    &pet.name,
+                    data,
+                );
             }
+
+            // Special info: mechanics, synergies, notes
+            show_pet_special_info(&mut child, pet, data, teammate_names);
         }
         Assignment::Empty { suggestions } => {
             child.label(RichText::new("No pet available").color(style::ERROR).size(12.0));
@@ -1762,9 +1869,24 @@ fn show_equipment_comparison(
     current_loadout: Option<&itrtg_models::Loadout>,
     catalog: Option<&EquipmentCatalog>,
     standards: EquipmentStandard,
+    pet_name: &str,
+    data: &DataStore,
 ) {
     let equip = &suggestion.equipment;
     let gems = equip.gems.as_ref();
+
+    // Check for static-equipment vs priority_override mismatch.
+    // Only relevant for static (non-computed) suggestions where the pet
+    // has a special element preference that differs from the suggested
+    // gear's element.
+    let mismatch_element = if suggestion.source == EquipmentSource::Static {
+        data.planner_config
+            .as_ref()
+            .and_then(|c| c.special_info(pet_name))
+            .and_then(|info| info.priority_element_override())
+    } else {
+        None
+    };
     let is_computed = suggestion.source == EquipmentSource::Computed;
 
     let rec_color = if is_computed {
@@ -1898,6 +2020,30 @@ fn show_equipment_comparison(
                             .size(8.0),
                     );
                 }
+
+                // Static equipment vs priority_override element mismatch.
+                // When the slot has hand-curated gear but the pet has a
+                // special element preference (Sylph→Wind, Rabbit→Earth),
+                // show a small warning if the recommended piece's element
+                // doesn't match. This is informational, not an error — the
+                // static rec is valid for the generic class, just suboptimal
+                // for this specific pet.
+                if let Some(prio_el) = mismatch_element
+                    && let Some(cat) = catalog
+                    && let Some(entry) = cat.lookup(key)
+                    && let Some(equip_el) = entry.element
+                    && equip_el != prio_el
+                {
+                    ui.label(
+                        RichText::new("\u{26A0}")
+                            .color(Color32::from_rgb(0xdd, 0xaa, 0x44))
+                            .size(9.0),
+                    )
+                    .on_hover_text(format!(
+                        "This pet benefits from {prio_el:?} equipment, \
+                         but the slot recommends {equip_el:?}"
+                    ));
+                }
             });
         }
     }
@@ -1929,6 +2075,148 @@ fn equip_matches_rec(
     let rec_name = resolve_equip_name(rec_key, catalog).to_lowercase();
     let cur_lower = current_name.to_lowercase();
     cur_lower.contains(&rec_name) || rec_name.contains(&cur_lower)
+}
+
+// =============================================================================
+// Per-pet special info display
+// =============================================================================
+
+/// Show a compact summary of a pet's special mechanics, stat modifiers,
+/// token improvement, and team synergies/anti-synergies on the slot card.
+/// Keeps to 2-3 small lines to avoid bloating the card.
+fn show_pet_special_info(
+    ui: &mut Ui,
+    pet: &itrtg_planner::merge::MergedPet,
+    data: &DataStore,
+    teammate_names: &[&str],
+) {
+    let Some(cfg) = &data.planner_config else { return };
+    let Some(info) = cfg.special_info(&pet.name) else { return };
+
+    let info_color = Color32::from_rgb(0x88, 0xaa, 0xcc);
+    let synergy_color = Color32::from_rgb(0x66, 0xcc, 0x88);
+    let anti_color = Color32::from_rgb(0xdd, 0x88, 0x66);
+
+    // Line 1: combat-relevant special mechanics (one-line summary)
+    let mechanics: Vec<String> = info
+        .special_mechanics
+        .iter()
+        .filter(|m| m.combat_relevant == Some(true))
+        .filter_map(|m| m.name.as_ref())
+        .map(|n| humanize_mechanic_name(n))
+        .collect();
+    if !mechanics.is_empty() {
+        let summary = mechanics.join(", ");
+        let truncated = if summary.len() > 50 {
+            format!("{}...", &summary[..47])
+        } else {
+            summary.clone()
+        };
+        let resp = ui.label(
+            RichText::new(format!("\u{2699} {truncated}"))
+                .color(info_color)
+                .size(9.0),
+        );
+        // Full details on hover
+        if mechanics.len() > 1 || summary.len() > 50 {
+            let full: Vec<String> = info
+                .special_mechanics
+                .iter()
+                .filter(|m| m.combat_relevant == Some(true))
+                .filter_map(|m| {
+                    let name = m.name.as_deref()?;
+                    let desc = m.description.as_deref().unwrap_or("");
+                    Some(format!("{}: {}", humanize_mechanic_name(name), desc.trim()))
+                })
+                .collect();
+            resp.on_hover_text(full.join("\n\n"));
+        }
+    }
+
+    // Line 2: stat modifiers + token improvement (if improved)
+    let mut tags: Vec<String> = Vec::new();
+
+    if let Some(mods) = &info.stat_modifiers {
+        let mut parts = Vec::new();
+        if let Some(v) = mods.speed { parts.push(format!("SPD {v:+}%")); }
+        if let Some(v) = mods.hp { parts.push(format!("HP {v:+}%")); }
+        if let Some(v) = mods.attack { parts.push(format!("ATK {v:+}%")); }
+        if let Some(v) = mods.defense { parts.push(format!("DEF {v:+}%")); }
+        if !parts.is_empty() {
+            tags.push(parts.join(" "));
+        }
+    }
+
+    let is_improved = pet
+        .export
+        .as_ref()
+        .is_some_and(|e| e.improved);
+    if is_improved && info.token_improvement.is_some() {
+        tags.push("\u{2B50} Token".to_string());
+    }
+
+    if !tags.is_empty() {
+        let tag_text = tags.join(" | ");
+        let resp = ui.label(
+            RichText::new(&tag_text)
+                .color(Color32::from_rgb(0x99, 0x99, 0xaa))
+                .size(9.0),
+        );
+        if is_improved
+            && let Some(token) = &info.token_improvement
+            && let Some(desc) = &token.description
+        {
+            resp.on_hover_text(format!("Token improvement: {}", desc.trim()));
+        }
+    }
+
+    // Line 3: team synergies / anti-synergies with pets on the same team
+    let mut syn_notes: Vec<(Color32, String)> = Vec::new();
+
+    for syn in info.team_synergies() {
+        if let Some(pet_name) = &syn.pet
+            && teammate_names.iter().any(|t| t.eq_ignore_ascii_case(pet_name) && *t != pet.name)
+        {
+            syn_notes.push((synergy_color, format!("\u{2764} {pet_name}")));
+        }
+    }
+    for anti in &info.team_anti_synergies {
+        if anti
+            .context
+            .as_deref()
+            .is_some_and(|c| c.eq_ignore_ascii_case("campaign"))
+        {
+            continue; // Campaign-only, ignore
+        }
+        if let Some(pet_name) = &anti.pet
+            && teammate_names.iter().any(|t| t.eq_ignore_ascii_case(pet_name) && *t != pet.name)
+        {
+            syn_notes.push((anti_color, format!("\u{26A0} {pet_name}")));
+        }
+    }
+
+    if !syn_notes.is_empty() {
+        ui.horizontal(|ui| {
+            for (color, text) in &syn_notes {
+                ui.label(RichText::new(text).color(*color).size(9.0));
+            }
+        });
+    }
+}
+
+/// Turn a snake_case mechanic name into a human-readable label.
+/// e.g. "wind_extra_hits" → "Wind extra hits", "aoe_heal" → "AoE heal"
+fn humanize_mechanic_name(name: &str) -> String {
+    let mut result = name.replace('_', " ");
+    // Capitalize first letter
+    if let Some(first) = result.get_mut(..1) {
+        first.make_ascii_uppercase();
+    }
+    // Common abbreviation fixes
+    result = result.replace("Aoe", "AoE");
+    result = result.replace(" hp ", " HP ");
+    result = result.replace(" xp ", " XP ");
+    result
 }
 
 /// Resolve a catalog key to a display name.
