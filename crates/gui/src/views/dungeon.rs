@@ -1973,6 +1973,11 @@ fn card_height(
         base += 14.0;
     }
 
+    // The future-swap hint ("↗ D{n} wants a {Class}") is another extra line.
+    if slot.future_class.is_some() {
+        base += 14.0;
+    }
+
     let pet = match &slot.assignment {
         Assignment::Filled { pet, .. } => pet,
         _ => unreachable!(),
@@ -2139,6 +2144,26 @@ fn show_slot_card(
                     &pet.name,
                     data,
                 );
+            }
+
+            // Future-swap hint: a deeper depth wants a different class here.
+            // Not a mismatch — the pet is fine now — just a heads-up.
+            if let Some(future) = &slot.future_class {
+                child
+                    .label(
+                        RichText::new(format!(
+                            "\u{2197} D{} wants a {:?}",
+                            future.from_depth, future.class
+                        ))
+                        .color(Color32::from_rgb(0x77, 0xaa, 0xcc))
+                        .size(9.0),
+                    )
+                    .on_hover_text(format!(
+                        "The D{} recommendation calls for a {:?} in this slot. \
+                         {} works for now — consider swapping to a {:?} as you \
+                         push deeper.",
+                        future.from_depth, future.class, pet.name, future.class,
+                    ));
             }
 
             // Special info: mechanics, synergies, notes

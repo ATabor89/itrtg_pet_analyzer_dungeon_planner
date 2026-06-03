@@ -37,6 +37,11 @@ pub struct SlotAssignment {
     /// by `equipment::enrich_equipment`, which turns it into a `Propagated`
     /// suggestion.
     pub equipment_hint: Option<PropagatedEquipment>,
+    /// A soft heads-up that a deeper depth wants a *different* class in this
+    /// slot than the assigned pet is. Not a mismatch — the pet is fine now —
+    /// just a "you'll eventually want a {class} here" hint, set only when the
+    /// assigned pet's class doesn't fit the look-ahead class for the slot.
+    pub future_class: Option<FutureClass>,
 }
 
 /// Equipment borrowed from another depth's matching slot to fill a slot whose
@@ -45,6 +50,15 @@ pub struct SlotAssignment {
 #[derive(Debug, Clone)]
 pub struct PropagatedEquipment {
     pub equipment: PartyEquipment,
+    pub from_depth: u8,
+}
+
+/// A deeper depth's class recommendation for a slot, when it differs from the
+/// class of the pet currently filling it — surfaced as a gentle "consider
+/// swapping eventually" note rather than an error.
+#[derive(Debug, Clone, Copy)]
+pub struct FutureClass {
+    pub class: Class,
     pub from_depth: u8,
 }
 
@@ -237,6 +251,16 @@ fn slot_specificity(slot: &PartySlot) -> u8 {
     slot.class.is_some() as u8 + slot.element.is_some() as u8
 }
 
+/// Whether a pet fits a given class: it's already evolved into it, or (if
+/// unevolved) its recommended class includes it. Used to decide whether a
+/// look-ahead class hint applies to the pet actually filling the slot.
+fn pet_fits_class(pet: &MergedPet, class: Class) -> bool {
+    match pet.evolved_class() {
+        Some(c) => c == class,
+        None => pet.recommends_class(&class),
+    }
+}
+
 // =============================================================================
 // Single-dungeon solver (backward-compatible)
 // =============================================================================
@@ -390,6 +414,7 @@ pub fn solve_multi(
                     },
                     equipment_suggestion: None,
                     equipment_hint: None,
+                    future_class: None,
                 },
             );
         }
@@ -451,6 +476,7 @@ pub fn solve_multi(
                     },
                     equipment_suggestion: None,
                     equipment_hint: None,
+                    future_class: None,
                 },
             );
         }
@@ -617,6 +643,7 @@ pub fn solve_multi(
                 assignment,
                 equipment_suggestion: None,
                 equipment_hint: None,
+                future_class: None,
             },
         );
     }
@@ -652,14 +679,29 @@ pub fn solve_multi(
                             },
                             equipment_suggestion: None,
                             equipment_hint: None,
+                            future_class: None,
                         })
                 })
                 .collect();
 
-            // Propagate neighboring-depth equipment into slots whose own
-            // recommendation is absent or generic (look-around equipment).
+            // Apply look-around hints to each slot.
             for (si, sa) in assignments.iter_mut().enumerate() {
-                if let Some(hint) = slot_hints.get(ri).and_then(|h| h.get(si))
+                let Some(hint) = slot_hints.get(ri).and_then(|h| h.get(si)) else {
+                    continue;
+                };
+
+                // Whether the assigned pet actually fits the class the deeper
+                // depth wants here. A pet that doesn't (e.g. a forced Mage in a
+                // slot a deeper Defender recommendation matched) shouldn't
+                // borrow that slot's gear — it'd be for the wrong class.
+                let class_fits = match (&sa.assignment, hint.class) {
+                    (Assignment::Filled { pet, .. }, Some(hc)) => pet_fits_class(pet, hc),
+                    _ => true, // empty slot or no class hint → nothing to clash with
+                };
+
+                // Equipment propagation — only into a generic/absent slot, and
+                // only when the assigned pet fits the hinted class.
+                if class_fits
                     && let Some(eq) = &hint.equipment
                     && sa
                         .slot
@@ -670,6 +712,19 @@ pub fn solve_multi(
                     sa.equipment_hint = Some(PropagatedEquipment {
                         equipment: eq.clone(),
                         from_depth: hint.equipment_from_depth.unwrap_or(req.depth),
+                    });
+                }
+
+                // Future-swap note — a deeper depth wants a different class
+                // here than the pet currently filling the slot. Surfaced as a
+                // soft "consider swapping eventually" hint, not a mismatch.
+                if !class_fits
+                    && let Assignment::Filled { .. } = &sa.assignment
+                    && let Some(hc) = hint.class
+                {
+                    sa.future_class = Some(FutureClass {
+                        class: hc,
+                        from_depth: hint.class_from_depth.unwrap_or(req.depth),
                     });
                 }
             }
@@ -869,6 +924,8 @@ fn matches_slot_element(
 struct SlotHint {
     class: Option<Class>,
     element: Option<Element>,
+    /// Which depth the `class` hint came from (for the future-swap note).
+    class_from_depth: Option<u8>,
     /// Real (non-generic) equipment from the matched neighboring slot, to be
     /// propagated into this slot if its own recommendation is absent/generic.
     equipment: Option<PartyEquipment>,
@@ -930,6 +987,9 @@ fn compute_slot_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
             // Only fill fields not already pinned by a higher-priority pass.
             if acc.class.is_none() {
                 acc.class = candidate.class;
+                if candidate.class.is_some() {
+                    acc.class_from_depth = Some(src);
+                }
             }
             if acc.element.is_none() {
                 acc.element = candidate.element;
@@ -976,7 +1036,7 @@ fn match_against(current: &[PartySlot], target: &[PartySlot]) -> Vec<SlotHint> {
             .iter()
             .enumerate()
             .filter(|(tj, _)| !target_used[*tj])
-            .filter(|(_, t)| slot_refines(cur, t))
+            .filter(|(_, t)| slots_compatible(cur, t))
             .max_by_key(|(tj, t)| {
                 // Prefer the target that adds the most specificity to the
                 // fields this slot leaves open, then an exact class match for
@@ -1009,12 +1069,26 @@ fn match_against(current: &[PartySlot], target: &[PartySlot]) -> Vec<SlotHint> {
     hints
 }
 
-/// Whether `target` is a valid refinement of slot `cur` — i.e. it agrees on
-/// every field `cur` explicitly specifies. Wildcard (`None`) fields on `cur`
-/// match anything.
-fn slot_refines(cur: &PartySlot, target: &PartySlot) -> bool {
-    cur.class.is_none_or(|c| target.class == Some(c))
-        && cur.element.is_none_or(|e| target.element == Some(e))
+/// Whether two slots are compatible — they agree on every field that *both*
+/// pin down (a wildcard field on either side matches anything).
+///
+/// This is symmetric on purpose. A concrete slot should claim a same-class
+/// neighbor even when that neighbor is *less* specific than itself — e.g.
+/// Scrapyard D4 drops the elements D3 carries, so a D3 "Wind Assassin" must
+/// still pair with a D4 "any Assassin" rather than failing to match and
+/// leaving that Assassin slot free for a wildcard to steal. Hint extraction
+/// still only fills the *current* slot's wildcard fields, so a less-specific
+/// neighbor simply contributes no refinement.
+fn slots_compatible(a: &PartySlot, b: &PartySlot) -> bool {
+    let class_ok = match (a.class, b.class) {
+        (Some(x), Some(y)) => x == y,
+        _ => true,
+    };
+    let element_ok = match (a.element, b.element) {
+        (Some(x), Some(y)) => x == y,
+        _ => true,
+    };
+    class_ok && element_ok
 }
 
 /// Score how well a pet satisfies a look-around hint. Higher is better; 0
@@ -2697,6 +2771,94 @@ mod tests {
             plan.assignments[0].equipment_hint.is_none(),
             "a slot with its own real gear must not be overwritten by propagation",
         );
+    }
+
+    #[test]
+    fn test_concrete_slot_claims_less_specific_neighbor() {
+        // Scrapyard D3 -> D4 shape: D4 drops elements, so a concrete Wind
+        // Assassin must still pair with a D4 "any Assassin" rather than failing
+        // to match and leaving that slot for the wildcard. The wildcard should
+        // therefore inherit the genuine leftover (Defender), not an Assassin.
+        let current = vec![
+            make_slot(Some(Class::Assassin), Some(Element::Wind)),
+            make_slot(None, None),
+        ];
+        let deeper = vec![
+            make_slot(Some(Class::Assassin), None),
+            make_slot(Some(Class::Defender), None),
+        ];
+        let dd = dungeon_with_depths(vec![current, deeper]);
+
+        let hints = compute_slot_hints(&dd, 1);
+        // Concrete Assassin/Wind consumed the D2 Assassin (no refinement).
+        assert!(hints[0].is_empty());
+        // Wildcard picked up the leftover Defender, not the Assassin slot.
+        assert_eq!(hints[1].class, Some(Class::Defender));
+    }
+
+    #[test]
+    fn test_no_propagation_when_pet_class_mismatches_hint() {
+        // A wildcard slot whose look-ahead wants a Defender, but a Mage is
+        // forced in. The Mage must NOT borrow the Defender's gear; instead the
+        // slot gets a future-swap note pointing at the Defender.
+        let mut d2_defender = make_slot(Some(Class::Defender), None);
+        d2_defender.equipment = Some(PartyEquipment {
+            weapon: Some("titanium_sword".to_string()),
+            armor: Some("titanium_armor".to_string()),
+            accessory: Some("titanium_ring".to_string()),
+            gems: None,
+        });
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(None, None)], // D1 wildcard, no equipment
+            vec![d2_defender],           // D2 Defender with real gear
+        ]);
+
+        let pets = vec![mock_pet("Archmage", Element::Fire, Some(Class::Mage),
+            RecommendedClass::Single(Class::Mage), true)];
+
+        let mut constraints = SolverConstraints::default();
+        constraints.forced.insert(Dungeon::Scrapyard, vec!["Archmage".into()]);
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        let sa = &plans[0].assignments[0];
+        assert!(
+            sa.equipment_hint.is_none(),
+            "a Mage must not inherit Defender gear from the look-ahead",
+        );
+        let future = sa.future_class.expect("should flag the future Defender");
+        assert_eq!(future.class, Class::Defender);
+        assert_eq!(future.from_depth, 2);
+    }
+
+    #[test]
+    fn test_propagation_when_pet_class_matches_hint() {
+        // Same shape, but the forced pet IS the hinted class — gear propagates
+        // and there's no future-swap note.
+        let mut d2_defender = make_slot(Some(Class::Defender), None);
+        d2_defender.equipment = Some(PartyEquipment {
+            weapon: Some("titanium_sword".to_string()),
+            armor: Some("titanium_armor".to_string()),
+            accessory: Some("titanium_ring".to_string()),
+            gems: None,
+        });
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(None, None)],
+            vec![d2_defender],
+        ]);
+
+        let pets = vec![mock_pet("Bulwark", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+
+        let mut constraints = SolverConstraints::default();
+        constraints.forced.insert(Dungeon::Scrapyard, vec!["Bulwark".into()]);
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        let sa = &plans[0].assignments[0];
+        assert!(sa.equipment_hint.is_some(),
+            "a Defender should inherit the Defender gear");
+        assert!(sa.future_class.is_none(), "no swap note when the class fits");
     }
 
     #[test]

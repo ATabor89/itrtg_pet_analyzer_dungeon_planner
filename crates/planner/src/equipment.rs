@@ -1142,6 +1142,7 @@ accessories:
                     assignment: Assignment::Empty { suggestions: vec![] },
                     equipment_suggestion: None,
                     equipment_hint: None,
+                    future_class: None,
                 },
                 // Slot 1: generic placeholder — without a config this
                 // should be left blank (the computed path can't run).
@@ -1155,6 +1156,7 @@ accessories:
                     assignment: Assignment::Empty { suggestions: vec![] },
                     equipment_suggestion: None,
                     equipment_hint: None,
+                    future_class: None,
                 },
             ],
             warnings: vec![],
@@ -1233,6 +1235,7 @@ accessories:
                     equipment: borrowed,
                     from_depth: 3,
                 }),
+                future_class: None,
             }],
             warnings: vec![],
         };
@@ -1288,6 +1291,7 @@ accessories:
                     },
                     equipment_suggestion: None,
                     equipment_hint: None,
+                    future_class: None,
                 },
                 SlotAssignment {
                     slot: PartySlot {
@@ -1307,6 +1311,7 @@ accessories:
                     },
                     equipment_suggestion: None,
                     equipment_hint: None,
+                    future_class: None,
                 },
             ],
             warnings: vec![],
@@ -1388,6 +1393,7 @@ accessories:
                 },
                 equipment_suggestion: None,
                 equipment_hint: None,
+                future_class: None,
             }],
             warnings: vec![],
         };
