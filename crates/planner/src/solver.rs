@@ -145,6 +145,11 @@ pub struct SolverConstraints {
     /// These pets won't be automatically excluded from "any" class slots even
     /// if they have a non-dungeon class (Adventurer/Blacksmith/Alchemist).
     pub whitelisted: HashSet<String>,
+    /// Explicit enable/disable choices for dungeon events, keyed by
+    /// (dungeon, depth, event name). An absent entry means "use the event's
+    /// default": optional events are disabled, normal events enabled. A
+    /// disabled event is skipped in coverage checks (no warning).
+    pub event_overrides: HashMap<(Dungeon, u8, String), bool>,
 }
 
 // =============================================================================
@@ -650,8 +655,14 @@ pub fn solve_multi(
                 })
                 .collect();
 
-            let mut warnings =
-                check_coverage(req.data, req.depth, &assigned_pets, config);
+            let mut warnings = check_coverage(
+                req.dungeon,
+                req.data,
+                req.depth,
+                &assigned_pets,
+                config,
+                &constraints.event_overrides,
+            );
             // The greedy phase filters anti-synergies out of its candidate
             // pool, but Phase 1 / 1b (forced and forced_any pre-assignment)
             // honors explicit user intent without rejecting the choice.
@@ -1194,15 +1205,35 @@ fn classify_unlock(wiki: &Option<WikiPet>) -> UnlockDifficulty {
 // Coverage checking
 // =============================================================================
 
+/// Whether a dungeon event is enabled for coverage checks, given the user's
+/// overrides. Absent override → default: optional events are disabled (they
+/// carry no in-game penalty), normal events are enabled.
+fn event_enabled(
+    dungeon: Dungeon,
+    depth: u8,
+    event: &EventEntry,
+    overrides: &HashMap<(Dungeon, u8, String), bool>,
+) -> bool {
+    overrides
+        .get(&(dungeon, depth, event.name.clone()))
+        .copied()
+        .unwrap_or(!event.optional)
+}
+
 /// Check event/trap coverage across all sub-depths up to the target.
 ///
 /// When running D2, you first clear all D1 rooms. When running D3, you clear
 /// D1 and D2 rooms first. So events/traps from lower depths can still occur.
+///
+/// Events the user has disabled (or optional events left at their disabled
+/// default) are skipped entirely — no warning is produced for them.
 fn check_coverage(
+    dungeon: Dungeon,
     dungeon_data: &DungeonData,
     target_depth: u8,
     team: &[&MergedPet],
     config: Option<&PlannerConfig>,
+    event_overrides: &HashMap<(Dungeon, u8, String), bool>,
 ) -> Vec<CoverageWarning> {
     let mut warnings = Vec::new();
 
@@ -1223,8 +1254,11 @@ fn check_coverage(
             }
         }
 
-        // Check events
+        // Check events (skipping any the user has disabled).
         for event in &dd.events {
+            if !event_enabled(dungeon, depth, event, event_overrides) {
+                continue;
+            }
             for condition in &event.countered_by {
                 if !counter_satisfied(condition, team, config) {
                     warnings.push(CoverageWarning {
@@ -2600,5 +2634,105 @@ mod tests {
         assert!(matches!(&plan.assignments[0].assignment,
             Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.name == "Guard"),
             "an Exact evolved pet must beat an Evolvable pet that merely fits the hint");
+    }
+
+    // ========================================================================
+    // Event enable/disable in coverage
+    // ========================================================================
+
+    fn class_event(name: &str, class: Class, optional: bool) -> EventEntry {
+        EventEntry {
+            name: name.to_string(),
+            chance_pct: 20,
+            countered_by: vec![CounterCondition {
+                item: None,
+                class: Some(class),
+                element: None,
+                count: None,
+                quantity_per_clear: None,
+                notes: None,
+            }],
+            optional,
+        }
+    }
+
+    /// Build a one-depth dungeon whose D1 has the given events and a single
+    /// "any" slot, so we can drive the coverage check via `solve_multi`.
+    fn dungeon_with_events(events: Vec<EventEntry>) -> DungeonData {
+        let mut depths = std::collections::BTreeMap::new();
+        depths.insert(1, DepthData {
+            rooms: 5, monsters_per_room: 2, gem_level: None,
+            requirements: DepthRequirements {
+                dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                class_level: 3, total_growth: None,
+            },
+            monsters: Vec::new(),
+            bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+            party: vec![make_slot(None, None)],
+            party_items: Vec::new(), traps: Vec::new(), events,
+        });
+        DungeonData { name: "Test".to_string(), depths }
+    }
+
+    fn event_warning_names(plan: &DungeonPlan) -> Vec<String> {
+        plan.warnings
+            .iter()
+            .filter(|w| matches!(w.kind, CoverageKind::Event))
+            .map(|w| w.name.clone())
+            .collect()
+    }
+
+    #[test]
+    fn test_optional_event_skipped_by_default() {
+        // A Defender team fails both a normal Rogue event and an optional
+        // Blacksmith event. By default only the normal event warns.
+        let dd = dungeon_with_events(vec![
+            class_event("Rogue Event", Class::Rogue, false),
+            class_event("Blacksmith Event", Class::Blacksmith, true),
+        ]);
+        let pets = vec![mock_pet("Guard", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+
+        let requests = [DungeonRequest { dungeon: Dungeon::WaterTemple, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &SolverConstraints::default(), None);
+
+        let warned = event_warning_names(&plans[0]);
+        assert!(warned.contains(&"Rogue Event".to_string()));
+        assert!(
+            !warned.contains(&"Blacksmith Event".to_string()),
+            "optional events should be skipped by default",
+        );
+    }
+
+    #[test]
+    fn test_event_overrides_flip_coverage() {
+        // Overrides can disable a normal event and enable an optional one.
+        let dd = dungeon_with_events(vec![
+            class_event("Rogue Event", Class::Rogue, false),
+            class_event("Blacksmith Event", Class::Blacksmith, true),
+        ]);
+        let pets = vec![mock_pet("Guard", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+
+        let mut constraints = SolverConstraints::default();
+        // Disable the normal Rogue event…
+        constraints.event_overrides.insert(
+            (Dungeon::WaterTemple, 1, "Rogue Event".to_string()), false);
+        // …and enable the optional Blacksmith event.
+        constraints.event_overrides.insert(
+            (Dungeon::WaterTemple, 1, "Blacksmith Event".to_string()), true);
+
+        let requests = [DungeonRequest { dungeon: Dungeon::WaterTemple, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        let warned = event_warning_names(&plans[0]);
+        assert!(
+            !warned.contains(&"Rogue Event".to_string()),
+            "an explicitly disabled normal event should not warn",
+        );
+        assert!(
+            warned.contains(&"Blacksmith Event".to_string()),
+            "an explicitly enabled optional event should warn when uncovered",
+        );
     }
 }
