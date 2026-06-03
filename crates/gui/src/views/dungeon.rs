@@ -1961,7 +1961,17 @@ fn card_height(
     }
 
     // Base: header (slot#/class/element) + pet name + class/quality/stats + 3 equip lines.
-    let base = 140.0;
+    let mut base = 140.0;
+
+    // Propagated equipment renders an extra "↑ gear from D{n}" note line above
+    // the equipment rows. Count it independently of special info, otherwise a
+    // pet with both the note and a token/synergy badge overflows its card.
+    if matches!(
+        slot.equipment_suggestion.as_ref().map(|s| s.source),
+        Some(EquipmentSource::Propagated { .. })
+    ) {
+        base += 14.0;
+    }
 
     let pet = match &slot.assignment {
         Assignment::Filled { pet, .. } => pet,
