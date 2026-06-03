@@ -408,12 +408,13 @@ pub fn solve_multi(
         }
     }
 
-    // Look-ahead: derive per-slot forward hints from each dungeon's deeper
-    // depths so the team we grow now stays compatible with what we'll face
-    // later. Indexed by request, aligned with that depth's party slots.
-    let forward_hints: Vec<Vec<SlotHint>> = requests
+    // Look-around: derive per-slot hints from each dungeon's other depths
+    // (deeper first, then shallower) so the team we grow now stays compatible
+    // with what we'll face deeper and what we re-clear on the way there.
+    // Indexed by request, aligned with that depth's party slots.
+    let slot_hints: Vec<Vec<SlotHint>> = requests
         .iter()
-        .map(|req| compute_forward_hints(req.data, req.depth))
+        .map(|req| compute_slot_hints(req.data, req.depth))
         .collect();
 
     // Phase 2: Flatten remaining slots across all dungeons with their candidates
@@ -443,7 +444,7 @@ pub fn solve_multi(
                         score_pet(pet, slot, wl, config).map(|q| (pi, q))
                     })
                     .collect();
-                let hint = forward_hints
+                let hint = slot_hints
                     .get(ri)
                     .and_then(|hs| hs.get(si))
                     .cloned()
@@ -520,10 +521,11 @@ pub fn solve_multi(
                             return syn_cmp;
                         }
                     }
-                    // Look-ahead tiebreaker: among equally-good candidates,
-                    // prefer the one that also fits this slot's deeper-depth
-                    // recommendation, so the team carries forward. Purely a
-                    // tiebreaker — it never changes which pets are eligible.
+                    // Look-around tiebreaker: among equally-good candidates,
+                    // prefer the one that also fits this slot's hint derived
+                    // from neighboring depths, so the team carries forward (and
+                    // back). Purely a tiebreaker — it never changes which pets
+                    // are eligible.
                     if !gs.hint.is_empty() {
                         let fa = forward_hint_score(available[*pi_a], &gs.hint);
                         let fb = forward_hint_score(available[*pi_b], &gs.hint);
@@ -782,13 +784,13 @@ fn matches_slot_element(
 }
 
 // =============================================================================
-// Look-ahead hints
+// Look-around hints (look-ahead + look-behind)
 // =============================================================================
 
-/// A soft preference for a slot, derived by looking at deeper-depth
-/// recommendations. Only ever fills fields the current depth leaves as
-/// wildcards (`any`), so it can refine but never contradict the current
-/// depth's explicit requirements.
+/// A soft preference for a slot, derived by looking at the *other* depths of
+/// the same dungeon. Only ever fills fields the planned depth leaves as
+/// wildcards (`any`), so it can refine but never contradict the planned
+/// depth's explicit requirements (those are ground truth).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct SlotHint {
     class: Option<Class>,
@@ -801,45 +803,77 @@ impl SlotHint {
     }
 }
 
-/// Compute per-slot look-ahead hints for a dungeon at `depth`.
+/// Compute per-slot look-around hints for a dungeon at `depth`.
 ///
-/// Dungeon progression is cumulative: a D2 team first clears every D1 room,
-/// a D3 team clears D1+D2 first, and so on. So the team you grow for the
-/// depth you're planning now is the same team you'll bring to deeper depths —
-/// and the deepest recommendation is (with rare exceptions) a strict
-/// refinement of the shallower ones. We therefore look at the *deepest
-/// available* depth beyond the one being planned and use its more specific
-/// slots to fill in this depth's wildcard (`any`) class/element fields.
+/// The planned depth's *explicit* class/element fields are ground truth and
+/// are never overwritten — hints only ever fill the fields it leaves as `any`.
 ///
-/// The returned vector is aligned with `data.depths[depth].party`; entries
-/// are empty when no useful refinement exists. When no deeper depth is in the
-/// data (e.g. D3 is the deepest, or D4 hasn't been added yet) every hint is
-/// empty and the solver behaves exactly as before.
+/// Dungeon progression is cumulative: a D2 team first clears every D1 room, a
+/// D3 team clears D1+D2 first, and so on. So the team grown for the depth
+/// being planned is both the team brought *deeper* and the team walked back
+/// *through the shallower rooms* on the way to a deeper boss. We therefore
+/// pull hints from every other depth, in priority order:
 ///
-/// Matching is a greedy bipartite assignment: the current depth's slots claim
-/// compatible deeper-depth slots most-specific-first, so concrete slots take
-/// their counterparts before full wildcards grab the leftovers. A deeper slot
-/// is *compatible* with a current slot when it agrees on every field the
-/// current slot specifies (an `any` field matches anything). Each current
-/// slot then inherits whichever fields its matched deeper slot pins down.
-fn compute_forward_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
+/// - **Look-ahead** (deeper depths, nearest first) is the primary source: a
+///   deeper recommendation is — with rare exceptions — a strict refinement of
+///   this one, so we steer the team toward what it will eventually need.
+/// - **Look-behind** (shallower depths, nearest first) is the fallback: when
+///   the planned depth leaves something open that a shallower depth pinned
+///   down (e.g. D4 Scrapyard drops the elements that D3 needed to satisfy its
+///   2-Wind Floating Shrine event), we still try to satisfy it on the way
+///   back through those rooms.
+///
+/// Passes run nearest-first, ahead before behind, and each pass only fills
+/// fields still open after the higher-priority passes — so a nearer depth
+/// always wins a conflict with a farther one. When no other depth exists every
+/// hint is empty and the solver behaves exactly as before.
+fn compute_slot_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
     let Some(current) = data.depths.get(&depth) else {
         return Vec::new();
     };
     let current = &current.party;
 
-    // The deepest depth strictly beyond the one we're planning for.
-    let Some(target_depth) = data.depths.keys().copied().filter(|&d| d > depth).max() else {
-        return vec![SlotHint::default(); current.len()];
-    };
-    let target = &data.depths[&target_depth].party;
+    // Source depths in priority order: deeper nearest-first, then shallower
+    // nearest-first. `BTreeMap::keys` is ascending, so deeper depths are
+    // already nearest-first; shallower depths need reversing.
+    let mut sources: Vec<u8> = data.depths.keys().copied().filter(|&d| d > depth).collect();
+    let mut behind: Vec<u8> = data.depths.keys().copied().filter(|&d| d < depth).collect();
+    behind.reverse();
+    sources.extend(behind);
 
+    let mut hints = vec![SlotHint::default(); current.len()];
+    for src in sources {
+        let pass = match_against(current, &data.depths[&src].party);
+        for (acc, candidate) in hints.iter_mut().zip(pass) {
+            // Only fill fields not already pinned by a higher-priority pass.
+            if acc.class.is_none() {
+                acc.class = candidate.class;
+            }
+            if acc.element.is_none() {
+                acc.element = candidate.element;
+            }
+        }
+    }
+
+    hints
+}
+
+/// One greedy matching pass: pair each slot in `current` with a compatible
+/// slot in `target`, returning the fields `target` pins down that `current`
+/// leaves as `any`.
+///
+/// Matching is a greedy bipartite assignment: the planned depth's most
+/// specific slots claim their counterparts first, so concrete slots take their
+/// exact matches before wildcards grab the leftovers. A `target` slot is
+/// *compatible* with a `current` slot when it agrees on every field `current`
+/// specifies (an `any` field matches anything).
+fn match_against(current: &[PartySlot], target: &[PartySlot]) -> Vec<SlotHint> {
     let mut hints = vec![SlotHint::default(); current.len()];
     let mut target_used = vec![false; target.len()];
 
     // Specificity = how many of {class, element} a slot pins down. Process the
-    // current depth's most specific slots first so concrete slots claim their
-    // exact deeper counterparts before full wildcards consume them.
+    // most specific current slots first so concrete slots claim their exact
+    // counterparts before full wildcards consume them.
     let mut order: Vec<usize> = (0..current.len()).collect();
     order.sort_by_key(|&ci| {
         let s = current[ci].class.is_some() as u8 + current[ci].element.is_some() as u8;
@@ -849,14 +883,14 @@ fn compute_forward_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
     for ci in order {
         let cur = &current[ci];
 
-        // Find the best unused, compatible deeper slot.
+        // Find the best unused, compatible target slot.
         let best = target
             .iter()
             .enumerate()
             .filter(|(tj, _)| !target_used[*tj])
             .filter(|(_, t)| slot_refines(cur, t))
             .max_by_key(|(tj, t)| {
-                // Prefer the deeper slot that adds the most specificity to the
+                // Prefer the target that adds the most specificity to the
                 // fields this slot leaves open, then an exact class match for
                 // stability, then the lowest index (deterministic).
                 let gain = (cur.class.is_none() && t.class.is_some()) as u8
@@ -879,18 +913,19 @@ fn compute_forward_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
     hints
 }
 
-/// Whether deeper-depth slot `target` is a valid refinement of current-depth
-/// slot `cur` — i.e. it agrees on every field `cur` explicitly specifies.
-/// Wildcard (`None`) fields on `cur` match anything.
+/// Whether `target` is a valid refinement of slot `cur` — i.e. it agrees on
+/// every field `cur` explicitly specifies. Wildcard (`None`) fields on `cur`
+/// match anything.
 fn slot_refines(cur: &PartySlot, target: &PartySlot) -> bool {
     cur.class.is_none_or(|c| target.class == Some(c))
         && cur.element.is_none_or(|e| target.element == Some(e))
 }
 
-/// Score how well a pet satisfies a look-ahead hint. Higher is better; 0 means
-/// the hint is empty or the pet matches none of it. Used only as a tiebreaker
-/// among equal-quality candidates, so it can bias the choice toward a
-/// forward-compatible pet without ever changing which pets are eligible.
+/// Score how well a pet satisfies a look-around hint. Higher is better; 0
+/// means the hint is empty or the pet matches none of it. Used only as a
+/// tiebreaker among equal-quality candidates, so it can bias the choice toward
+/// a forward/backward-compatible pet without ever changing which pets are
+/// eligible.
 fn forward_hint_score(pet: &MergedPet, hint: &SlotHint) -> u32 {
     let mut score = 0;
     if let Some(el) = hint.element
@@ -2170,13 +2205,13 @@ mod tests {
     }
 
     // ========================================================================
-    // Look-ahead: bias toward deeper-depth recommendations
+    // Look-around: bias toward neighboring-depth recommendations
     // ========================================================================
 
-    /// Build a two-depth dungeon: depth 1 + depth 2 with the given party
-    /// compositions. Requirements/monsters are filler — only the party shape
-    /// matters for look-ahead tests.
-    fn two_depth_dungeon(d1: Vec<PartySlot>, d2: Vec<PartySlot>) -> DungeonData {
+    /// Build a dungeon from a list of per-depth party compositions (index 0 →
+    /// depth 1, index 1 → depth 2, …). Requirements/monsters are filler — only
+    /// the party shape matters for look-around tests.
+    fn dungeon_with_depths(parties: Vec<Vec<PartySlot>>) -> DungeonData {
         let filler = |party: Vec<PartySlot>| DepthData {
             rooms: 5, monsters_per_room: 2, gem_level: None,
             requirements: DepthRequirements {
@@ -2189,9 +2224,15 @@ mod tests {
             party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
         };
         let mut depths = std::collections::BTreeMap::new();
-        depths.insert(1, filler(d1));
-        depths.insert(2, filler(d2));
+        for (i, party) in parties.into_iter().enumerate() {
+            depths.insert((i + 1) as u8, filler(party));
+        }
         DungeonData { name: "Test".to_string(), depths }
+    }
+
+    /// Convenience wrapper for the common two-depth case.
+    fn two_depth_dungeon(d1: Vec<PartySlot>, d2: Vec<PartySlot>) -> DungeonData {
+        dungeon_with_depths(vec![d1, d2])
     }
 
     #[test]
@@ -2212,7 +2253,7 @@ mod tests {
                 RecommendedClass::Single(Class::Defender), true, 1, 1, 10000),
         ];
 
-        let hints = compute_forward_hints(&dd, 1);
+        let hints = compute_slot_hints(&dd, 1);
         assert_eq!(hints[0].element, Some(Element::Fire));
 
         let plan = solve(Dungeon::Volcano, 1, &dd, &pets, None);
@@ -2236,7 +2277,7 @@ mod tests {
             ],
         );
 
-        let hints = compute_forward_hints(&dd, 1);
+        let hints = compute_slot_hints(&dd, 1);
         // Slot 0 (Defender) matched the D2 Defender → no refinement.
         assert!(hints[0].is_empty());
         // Slot 1 (wildcard) inherited Assassin + Wind from the leftover D2 slot.
@@ -2263,16 +2304,85 @@ mod tests {
     }
 
     #[test]
-    fn test_no_forward_hint_when_no_deeper_depth() {
-        // A dungeon whose deepest depth is the one being planned yields no
-        // hints — the solver behaves exactly as before.
-        let dd = two_depth_dungeon(
-            vec![make_slot(Some(Class::Defender), None)],
-            vec![make_slot(Some(Class::Defender), Some(Element::Fire))],
-        );
-        // Planning D2 (the deepest) → no deeper depth to look at.
-        let hints = compute_forward_hints(&dd, 2);
+    fn test_no_hint_for_single_depth_dungeon() {
+        // A dungeon with only the depth being planned has no neighbors to pull
+        // hints from — the solver behaves exactly as before.
+        let dd = dungeon_with_depths(vec![vec![make_slot(Some(Class::Defender), None)]]);
+        let hints = compute_slot_hints(&dd, 1);
         assert!(hints.iter().all(|h| h.is_empty()));
+    }
+
+    #[test]
+    fn test_lookbehind_recovers_dropped_element() {
+        // D4-style case: the deepest depth drops the elements that a shallower
+        // depth needed (e.g. Scrapyard D3's 2-Wind Floating Shrine event).
+        // Planning the deepest depth, look-behind should recover them.
+        let dd = dungeon_with_depths(vec![
+            // D1: specific Wind elements.
+            vec![
+                make_slot(Some(Class::Assassin), Some(Element::Wind)),
+                make_slot(Some(Class::Rogue), Some(Element::Wind)),
+            ],
+            // D2 (planned, deepest): same classes but elements wildcard.
+            vec![
+                make_slot(Some(Class::Assassin), None),
+                make_slot(Some(Class::Rogue), None),
+            ],
+        ]);
+
+        let hints = compute_slot_hints(&dd, 2);
+        assert_eq!(hints[0].element, Some(Element::Wind));
+        assert_eq!(hints[1].element, Some(Element::Wind));
+    }
+
+    #[test]
+    fn test_nearer_depth_wins_hint_conflict() {
+        // Planning D1 with two deeper depths that disagree on the Defender's
+        // element. The nearer depth (D2) should win the conflict.
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(Some(Class::Defender), None)],          // D1 (planned)
+            vec![make_slot(Some(Class::Defender), Some(Element::Water))], // D2
+            vec![make_slot(Some(Class::Defender), Some(Element::Fire))],  // D3
+        ]);
+        let hints = compute_slot_hints(&dd, 1);
+        assert_eq!(
+            hints[0].element,
+            Some(Element::Water),
+            "the nearer depth (D2) should win the element conflict over D3",
+        );
+    }
+
+    #[test]
+    fn test_farther_depth_fills_what_nearer_left_open() {
+        // Volcano-style: D2 and D3 both leave the Defender's element open, but
+        // D4 pins it to Fire. Planning D2, the Fire hint should come from D4
+        // since the nearer D3 contributes nothing for that field.
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(Some(Class::Defender), None)],          // D1
+            vec![make_slot(Some(Class::Defender), None)],          // D2 (planned)
+            vec![make_slot(Some(Class::Defender), None)],          // D3
+            vec![make_slot(Some(Class::Defender), Some(Element::Fire))], // D4
+        ]);
+        let hints = compute_slot_hints(&dd, 2);
+        assert_eq!(hints[0].element, Some(Element::Fire));
+    }
+
+    #[test]
+    fn test_lookahead_beats_lookbehind_on_conflict() {
+        // When a deeper and a shallower depth disagree on an open field, the
+        // deeper (look-ahead) value wins — we prioritize where the team is
+        // headed over where it's been.
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(Some(Class::Defender), Some(Element::Earth))], // D1 (behind)
+            vec![make_slot(Some(Class::Defender), None)],                 // D2 (planned)
+            vec![make_slot(Some(Class::Defender), Some(Element::Fire))],  // D3 (ahead)
+        ]);
+        let hints = compute_slot_hints(&dd, 2);
+        assert_eq!(
+            hints[0].element,
+            Some(Element::Fire),
+            "look-ahead (D3 Fire) should win over look-behind (D1 Earth)",
+        );
     }
 
     #[test]
