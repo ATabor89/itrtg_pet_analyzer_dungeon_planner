@@ -93,8 +93,16 @@ pub fn enrich_equipment(
         // with the hint. Unlike the computed path this needs no config and no
         // assigned pet, so it also fills empty/recommended slots.
         if let Some(prop) = &sa.equipment_hint {
+            // If the slot carried a generic placeholder (e.g. generic_t4_s20),
+            // retier the borrowed gear to that tier — pulling deeper gear down
+            // or shallower gear up to match what this depth actually wants.
+            // Slots with no placeholder (absent equipment) keep it verbatim.
+            let equipment = match generic_target_tier(&sa.slot.equipment) {
+                Some(target_tier) => retier_equipment(&prop.equipment, target_tier, catalog),
+                None => prop.equipment.clone(),
+            };
             sa.equipment_suggestion = Some(EquipmentSuggestion {
-                equipment: prop.equipment.clone(),
+                equipment,
                 source: EquipmentSource::Propagated {
                     from_depth: prop.from_depth,
                 },
@@ -208,6 +216,40 @@ pub(crate) fn has_generic_keys(eq: &PartyEquipment) -> bool {
     eq.weapon.as_deref().is_some_and(|k| k.starts_with("generic_"))
         || eq.armor.as_deref().is_some_and(|k| k.starts_with("generic_"))
         || eq.accessory.as_deref().is_some_and(|k| k.starts_with("generic_"))
+}
+
+/// Parse the tier from a slot's generic placeholder keys (e.g.
+/// `generic_t4_s20` → 4). Returns the first tier found across the three
+/// slots, or `None` if the slot has no generic placeholder.
+fn generic_target_tier(equipment: &Option<PartyEquipment>) -> Option<u8> {
+    let eq = equipment.as_ref()?;
+    [&eq.weapon, &eq.armor, &eq.accessory]
+        .into_iter()
+        .flatten()
+        .find_map(|k| {
+            let rest = k.strip_prefix("generic_t")?;
+            let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+            digits.parse::<u8>().ok()
+        })
+}
+
+/// Retier each piece of a borrowed loadout to `target_tier`, keeping gems.
+/// Keys that can't be resolved against the catalog are left unchanged.
+fn retier_equipment(
+    eq: &PartyEquipment,
+    target_tier: u8,
+    catalog: &EquipmentCatalog,
+) -> PartyEquipment {
+    let retier = |key: &Option<String>| -> Option<String> {
+        key.as_ref()
+            .map(|k| catalog.retier(k, target_tier).unwrap_or_else(|| k.clone()))
+    };
+    PartyEquipment {
+        weapon: retier(&eq.weapon),
+        armor: retier(&eq.armor),
+        accessory: retier(&eq.accessory),
+        gems: eq.gems.clone(),
+    }
 }
 
 /// Determine the effective class for equipment selection.
@@ -1146,6 +1188,66 @@ accessories:
         let suggestion1 = sa1.equipment_suggestion.as_ref().unwrap();
         assert_eq!(suggestion1.source, EquipmentSource::Computed);
         assert!(suggestion1.equipment.weapon.is_some());
+    }
+
+    // -------- propagated equipment is retiered to the slot's tier --------
+
+    /// A generic-placeholder slot that inherits gear via a look-around hint
+    /// should have that gear retiered to the placeholder's tier — the
+    /// Water-Temple-D4 case where a `generic_t4_s20` mage slot borrows the
+    /// D3 mage's T3 loadout and upgrades it to T4.
+    #[test]
+    fn test_propagated_equipment_retiered_to_slot_tier() {
+        use crate::solver::{DungeonPlan, PropagatedEquipment, SlotAssignment};
+
+        // Use the real catalog so the full upgrade chains are present.
+        let cat_yaml = include_str!("../../../data/equipment_catalog.yaml");
+        let cat: EquipmentCatalog = serde_yaml::from_str(cat_yaml).unwrap();
+
+        // T3 gear borrowed from a deeper-than-this... actually shallower D3.
+        let borrowed = PartyEquipment {
+            weapon: Some("inferno_sword".to_string()),   // T3 fire
+            armor: Some("tsunami_armor".to_string()),    // T3 water
+            accessory: Some("inferno_gloves".to_string()), // T3 fire
+            gems: None,
+        };
+
+        let mut plan = DungeonPlan {
+            dungeon: Dungeon::WaterTemple,
+            depth: 4,
+            assignments: vec![SlotAssignment {
+                slot: PartySlot {
+                    class: Some(Class::Mage),
+                    element: None,
+                    equipment: Some(PartyEquipment {
+                        weapon: Some("generic_t4_s20".to_string()),
+                        armor: Some("generic_t4_s20".to_string()),
+                        accessory: Some("generic_t4_s20".to_string()),
+                        gems: None,
+                    }),
+                },
+                position: 0,
+                assignment: Assignment::Empty { suggestions: vec![] },
+                equipment_suggestion: None,
+                equipment_hint: Some(PropagatedEquipment {
+                    equipment: borrowed,
+                    from_depth: 3,
+                }),
+            }],
+            warnings: vec![],
+        };
+
+        enrich_equipment(&mut plan, &cat, None);
+
+        let s = plan.assignments[0].equipment_suggestion.as_ref().unwrap();
+        assert_eq!(
+            s.source,
+            EquipmentSource::Propagated { from_depth: 3 }
+        );
+        // Each T3 piece upgraded to its T4 counterpart in the same line.
+        assert_eq!(s.equipment.weapon.as_deref(), Some("sun_sword"));
+        assert_eq!(s.equipment.armor.as_deref(), Some("ocean_armor"));
+        assert_eq!(s.equipment.accessory.as_deref(), Some("sun_gloves"));
     }
 
     // -------- forbidden_team_equipment post-pass --------

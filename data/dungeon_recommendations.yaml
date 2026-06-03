@@ -752,10 +752,12 @@ dungeons:
         events:
           - name: "Iron Path"
             chance_pct: 20
+            optional: true
             countered_by:
               item: golden_key
           - name: "Dwarfen Relict"
             chance_pct: 20
+            optional: true
             countered_by:
               element: Neutral
               count: 6
@@ -1373,10 +1375,12 @@ dungeons:
         events:
           - name: "Ocean Path"
             chance_pct: 20
+            optional: true
             countered_by:
               item: frost_key
           - name: "Atlantis"
             chance_pct: 20
+            optional: true
             countered_by:
               element: Water
               count: 6
@@ -2004,10 +2008,12 @@ dungeons:
         events:
           - name: "Volcano Path"
             chance_pct: 20
+            optional: true
             countered_by:
               item: magma_key
           - name: "Geyser"
             chance_pct: 20
+            optional: true
             countered_by:
               element: Fire
               count: 6
@@ -2626,10 +2632,12 @@ dungeons:
         events:
           - name: "Hidden Path"
             chance_pct: 20
+            optional: true
             countered_by:
               item: rainbow_key
           - name: "Sky Tower"
             chance_pct: 20
+            optional: true
             countered_by:
               element: Wind
               count: 6
@@ -3253,9 +3261,11 @@ dungeons:
         events:
           - name: "Jungle Path"
             chance_pct: 20
+            optional: true
             countered_by:
               item: mystic_key
           - name: "Big Boulder"
             chance_pct: 20
+            optional: true
             countered_by:
               item: big_boulder
