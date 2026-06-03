@@ -62,6 +62,12 @@ pub enum MatchQuality {
     Reclassable,
     /// Partial match used as last resort for "any" slots.
     Fallback,
+    /// A dungeon-viable but *deprioritized* class (Blacksmith) filling an
+    /// "any" class slot. Ranked below every proper dungeon-class candidate so
+    /// a Blacksmith only lands in an "any" slot when nothing better is left —
+    /// Blacksmiths do earn dungeon class XP, but you rarely want to grow one
+    /// in a dungeon unless the recommendation specifically calls for it.
+    LowPriority,
 }
 
 /// Suggestion for a pet to unlock that would fill a gap.
@@ -131,39 +137,75 @@ pub struct SolverConstraints {
 // Dungeon class viability
 // =============================================================================
 
-/// Non-dungeon classes that should not fill "any" class slots in dungeons.
-/// These classes generally don't gain class experience from dungeon runs.
-const NON_DUNGEON_CLASSES: &[Class] = &[Class::Adventurer, Class::Blacksmith, Class::Alchemist];
+/// How a pet's class fares when filling an "any" class slot in a dungeon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DungeonViability {
+    /// A normal dungeon class — full priority.
+    Normal,
+    /// Blacksmith. Allowed (Blacksmiths *do* earn dungeon class XP), but
+    /// ranked below every proper dungeon-class candidate so it's only used as
+    /// a last resort or when the recommendation explicitly wants one.
+    LowPriority,
+    /// Adventurer / Alchemist — these never earn dungeon class XP, so they're
+    /// excluded from "any" slots entirely (unless whitelisted).
+    Excluded,
+}
 
-/// Whether a pet is viable for dungeon "any" class slots.
+/// Classify a concrete class for "any" dungeon slot purposes.
+fn classify_class(class: Class) -> DungeonViability {
+    match class {
+        Class::Blacksmith => DungeonViability::LowPriority,
+        Class::Adventurer | Class::Alchemist => DungeonViability::Excluded,
+        _ => DungeonViability::Normal,
+    }
+}
+
+/// The more favorable of two viabilities (Normal > LowPriority > Excluded),
+/// used to combine the two halves of a `Dual` recommendation.
+fn better_viability(a: DungeonViability, b: DungeonViability) -> DungeonViability {
+    let rank = |v: DungeonViability| match v {
+        DungeonViability::Normal => 0u8,
+        DungeonViability::LowPriority => 1,
+        DungeonViability::Excluded => 2,
+    };
+    if rank(a) <= rank(b) { a } else { b }
+}
+
+/// Determine a pet's viability for dungeon "any" class slots.
 ///
-/// Returns false for pets evolved as or recommended for non-dungeon classes
-/// (Adventurer, Blacksmith, Alchemist), since those classes don't benefit
-/// from dungeon runs. When a slot *specifically* requires one of these classes
-/// (e.g. Volcano wanting Blacksmiths), the viability check is bypassed.
-fn is_dungeon_viable(pet: &MergedPet) -> bool {
+/// Evolved class is ground truth; an unevolved pet is judged by its
+/// recommended class. When a slot *specifically* requires a class (e.g.
+/// Volcano's "Burning Weapons" event wanting a Blacksmith), this check is
+/// bypassed by the caller.
+fn dungeon_viability(pet: &MergedPet) -> DungeonViability {
     if let Some(class) = pet.evolved_class() {
-        return !NON_DUNGEON_CLASSES.contains(&class);
+        return classify_class(class);
     }
     // Unevolved: check recommended class
     match pet.recommended_class() {
-        Some(RecommendedClass::Single(c)) => !NON_DUNGEON_CLASSES.contains(c),
+        Some(RecommendedClass::Single(c)) => classify_class(*c),
         Some(RecommendedClass::Dual(a, b)) => {
-            // Viable if at least one recommended class is a dungeon class
-            !NON_DUNGEON_CLASSES.contains(a) || !NON_DUNGEON_CLASSES.contains(b)
+            better_viability(classify_class(*a), classify_class(*b))
         }
         Some(
             RecommendedClass::Wildcard
             | RecommendedClass::DungeonWildcard
             | RecommendedClass::AllClasses,
-        ) => true,
+        ) => DungeonViability::Normal,
         Some(
             RecommendedClass::Village(_)
             | RecommendedClass::Special
             | RecommendedClass::Alternates,
-        ) => false,
-        None => true, // No wiki data — assume viable
+        ) => DungeonViability::Excluded,
+        None => DungeonViability::Normal, // No wiki data — assume viable
     }
+}
+
+/// Whether a pet is a full-priority candidate for dungeon "any" class slots.
+/// Used for unlock suggestions, which should never propose a deprioritized
+/// (Blacksmith) or excluded (Adventurer/Alchemist) class for an "any" slot.
+fn is_dungeon_viable(pet: &MergedPet) -> bool {
+    dungeon_viability(pet) == DungeonViability::Normal
 }
 
 // =============================================================================
@@ -366,11 +408,20 @@ pub fn solve_multi(
         }
     }
 
+    // Look-ahead: derive per-slot forward hints from each dungeon's deeper
+    // depths so the team we grow now stays compatible with what we'll face
+    // later. Indexed by request, aligned with that depth's party slots.
+    let forward_hints: Vec<Vec<SlotHint>> = requests
+        .iter()
+        .map(|req| compute_forward_hints(req.data, req.depth))
+        .collect();
+
     // Phase 2: Flatten remaining slots across all dungeons with their candidates
     struct GlobalSlot<'a> {
         req_idx: usize,
         slot_idx: usize,
         slot: &'a PartySlot,
+        hint: SlotHint,
         candidates: Vec<(usize, MatchQuality)>,
     }
 
@@ -392,10 +443,16 @@ pub fn solve_multi(
                         score_pet(pet, slot, wl, config).map(|q| (pi, q))
                     })
                     .collect();
+                let hint = forward_hints
+                    .get(ri)
+                    .and_then(|hs| hs.get(si))
+                    .cloned()
+                    .unwrap_or_default();
                 all_slots.push(GlobalSlot {
                     req_idx: ri,
                     slot_idx: si,
                     slot,
+                    hint,
                     candidates,
                 });
             }
@@ -461,6 +518,18 @@ pub fn solve_multi(
                         let syn_cmp = sb.cmp(&sa);
                         if syn_cmp != std::cmp::Ordering::Equal {
                             return syn_cmp;
+                        }
+                    }
+                    // Look-ahead tiebreaker: among equally-good candidates,
+                    // prefer the one that also fits this slot's deeper-depth
+                    // recommendation, so the team carries forward. Purely a
+                    // tiebreaker — it never changes which pets are eligible.
+                    if !gs.hint.is_empty() {
+                        let fa = forward_hint_score(available[*pi_a], &gs.hint);
+                        let fb = forward_hint_score(available[*pi_b], &gs.hint);
+                        let fwd_cmp = fb.cmp(&fa);
+                        if fwd_cmp != std::cmp::Ordering::Equal {
+                            return fwd_cmp;
                         }
                     }
                     // Higher growth = better tiebreak (prefer stronger pets)
@@ -630,14 +699,22 @@ fn score_pet(
 
     // If slot has no class requirement, any dungeon-viable pet works
     let Some(required_class) = &slot.class else {
-        // "Any" class slot — exclude non-dungeon classes (unless whitelisted)
-        if !whitelisted && !is_dungeon_viable(pet) {
-            return None;
+        // "Any" class slot.
+        let base = if pet.is_evolved() {
+            MatchQuality::Exact
+        } else {
+            MatchQuality::Evolvable
+        };
+        // Whitelisted pets bypass the viability filter entirely.
+        if whitelisted {
+            return Some(base);
         }
-        if pet.is_evolved() {
-            return Some(MatchQuality::Exact);
-        }
-        return Some(MatchQuality::Evolvable);
+        return match dungeon_viability(pet) {
+            DungeonViability::Normal => Some(base),
+            // Blacksmiths are allowed but always sink to the bottom.
+            DungeonViability::LowPriority => Some(MatchQuality::LowPriority),
+            DungeonViability::Excluded => None,
+        };
     };
 
     // Flexible-class pets (Holy ITRTG Book etc.) count as a clean match for
@@ -702,6 +779,135 @@ fn matches_slot_element(
     }
 
     false
+}
+
+// =============================================================================
+// Look-ahead hints
+// =============================================================================
+
+/// A soft preference for a slot, derived by looking at deeper-depth
+/// recommendations. Only ever fills fields the current depth leaves as
+/// wildcards (`any`), so it can refine but never contradict the current
+/// depth's explicit requirements.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct SlotHint {
+    class: Option<Class>,
+    element: Option<Element>,
+}
+
+impl SlotHint {
+    fn is_empty(&self) -> bool {
+        self.class.is_none() && self.element.is_none()
+    }
+}
+
+/// Compute per-slot look-ahead hints for a dungeon at `depth`.
+///
+/// Dungeon progression is cumulative: a D2 team first clears every D1 room,
+/// a D3 team clears D1+D2 first, and so on. So the team you grow for the
+/// depth you're planning now is the same team you'll bring to deeper depths —
+/// and the deepest recommendation is (with rare exceptions) a strict
+/// refinement of the shallower ones. We therefore look at the *deepest
+/// available* depth beyond the one being planned and use its more specific
+/// slots to fill in this depth's wildcard (`any`) class/element fields.
+///
+/// The returned vector is aligned with `data.depths[depth].party`; entries
+/// are empty when no useful refinement exists. When no deeper depth is in the
+/// data (e.g. D3 is the deepest, or D4 hasn't been added yet) every hint is
+/// empty and the solver behaves exactly as before.
+///
+/// Matching is a greedy bipartite assignment: the current depth's slots claim
+/// compatible deeper-depth slots most-specific-first, so concrete slots take
+/// their counterparts before full wildcards grab the leftovers. A deeper slot
+/// is *compatible* with a current slot when it agrees on every field the
+/// current slot specifies (an `any` field matches anything). Each current
+/// slot then inherits whichever fields its matched deeper slot pins down.
+fn compute_forward_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
+    let Some(current) = data.depths.get(&depth) else {
+        return Vec::new();
+    };
+    let current = &current.party;
+
+    // The deepest depth strictly beyond the one we're planning for.
+    let Some(target_depth) = data.depths.keys().copied().filter(|&d| d > depth).max() else {
+        return vec![SlotHint::default(); current.len()];
+    };
+    let target = &data.depths[&target_depth].party;
+
+    let mut hints = vec![SlotHint::default(); current.len()];
+    let mut target_used = vec![false; target.len()];
+
+    // Specificity = how many of {class, element} a slot pins down. Process the
+    // current depth's most specific slots first so concrete slots claim their
+    // exact deeper counterparts before full wildcards consume them.
+    let mut order: Vec<usize> = (0..current.len()).collect();
+    order.sort_by_key(|&ci| {
+        let s = current[ci].class.is_some() as u8 + current[ci].element.is_some() as u8;
+        std::cmp::Reverse(s)
+    });
+
+    for ci in order {
+        let cur = &current[ci];
+
+        // Find the best unused, compatible deeper slot.
+        let best = target
+            .iter()
+            .enumerate()
+            .filter(|(tj, _)| !target_used[*tj])
+            .filter(|(_, t)| slot_refines(cur, t))
+            .max_by_key(|(tj, t)| {
+                // Prefer the deeper slot that adds the most specificity to the
+                // fields this slot leaves open, then an exact class match for
+                // stability, then the lowest index (deterministic).
+                let gain = (cur.class.is_none() && t.class.is_some()) as u8
+                    + (cur.element.is_none() && t.element.is_some()) as u8;
+                let exact_class = (cur.class.is_some() && cur.class == t.class) as u8;
+                (gain, exact_class, std::cmp::Reverse(*tj))
+            });
+
+        if let Some((tj, t)) = best {
+            target_used[tj] = true;
+            if cur.class.is_none() {
+                hints[ci].class = t.class;
+            }
+            if cur.element.is_none() {
+                hints[ci].element = t.element;
+            }
+        }
+    }
+
+    hints
+}
+
+/// Whether deeper-depth slot `target` is a valid refinement of current-depth
+/// slot `cur` — i.e. it agrees on every field `cur` explicitly specifies.
+/// Wildcard (`None`) fields on `cur` match anything.
+fn slot_refines(cur: &PartySlot, target: &PartySlot) -> bool {
+    cur.class.is_none_or(|c| target.class == Some(c))
+        && cur.element.is_none_or(|e| target.element == Some(e))
+}
+
+/// Score how well a pet satisfies a look-ahead hint. Higher is better; 0 means
+/// the hint is empty or the pet matches none of it. Used only as a tiebreaker
+/// among equal-quality candidates, so it can bias the choice toward a
+/// forward-compatible pet without ever changing which pets are eligible.
+fn forward_hint_score(pet: &MergedPet, hint: &SlotHint) -> u32 {
+    let mut score = 0;
+    if let Some(el) = hint.element
+        && pet.matches_element(Some(el))
+    {
+        score += 1;
+    }
+    if let Some(cl) = hint.class {
+        let class_ok = match pet.evolved_class() {
+            Some(actual) => actual == cl,
+            None => pet.recommends_class(&cl),
+        };
+        if class_ok {
+            score += 1;
+        }
+    }
+    score
 }
 
 // =============================================================================
@@ -1861,5 +2067,237 @@ mod tests {
         // Without config, the pet's Neutral export element makes it fail
         // the wind requirement.
         assert_eq!(score_pet(&loffel, &slot, false, None), None);
+    }
+
+    // ========================================================================
+    // Blacksmith: allowed in "any" slots but lowest priority
+    // ========================================================================
+
+    #[test]
+    fn test_blacksmith_low_priority_in_any_slot() {
+        // A Blacksmith is eligible for an "any" class slot, but only at
+        // LowPriority — below every proper dungeon-class candidate.
+        let smith = mock_pet(
+            "Smith",
+            Element::Fire,
+            Some(Class::Blacksmith),
+            RecommendedClass::Single(Class::Blacksmith),
+            true,
+        );
+        let slot = make_slot(None, None);
+        assert_eq!(
+            score_pet(&smith, &slot, false, None),
+            Some(MatchQuality::LowPriority),
+        );
+    }
+
+    #[test]
+    fn test_alchemist_still_excluded_from_any_slot() {
+        // Alchemists never earn dungeon class XP — still excluded.
+        let bee = mock_pet(
+            "Bee",
+            Element::Wind,
+            Some(Class::Alchemist),
+            RecommendedClass::Single(Class::Alchemist),
+            true,
+        );
+        let slot = make_slot(None, None);
+        assert_eq!(score_pet(&bee, &slot, false, None), None);
+    }
+
+    #[test]
+    fn test_blacksmith_still_matches_required_blacksmith_slot() {
+        // When a slot *requires* a Blacksmith (e.g. Volcano's Burning Weapons
+        // event), the viability deprioritization is bypassed entirely.
+        let smith = mock_pet(
+            "Smith",
+            Element::Fire,
+            Some(Class::Blacksmith),
+            RecommendedClass::Single(Class::Blacksmith),
+            true,
+        );
+        let slot = make_slot(Some(Class::Blacksmith), Some(Element::Fire));
+        assert_eq!(
+            score_pet(&smith, &slot, false, None),
+            Some(MatchQuality::Exact),
+        );
+    }
+
+    #[test]
+    fn test_dungeon_class_beats_blacksmith_for_any_slot() {
+        // Given one "any" slot and both a Defender and a Blacksmith, the
+        // Defender wins because LowPriority sorts below Exact.
+        let pets = vec![
+            mock_pet(
+                "Smith",
+                Element::Fire,
+                Some(Class::Blacksmith),
+                RecommendedClass::Single(Class::Blacksmith),
+                true,
+            ),
+            mock_pet(
+                "Guard",
+                Element::Fire,
+                Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender),
+                true,
+            ),
+        ];
+
+        let dd = DungeonData {
+            name: "Test".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 5, monsters_per_room: 2, gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                        class_level: 3, total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                    party: vec![make_slot(None, None)],
+                    party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+                });
+                m
+            },
+        };
+
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Guard"),
+            "Defender should beat Blacksmith for an 'any' slot");
+    }
+
+    // ========================================================================
+    // Look-ahead: bias toward deeper-depth recommendations
+    // ========================================================================
+
+    /// Build a two-depth dungeon: depth 1 + depth 2 with the given party
+    /// compositions. Requirements/monsters are filler — only the party shape
+    /// matters for look-ahead tests.
+    fn two_depth_dungeon(d1: Vec<PartySlot>, d2: Vec<PartySlot>) -> DungeonData {
+        let filler = |party: Vec<PartySlot>| DepthData {
+            rooms: 5, monsters_per_room: 2, gem_level: None,
+            requirements: DepthRequirements {
+                dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                class_level: 3, total_growth: None,
+            },
+            monsters: Vec::new(),
+            bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+            party,
+            party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+        };
+        let mut depths = std::collections::BTreeMap::new();
+        depths.insert(1, filler(d1));
+        depths.insert(2, filler(d2));
+        DungeonData { name: "Test".to_string(), depths }
+    }
+
+    #[test]
+    fn test_forward_hint_refines_wildcard_element() {
+        // D1 wants a Defender of any element; D2 wants a Fire Defender. When
+        // planning D1, the Fire defender should be preferred over a
+        // higher-growth Water defender purely on the look-ahead tiebreaker.
+        let dd = two_depth_dungeon(
+            vec![make_slot(Some(Class::Defender), None)],
+            vec![make_slot(Some(Class::Defender), Some(Element::Fire))],
+        );
+
+        let pets = vec![
+            // Water defender with much higher growth — would win without the hint.
+            mock_pet_with_evo("WaterGuard", Element::Water, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true, 1, 1, 99999),
+            mock_pet_with_evo("FireGuard", Element::Fire, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true, 1, 1, 10000),
+        ];
+
+        let hints = compute_forward_hints(&dd, 1);
+        assert_eq!(hints[0].element, Some(Element::Fire));
+
+        let plan = solve(Dungeon::Volcano, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "FireGuard"),
+            "look-ahead should prefer the Fire defender for the eventual D2 Fire slot");
+    }
+
+    #[test]
+    fn test_forward_hint_fills_full_wildcard_class() {
+        // D1: [Defender/any, any/any]. D2: [Defender/any, Assassin/Wind].
+        // The leftover wildcard should lean toward a Wind Assassin.
+        let dd = two_depth_dungeon(
+            vec![
+                make_slot(Some(Class::Defender), None),
+                make_slot(None, None),
+            ],
+            vec![
+                make_slot(Some(Class::Defender), None),
+                make_slot(Some(Class::Assassin), Some(Element::Wind)),
+            ],
+        );
+
+        let hints = compute_forward_hints(&dd, 1);
+        // Slot 0 (Defender) matched the D2 Defender → no refinement.
+        assert!(hints[0].is_empty());
+        // Slot 1 (wildcard) inherited Assassin + Wind from the leftover D2 slot.
+        assert_eq!(hints[1].class, Some(Class::Assassin));
+        assert_eq!(hints[1].element, Some(Element::Wind));
+
+        let pets = vec![
+            mock_pet_with_evo("Guard", Element::Earth, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true, 1, 1, 10000),
+            // High-growth mage — would win the wildcard without the hint.
+            mock_pet_with_evo("Sage", Element::Water, Some(Class::Mage),
+                RecommendedClass::Single(Class::Mage), true, 1, 1, 99999),
+            mock_pet_with_evo("WindBlade", Element::Wind, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true, 1, 1, 10000),
+        ];
+
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        // Slot 0 → Guard (only defender). Slot 1 (wildcard) → WindBlade via hint.
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Guard"));
+        assert!(matches!(&plan.assignments[1].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "WindBlade"),
+            "wildcard slot should lean toward the forward-compatible Wind Assassin");
+    }
+
+    #[test]
+    fn test_no_forward_hint_when_no_deeper_depth() {
+        // A dungeon whose deepest depth is the one being planned yields no
+        // hints — the solver behaves exactly as before.
+        let dd = two_depth_dungeon(
+            vec![make_slot(Some(Class::Defender), None)],
+            vec![make_slot(Some(Class::Defender), Some(Element::Fire))],
+        );
+        // Planning D2 (the deepest) → no deeper depth to look at.
+        let hints = compute_forward_hints(&dd, 2);
+        assert!(hints.iter().all(|h| h.is_empty()));
+    }
+
+    #[test]
+    fn test_forward_hint_does_not_override_match_quality() {
+        // The hint is only a tiebreaker: it must not promote a worse-quality
+        // candidate. D1 wildcard hinted toward Assassin, but the only Assassin
+        // is unevolved (Evolvable) while an evolved Defender is Exact for the
+        // "any" slot — the evolved pet must still win.
+        let dd = two_depth_dungeon(
+            vec![make_slot(None, None)],
+            vec![make_slot(Some(Class::Assassin), Some(Element::Wind))],
+        );
+
+        let pets = vec![
+            // Evolved defender → Exact for an "any" slot.
+            mock_pet_with_evo("Guard", Element::Earth, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true, 1, 1, 10000),
+            // Unevolved assassin → only Evolvable, even though it fits the hint.
+            mock_pet_with_evo("Recruit", Element::Wind, None,
+                RecommendedClass::Single(Class::Assassin), true, 1, 1, 99999),
+        ];
+
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.name == "Guard"),
+            "an Exact evolved pet must beat an Evolvable pet that merely fits the hint");
     }
 }

@@ -1873,6 +1873,7 @@ fn show_slot_card(
                 MatchQuality::Evolvable => ("Evolvable", style::WARNING),
                 MatchQuality::Reclassable => ("Reclass?", Color32::from_rgb(0xdd, 0x88, 0x44)),
                 MatchQuality::Fallback => ("Fallback", style::ERROR),
+                MatchQuality::LowPriority => ("Low Prio", style::TEXT_MUTED),
             };
 
             // Pet name + element
