@@ -118,7 +118,7 @@ impl DungeonState {
     /// Returns depth-based defaults (tier=depth, S+10) merged with any overrides.
     fn standards_for(&self, dungeon: Dungeon, depth: u8) -> EquipmentStandard {
         let default = EquipmentStandard {
-            min_tier: depth.clamp(1, 3),
+            min_tier: depth.clamp(1, 4),
             min_quality: Quality::S,
             min_upgrade: 10,
         };
@@ -179,7 +179,7 @@ impl DungeonState {
                 .find(|e| e.dungeon == selection.dungeon)
             {
                 entry.enabled = true;
-                entry.depth = selection.depth.clamp(1, 3);
+                entry.depth = selection.depth.clamp(1, 4);
             }
         }
 
@@ -360,7 +360,7 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 ui.add_space(8.0);
 
                 // Depth buttons
-                for depth in 1..=3u8 {
+                for depth in 1..=4u8 {
                     let selected = entry.depth == depth;
                     let text = RichText::new(format!("D{depth}")).color(
                         if !entry.enabled {
