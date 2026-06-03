@@ -1786,7 +1786,7 @@ dungeons:
               gems:
                 weapon: Neutral
                 armor: Water
-                accessory: Earth
+                accessory: Wind
           - class: Mage
             element: Water
             equipment:
