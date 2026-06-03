@@ -34,6 +34,12 @@ pub enum EquipmentSource {
     Static,
     /// Computed by the equipment recommendation engine.
     Computed,
+    /// Pulled verbatim from a neighboring depth's matching slot via a
+    /// look-around hint, to fill a slot whose own recommendation is absent or
+    /// generic. `from_depth` is the depth it was borrowed from — usually a
+    /// deeper one, so the gear may be a higher tier than the depth being
+    /// planned (no tier adjustment is applied yet).
+    Propagated { from_depth: u8 },
 }
 
 /// Equipment suggestion with provenance tracking.
@@ -77,6 +83,21 @@ pub fn enrich_equipment(
             sa.equipment_suggestion = Some(EquipmentSuggestion {
                 equipment: equip.clone(),
                 source: EquipmentSource::Static,
+            });
+            continue;
+        }
+
+        // Generic or missing equipment. Equipment propagated from a
+        // neighboring depth (via a look-around hint) takes priority over the
+        // computed path — the user asked to reuse the exact gear that came
+        // with the hint. Unlike the computed path this needs no config and no
+        // assigned pet, so it also fills empty/recommended slots.
+        if let Some(prop) = &sa.equipment_hint {
+            sa.equipment_suggestion = Some(EquipmentSuggestion {
+                equipment: prop.equipment.clone(),
+                source: EquipmentSource::Propagated {
+                    from_depth: prop.from_depth,
+                },
             });
             continue;
         }
@@ -183,7 +204,7 @@ fn check_forbidden_team_equipment(
 }
 
 /// Check if a PartyEquipment contains any generic placeholder keys.
-fn has_generic_keys(eq: &PartyEquipment) -> bool {
+pub(crate) fn has_generic_keys(eq: &PartyEquipment) -> bool {
     eq.weapon.as_deref().is_some_and(|k| k.starts_with("generic_"))
         || eq.armor.as_deref().is_some_and(|k| k.starts_with("generic_"))
         || eq.accessory.as_deref().is_some_and(|k| k.starts_with("generic_"))
@@ -1078,6 +1099,7 @@ accessories:
                     position: 0,
                     assignment: Assignment::Empty { suggestions: vec![] },
                     equipment_suggestion: None,
+                    equipment_hint: None,
                 },
                 // Slot 1: generic placeholder — without a config this
                 // should be left blank (the computed path can't run).
@@ -1090,6 +1112,7 @@ accessories:
                     position: 1,
                     assignment: Assignment::Empty { suggestions: vec![] },
                     equipment_suggestion: None,
+                    equipment_hint: None,
                 },
             ],
             warnings: vec![],
@@ -1162,6 +1185,7 @@ accessories:
                         quality: crate::solver::MatchQuality::Exact,
                     },
                     equipment_suggestion: None,
+                    equipment_hint: None,
                 },
                 SlotAssignment {
                     slot: PartySlot {
@@ -1180,6 +1204,7 @@ accessories:
                         quality: crate::solver::MatchQuality::Exact,
                     },
                     equipment_suggestion: None,
+                    equipment_hint: None,
                 },
             ],
             warnings: vec![],
@@ -1260,6 +1285,7 @@ accessories:
                     quality: crate::solver::MatchQuality::Exact,
                 },
                 equipment_suggestion: None,
+                equipment_hint: None,
             }],
             warnings: vec![],
         };

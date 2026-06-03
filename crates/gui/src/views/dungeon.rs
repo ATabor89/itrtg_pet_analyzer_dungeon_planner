@@ -1972,12 +1972,29 @@ fn show_equipment_comparison(
         None
     };
     let is_computed = suggestion.source == EquipmentSource::Computed;
+    let propagated_from = match suggestion.source {
+        EquipmentSource::Propagated { from_depth } => Some(from_depth),
+        _ => None,
+    };
 
     let rec_color = if is_computed {
         Color32::from_rgb(0x88, 0x99, 0xcc)
+    } else if propagated_from.is_some() {
+        // Borrowed from a neighboring depth — distinct purple so the user
+        // notices it may be a higher tier than this depth normally wants.
+        Color32::from_rgb(0xcc, 0x99, 0xff)
     } else {
         style::TEXT_NORMAL
     };
+
+    // Note where propagated gear came from, since it isn't tier-adjusted.
+    if let Some(from_depth) = propagated_from {
+        ui.label(
+            RichText::new(format!("↑ gear from D{from_depth} recommendation"))
+                .color(Color32::from_rgb(0xcc, 0x99, 0xff))
+                .size(9.0),
+        );
+    }
 
     type EquipLine<'a> = (&'a str, Option<&'a str>, Option<&'a Element>, Option<&'a itrtg_models::Equipment>);
     let lines: [EquipLine<'_>; 3] = [

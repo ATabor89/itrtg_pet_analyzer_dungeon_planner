@@ -32,6 +32,20 @@ pub struct SlotAssignment {
     pub assignment: Assignment,
     /// Equipment suggestion (populated by equipment::enrich_equipment after solving).
     pub equipment_suggestion: Option<crate::equipment::EquipmentSuggestion>,
+    /// Equipment pulled from a neighboring depth via a look-around hint, used
+    /// to fill a slot whose own recommendation is absent or generic. Consumed
+    /// by `equipment::enrich_equipment`, which turns it into a `Propagated`
+    /// suggestion.
+    pub equipment_hint: Option<PropagatedEquipment>,
+}
+
+/// Equipment borrowed from another depth's matching slot to fill a slot whose
+/// own recommendation is absent or generic. Carried on the assignment so the
+/// equipment enrichment pass can surface it (tagged with its origin depth).
+#[derive(Debug, Clone)]
+pub struct PropagatedEquipment {
+    pub equipment: PartyEquipment,
+    pub from_depth: u8,
 }
 
 /// What was assigned to a slot.
@@ -350,6 +364,7 @@ pub fn solve_multi(
                         quality,
                     },
                     equipment_suggestion: None,
+                    equipment_hint: None,
                 },
             );
         }
@@ -403,6 +418,7 @@ pub fn solve_multi(
                         quality,
                     },
                     equipment_suggestion: None,
+                    equipment_hint: None,
                 },
             );
         }
@@ -568,6 +584,7 @@ pub fn solve_multi(
                 position: gs.slot_idx,
                 assignment,
                 equipment_suggestion: None,
+                equipment_hint: None,
             },
         );
     }
@@ -591,7 +608,7 @@ pub fn solve_multi(
                 };
             };
 
-            let assignments: Vec<SlotAssignment> = (0..dd.party.len())
+            let mut assignments: Vec<SlotAssignment> = (0..dd.party.len())
                 .map(|si| {
                     assignment_map
                         .remove(&(ri, si))
@@ -602,9 +619,28 @@ pub fn solve_multi(
                                 suggestions: Vec::new(),
                             },
                             equipment_suggestion: None,
+                            equipment_hint: None,
                         })
                 })
                 .collect();
+
+            // Propagate neighboring-depth equipment into slots whose own
+            // recommendation is absent or generic (look-around equipment).
+            for (si, sa) in assignments.iter_mut().enumerate() {
+                if let Some(hint) = slot_hints.get(ri).and_then(|h| h.get(si))
+                    && let Some(eq) = &hint.equipment
+                    && sa
+                        .slot
+                        .equipment
+                        .as_ref()
+                        .is_none_or(crate::equipment::has_generic_keys)
+                {
+                    sa.equipment_hint = Some(PropagatedEquipment {
+                        equipment: eq.clone(),
+                        from_depth: hint.equipment_from_depth.unwrap_or(req.depth),
+                    });
+                }
+            }
 
             let assigned_pets: Vec<&MergedPet> = assignments
                 .iter()
@@ -791,13 +827,21 @@ fn matches_slot_element(
 /// the same dungeon. Only ever fills fields the planned depth leaves as
 /// wildcards (`any`), so it can refine but never contradict the planned
 /// depth's explicit requirements (those are ground truth).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 struct SlotHint {
     class: Option<Class>,
     element: Option<Element>,
+    /// Real (non-generic) equipment from the matched neighboring slot, to be
+    /// propagated into this slot if its own recommendation is absent/generic.
+    equipment: Option<PartyEquipment>,
+    /// Which depth `equipment` was borrowed from (for provenance display).
+    equipment_from_depth: Option<u8>,
 }
 
 impl SlotHint {
+    /// Whether this hint carries a class/element preference. Equipment-only
+    /// hints count as empty here because equipment doesn't drive the pet
+    /// selection tiebreaker — it's applied separately after solving.
     fn is_empty(&self) -> bool {
         self.class.is_none() && self.element.is_none()
     }
@@ -851,6 +895,12 @@ fn compute_slot_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
             }
             if acc.element.is_none() {
                 acc.element = candidate.element;
+            }
+            if acc.equipment.is_none()
+                && let Some(eq) = candidate.equipment
+            {
+                acc.equipment = Some(eq);
+                acc.equipment_from_depth = Some(src);
             }
         }
     }
@@ -906,6 +956,14 @@ fn match_against(current: &[PartySlot], target: &[PartySlot]) -> Vec<SlotHint> {
             }
             if cur.element.is_none() {
                 hints[ci].element = t.element;
+            }
+            // Capture the matched slot's equipment to propagate later, but
+            // only if it's a real (non-generic) recommendation worth reusing.
+            if t.equipment
+                .as_ref()
+                .is_some_and(|e| !crate::equipment::has_generic_keys(e))
+            {
+                hints[ci].equipment = t.equipment.clone();
             }
         }
     }
@@ -2235,6 +2293,16 @@ mod tests {
         dungeon_with_depths(vec![d1, d2])
     }
 
+    /// An empty equipment catalog — enough for `enrich_equipment` to run the
+    /// static/propagated tagging paths (which don't touch the catalog).
+    fn test_catalog() -> EquipmentCatalog {
+        EquipmentCatalog {
+            weapons: std::collections::BTreeMap::new(),
+            armor: std::collections::BTreeMap::new(),
+            accessories: std::collections::BTreeMap::new(),
+        }
+    }
+
     #[test]
     fn test_forward_hint_refines_wildcard_element() {
         // D1 wants a Defender of any element; D2 wants a Fire Defender. When
@@ -2365,6 +2433,129 @@ mod tests {
         ]);
         let hints = compute_slot_hints(&dd, 2);
         assert_eq!(hints[0].element, Some(Element::Fire));
+    }
+
+    #[test]
+    fn test_hints_ignore_party_order_reshuffle() {
+        // Mirrors Scrapyard D2 -> D3, where the Rogue moves from the front
+        // row to the back and a wildcard becomes a second (Wind) Assassin.
+        // Matching is by class/element, not position, so planning D2 should
+        // still turn a wildcard into an Assassin and bias both assassins/rogue
+        // toward Wind — regardless of which slot index things sit in.
+        let d2 = vec![
+            make_slot(Some(Class::Assassin), None),
+            make_slot(Some(Class::Rogue), None),
+            make_slot(Some(Class::Defender), None),
+            make_slot(Some(Class::Supporter), None),
+            make_slot(None, None),
+            make_slot(None, None),
+        ];
+        let d3 = vec![
+            make_slot(Some(Class::Assassin), None),
+            make_slot(Some(Class::Assassin), Some(Element::Wind)),
+            make_slot(Some(Class::Defender), None),
+            make_slot(Some(Class::Supporter), None),
+            make_slot(Some(Class::Rogue), Some(Element::Wind)),
+            make_slot(None, None),
+        ];
+        let dd = dungeon_with_depths(vec![d2, d3]);
+        let hints = compute_slot_hints(&dd, 1);
+
+        // The existing Assassin slot leans Wind (from D3's Wind Assassin).
+        assert_eq!(hints[0].element, Some(Element::Wind));
+        // The Rogue slot leans Wind even though it sits in a different D3 slot.
+        assert_eq!(hints[1].element, Some(Element::Wind));
+        // Exactly one wildcard becomes an Assassin (the extra one D3 adds);
+        // the other stays a pure wildcard.
+        let wildcard_classes: Vec<Option<Class>> = vec![hints[4].class, hints[5].class];
+        assert!(
+            wildcard_classes.contains(&Some(Class::Assassin)),
+            "a leftover wildcard should be hinted toward the extra Assassin",
+        );
+        assert_eq!(
+            wildcard_classes.iter().filter(|c| c.is_some()).count(),
+            1,
+            "only the one extra Assassin should be added, not both wildcards",
+        );
+    }
+
+    #[test]
+    fn test_equipment_propagates_from_deeper_depth() {
+        // A D1 wildcard slot with no equipment should inherit the exact gear
+        // from the deeper slot that the hint matched it to.
+        let deeper_equip = PartyEquipment {
+            weapon: Some("inferno_sword".to_string()),
+            armor: Some("titanium_armor".to_string()),
+            accessory: Some("inferno_gloves".to_string()),
+            gems: None,
+        };
+        let mut d2_slot = make_slot(Some(Class::Assassin), Some(Element::Fire));
+        d2_slot.equipment = Some(deeper_equip.clone());
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(None, None)], // D1 wildcard, no equipment
+            vec![d2_slot],               // D2 Fire Assassin with real gear
+        ]);
+
+        let hints = compute_slot_hints(&dd, 1);
+        assert_eq!(hints[0].class, Some(Class::Assassin));
+        assert_eq!(hints[0].equipment_from_depth, Some(2));
+
+        let pets = vec![mock_pet("Blade", Element::Fire, Some(Class::Assassin),
+            RecommendedClass::Single(Class::Assassin), true)];
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+
+        // The slot carries the propagated equipment from D2.
+        let hint = plan.assignments[0]
+            .equipment_hint
+            .as_ref()
+            .expect("wildcard slot should inherit D2 equipment");
+        assert_eq!(hint.from_depth, 2);
+        assert_eq!(hint.equipment.weapon.as_deref(), Some("inferno_sword"));
+
+        // And enrichment turns it into a Propagated suggestion.
+        let mut plan = plan;
+        let catalog = test_catalog();
+        crate::equipment::enrich_equipment(&mut plan, &catalog, None);
+        let suggestion = plan.assignments[0]
+            .equipment_suggestion
+            .as_ref()
+            .expect("propagated equipment should yield a suggestion even without config");
+        assert!(matches!(
+            suggestion.source,
+            crate::equipment::EquipmentSource::Propagated { from_depth: 2 }
+        ));
+    }
+
+    #[test]
+    fn test_equipment_not_propagated_over_real_static_gear() {
+        // A slot that already has its own (non-generic) gear keeps it — the
+        // deeper depth's gear is not pulled in over a real recommendation.
+        let own = PartyEquipment {
+            weapon: Some("steel_sword".to_string()),
+            armor: Some("steel_armor".to_string()),
+            accessory: Some("steel_ring".to_string()),
+            gems: None,
+        };
+        let deeper = PartyEquipment {
+            weapon: Some("titanium_sword".to_string()),
+            armor: Some("titanium_armor".to_string()),
+            accessory: Some("titanium_ring".to_string()),
+            gems: None,
+        };
+        let mut d1_slot = make_slot(Some(Class::Defender), None);
+        d1_slot.equipment = Some(own);
+        let mut d2_slot = make_slot(Some(Class::Defender), Some(Element::Fire));
+        d2_slot.equipment = Some(deeper);
+        let dd = dungeon_with_depths(vec![vec![d1_slot], vec![d2_slot]]);
+
+        let pets = vec![mock_pet("Guard", Element::Fire, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+
+        assert!(
+            plan.assignments[0].equipment_hint.is_none(),
+            "a slot with its own real gear must not be overwritten by propagation",
+        );
     }
 
     #[test]
