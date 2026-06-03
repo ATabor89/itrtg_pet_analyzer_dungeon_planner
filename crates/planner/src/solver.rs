@@ -227,6 +227,16 @@ fn is_dungeon_viable(pet: &MergedPet) -> bool {
     dungeon_viability(pet) == DungeonViability::Normal
 }
 
+/// How constrained a slot is: the number of its fields (class, element) that
+/// are pinned down. Used to break ties when a forced pet matches several
+/// slots equally well — it should claim the *most specific* slot it fits so a
+/// looser slot stays open for a less-flexible teammate. (Without this, a Wind
+/// Assassin forced alongside a Fire Assassin could grab the "Any Assassin"
+/// slot, stranding the Fire pet in the "Wind Assassin" slot it can't match.)
+fn slot_specificity(slot: &PartySlot) -> u8 {
+    slot.class.is_some() as u8 + slot.element.is_some() as u8
+}
+
 // =============================================================================
 // Single-dungeon solver (backward-compatible)
 // =============================================================================
@@ -336,14 +346,24 @@ pub fn solve_multi(
                 continue;
             };
 
-            // Find the best slot for this pet in the dungeon
+            // Find the best slot for this pet in the dungeon: best match
+            // quality first, then the most specific slot (so a flexible pet
+            // claims a tighter slot and leaves looser ones open), then the
+            // lowest index for stability.
             let best_slot = dd
                 .party
                 .iter()
                 .enumerate()
                 .filter(|(si, _)| !assignment_map.contains_key(&(ri, *si)))
-                .filter_map(|(si, slot)| score_pet(pet, slot, true, config).map(|q| (si, q)))
-                .min_by_key(|(_, q)| *q);
+                .filter_map(|(si, slot)| {
+                    score_pet(pet, slot, true, config).map(|q| (si, q, slot_specificity(slot)))
+                })
+                .min_by(|a, b| {
+                    a.1.cmp(&b.1)
+                        .then_with(|| b.2.cmp(&a.2))
+                        .then_with(|| a.0.cmp(&b.0))
+                })
+                .map(|(si, q, _)| (si, q));
 
             // If no slot matches constraints, force into the first open slot anyway
             // (user explicitly forced this pet — respect the intent)
@@ -386,8 +406,10 @@ pub fn solve_multi(
             continue;
         };
 
-        // Find the best (request, slot) pair across all dungeons
-        let mut best: Option<(usize, usize, MatchQuality)> = None;
+        // Find the best (request, slot) pair across all dungeons: best match
+        // quality first, then the most specific slot (so a flexible pet claims
+        // a tighter slot and leaves looser ones open for less-flexible pets).
+        let mut best: Option<(usize, usize, MatchQuality, u8)> = None;
         let mut first_open: Option<(usize, usize)> = None;
 
         for (ri, dd_opt) in depth_datas.iter().enumerate() {
@@ -399,15 +421,20 @@ pub fn solve_multi(
                 if first_open.is_none() {
                     first_open = Some((ri, si));
                 }
-                if let Some(q) = score_pet(pet, slot, true, config)
-                    && best.as_ref().is_none_or(|(_, _, bq)| q < *bq)
-                {
-                    best = Some((ri, si, q));
+                if let Some(q) = score_pet(pet, slot, true, config) {
+                    let spec = slot_specificity(slot);
+                    let better = best.as_ref().is_none_or(|(_, _, bq, bspec)| {
+                        q < *bq || (q == *bq && spec > *bspec)
+                    });
+                    if better {
+                        best = Some((ri, si, q, spec));
+                    }
                 }
             }
         }
 
         let target = best
+            .map(|(ri, si, q, _)| (ri, si, q))
             .or_else(|| first_open.map(|(ri, si)| (ri, si, MatchQuality::Fallback)));
 
         if let Some((ri, si, quality)) = target {
@@ -1700,6 +1727,86 @@ mod tests {
         // Cat is forced, so Cat should be assigned even though Frog might be "better"
         assert!(matches!(&plans[0].assignments[0].assignment,
             Assignment::Filled { pet, .. } if pet.name == "Cat"));
+    }
+
+    /// A two-slot Assassin party [Assassin/any, Assassin/Wind] for the
+    /// forced-slot-assignment tests below (the Scrapyard D3 Egg/Chicken +
+    /// Succubus case).
+    fn two_assassin_dungeon() -> DungeonData {
+        let mut m = std::collections::BTreeMap::new();
+        m.insert(1, DepthData {
+            rooms: 5, monsters_per_room: 2, gem_level: None,
+            requirements: DepthRequirements {
+                dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                class_level: 3, total_growth: None,
+            },
+            monsters: Vec::new(),
+            bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+            party: vec![
+                make_slot(Some(Class::Assassin), None),
+                make_slot(Some(Class::Assassin), Some(Element::Wind)),
+            ],
+            party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+        });
+        DungeonData { name: "Test".to_string(), depths: m }
+    }
+
+    #[test]
+    fn test_forced_pets_claim_most_specific_slot() {
+        // Two assassins forced into [Assassin/any, Assassin/Wind]. The Wind pet
+        // must take the Wind slot and the Fire pet the Any slot — both Exact,
+        // no Fallback — even when forced in the "wrong" order (flexible first).
+        let pets = vec![
+            mock_pet("WindBlade", Element::Wind, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true),
+            mock_pet("FireBlade", Element::Fire, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true),
+        ];
+        let dd = two_assassin_dungeon();
+
+        let mut constraints = SolverConstraints::default();
+        constraints
+            .forced
+            .insert(Dungeon::Scrapyard, vec!["WindBlade".into(), "FireBlade".into()]);
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        assert!(matches!(&plans[0].assignments[0].assignment,
+            Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.name == "FireBlade"),
+            "the Fire assassin should claim the Any slot (Exact), not be stranded");
+        assert!(matches!(&plans[0].assignments[1].assignment,
+            Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.name == "WindBlade"),
+            "the Wind assassin should claim the Wind slot (Exact)");
+    }
+
+    #[test]
+    fn test_forced_any_pets_claim_most_specific_slot() {
+        // Same as above but via forced_any (solver picks the dungeon/slot).
+        let pets = vec![
+            mock_pet("WindBlade", Element::Wind, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true),
+            mock_pet("FireBlade", Element::Fire, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true),
+        ];
+        let dd = two_assassin_dungeon();
+
+        let constraints = SolverConstraints {
+            forced_any: vec!["WindBlade".into(), "FireBlade".into()],
+            ..Default::default()
+        };
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        let names: Vec<(&str, MatchQuality)> = plans[0]
+            .assignments
+            .iter()
+            .filter_map(|a| match &a.assignment {
+                Assignment::Filled { pet, quality } => Some((pet.name.as_str(), *quality)),
+                Assignment::Empty { .. } => None,
+            })
+            .collect();
+        assert_eq!(names[0], ("FireBlade", MatchQuality::Exact));
+        assert_eq!(names[1], ("WindBlade", MatchQuality::Exact));
     }
 
     // ========================================================================

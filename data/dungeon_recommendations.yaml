@@ -515,7 +515,7 @@ dungeons:
               gems:
                 weapon: Fire
                 armor: Water
-                accessory: Earth
+                accessory: Wind
           - class: Rogue
             element: Wind
             equipment:
@@ -523,7 +523,7 @@ dungeons:
               armor: hurricane_armor
               accessory: alchemist_cape
               gems:
-                weapon: Earth
+                weapon: Wind
                 armor: Water
                 accessory: Neutral
           - class: any
@@ -1158,7 +1158,7 @@ dungeons:
               gems:
                 weapon: Fire
                 armor: Water
-                accessory: Earth
+                accessory: Wind
           - class: Mage
             element: Earth
             equipment:
