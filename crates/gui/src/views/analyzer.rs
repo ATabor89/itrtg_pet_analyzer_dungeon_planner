@@ -670,7 +670,14 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
                     ui.label(RichText::new("Est. grow time — no egg:").color(style::TEXT_MUTED).size(11.0));
                     eta_label(ui, rates.hours_to_target(export.growth, threshold));
                     ui.label(RichText::new("· with egg:").color(style::TEXT_MUTED).size(11.0));
-                    eta_label(ui, rates.hours_to_target(export.growth, target_egg));
+                    // Stay consistent with the readiness badge: if the egg
+                    // already clears the threshold, it's ready now (avoids a
+                    // ~1-unit rounding disagreement with `evo_readiness`).
+                    if readiness == EvoReadiness::ReadyWithEgg {
+                        eta_label(ui, Some(0.0));
+                    } else {
+                        eta_label(ui, rates.hours_to_target(export.growth, target_egg));
+                    }
                 });
             }
             ui.label(
@@ -727,8 +734,13 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
             .on_hover_text("One per evolved pet, per hour — grows faster as you evolve more pets");
             ui.separator();
             ui.label(RichText::new("Cap:").color(style::TEXT_MUTED).size(12.0));
+            let cap_text = if rates.pendant_cap == u64::MAX {
+                "—".to_string() // fewer than 10 pets: effectively no cap
+            } else {
+                format_number(rates.pendant_cap)
+            };
             ui.label(
-                RichText::new(format_number(rates.pendant_cap))
+                RichText::new(cap_text)
                     .color(style::TEXT_NORMAL)
                     .size(12.0),
             )
