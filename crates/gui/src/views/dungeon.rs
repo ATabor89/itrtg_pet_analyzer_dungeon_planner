@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui, Vec2};
-use itrtg_models::dungeon::{DungeonRecommendations, EquipmentCatalog};
+use itrtg_models::dungeon::{DungeonRecommendations, EquipmentCatalog, EventEntry};
 use itrtg_models::Quality;
 use itrtg_models::{Dungeon, Element};
 use itrtg_planner::equipment::{self, EquipmentSource};
@@ -12,7 +12,7 @@ use itrtg_planner::solver::{
 use crate::data::DataStore;
 use crate::state::{
     AppState, ConstraintsState, DungeonSelection, EquipmentStandardOverride as StateStandardOverride,
-    ForcedEntry,
+    EventOverride, ForcedEntry,
 };
 use crate::style;
 use super::widgets;
@@ -50,6 +50,10 @@ pub struct DungeonState {
     forced_pets: Vec<(Option<Dungeon>, String)>,
     /// Whitelisted pets: bypass non-dungeon class filter without being forced.
     whitelisted_pets: HashSet<String>,
+    /// Explicit enable/disable choices for dungeon events, keyed by
+    /// (dungeon, depth, event name). Absent = use the event's default
+    /// (optional disabled, normal enabled).
+    event_overrides: HashMap<(Dungeon, u8, String), bool>,
     /// Search text for adding constraints.
     constraint_search: String,
     /// Selected dungeon for the "Force" action. None = Any team.
@@ -118,7 +122,7 @@ impl DungeonState {
     /// Returns depth-based defaults (tier=depth, S+10) merged with any overrides.
     fn standards_for(&self, dungeon: Dungeon, depth: u8) -> EquipmentStandard {
         let default = EquipmentStandard {
-            min_tier: depth.clamp(1, 3),
+            min_tier: depth.clamp(1, 4),
             min_quality: Quality::S,
             min_upgrade: 10,
         };
@@ -137,8 +141,16 @@ impl DungeonState {
     /// When `constraints_enabled` is false, returns empty constraints so
     /// the solver produces a fresh unconstrained recommendation.
     fn build_constraints(&self) -> SolverConstraints {
+        // Event overrides apply regardless of the pet-constraints toggle —
+        // turning a nagging event off shouldn't require keeping pet
+        // constraints active.
+        let event_overrides = self.event_overrides.clone();
+
         if !self.constraints_enabled {
-            return SolverConstraints::default();
+            return SolverConstraints {
+                event_overrides,
+                ..SolverConstraints::default()
+            };
         }
 
         let mut forced: HashMap<Dungeon, Vec<String>> = HashMap::new();
@@ -158,6 +170,7 @@ impl DungeonState {
             forced,
             forced_any,
             whitelisted: self.whitelisted_pets.clone(),
+            event_overrides,
         }
     }
 
@@ -179,7 +192,7 @@ impl DungeonState {
                 .find(|e| e.dungeon == selection.dungeon)
             {
                 entry.enabled = true;
-                entry.depth = selection.depth.clamp(1, 3);
+                entry.depth = selection.depth.clamp(1, 4);
             }
         }
 
@@ -214,6 +227,13 @@ impl DungeonState {
                 .iter()
                 .map(|f| (f.dungeon, f.pet.clone())),
         );
+
+        // Event enable/disable overrides.
+        self.event_overrides.clear();
+        for ov in &state.event_overrides {
+            self.event_overrides
+                .insert((ov.dungeon, ov.depth, ov.event.clone()), ov.enabled);
+        }
     }
 
     /// Fill an `AppState` with the persistable bits of the current dungeon state.
@@ -268,6 +288,22 @@ impl DungeonState {
                 .map(|(dungeon, pet)| ForcedEntry { pet: pet.clone(), dungeon: *dungeon })
                 .collect(),
         };
+
+        // Event overrides → sorted Vec for stable YAML output.
+        let mut overrides: Vec<EventOverride> = self
+            .event_overrides
+            .iter()
+            .map(|((dungeon, depth, event), enabled)| EventOverride {
+                dungeon: *dungeon,
+                depth: *depth,
+                event: event.clone(),
+                enabled: *enabled,
+            })
+            .collect();
+        overrides.sort_by(|a, b| {
+            (a.dungeon, a.depth, &a.event).cmp(&(b.dungeon, b.depth, &b.event))
+        });
+        state.event_overrides = overrides;
     }
 
     /// Refresh pet data in existing plans without re-solving.
@@ -360,7 +396,7 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 ui.add_space(8.0);
 
                 // Depth buttons
-                for depth in 1..=3u8 {
+                for depth in 1..=4u8 {
                     let selected = entry.depth == depth;
                     let text = RichText::new(format!("D{depth}")).color(
                         if !entry.enabled {
@@ -431,6 +467,12 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
 
     // Pet constraints (collapsible)
     show_constraints(ui, state, data);
+
+    // Dungeon event toggles (collapsible). Re-solve if anything changed so
+    // the coverage warnings update immediately.
+    if show_event_toggles(ui, state, data) && !state.plans.is_empty() {
+        solve_all(state, data);
+    }
 
     ui.separator();
     ui.add_space(4.0);
@@ -717,6 +759,170 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     // Import dialog (floating window, outside the collapsible so it doesn't
     // get clipped — the button that opens it lives inside the section above).
     show_constraints_import_dialog(ui.ctx(), state, data);
+}
+
+// =============================================================================
+// Dungeon event toggles
+// =============================================================================
+
+/// Short human description of what counters an event (for the toggle list).
+fn describe_event_counters(event: &EventEntry) -> String {
+    let parts: Vec<String> = event
+        .countered_by
+        .iter()
+        .filter_map(|c| {
+            let mut p: Vec<String> = Vec::new();
+            if let Some(cl) = &c.class {
+                p.push(format!("{cl:?}"));
+            }
+            if let Some(el) = &c.element {
+                match c.count {
+                    Some(n) => p.push(format!("{n}× {el:?}")),
+                    None => p.push(format!("{el:?}")),
+                }
+            }
+            if let Some(item) = &c.item {
+                p.push(format!("item: {item}"));
+            }
+            if p.is_empty() { None } else { Some(p.join(" + ")) }
+        })
+        .collect();
+    parts.join(", ")
+}
+
+/// Collapsible panel listing the events in scope for the currently-selected
+/// dungeons/depths, each with an enable/disable checkbox. Optional events
+/// (no in-game penalty) start disabled; normal events start enabled. Returns
+/// `true` if the user toggled anything (so the caller can re-solve).
+fn show_event_toggles(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) -> bool {
+    let Some(recs) = &data.dungeon_recs else {
+        return false;
+    };
+
+    // Snapshot enabled dungeon selections (label + depth). Copied so we don't
+    // hold a borrow on `state.entries` while toggling `state.event_overrides`.
+    let selections: Vec<(Dungeon, &'static str, u8)> = state
+        .entries
+        .iter()
+        .filter(|e| e.enabled)
+        .map(|e| (e.dungeon, e.label, e.depth))
+        .collect();
+    if selections.is_empty() {
+        return false;
+    }
+
+    let customized = state.event_overrides.len();
+    let header = if customized > 0 {
+        format!("Dungeon Events ({customized} customized)")
+    } else {
+        "Dungeon Events".to_string()
+    };
+
+    // (key, new_enabled) toggles collected during render, applied afterward.
+    let mut pending: Vec<((Dungeon, u8, String), bool)> = Vec::new();
+
+    egui::CollapsingHeader::new(
+        RichText::new(header).color(style::TEXT_MUTED).size(13.0),
+    )
+    .id_salt("dungeon_events")
+    .default_open(false)
+    .show(ui, |ui| {
+        ui.label(
+            RichText::new(
+                "Disabled events are skipped in coverage warnings. Optional \
+                 events (no in-game penalty) start disabled.",
+            )
+            .color(style::TEXT_MUTED)
+            .size(10.0),
+        );
+        ui.add_space(2.0);
+
+        for (dungeon, label, depth) in &selections {
+            let Some(dd_data) = recs.dungeons.get(dungeon) else {
+                continue;
+            };
+
+            ui.label(
+                RichText::new(*label)
+                    .color(style::TEXT_BRIGHT)
+                    .size(12.0)
+                    .strong(),
+            );
+
+            let mut any_rows = false;
+            for d in 1..=*depth {
+                let Some(depth_data) = dd_data.depths.get(&d) else {
+                    continue;
+                };
+                for event in &depth_data.events {
+                    any_rows = true;
+                    let key = (*dungeon, d, event.name.clone());
+                    let default_enabled = !event.optional;
+                    let mut enabled = state
+                        .event_overrides
+                        .get(&key)
+                        .copied()
+                        .unwrap_or(default_enabled);
+
+                    ui.horizontal(|ui| {
+                        if ui
+                            .checkbox(&mut enabled, RichText::new(format!("D{d}")).size(11.0))
+                            .changed()
+                        {
+                            pending.push((key.clone(), enabled));
+                        }
+                        ui.label(RichText::new(&event.name).color(style::TEXT_NORMAL).size(11.0));
+                        if event.optional {
+                            ui.label(
+                                RichText::new("optional")
+                                    .color(Color32::from_rgb(0xcc, 0x99, 0xff))
+                                    .size(9.0),
+                            );
+                        }
+                        let counters = describe_event_counters(event);
+                        if !counters.is_empty() {
+                            ui.label(
+                                RichText::new(format!("— {counters}"))
+                                    .color(style::TEXT_MUTED)
+                                    .size(10.0),
+                            );
+                        }
+                    });
+                }
+            }
+            if !any_rows {
+                ui.label(
+                    RichText::new("  (no events)")
+                        .color(style::TEXT_MUTED)
+                        .italics()
+                        .size(10.0),
+                );
+            }
+            ui.add_space(2.0);
+        }
+    });
+
+    if pending.is_empty() {
+        return false;
+    }
+
+    // Apply toggles. Reverting to an event's default drops the override so the
+    // saved state stays minimal.
+    for (key, enabled) in pending {
+        let optional = recs
+            .dungeons
+            .get(&key.0)
+            .and_then(|dd| dd.depths.get(&key.1))
+            .map(|d| d.events.iter().any(|e| e.name == key.2 && e.optional))
+            .unwrap_or(false);
+        // `enabled == !optional` means the toggle matches the event's default.
+        if enabled != optional {
+            state.event_overrides.remove(&key);
+        } else {
+            state.event_overrides.insert(key, enabled);
+        }
+    }
+    true
 }
 
 // =============================================================================
@@ -1755,7 +1961,22 @@ fn card_height(
     }
 
     // Base: header (slot#/class/element) + pet name + class/quality/stats + 3 equip lines.
-    let base = 140.0;
+    let mut base = 140.0;
+
+    // Propagated equipment renders an extra "↑ gear from D{n}" note line above
+    // the equipment rows. Count it independently of special info, otherwise a
+    // pet with both the note and a token/synergy badge overflows its card.
+    if matches!(
+        slot.equipment_suggestion.as_ref().map(|s| s.source),
+        Some(EquipmentSource::Propagated { .. })
+    ) {
+        base += 14.0;
+    }
+
+    // The future-swap hint ("↗ D{n} wants a {Class}") is another extra line.
+    if slot.future_class.is_some() {
+        base += 14.0;
+    }
 
     let pet = match &slot.assignment {
         Assignment::Filled { pet, .. } => pet,
@@ -1873,6 +2094,7 @@ fn show_slot_card(
                 MatchQuality::Evolvable => ("Evolvable", style::WARNING),
                 MatchQuality::Reclassable => ("Reclass?", Color32::from_rgb(0xdd, 0x88, 0x44)),
                 MatchQuality::Fallback => ("Fallback", style::ERROR),
+                MatchQuality::LowPriority => ("Low Prio", style::TEXT_MUTED),
             };
 
             // Pet name + element
@@ -1924,6 +2146,26 @@ fn show_slot_card(
                 );
             }
 
+            // Future-swap hint: a deeper depth wants a different class here.
+            // Not a mismatch — the pet is fine now — just a heads-up.
+            if let Some(future) = &slot.future_class {
+                child
+                    .label(
+                        RichText::new(format!(
+                            "\u{2197} D{} wants a {:?}",
+                            future.from_depth, future.class
+                        ))
+                        .color(Color32::from_rgb(0x77, 0xaa, 0xcc))
+                        .size(9.0),
+                    )
+                    .on_hover_text(format!(
+                        "The D{} recommendation calls for a {:?} in this slot. \
+                         {} works for now — consider swapping to a {:?} as you \
+                         push deeper.",
+                        future.from_depth, future.class, pet.name, future.class,
+                    ));
+            }
+
             // Special info: mechanics, synergies, notes
             show_pet_special_info(&mut child, pet, data, teammate_names);
         }
@@ -1971,12 +2213,29 @@ fn show_equipment_comparison(
         None
     };
     let is_computed = suggestion.source == EquipmentSource::Computed;
+    let propagated_from = match suggestion.source {
+        EquipmentSource::Propagated { from_depth } => Some(from_depth),
+        _ => None,
+    };
 
     let rec_color = if is_computed {
         Color32::from_rgb(0x88, 0x99, 0xcc)
+    } else if propagated_from.is_some() {
+        // Borrowed from a neighboring depth (retiered to this slot's tier) —
+        // distinct purple so the user notices it came from another depth.
+        Color32::from_rgb(0xcc, 0x99, 0xff)
     } else {
         style::TEXT_NORMAL
     };
+
+    // Note which depth the borrowed gear came from.
+    if let Some(from_depth) = propagated_from {
+        ui.label(
+            RichText::new(format!("↑ gear from D{from_depth} recommendation"))
+                .color(Color32::from_rgb(0xcc, 0x99, 0xff))
+                .size(9.0),
+        );
+    }
 
     type EquipLine<'a> = (&'a str, Option<&'a str>, Option<&'a Element>, Option<&'a itrtg_models::Equipment>);
     let lines: [EquipLine<'_>; 3] = [

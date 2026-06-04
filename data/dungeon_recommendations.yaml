@@ -73,6 +73,55 @@ items:
     name: "Mighty Food"
     description: "High-quality pet food for Wild Animals events. Consumed per event trigger."
 
+  freezing_bomb:
+    name: "Freezing Bomb"
+    description: "Throwable bomb used in deeper (D4) dungeon runs."
+
+  elixir:
+    name: "Elixir"
+    description: "Consumable used in deeper (D4) dungeon runs."
+
+  nanotrap:
+    name: "Nanotrap"
+    description: "Consumable used in deeper Scrapyard (D4) runs."
+
+  wise_talisman:
+    name: "Wise Talisman"
+    description: "Boosts experience gain. Recommended in bulk for D4 runs."
+
+  lucky_talisman:
+    name: "Lucky Talisman"
+    description: "Improves luck/drops. Recommended for D4 Mountain and Forest runs."
+
+  # -- D4 event keys --------------------------------------------------------
+  # Each key unlocks its dungeon's "Path" event. Failing the event has no
+  # penalty (enemies keep base stats); succeeding grants an elemental bar,
+  # bonus XP, and god power but buffs the enemies — so these are best left for
+  # later, more comfortable clears rather than prioritized early.
+  golden_key:
+    name: "Golden Key"
+    description: "Unlocks the Iron Path event in Scrapyard D4. Reward: Titanium Bar, +XP, god power (also buffs enemies). No penalty if skipped."
+
+  frost_key:
+    name: "Frost Key"
+    description: "Unlocks the Ocean Path event in Water Temple D4. Reward: Tsunami Bar, +XP, god power (also buffs enemies). No penalty if skipped."
+
+  magma_key:
+    name: "Magma Key"
+    description: "Unlocks the Volcano Path event in Volcano D4. Reward: elemental bar, +XP, god power (also buffs enemies). No penalty if skipped."
+
+  rainbow_key:
+    name: "Rainbow Key"
+    description: "Unlocks the Hidden Path event in Mountain D4. Reward: elemental bar, +XP, god power (also buffs enemies). No penalty if skipped."
+
+  mystic_key:
+    name: "Mystic Key"
+    description: "Unlocks the Jungle Path event in Forest D4. Reward: elemental bar, +XP, god power (also buffs enemies). No penalty if skipped."
+
+  big_boulder:
+    name: "Big Boulder"
+    description: "Counters the Big Boulder event in Forest D4."
+
 # ---------------------------------------------------------------------------
 # Dungeons
 # ---------------------------------------------------------------------------
@@ -466,7 +515,7 @@ dungeons:
               gems:
                 weapon: Fire
                 armor: Water
-                accessory: Earth
+                accessory: Wind
           - class: Rogue
             element: Wind
             equipment:
@@ -474,7 +523,7 @@ dungeons:
               armor: hurricane_armor
               accessory: alchemist_cape
               gems:
-                weapon: Earth
+                weapon: Wind
                 armor: Water
                 accessory: Neutral
           - class: any
@@ -527,6 +576,192 @@ dungeons:
             countered_by:
               class: Assassin
               count: 2
+
+      4:
+        rooms: 31
+        monsters_per_room: 9
+        gem_level: 15
+
+        requirements:
+          dungeon_level_avg: 220
+          # levels_per_difficulty isn't shown in-game for D4; estimated from
+          # the D1-D3 progression (3/4 -> 4/5 -> 6/8). Adjust if better data
+          # surfaces. Boss room needs ~40 levels more than the listed average.
+          levels_per_difficulty: [10, 13]
+          class_level: 60
+          total_growth: 150000
+
+        monsters:
+          - name: "Nanobots"
+            element: Neutral
+            hp: 8888
+            att: 8888
+            def: 999
+            spd: 1500
+          - name: "Alien Drone"
+            element: Neutral
+            hp: 18000
+            att: 1600
+            def: 500
+            spd: 1500
+          - name: "Restoration Bot"
+            element: Water
+            hp: 19500
+            att: 2000
+            def: 999
+            spd: 2000
+          - name: "Cyber Bears"
+            element: Fire
+            hp: 17500
+            att: 9999
+            def: 900
+            spd: 1500
+          - name: "Terraformer"
+            element: Earth
+            hp: 35000
+            att: 0
+            def: 1100
+            spd: 1000
+          - name: "Shield Generator"
+            element: Neutral
+            hp: 29999
+            att: 0
+            def: 1400
+            spd: 1200
+          - name: "Land Battleship"
+            element: Wind
+            hp: 17500
+            att: 7500
+            def: 900
+            spd: 3500
+          - name: "Oblitorator"
+            element: Neutral
+            hp: 6666
+            att: 13500
+            def: 0
+            spd: 9999
+
+        bosses:
+          - name: "Yog Sothoth"
+            element: Neutral
+            hp: 300000
+            att: 12000
+            def: 6500
+            spd: 5000
+          - name: "Robo Overlord"
+            element: Neutral
+            hp: 800000
+            att: 10000
+            def: 15000
+            spd: 3500
+
+        party:
+          - class: Assassin
+            element: any
+            equipment:
+              weapon: sun_sword
+              armor: mythril_armor
+              accessory: mana_cape
+              gems:
+                weapon: Fire
+                armor: Water
+                accessory: Water
+          - class: Assassin
+            element: any
+            equipment:
+              weapon: sun_sword
+              armor: mythril_armor
+              accessory: mana_cape
+              gems:
+                weapon: Fire
+                armor: Water
+                accessory: Water
+          - class: Defender
+            element: any
+            equipment:
+              weapon: exploding_knives
+              armor: titanium_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Supporter
+            element: any
+            equipment:
+              weapon: exploding_knives
+              armor: titanium_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Rogue
+            element: any
+            equipment:
+              weapon: exploding_knives
+              armor: titanium_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Defender
+            element: any
+            equipment:
+              weapon: exploding_knives
+              armor: titanium_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+
+        party_items:
+          - item: torch
+            quantity: 60
+          - item: flying_boots
+            quantity: 20
+          - item: holy_water
+            quantity: 5
+          - item: nevermelting_ice
+            quantity: 20
+          - item: elixir
+            quantity: 10
+          - item: phoenix_feather
+            quantity: 20
+          - item: nanotrap
+            quantity: 60
+          - item: wise_talisman
+            quantity: 60
+
+        traps:
+          - name: "Darkness"
+            chance_pct: 100
+            countered_by:
+              item: torch
+          - name: "Burn"
+            chance_pct: 50
+            countered_by:
+              item: nevermelting_ice
+          - name: "Railgun"
+            chance_pct: 100
+            countered_by:
+              notes: "Unblockable — no counter available."
+
+        events:
+          - name: "Iron Path"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              item: golden_key
+          - name: "Dwarfen Relict"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              element: Neutral
+              count: 6
+              notes: "No penalty if failed (enemies keep base stats). Success grants rewards but also buffs enemies — optional."
 
   # =========================================================================
   # WATER TEMPLE
@@ -923,7 +1158,7 @@ dungeons:
               gems:
                 weapon: Fire
                 armor: Water
-                accessory: Earth
+                accessory: Wind
           - class: Mage
             element: Earth
             equipment:
@@ -972,6 +1207,184 @@ dungeons:
             countered_by:
               element: Water
               count: 3
+
+      4:
+        rooms: 31
+        monsters_per_room: 9
+        gem_level: 15
+
+        requirements:
+          dungeon_level_avg: 220
+          # levels_per_difficulty estimated (not shown in-game for D4).
+          levels_per_difficulty: [10, 13]
+          class_level: 60
+          total_growth: 150000
+
+        monsters:
+          - name: "Megalodon"
+            element: Water
+            hp: 25000
+            att: 6800
+            def: 2200
+            spd: 3500
+          - name: "Mosasaurs"
+            element: Water
+            hp: 39500
+            att: 1800
+            def: 3000
+            spd: 1500
+          - name: "Sea Void"
+            element: Neutral
+            hp: 12000
+            att: 6500
+            def: 1200
+            spd: 4500
+          - name: "Lobstromous"
+            element: Water
+            hp: 12500
+            att: 7500
+            def: 950
+            spd: 4500
+          - name: "Dragonfish"
+            element: Water
+            hp: 9800
+            att: 15000
+            def: 900
+            spd: 8500
+          - name: "Sniper Eel"
+            element: Earth
+            hp: 8000
+            att: 5000
+            def: 888
+            spd: 8800
+          - name: "Vampire Squid"
+            element: Neutral
+            hp: 15000
+            att: 6666
+            def: 1000
+            spd: 3800
+          - name: "Deep Sea Undine"
+            element: Water
+            hp: 18000
+            att: 2500
+            def: 2200
+            spd: 8888
+
+        bosses:
+          - name: "Cthulu"
+            element: Water
+            hp: 550000
+            att: 15000
+            def: 1900
+            spd: 5000
+          - name: "Cursed Pirate King"
+            element: Water
+            hp: 990000
+            att: 25000
+            def: 2500
+            spd: 7777
+
+        party:
+          - class: Rogue
+            element: Water
+            equipment:
+              weapon: exploding_knives
+              armor: mythril_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Wind
+                armor: Earth
+                accessory: Water
+          - class: Defender
+            element: Water
+            equipment:
+              weapon: mythril_shield
+              armor: mythril_armor
+              accessory: mythril_ring
+              gems:
+                weapon: Water
+                armor: Earth
+                accessory: Water
+          - class: Supporter
+            element: Water
+            equipment:
+              weapon: exploding_knives
+              armor: ocean_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Wind
+                armor: Earth
+                accessory: Water
+          - class: Supporter
+            element: any
+            equipment:
+              weapon: exploding_knives
+              armor: ocean_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Wind
+                armor: Earth
+                accessory: Water
+          - class: Mage
+            element: any
+            equipment:
+              weapon: generic_t4_s20
+              armor: generic_t4_s20
+              accessory: generic_t4_s20
+              gems:
+                weapon: Fire
+                armor: Fire
+                accessory: Fire
+          - class: Mage
+            element: any
+            equipment:
+              weapon: generic_t4_s20
+              armor: generic_t4_s20
+              accessory: generic_t4_s20
+              gems:
+                weapon: Fire
+                armor: Fire
+                accessory: Fire
+
+        party_items:
+          - item: flying_boots
+            quantity: 50
+          - item: health_potion_s
+            quantity: 30
+          - item: phoenix_feather
+            quantity: 20
+          - item: ginger
+            quantity: 60
+          - item: wise_talisman
+            quantity: 60
+
+        traps:
+          - name: "Quagmire"
+            chance_pct: 100
+            countered_by:
+              item: flying_boots
+          - name: "Weaken"
+            chance_pct: 50
+            countered_by:
+              item: ginger
+          - name: "LethalPoison"
+            chance_pct: 100
+            countered_by:
+              notes: "Unblockable — no counter available."
+
+        events:
+          - name: "Ocean Path"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              item: frost_key
+          - name: "Atlantis"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              element: Water
+              count: 6
+              notes: "No penalty if failed. Success grants rewards but also buffs enemies — optional."
 
   # =========================================================================
   # VOLCANO
@@ -1373,7 +1786,7 @@ dungeons:
               gems:
                 weapon: Neutral
                 armor: Water
-                accessory: Earth
+                accessory: Wind
           - class: Mage
             element: Water
             equipment:
@@ -1423,6 +1836,188 @@ dungeons:
               class: Blacksmith
               element: Fire
               count: 1
+
+      4:
+        rooms: 31
+        monsters_per_room: 9
+        gem_level: 15
+
+        requirements:
+          dungeon_level_avg: 220
+          # levels_per_difficulty estimated (not shown in-game for D4).
+          levels_per_difficulty: [10, 13]
+          class_level: 60
+          total_growth: 150000
+
+        monsters:
+          - name: "Solar Wolf"
+            element: Fire
+            hp: 7500
+            att: 5500
+            def: 1500
+            spd: 8000
+          - name: "Magma Demon"
+            element: Fire
+            hp: 9000
+            att: 11000
+            def: 1200
+            spd: 5700
+          - name: "Hell Rabbit"
+            element: Fire
+            hp: 6666
+            att: 6666
+            def: 900
+            spd: 6666
+          - name: "Ancient Lavamancer"
+            element: Fire
+            hp: 12500
+            att: 7500
+            def: 950
+            spd: 4500
+          - name: "Living Core"
+            element: Neutral
+            hp: 40000
+            att: 1000
+            def: 3500
+            spd: 1000
+          - name: "Steam Swarm"
+            element: Water
+            hp: 15000
+            att: 5500
+            def: 1800
+            spd: 6500
+          - name: "Obsidian Giant"
+            element: Neutral
+            hp: 15000
+            att: 6500
+            def: 1000
+            spd: 2000
+          - name: "Infernal Salamander"
+            element: Fire
+            hp: 18000
+            att: 8888
+            def: 2200
+            spd: 6900
+
+        bosses:
+          - name: "Cthugha"
+            element: Fire
+            hp: 750000
+            att: 30000
+            def: 2000
+            spd: 6666
+          - name: "Hell King"
+            element: Fire
+            hp: 900000
+            att: 28000
+            def: 2500
+            spd: 6666
+
+        party:
+          - class: Defender
+            element: Fire
+            equipment:
+              weapon: titanium_sword
+              armor: sun_armor
+              accessory: titanium_ring
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Neutral
+          - class: Blacksmith
+            element: Fire
+            equipment:
+              weapon: bursting_knives
+              armor: rune_patch
+              accessory: mythril_ring
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Neutral
+          - class: Defender
+            element: Fire
+            equipment:
+              weapon: titanium_sword
+              armor: sun_armor
+              accessory: titanium_ring
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Neutral
+          - class: Supporter
+            element: Fire
+            equipment:
+              weapon: inferno_sword
+              armor: sun_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Wind
+          - class: Rogue
+            element: any
+            equipment:
+              weapon: bursting_knives
+              armor: sun_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Wind
+          - class: Mage
+            element: Water
+            equipment:
+              weapon: ocean_spear
+              armor: ocean_armor
+              accessory: ocean_necklace
+              gems:
+                weapon: Fire
+                armor: Fire
+                accessory: Wind
+
+        party_items:
+          - item: antidote
+            quantity: 50
+          - item: nevermelting_ice
+            quantity: 20
+          - item: holy_water
+            quantity: 10
+          - item: health_potion_s
+            quantity: 20
+          - item: phoenix_feather
+            quantity: 30
+          - item: freezing_bomb
+            quantity: 30
+          - item: wise_talisman
+            quantity: 70
+
+        traps:
+          - name: "Poison"
+            chance_pct: 100
+            countered_by:
+              item: antidote
+          - name: "Spikes"
+            chance_pct: 50
+            countered_by:
+              class: Rogue
+          - name: "Oilburn"
+            chance_pct: 100
+            countered_by:
+              notes: "Unblockable — no counter available."
+
+        events:
+          - name: "Volcano Path"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              item: magma_key
+          - name: "Geyser"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              element: Fire
+              count: 6
+              notes: "No penalty if failed. Success grants rewards but also buffs enemies — optional."
 
   # =========================================================================
   # MOUNTAIN
@@ -1867,6 +2462,186 @@ dungeons:
             countered_by:
               class: Defender
               count: 2
+
+      4:
+        rooms: 31
+        monsters_per_room: 9
+        gem_level: 15
+
+        requirements:
+          dungeon_level_avg: 220
+          # levels_per_difficulty estimated (not shown in-game for D4).
+          levels_per_difficulty: [10, 13]
+          class_level: 60
+          total_growth: 150000
+
+        monsters:
+          - name: "Exo Dragon"
+            element: Wind
+            hp: 15000
+            att: 3200
+            def: 999
+            spd: 6700
+          - name: "Arch Storm Wizard"
+            element: Wind
+            hp: 6666
+            att: 999
+            def: 500
+            spd: 8500
+          - name: "Vacuum Spirit"
+            element: Wind
+            hp: 9000
+            att: 3600
+            def: 1700
+            spd: 3200
+          - name: "Space Drones"
+            element: Neutral
+            hp: 8000
+            att: 8200
+            def: 1500
+            spd: 2500
+          - name: "Solar Hawk"
+            element: Fire
+            hp: 9500
+            att: 6500
+            def: 800
+            spd: 3000
+          - name: "Elder Cyclopes"
+            element: Wind
+            hp: 18000
+            att: 7000
+            def: 2000
+            spd: 650
+          - name: "Caladrius"
+            element: Neutral
+            hp: 10000
+            att: 3500
+            def: 1200
+            spd: 4000
+          - name: "Hurricane Sylph"
+            element: Wind
+            hp: 3333
+            att: 2222
+            def: 0
+            spd: 9999
+
+        bosses:
+          - name: "Nyarlathotep"
+            element: Neutral
+            hp: 350000
+            att: 7500
+            def: 3500
+            spd: 15000
+          - name: "Mountain King"
+            element: Wind
+            hp: 350000
+            att: 15000
+            def: 7500
+            spd: 12000
+
+        party:
+          - class: Rogue
+            element: any
+            equipment:
+              weapon: exploding_knives
+              armor: mythril_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Defender
+            element: any
+            equipment:
+              weapon: mythril_shield
+              armor: titanium_armor
+              accessory: mythril_ring
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Defender
+            element: any
+            equipment:
+              weapon: mythril_shield
+              armor: titanium_armor
+              accessory: mythril_ring
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Supporter
+            element: any
+            equipment:
+              weapon: exploding_knives
+              armor: sky_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Mage
+            element: any
+            equipment:
+              weapon: generic_t4_s20
+              armor: generic_t4_s20
+              accessory: generic_t4_s20
+              gems:
+                weapon: Fire
+                armor: Water
+                accessory: Water
+          - class: Mage
+            element: any
+            equipment:
+              weapon: generic_t4_s20
+              armor: generic_t4_s20
+              accessory: generic_t4_s20
+              gems:
+                weapon: Fire
+                armor: Water
+                accessory: Water
+
+        party_items:
+          - item: flying_boots
+            quantity: 50
+          - item: health_potion_s
+            quantity: 30
+          - item: phoenix_feather
+            quantity: 20
+          - item: lucky_talisman
+            quantity: 60
+          - item: wise_talisman
+            quantity: 60
+          - item: freezing_bomb
+            quantity: 30
+
+        traps:
+          - name: "Pit"
+            chance_pct: 100
+            countered_by:
+              item: flying_boots
+          - name: "Spikes"
+            chance_pct: 50
+            countered_by:
+              class: Rogue
+          - name: "Gravitybomb"
+            chance_pct: 100
+            countered_by:
+              notes: "Unblockable — no counter available."
+
+        events:
+          - name: "Hidden Path"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              item: rainbow_key
+          - name: "Sky Tower"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              element: Wind
+              count: 6
+              notes: "No penalty if failed. Success grants rewards but also buffs enemies — optional."
 
   # =========================================================================
   # FOREST
@@ -2314,3 +3089,183 @@ dungeons:
             countered_by:
               class: Assassin
               count: 2
+
+      4:
+        rooms: 31
+        monsters_per_room: 9
+        gem_level: 15
+
+        requirements:
+          dungeon_level_avg: 220
+          # levels_per_difficulty estimated (not shown in-game for D4).
+          levels_per_difficulty: [10, 13]
+          class_level: 60
+          total_growth: 150000
+
+        monsters:
+          - name: "Ancient Cosmic Druid"
+            element: Neutral
+            hp: 35000
+            att: 1700
+            def: 2800
+            spd: 950
+          - name: "Arachne"
+            element: Earth
+            hp: 14500
+            att: 2600
+            def: 500
+            spd: 2700
+          - name: "Void Bears"
+            element: Neutral
+            hp: 15000
+            att: 3500
+            def: 1999
+            spd: 3100
+          - name: "Colossus Beetle"
+            element: Earth
+            hp: 19500
+            att: 6800
+            def: 2000
+            spd: 3400
+          - name: "Vine Swarm"
+            element: Earth
+            hp: 7500
+            att: 12000
+            def: 1500
+            spd: 1000
+          - name: "Death Lily"
+            element: Earth
+            hp: 30000
+            att: 30000
+            def: 1800
+            spd: 1500
+          - name: "Ulama"
+            element: Wind
+            hp: 15000
+            att: 8800
+            def: 1200
+            spd: 3500
+          - name: "Cosmic Gnome"
+            element: Earth
+            hp: 200
+            att: 1200
+            def: 99999
+            spd: 800
+
+        bosses:
+          - name: "Shub Niggurath"
+            element: Neutral
+            hp: 580000
+            att: 22222
+            def: 6500
+            spd: 3333
+          - name: "Corrupt Fairy Queen"
+            element: Earth
+            hp: 1300000
+            att: 7500
+            def: 3800
+            spd: 7500
+
+        party:
+          - class: Assassin
+            element: any
+            equipment:
+              weapon: generic_t4_s20
+              armor: generic_t4_s20
+              accessory: generic_t4_s20
+              gems:
+                weapon: Fire
+                armor: Fire
+                accessory: Water
+          - class: Defender
+            element: Earth
+            equipment:
+              weapon: exploding_knives
+              armor: forest_armor
+              accessory: mana_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Defender
+            element: any
+            equipment:
+              weapon: mythril_shield
+              armor: forest_armor
+              accessory: alchemist_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Rogue
+            element: any
+            equipment:
+              weapon: exploding_knives
+              armor: forest_armor
+              accessory: mana_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Supporter
+            element: any
+            equipment:
+              weapon: exploding_knives
+              armor: forest_armor
+              accessory: mana_cape
+              gems:
+                weapon: Water
+                armor: Water
+                accessory: Water
+          - class: Mage
+            element: any
+            equipment:
+              weapon: generic_t4_s20
+              armor: generic_t4_s20
+              accessory: generic_t4_s20
+              gems:
+                weapon: Fire
+                armor: Fire
+                accessory: Fire
+
+        party_items:
+          - item: torch
+            quantity: 60
+          - item: flying_boots
+            quantity: 50
+          - item: mighty_food
+            quantity: 150
+          - item: health_potion_s
+            quantity: 30
+          - item: phoenix_feather
+            quantity: 20
+          - item: wise_talisman
+            quantity: 60
+          - item: lucky_talisman
+            quantity: 60
+
+        traps:
+          - name: "Darkness"
+            chance_pct: 100
+            countered_by:
+              item: torch
+          - name: "Poison"
+            chance_pct: 50
+            countered_by:
+              item: antidote
+          - name: "Stungun"
+            chance_pct: 100
+            countered_by:
+              notes: "Unblockable — no counter available."
+
+        events:
+          - name: "Jungle Path"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              item: mystic_key
+          - name: "Big Boulder"
+            chance_pct: 20
+            optional: true
+            countered_by:
+              item: big_boulder

@@ -24,13 +24,51 @@ fn load_full_recommendations() {
     assert!(recs.dungeons.contains_key(&Dungeon::Mountain));
     assert!(recs.dungeons.contains_key(&Dungeon::Forest));
 
-    // Each dungeon should have 3 depths
+    // Each dungeon should have 4 depths (D1-D4)
     for (key, dungeon) in &recs.dungeons {
         assert_eq!(
             dungeon.depths.len(),
-            3,
-            "dungeon '{key:?}' should have 3 depths"
+            4,
+            "dungeon '{key:?}' should have 4 depths"
         );
+    }
+}
+
+#[test]
+fn d4_present_for_all_dungeons() {
+    let recs = load();
+
+    // Scrapyard D4: first two slots are Assassins, all elements wildcard,
+    // and the Dwarfen Relict event wants 6 Neutral pets.
+    let sd4 = &recs.dungeons[&Dungeon::Scrapyard].depths[&4];
+    assert_eq!(sd4.party.len(), 6);
+    assert_eq!(sd4.party[0].class, Some(Class::Assassin));
+    assert_eq!(sd4.party[0].element, None);
+    let relict = sd4
+        .events
+        .iter()
+        .find(|e| e.name == "Dwarfen Relict")
+        .expect("Scrapyard D4 should have Dwarfen Relict");
+    assert_eq!(relict.countered_by[0].element, Some(Element::Neutral));
+    assert_eq!(relict.countered_by[0].count, Some(6));
+
+    // Volcano D4 keeps a Blacksmith slot and asks for Fire Defenders.
+    let vd4 = &recs.dungeons[&Dungeon::Volcano].depths[&4];
+    assert_eq!(vd4.party[0].class, Some(Class::Defender));
+    assert_eq!(vd4.party[0].element, Some(Element::Fire));
+    assert_eq!(vd4.party[1].class, Some(Class::Blacksmith));
+
+    // All five dungeons have a D4 with two bosses and 6 party slots.
+    for d in [
+        Dungeon::Scrapyard,
+        Dungeon::WaterTemple,
+        Dungeon::Volcano,
+        Dungeon::Mountain,
+        Dungeon::Forest,
+    ] {
+        let d4 = &recs.dungeons[&d].depths[&4];
+        assert_eq!(d4.party.len(), 6, "{d:?} D4 should have 6 slots");
+        assert_eq!(d4.bosses.len(), 2, "{d:?} D4 should have two bosses");
     }
 }
 
@@ -136,6 +174,29 @@ fn equipment_catalog_lookup() {
 
     // Generic keys won't be in the catalog
     assert!(recs.equipment.lookup("generic_t2_s10").is_none());
+}
+
+#[test]
+fn equipment_retier_walks_upgrade_chain() {
+    let recs = load();
+    let cat = &recs.equipment;
+
+    // Same tier is a no-op.
+    assert_eq!(cat.retier("inferno_sword", 3).as_deref(), Some("inferno_sword"));
+
+    // Downgrade: Sun Sword (T4) -> Flame Sword (T2) along the fire line.
+    assert_eq!(cat.retier("sun_sword", 2).as_deref(), Some("flame_sword"));
+
+    // Upgrade: Flame Sword (T2) -> Sun Sword (T4).
+    assert_eq!(cat.retier("flame_sword", 4).as_deref(), Some("sun_sword"));
+
+    // Capes only exist at T3/T4, so a downgrade request floors at T3.
+    assert_eq!(cat.retier("mana_cape", 2).as_deref(), Some("alchemist_cape"));
+    // …and an upgrade reaches the T4 Mana Cape.
+    assert_eq!(cat.retier("alchemist_cape", 4).as_deref(), Some("mana_cape"));
+
+    // Unknown key yields None.
+    assert!(cat.retier("not_a_real_item", 2).is_none());
 }
 
 #[test]

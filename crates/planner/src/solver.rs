@@ -32,6 +32,34 @@ pub struct SlotAssignment {
     pub assignment: Assignment,
     /// Equipment suggestion (populated by equipment::enrich_equipment after solving).
     pub equipment_suggestion: Option<crate::equipment::EquipmentSuggestion>,
+    /// Equipment pulled from a neighboring depth via a look-around hint, used
+    /// to fill a slot whose own recommendation is absent or generic. Consumed
+    /// by `equipment::enrich_equipment`, which turns it into a `Propagated`
+    /// suggestion.
+    pub equipment_hint: Option<PropagatedEquipment>,
+    /// A soft heads-up that a deeper depth wants a *different* class in this
+    /// slot than the assigned pet is. Not a mismatch — the pet is fine now —
+    /// just a "you'll eventually want a {class} here" hint, set only when the
+    /// assigned pet's class doesn't fit the look-ahead class for the slot.
+    pub future_class: Option<FutureClass>,
+}
+
+/// Equipment borrowed from another depth's matching slot to fill a slot whose
+/// own recommendation is absent or generic. Carried on the assignment so the
+/// equipment enrichment pass can surface it (tagged with its origin depth).
+#[derive(Debug, Clone)]
+pub struct PropagatedEquipment {
+    pub equipment: PartyEquipment,
+    pub from_depth: u8,
+}
+
+/// A deeper depth's class recommendation for a slot, when it differs from the
+/// class of the pet currently filling it — surfaced as a gentle "consider
+/// swapping eventually" note rather than an error.
+#[derive(Debug, Clone, Copy)]
+pub struct FutureClass {
+    pub class: Class,
+    pub from_depth: u8,
 }
 
 /// What was assigned to a slot.
@@ -62,6 +90,12 @@ pub enum MatchQuality {
     Reclassable,
     /// Partial match used as last resort for "any" slots.
     Fallback,
+    /// A dungeon-viable but *deprioritized* class (Blacksmith) filling an
+    /// "any" class slot. Ranked below every proper dungeon-class candidate so
+    /// a Blacksmith only lands in an "any" slot when nothing better is left —
+    /// Blacksmiths do earn dungeon class XP, but you rarely want to grow one
+    /// in a dungeon unless the recommendation specifically calls for it.
+    LowPriority,
 }
 
 /// Suggestion for a pet to unlock that would fill a gap.
@@ -125,45 +159,122 @@ pub struct SolverConstraints {
     /// These pets won't be automatically excluded from "any" class slots even
     /// if they have a non-dungeon class (Adventurer/Blacksmith/Alchemist).
     pub whitelisted: HashSet<String>,
+    /// Explicit enable/disable choices for dungeon events, keyed by
+    /// (dungeon, depth, event name). An absent entry means "use the event's
+    /// default": optional events are disabled, normal events enabled. A
+    /// disabled event is skipped in coverage checks (no warning).
+    pub event_overrides: HashMap<(Dungeon, u8, String), bool>,
 }
 
 // =============================================================================
 // Dungeon class viability
 // =============================================================================
 
-/// Non-dungeon classes that should not fill "any" class slots in dungeons.
-/// These classes generally don't gain class experience from dungeon runs.
-const NON_DUNGEON_CLASSES: &[Class] = &[Class::Adventurer, Class::Blacksmith, Class::Alchemist];
+/// How a pet's class fares when filling an "any" class slot in a dungeon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DungeonViability {
+    /// A normal dungeon class — full priority.
+    Normal,
+    /// Blacksmith. Allowed (Blacksmiths *do* earn dungeon class XP), but
+    /// ranked below every proper dungeon-class candidate so it's only used as
+    /// a last resort or when the recommendation explicitly wants one.
+    LowPriority,
+    /// Adventurer / Alchemist — these never earn dungeon class XP, so they're
+    /// excluded from "any" slots entirely (unless whitelisted).
+    Excluded,
+}
 
-/// Whether a pet is viable for dungeon "any" class slots.
+/// Classify a concrete class for "any" dungeon slot purposes.
+fn classify_class(class: Class) -> DungeonViability {
+    match class {
+        Class::Blacksmith => DungeonViability::LowPriority,
+        Class::Adventurer | Class::Alchemist => DungeonViability::Excluded,
+        _ => DungeonViability::Normal,
+    }
+}
+
+/// The more favorable of two viabilities (Normal > LowPriority > Excluded),
+/// used to combine the two halves of a `Dual` recommendation.
+fn better_viability(a: DungeonViability, b: DungeonViability) -> DungeonViability {
+    let rank = |v: DungeonViability| match v {
+        DungeonViability::Normal => 0u8,
+        DungeonViability::LowPriority => 1,
+        DungeonViability::Excluded => 2,
+    };
+    if rank(a) <= rank(b) { a } else { b }
+}
+
+/// Determine a pet's viability for dungeon "any" class slots.
 ///
-/// Returns false for pets evolved as or recommended for non-dungeon classes
-/// (Adventurer, Blacksmith, Alchemist), since those classes don't benefit
-/// from dungeon runs. When a slot *specifically* requires one of these classes
-/// (e.g. Volcano wanting Blacksmiths), the viability check is bypassed.
-fn is_dungeon_viable(pet: &MergedPet) -> bool {
+/// Evolved class is ground truth; an unevolved pet is judged by its
+/// recommended class. When a slot *specifically* requires a class (e.g.
+/// Volcano's "Burning Weapons" event wanting a Blacksmith), this check is
+/// bypassed by the caller.
+fn dungeon_viability(pet: &MergedPet) -> DungeonViability {
     if let Some(class) = pet.evolved_class() {
-        return !NON_DUNGEON_CLASSES.contains(&class);
+        return classify_class(class);
     }
     // Unevolved: check recommended class
     match pet.recommended_class() {
-        Some(RecommendedClass::Single(c)) => !NON_DUNGEON_CLASSES.contains(c),
+        Some(RecommendedClass::Single(c)) => classify_class(*c),
         Some(RecommendedClass::Dual(a, b)) => {
-            // Viable if at least one recommended class is a dungeon class
-            !NON_DUNGEON_CLASSES.contains(a) || !NON_DUNGEON_CLASSES.contains(b)
+            better_viability(classify_class(*a), classify_class(*b))
         }
         Some(
             RecommendedClass::Wildcard
             | RecommendedClass::DungeonWildcard
             | RecommendedClass::AllClasses,
-        ) => true,
+        ) => DungeonViability::Normal,
         Some(
             RecommendedClass::Village(_)
             | RecommendedClass::Special
             | RecommendedClass::Alternates,
-        ) => false,
-        None => true, // No wiki data — assume viable
+        ) => DungeonViability::Excluded,
+        None => DungeonViability::Normal, // No wiki data — assume viable
     }
+}
+
+/// Whether a pet is a full-priority candidate for dungeon "any" class slots.
+/// Used for unlock suggestions, which should never propose a deprioritized
+/// (Blacksmith) or excluded (Adventurer/Alchemist) class for an "any" slot.
+fn is_dungeon_viable(pet: &MergedPet) -> bool {
+    dungeon_viability(pet) == DungeonViability::Normal
+}
+
+/// How constrained a slot is: the number of its fields (class, element) that
+/// are pinned down. Used to break ties when a forced pet matches several
+/// slots equally well — it should claim the *most specific* slot it fits so a
+/// looser slot stays open for a less-flexible teammate. (Without this, a Wind
+/// Assassin forced alongside a Fire Assassin could grab the "Any Assassin"
+/// slot, stranding the Fire pet in the "Wind Assassin" slot it can't match.)
+fn slot_specificity(slot: &PartySlot) -> u8 {
+    slot.class.is_some() as u8 + slot.element.is_some() as u8
+}
+
+/// Whether a pet fits a given class: it's already evolved into it, or (if
+/// unevolved) its recommended class includes it. Used to decide whether a
+/// look-ahead class hint applies to the pet actually filling the slot.
+fn pet_fits_class(pet: &MergedPet, class: Class) -> bool {
+    match pet.evolved_class() {
+        Some(c) => c == class,
+        None => pet.recommends_class(&class),
+    }
+}
+
+/// A pet's readiness for a slot, as bucketed (dungeon level, class level).
+/// These reflect how prepared a pet actually is to clear the dungeon, so a
+/// meaningfully higher-leveled pet should beat an equally-matching but weaker
+/// one. Levels are bucketed so that only real gaps decide — pets within a
+/// bucket tie here and fall through to the growth tiebreak. Higher is better.
+fn readiness(pet: &MergedPet) -> (u32, u32) {
+    /// Dungeon levels within this band count as "similar" (growth decides).
+    const DL_BUCKET: u32 = 10;
+    /// Class levels within this band count as "similar".
+    const CL_BUCKET: u32 = 5;
+    let export = pet.export.as_ref();
+    let dl = export.map(|e| e.dungeon_level).unwrap_or(0) / DL_BUCKET;
+    let cl = export.map(|e| e.class_level).unwrap_or(0) / CL_BUCKET;
+    (dl, cl)
 }
 
 // =============================================================================
@@ -275,14 +386,24 @@ pub fn solve_multi(
                 continue;
             };
 
-            // Find the best slot for this pet in the dungeon
+            // Find the best slot for this pet in the dungeon: best match
+            // quality first, then the most specific slot (so a flexible pet
+            // claims a tighter slot and leaves looser ones open), then the
+            // lowest index for stability.
             let best_slot = dd
                 .party
                 .iter()
                 .enumerate()
                 .filter(|(si, _)| !assignment_map.contains_key(&(ri, *si)))
-                .filter_map(|(si, slot)| score_pet(pet, slot, true, config).map(|q| (si, q)))
-                .min_by_key(|(_, q)| *q);
+                .filter_map(|(si, slot)| {
+                    score_pet(pet, slot, true, config).map(|q| (si, q, slot_specificity(slot)))
+                })
+                .min_by(|a, b| {
+                    a.1.cmp(&b.1)
+                        .then_with(|| b.2.cmp(&a.2))
+                        .then_with(|| a.0.cmp(&b.0))
+                })
+                .map(|(si, q, _)| (si, q));
 
             // If no slot matches constraints, force into the first open slot anyway
             // (user explicitly forced this pet — respect the intent)
@@ -308,6 +429,8 @@ pub fn solve_multi(
                         quality,
                     },
                     equipment_suggestion: None,
+                    equipment_hint: None,
+                    future_class: None,
                 },
             );
         }
@@ -324,8 +447,10 @@ pub fn solve_multi(
             continue;
         };
 
-        // Find the best (request, slot) pair across all dungeons
-        let mut best: Option<(usize, usize, MatchQuality)> = None;
+        // Find the best (request, slot) pair across all dungeons: best match
+        // quality first, then the most specific slot (so a flexible pet claims
+        // a tighter slot and leaves looser ones open for less-flexible pets).
+        let mut best: Option<(usize, usize, MatchQuality, u8)> = None;
         let mut first_open: Option<(usize, usize)> = None;
 
         for (ri, dd_opt) in depth_datas.iter().enumerate() {
@@ -337,15 +462,20 @@ pub fn solve_multi(
                 if first_open.is_none() {
                     first_open = Some((ri, si));
                 }
-                if let Some(q) = score_pet(pet, slot, true, config)
-                    && best.as_ref().is_none_or(|(_, _, bq)| q < *bq)
-                {
-                    best = Some((ri, si, q));
+                if let Some(q) = score_pet(pet, slot, true, config) {
+                    let spec = slot_specificity(slot);
+                    let better = best.as_ref().is_none_or(|(_, _, bq, bspec)| {
+                        q < *bq || (q == *bq && spec > *bspec)
+                    });
+                    if better {
+                        best = Some((ri, si, q, spec));
+                    }
                 }
             }
         }
 
         let target = best
+            .map(|(ri, si, q, _)| (ri, si, q))
             .or_else(|| first_open.map(|(ri, si)| (ri, si, MatchQuality::Fallback)));
 
         if let Some((ri, si, quality)) = target {
@@ -361,16 +491,28 @@ pub fn solve_multi(
                         quality,
                     },
                     equipment_suggestion: None,
+                    equipment_hint: None,
+                    future_class: None,
                 },
             );
         }
     }
+
+    // Look-around: derive per-slot hints from each dungeon's other depths
+    // (deeper first, then shallower) so the team we grow now stays compatible
+    // with what we'll face deeper and what we re-clear on the way there.
+    // Indexed by request, aligned with that depth's party slots.
+    let slot_hints: Vec<Vec<SlotHint>> = requests
+        .iter()
+        .map(|req| compute_slot_hints(req.data, req.depth))
+        .collect();
 
     // Phase 2: Flatten remaining slots across all dungeons with their candidates
     struct GlobalSlot<'a> {
         req_idx: usize,
         slot_idx: usize,
         slot: &'a PartySlot,
+        hint: SlotHint,
         candidates: Vec<(usize, MatchQuality)>,
     }
 
@@ -392,10 +534,16 @@ pub fn solve_multi(
                         score_pet(pet, slot, wl, config).map(|q| (pi, q))
                     })
                     .collect();
+                let hint = slot_hints
+                    .get(ri)
+                    .and_then(|hs| hs.get(si))
+                    .cloned()
+                    .unwrap_or_default();
                 all_slots.push(GlobalSlot {
                     req_idx: ri,
                     slot_idx: si,
                     slot,
+                    hint,
                     candidates,
                 });
             }
@@ -463,7 +611,29 @@ pub fn solve_multi(
                             return syn_cmp;
                         }
                     }
-                    // Higher growth = better tiebreak (prefer stronger pets)
+                    // Look-around tiebreaker: among equally-good candidates,
+                    // prefer the one that also fits this slot's hint derived
+                    // from neighboring depths, so the team carries forward (and
+                    // back). Purely a tiebreaker — it never changes which pets
+                    // are eligible.
+                    if !gs.hint.is_empty() {
+                        let fa = forward_hint_score(available[*pi_a], &gs.hint);
+                        let fb = forward_hint_score(available[*pi_b], &gs.hint);
+                        let fwd_cmp = fb.cmp(&fa);
+                        if fwd_cmp != std::cmp::Ordering::Equal {
+                            return fwd_cmp;
+                        }
+                    }
+                    // Readiness tiebreaker: among equally-matching pets the
+                    // soft preferences above didn't separate, prefer the one
+                    // that's actually more leveled (bucketed DL then CL).
+                    // Higher is better.
+                    let read_cmp =
+                        readiness(available[*pi_b]).cmp(&readiness(available[*pi_a]));
+                    if read_cmp != std::cmp::Ordering::Equal {
+                        return read_cmp;
+                    }
+                    // Higher growth = final tiebreak when levels are similar.
                     let ga = available[*pi_a]
                         .export
                         .as_ref()
@@ -497,6 +667,8 @@ pub fn solve_multi(
                 position: gs.slot_idx,
                 assignment,
                 equipment_suggestion: None,
+                equipment_hint: None,
+                future_class: None,
             },
         );
     }
@@ -520,7 +692,7 @@ pub fn solve_multi(
                 };
             };
 
-            let assignments: Vec<SlotAssignment> = (0..dd.party.len())
+            let mut assignments: Vec<SlotAssignment> = (0..dd.party.len())
                 .map(|si| {
                     assignment_map
                         .remove(&(ri, si))
@@ -531,9 +703,56 @@ pub fn solve_multi(
                                 suggestions: Vec::new(),
                             },
                             equipment_suggestion: None,
+                            equipment_hint: None,
+                            future_class: None,
                         })
                 })
                 .collect();
+
+            // Apply look-around hints to each slot.
+            for (si, sa) in assignments.iter_mut().enumerate() {
+                let Some(hint) = slot_hints.get(ri).and_then(|h| h.get(si)) else {
+                    continue;
+                };
+
+                // Whether the assigned pet actually fits the class the deeper
+                // depth wants here. A pet that doesn't (e.g. a forced Mage in a
+                // slot a deeper Defender recommendation matched) shouldn't
+                // borrow that slot's gear — it'd be for the wrong class.
+                let class_fits = match (&sa.assignment, hint.class) {
+                    (Assignment::Filled { pet, .. }, Some(hc)) => pet_fits_class(pet, hc),
+                    _ => true, // empty slot or no class hint → nothing to clash with
+                };
+
+                // Equipment propagation — only into a generic/absent slot, and
+                // only when the assigned pet fits the hinted class.
+                if class_fits
+                    && let Some(eq) = &hint.equipment
+                    && sa
+                        .slot
+                        .equipment
+                        .as_ref()
+                        .is_none_or(crate::equipment::has_generic_keys)
+                {
+                    sa.equipment_hint = Some(PropagatedEquipment {
+                        equipment: eq.clone(),
+                        from_depth: hint.equipment_from_depth.unwrap_or(req.depth),
+                    });
+                }
+
+                // Future-swap note — a deeper depth wants a different class
+                // here than the pet currently filling the slot. Surfaced as a
+                // soft "consider swapping eventually" hint, not a mismatch.
+                if !class_fits
+                    && let Assignment::Filled { .. } = &sa.assignment
+                    && let Some(hc) = hint.class
+                {
+                    sa.future_class = Some(FutureClass {
+                        class: hc,
+                        from_depth: hint.class_from_depth.unwrap_or(req.depth),
+                    });
+                }
+            }
 
             let assigned_pets: Vec<&MergedPet> = assignments
                 .iter()
@@ -543,8 +762,14 @@ pub fn solve_multi(
                 })
                 .collect();
 
-            let mut warnings =
-                check_coverage(req.data, req.depth, &assigned_pets, config);
+            let mut warnings = check_coverage(
+                req.dungeon,
+                req.data,
+                req.depth,
+                &assigned_pets,
+                config,
+                &constraints.event_overrides,
+            );
             // The greedy phase filters anti-synergies out of its candidate
             // pool, but Phase 1 / 1b (forced and forced_any pre-assignment)
             // honors explicit user intent without rejecting the choice.
@@ -630,14 +855,22 @@ fn score_pet(
 
     // If slot has no class requirement, any dungeon-viable pet works
     let Some(required_class) = &slot.class else {
-        // "Any" class slot — exclude non-dungeon classes (unless whitelisted)
-        if !whitelisted && !is_dungeon_viable(pet) {
-            return None;
+        // "Any" class slot.
+        let base = if pet.is_evolved() {
+            MatchQuality::Exact
+        } else {
+            MatchQuality::Evolvable
+        };
+        // Whitelisted pets bypass the viability filter entirely.
+        if whitelisted {
+            return Some(base);
         }
-        if pet.is_evolved() {
-            return Some(MatchQuality::Exact);
-        }
-        return Some(MatchQuality::Evolvable);
+        return match dungeon_viability(pet) {
+            DungeonViability::Normal => Some(base),
+            // Blacksmiths are allowed but always sink to the bottom.
+            DungeonViability::LowPriority => Some(MatchQuality::LowPriority),
+            DungeonViability::Excluded => None,
+        };
     };
 
     // Flexible-class pets (Holy ITRTG Book etc.) count as a clean match for
@@ -702,6 +935,209 @@ fn matches_slot_element(
     }
 
     false
+}
+
+// =============================================================================
+// Look-around hints (look-ahead + look-behind)
+// =============================================================================
+
+/// A soft preference for a slot, derived by looking at the *other* depths of
+/// the same dungeon. Only ever fills fields the planned depth leaves as
+/// wildcards (`any`), so it can refine but never contradict the planned
+/// depth's explicit requirements (those are ground truth).
+#[derive(Debug, Clone, Default)]
+struct SlotHint {
+    class: Option<Class>,
+    element: Option<Element>,
+    /// Which depth the `class` hint came from (for the future-swap note).
+    class_from_depth: Option<u8>,
+    /// Real (non-generic) equipment from the matched neighboring slot, to be
+    /// propagated into this slot if its own recommendation is absent/generic.
+    equipment: Option<PartyEquipment>,
+    /// Which depth `equipment` was borrowed from (for provenance display).
+    equipment_from_depth: Option<u8>,
+}
+
+impl SlotHint {
+    /// Whether this hint carries a class/element preference. Equipment-only
+    /// hints count as empty here because equipment doesn't drive the pet
+    /// selection tiebreaker — it's applied separately after solving.
+    fn is_empty(&self) -> bool {
+        self.class.is_none() && self.element.is_none()
+    }
+}
+
+/// Compute per-slot look-around hints for a dungeon at `depth`.
+///
+/// The planned depth's *explicit* class/element fields are ground truth and
+/// are never overwritten — hints only ever fill the fields it leaves as `any`.
+///
+/// Dungeon progression is cumulative: a D2 team first clears every D1 room, a
+/// D3 team clears D1+D2 first, and so on. So the team grown for the depth
+/// being planned is both the team brought *deeper* and the team walked back
+/// *through the shallower rooms* on the way to a deeper boss. We therefore
+/// pull hints from every other depth, in priority order:
+///
+/// - **Look-ahead** (deeper depths, nearest first) is the primary source: a
+///   deeper recommendation is — with rare exceptions — a strict refinement of
+///   this one, so we steer the team toward what it will eventually need.
+/// - **Look-behind** (shallower depths, nearest first) is the fallback: when
+///   the planned depth leaves something open that a shallower depth pinned
+///   down (e.g. D4 Scrapyard drops the elements that D3 needed to satisfy its
+///   2-Wind Floating Shrine event), we still try to satisfy it on the way
+///   back through those rooms.
+///
+/// Passes run nearest-first, ahead before behind, and each pass only fills
+/// fields still open after the higher-priority passes — so a nearer depth
+/// always wins a conflict with a farther one. When no other depth exists every
+/// hint is empty and the solver behaves exactly as before.
+fn compute_slot_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
+    let Some(current) = data.depths.get(&depth) else {
+        return Vec::new();
+    };
+    let current = &current.party;
+
+    // Source depths in priority order: deeper nearest-first, then shallower
+    // nearest-first. `BTreeMap::keys` is ascending, so deeper depths are
+    // already nearest-first; shallower depths need reversing.
+    let mut sources: Vec<u8> = data.depths.keys().copied().filter(|&d| d > depth).collect();
+    let mut behind: Vec<u8> = data.depths.keys().copied().filter(|&d| d < depth).collect();
+    behind.reverse();
+    sources.extend(behind);
+
+    let mut hints = vec![SlotHint::default(); current.len()];
+    for src in sources {
+        let pass = match_against(current, &data.depths[&src].party);
+        for (acc, candidate) in hints.iter_mut().zip(pass) {
+            // Only fill fields not already pinned by a higher-priority pass.
+            if acc.class.is_none() {
+                acc.class = candidate.class;
+                if candidate.class.is_some() {
+                    acc.class_from_depth = Some(src);
+                }
+            }
+            if acc.element.is_none() {
+                acc.element = candidate.element;
+            }
+            if acc.equipment.is_none()
+                && let Some(eq) = candidate.equipment
+            {
+                acc.equipment = Some(eq);
+                acc.equipment_from_depth = Some(src);
+            }
+        }
+    }
+
+    hints
+}
+
+/// One greedy matching pass: pair each slot in `current` with a compatible
+/// slot in `target`, returning the fields `target` pins down that `current`
+/// leaves as `any`.
+///
+/// Matching is a greedy bipartite assignment: the planned depth's most
+/// specific slots claim their counterparts first, so concrete slots take their
+/// exact matches before wildcards grab the leftovers. A `target` slot is
+/// *compatible* with a `current` slot when it agrees on every field `current`
+/// specifies (an `any` field matches anything).
+fn match_against(current: &[PartySlot], target: &[PartySlot]) -> Vec<SlotHint> {
+    let mut hints = vec![SlotHint::default(); current.len()];
+    let mut target_used = vec![false; target.len()];
+
+    // Specificity = how many of {class, element} a slot pins down. Process the
+    // most specific current slots first so concrete slots claim their exact
+    // counterparts before full wildcards consume them.
+    let mut order: Vec<usize> = (0..current.len()).collect();
+    order.sort_by_key(|&ci| {
+        let s = current[ci].class.is_some() as u8 + current[ci].element.is_some() as u8;
+        std::cmp::Reverse(s)
+    });
+
+    for ci in order {
+        let cur = &current[ci];
+
+        // Find the best unused, compatible target slot.
+        let best = target
+            .iter()
+            .enumerate()
+            .filter(|(tj, _)| !target_used[*tj])
+            .filter(|(_, t)| slots_compatible(cur, t))
+            .max_by_key(|(tj, t)| {
+                // Prefer the target that adds the most specificity to the
+                // fields this slot leaves open, then an exact class match for
+                // stability, then the lowest index (deterministic).
+                let gain = (cur.class.is_none() && t.class.is_some()) as u8
+                    + (cur.element.is_none() && t.element.is_some()) as u8;
+                let exact_class = (cur.class.is_some() && cur.class == t.class) as u8;
+                (gain, exact_class, std::cmp::Reverse(*tj))
+            });
+
+        if let Some((tj, t)) = best {
+            target_used[tj] = true;
+            if cur.class.is_none() {
+                hints[ci].class = t.class;
+            }
+            if cur.element.is_none() {
+                hints[ci].element = t.element;
+            }
+            // Capture the matched slot's equipment to propagate later, but
+            // only if it's a real (non-generic) recommendation worth reusing.
+            if t.equipment
+                .as_ref()
+                .is_some_and(|e| !crate::equipment::has_generic_keys(e))
+            {
+                hints[ci].equipment = t.equipment.clone();
+            }
+        }
+    }
+
+    hints
+}
+
+/// Whether two slots are compatible — they agree on every field that *both*
+/// pin down (a wildcard field on either side matches anything).
+///
+/// This is symmetric on purpose. A concrete slot should claim a same-class
+/// neighbor even when that neighbor is *less* specific than itself — e.g.
+/// Scrapyard D4 drops the elements D3 carries, so a D3 "Wind Assassin" must
+/// still pair with a D4 "any Assassin" rather than failing to match and
+/// leaving that Assassin slot free for a wildcard to steal. Hint extraction
+/// still only fills the *current* slot's wildcard fields, so a less-specific
+/// neighbor simply contributes no refinement.
+fn slots_compatible(a: &PartySlot, b: &PartySlot) -> bool {
+    let class_ok = match (a.class, b.class) {
+        (Some(x), Some(y)) => x == y,
+        _ => true,
+    };
+    let element_ok = match (a.element, b.element) {
+        (Some(x), Some(y)) => x == y,
+        _ => true,
+    };
+    class_ok && element_ok
+}
+
+/// Score how well a pet satisfies a look-around hint. Higher is better; 0
+/// means the hint is empty or the pet matches none of it. Used only as a
+/// tiebreaker among equal-quality candidates, so it can bias the choice toward
+/// a forward/backward-compatible pet without ever changing which pets are
+/// eligible.
+fn forward_hint_score(pet: &MergedPet, hint: &SlotHint) -> u32 {
+    let mut score = 0;
+    if let Some(el) = hint.element
+        && pet.matches_element(Some(el))
+    {
+        score += 1;
+    }
+    if let Some(cl) = hint.class {
+        let class_ok = match pet.evolved_class() {
+            Some(actual) => actual == cl,
+            None => pet.recommends_class(&cl),
+        };
+        if class_ok {
+            score += 1;
+        }
+    }
+    score
 }
 
 // =============================================================================
@@ -895,15 +1331,35 @@ fn classify_unlock(wiki: &Option<WikiPet>) -> UnlockDifficulty {
 // Coverage checking
 // =============================================================================
 
+/// Whether a dungeon event is enabled for coverage checks, given the user's
+/// overrides. Absent override → default: optional events are disabled (they
+/// carry no in-game penalty), normal events are enabled.
+fn event_enabled(
+    dungeon: Dungeon,
+    depth: u8,
+    event: &EventEntry,
+    overrides: &HashMap<(Dungeon, u8, String), bool>,
+) -> bool {
+    overrides
+        .get(&(dungeon, depth, event.name.clone()))
+        .copied()
+        .unwrap_or(!event.optional)
+}
+
 /// Check event/trap coverage across all sub-depths up to the target.
 ///
 /// When running D2, you first clear all D1 rooms. When running D3, you clear
 /// D1 and D2 rooms first. So events/traps from lower depths can still occur.
+///
+/// Events the user has disabled (or optional events left at their disabled
+/// default) are skipped entirely — no warning is produced for them.
 fn check_coverage(
+    dungeon: Dungeon,
     dungeon_data: &DungeonData,
     target_depth: u8,
     team: &[&MergedPet],
     config: Option<&PlannerConfig>,
+    event_overrides: &HashMap<(Dungeon, u8, String), bool>,
 ) -> Vec<CoverageWarning> {
     let mut warnings = Vec::new();
 
@@ -914,7 +1370,9 @@ fn check_coverage(
 
         // Check traps
         for trap in &dd.traps {
-            if !counter_satisfied(&trap.countered_by, team, config) {
+            if is_actionable_counter(&trap.countered_by)
+                && !counter_satisfied(&trap.countered_by, team, config)
+            {
                 warnings.push(CoverageWarning {
                     source_depth: depth,
                     kind: CoverageKind::Trap,
@@ -924,10 +1382,15 @@ fn check_coverage(
             }
         }
 
-        // Check events
+        // Check events (skipping any the user has disabled).
         for event in &dd.events {
+            if !event_enabled(dungeon, depth, event, event_overrides) {
+                continue;
+            }
             for condition in &event.countered_by {
-                if !counter_satisfied(condition, team, config) {
+                if is_actionable_counter(condition)
+                    && !counter_satisfied(condition, team, config)
+                {
                     warnings.push(CoverageWarning {
                         source_depth: depth,
                         kind: CoverageKind::Event,
@@ -940,6 +1403,17 @@ fn check_coverage(
     }
 
     warnings
+}
+
+/// Whether a counter condition is something the team or items can actually
+/// satisfy. A condition with no item, class, or element (only `notes`) is an
+/// *uncounterable* hazard — e.g. the D4 "unblockable" traps like Railgun /
+/// LethalPoison. Those aren't a team-composition problem, so coverage skips
+/// them rather than emitting a warning the player can never resolve. (Without
+/// this guard `counter_satisfied` would vacuously report them as covered,
+/// which works today but only by accident.)
+fn is_actionable_counter(condition: &CounterCondition) -> bool {
+    condition.item.is_some() || condition.class.is_some() || condition.element.is_some()
 }
 
 /// Check if a counter condition is satisfied by the team.
@@ -1367,6 +1841,86 @@ mod tests {
         // Cat is forced, so Cat should be assigned even though Frog might be "better"
         assert!(matches!(&plans[0].assignments[0].assignment,
             Assignment::Filled { pet, .. } if pet.name == "Cat"));
+    }
+
+    /// A two-slot Assassin party [Assassin/any, Assassin/Wind] for the
+    /// forced-slot-assignment tests below (the Scrapyard D3 Egg/Chicken +
+    /// Succubus case).
+    fn two_assassin_dungeon() -> DungeonData {
+        let mut m = std::collections::BTreeMap::new();
+        m.insert(1, DepthData {
+            rooms: 5, monsters_per_room: 2, gem_level: None,
+            requirements: DepthRequirements {
+                dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                class_level: 3, total_growth: None,
+            },
+            monsters: Vec::new(),
+            bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+            party: vec![
+                make_slot(Some(Class::Assassin), None),
+                make_slot(Some(Class::Assassin), Some(Element::Wind)),
+            ],
+            party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+        });
+        DungeonData { name: "Test".to_string(), depths: m }
+    }
+
+    #[test]
+    fn test_forced_pets_claim_most_specific_slot() {
+        // Two assassins forced into [Assassin/any, Assassin/Wind]. The Wind pet
+        // must take the Wind slot and the Fire pet the Any slot — both Exact,
+        // no Fallback — even when forced in the "wrong" order (flexible first).
+        let pets = vec![
+            mock_pet("WindBlade", Element::Wind, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true),
+            mock_pet("FireBlade", Element::Fire, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true),
+        ];
+        let dd = two_assassin_dungeon();
+
+        let mut constraints = SolverConstraints::default();
+        constraints
+            .forced
+            .insert(Dungeon::Scrapyard, vec!["WindBlade".into(), "FireBlade".into()]);
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        assert!(matches!(&plans[0].assignments[0].assignment,
+            Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.name == "FireBlade"),
+            "the Fire assassin should claim the Any slot (Exact), not be stranded");
+        assert!(matches!(&plans[0].assignments[1].assignment,
+            Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.name == "WindBlade"),
+            "the Wind assassin should claim the Wind slot (Exact)");
+    }
+
+    #[test]
+    fn test_forced_any_pets_claim_most_specific_slot() {
+        // Same as above but via forced_any (solver picks the dungeon/slot).
+        let pets = vec![
+            mock_pet("WindBlade", Element::Wind, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true),
+            mock_pet("FireBlade", Element::Fire, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true),
+        ];
+        let dd = two_assassin_dungeon();
+
+        let constraints = SolverConstraints {
+            forced_any: vec!["WindBlade".into(), "FireBlade".into()],
+            ..Default::default()
+        };
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        let names: Vec<(&str, MatchQuality)> = plans[0]
+            .assignments
+            .iter()
+            .filter_map(|a| match &a.assignment {
+                Assignment::Filled { pet, quality } => Some((pet.name.as_str(), *quality)),
+                Assignment::Empty { .. } => None,
+            })
+            .collect();
+        assert_eq!(names[0], ("FireBlade", MatchQuality::Exact));
+        assert_eq!(names[1], ("WindBlade", MatchQuality::Exact));
     }
 
     // ========================================================================
@@ -1861,5 +2415,737 @@ mod tests {
         // Without config, the pet's Neutral export element makes it fail
         // the wind requirement.
         assert_eq!(score_pet(&loffel, &slot, false, None), None);
+    }
+
+    // ========================================================================
+    // Blacksmith: allowed in "any" slots but lowest priority
+    // ========================================================================
+
+    #[test]
+    fn test_blacksmith_low_priority_in_any_slot() {
+        // A Blacksmith is eligible for an "any" class slot, but only at
+        // LowPriority — below every proper dungeon-class candidate.
+        let smith = mock_pet(
+            "Smith",
+            Element::Fire,
+            Some(Class::Blacksmith),
+            RecommendedClass::Single(Class::Blacksmith),
+            true,
+        );
+        let slot = make_slot(None, None);
+        assert_eq!(
+            score_pet(&smith, &slot, false, None),
+            Some(MatchQuality::LowPriority),
+        );
+    }
+
+    #[test]
+    fn test_alchemist_still_excluded_from_any_slot() {
+        // Alchemists never earn dungeon class XP — still excluded.
+        let bee = mock_pet(
+            "Bee",
+            Element::Wind,
+            Some(Class::Alchemist),
+            RecommendedClass::Single(Class::Alchemist),
+            true,
+        );
+        let slot = make_slot(None, None);
+        assert_eq!(score_pet(&bee, &slot, false, None), None);
+    }
+
+    #[test]
+    fn test_blacksmith_still_matches_required_blacksmith_slot() {
+        // When a slot *requires* a Blacksmith (e.g. Volcano's Burning Weapons
+        // event), the viability deprioritization is bypassed entirely.
+        let smith = mock_pet(
+            "Smith",
+            Element::Fire,
+            Some(Class::Blacksmith),
+            RecommendedClass::Single(Class::Blacksmith),
+            true,
+        );
+        let slot = make_slot(Some(Class::Blacksmith), Some(Element::Fire));
+        assert_eq!(
+            score_pet(&smith, &slot, false, None),
+            Some(MatchQuality::Exact),
+        );
+    }
+
+    #[test]
+    fn test_dungeon_class_beats_blacksmith_for_any_slot() {
+        // Given one "any" slot and both a Defender and a Blacksmith, the
+        // Defender wins because LowPriority sorts below Exact.
+        let pets = vec![
+            mock_pet(
+                "Smith",
+                Element::Fire,
+                Some(Class::Blacksmith),
+                RecommendedClass::Single(Class::Blacksmith),
+                true,
+            ),
+            mock_pet(
+                "Guard",
+                Element::Fire,
+                Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender),
+                true,
+            ),
+        ];
+
+        let dd = DungeonData {
+            name: "Test".to_string(),
+            depths: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert(1, DepthData {
+                    rooms: 5, monsters_per_room: 2, gem_level: None,
+                    requirements: DepthRequirements {
+                        dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                        class_level: 3, total_growth: None,
+                    },
+                    monsters: Vec::new(),
+                    bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                    party: vec![make_slot(None, None)],
+                    party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+                });
+                m
+            },
+        };
+
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Guard"),
+            "Defender should beat Blacksmith for an 'any' slot");
+    }
+
+    // ========================================================================
+    // Look-around: bias toward neighboring-depth recommendations
+    // ========================================================================
+
+    /// Build a dungeon from a list of per-depth party compositions (index 0 →
+    /// depth 1, index 1 → depth 2, …). Requirements/monsters are filler — only
+    /// the party shape matters for look-around tests.
+    fn dungeon_with_depths(parties: Vec<Vec<PartySlot>>) -> DungeonData {
+        let filler = |party: Vec<PartySlot>| DepthData {
+            rooms: 5, monsters_per_room: 2, gem_level: None,
+            requirements: DepthRequirements {
+                dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                class_level: 3, total_growth: None,
+            },
+            monsters: Vec::new(),
+            bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+            party,
+            party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+        };
+        let mut depths = std::collections::BTreeMap::new();
+        for (i, party) in parties.into_iter().enumerate() {
+            depths.insert((i + 1) as u8, filler(party));
+        }
+        DungeonData { name: "Test".to_string(), depths }
+    }
+
+    /// Convenience wrapper for the common two-depth case.
+    fn two_depth_dungeon(d1: Vec<PartySlot>, d2: Vec<PartySlot>) -> DungeonData {
+        dungeon_with_depths(vec![d1, d2])
+    }
+
+    /// An empty equipment catalog — enough for `enrich_equipment` to run the
+    /// static/propagated tagging paths (which don't touch the catalog).
+    fn test_catalog() -> EquipmentCatalog {
+        EquipmentCatalog {
+            weapons: std::collections::BTreeMap::new(),
+            armor: std::collections::BTreeMap::new(),
+            accessories: std::collections::BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn test_forward_hint_refines_wildcard_element() {
+        // D1 wants a Defender of any element; D2 wants a Fire Defender. When
+        // planning D1, the Fire defender should be preferred over a
+        // higher-growth Water defender purely on the look-ahead tiebreaker.
+        let dd = two_depth_dungeon(
+            vec![make_slot(Some(Class::Defender), None)],
+            vec![make_slot(Some(Class::Defender), Some(Element::Fire))],
+        );
+
+        let pets = vec![
+            // Water defender with much higher growth — would win without the hint.
+            mock_pet_with_evo("WaterGuard", Element::Water, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true, 1, 1, 99999),
+            mock_pet_with_evo("FireGuard", Element::Fire, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true, 1, 1, 10000),
+        ];
+
+        let hints = compute_slot_hints(&dd, 1);
+        assert_eq!(hints[0].element, Some(Element::Fire));
+
+        let plan = solve(Dungeon::Volcano, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "FireGuard"),
+            "look-ahead should prefer the Fire defender for the eventual D2 Fire slot");
+    }
+
+    #[test]
+    fn test_forward_hint_fills_full_wildcard_class() {
+        // D1: [Defender/any, any/any]. D2: [Defender/any, Assassin/Wind].
+        // The leftover wildcard should lean toward a Wind Assassin.
+        let dd = two_depth_dungeon(
+            vec![
+                make_slot(Some(Class::Defender), None),
+                make_slot(None, None),
+            ],
+            vec![
+                make_slot(Some(Class::Defender), None),
+                make_slot(Some(Class::Assassin), Some(Element::Wind)),
+            ],
+        );
+
+        let hints = compute_slot_hints(&dd, 1);
+        // Slot 0 (Defender) matched the D2 Defender → no refinement.
+        assert!(hints[0].is_empty());
+        // Slot 1 (wildcard) inherited Assassin + Wind from the leftover D2 slot.
+        assert_eq!(hints[1].class, Some(Class::Assassin));
+        assert_eq!(hints[1].element, Some(Element::Wind));
+
+        let pets = vec![
+            mock_pet_with_evo("Guard", Element::Earth, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true, 1, 1, 10000),
+            // High-growth mage — would win the wildcard without the hint.
+            mock_pet_with_evo("Sage", Element::Water, Some(Class::Mage),
+                RecommendedClass::Single(Class::Mage), true, 1, 1, 99999),
+            mock_pet_with_evo("WindBlade", Element::Wind, Some(Class::Assassin),
+                RecommendedClass::Single(Class::Assassin), true, 1, 1, 10000),
+        ];
+
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        // Slot 0 → Guard (only defender). Slot 1 (wildcard) → WindBlade via hint.
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Guard"));
+        assert!(matches!(&plan.assignments[1].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "WindBlade"),
+            "wildcard slot should lean toward the forward-compatible Wind Assassin");
+    }
+
+    #[test]
+    fn test_no_hint_for_single_depth_dungeon() {
+        // A dungeon with only the depth being planned has no neighbors to pull
+        // hints from — the solver behaves exactly as before.
+        let dd = dungeon_with_depths(vec![vec![make_slot(Some(Class::Defender), None)]]);
+        let hints = compute_slot_hints(&dd, 1);
+        assert!(hints.iter().all(|h| h.is_empty()));
+    }
+
+    #[test]
+    fn test_lookbehind_recovers_dropped_element() {
+        // D4-style case: the deepest depth drops the elements that a shallower
+        // depth needed (e.g. Scrapyard D3's 2-Wind Floating Shrine event).
+        // Planning the deepest depth, look-behind should recover them.
+        let dd = dungeon_with_depths(vec![
+            // D1: specific Wind elements.
+            vec![
+                make_slot(Some(Class::Assassin), Some(Element::Wind)),
+                make_slot(Some(Class::Rogue), Some(Element::Wind)),
+            ],
+            // D2 (planned, deepest): same classes but elements wildcard.
+            vec![
+                make_slot(Some(Class::Assassin), None),
+                make_slot(Some(Class::Rogue), None),
+            ],
+        ]);
+
+        let hints = compute_slot_hints(&dd, 2);
+        assert_eq!(hints[0].element, Some(Element::Wind));
+        assert_eq!(hints[1].element, Some(Element::Wind));
+    }
+
+    #[test]
+    fn test_nearer_depth_wins_hint_conflict() {
+        // Planning D1 with two deeper depths that disagree on the Defender's
+        // element. The nearer depth (D2) should win the conflict.
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(Some(Class::Defender), None)],          // D1 (planned)
+            vec![make_slot(Some(Class::Defender), Some(Element::Water))], // D2
+            vec![make_slot(Some(Class::Defender), Some(Element::Fire))],  // D3
+        ]);
+        let hints = compute_slot_hints(&dd, 1);
+        assert_eq!(
+            hints[0].element,
+            Some(Element::Water),
+            "the nearer depth (D2) should win the element conflict over D3",
+        );
+    }
+
+    #[test]
+    fn test_farther_depth_fills_what_nearer_left_open() {
+        // Volcano-style: D2 and D3 both leave the Defender's element open, but
+        // D4 pins it to Fire. Planning D2, the Fire hint should come from D4
+        // since the nearer D3 contributes nothing for that field.
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(Some(Class::Defender), None)],          // D1
+            vec![make_slot(Some(Class::Defender), None)],          // D2 (planned)
+            vec![make_slot(Some(Class::Defender), None)],          // D3
+            vec![make_slot(Some(Class::Defender), Some(Element::Fire))], // D4
+        ]);
+        let hints = compute_slot_hints(&dd, 2);
+        assert_eq!(hints[0].element, Some(Element::Fire));
+    }
+
+    #[test]
+    fn test_hints_ignore_party_order_reshuffle() {
+        // Mirrors Scrapyard D2 -> D3, where the Rogue moves from the front
+        // row to the back and a wildcard becomes a second (Wind) Assassin.
+        // Matching is by class/element, not position, so planning D2 should
+        // still turn a wildcard into an Assassin and bias both assassins/rogue
+        // toward Wind — regardless of which slot index things sit in.
+        let d2 = vec![
+            make_slot(Some(Class::Assassin), None),
+            make_slot(Some(Class::Rogue), None),
+            make_slot(Some(Class::Defender), None),
+            make_slot(Some(Class::Supporter), None),
+            make_slot(None, None),
+            make_slot(None, None),
+        ];
+        let d3 = vec![
+            make_slot(Some(Class::Assassin), None),
+            make_slot(Some(Class::Assassin), Some(Element::Wind)),
+            make_slot(Some(Class::Defender), None),
+            make_slot(Some(Class::Supporter), None),
+            make_slot(Some(Class::Rogue), Some(Element::Wind)),
+            make_slot(None, None),
+        ];
+        let dd = dungeon_with_depths(vec![d2, d3]);
+        let hints = compute_slot_hints(&dd, 1);
+
+        // The existing Assassin slot leans Wind (from D3's Wind Assassin).
+        assert_eq!(hints[0].element, Some(Element::Wind));
+        // The Rogue slot leans Wind even though it sits in a different D3 slot.
+        assert_eq!(hints[1].element, Some(Element::Wind));
+        // Exactly one wildcard becomes an Assassin (the extra one D3 adds);
+        // the other stays a pure wildcard.
+        let wildcard_classes: Vec<Option<Class>> = vec![hints[4].class, hints[5].class];
+        assert!(
+            wildcard_classes.contains(&Some(Class::Assassin)),
+            "a leftover wildcard should be hinted toward the extra Assassin",
+        );
+        assert_eq!(
+            wildcard_classes.iter().filter(|c| c.is_some()).count(),
+            1,
+            "only the one extra Assassin should be added, not both wildcards",
+        );
+    }
+
+    #[test]
+    fn test_equipment_propagates_from_deeper_depth() {
+        // A D1 wildcard slot with no equipment should inherit the exact gear
+        // from the deeper slot that the hint matched it to.
+        let deeper_equip = PartyEquipment {
+            weapon: Some("inferno_sword".to_string()),
+            armor: Some("titanium_armor".to_string()),
+            accessory: Some("inferno_gloves".to_string()),
+            gems: None,
+        };
+        let mut d2_slot = make_slot(Some(Class::Assassin), Some(Element::Fire));
+        d2_slot.equipment = Some(deeper_equip.clone());
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(None, None)], // D1 wildcard, no equipment
+            vec![d2_slot],               // D2 Fire Assassin with real gear
+        ]);
+
+        let hints = compute_slot_hints(&dd, 1);
+        assert_eq!(hints[0].class, Some(Class::Assassin));
+        assert_eq!(hints[0].equipment_from_depth, Some(2));
+
+        let pets = vec![mock_pet("Blade", Element::Fire, Some(Class::Assassin),
+            RecommendedClass::Single(Class::Assassin), true)];
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+
+        // The slot carries the propagated equipment from D2.
+        let hint = plan.assignments[0]
+            .equipment_hint
+            .as_ref()
+            .expect("wildcard slot should inherit D2 equipment");
+        assert_eq!(hint.from_depth, 2);
+        assert_eq!(hint.equipment.weapon.as_deref(), Some("inferno_sword"));
+
+        // And enrichment turns it into a Propagated suggestion.
+        let mut plan = plan;
+        let catalog = test_catalog();
+        crate::equipment::enrich_equipment(&mut plan, &catalog, None);
+        let suggestion = plan.assignments[0]
+            .equipment_suggestion
+            .as_ref()
+            .expect("propagated equipment should yield a suggestion even without config");
+        assert!(matches!(
+            suggestion.source,
+            crate::equipment::EquipmentSource::Propagated { from_depth: 2 }
+        ));
+    }
+
+    #[test]
+    fn test_equipment_not_propagated_over_real_static_gear() {
+        // A slot that already has its own (non-generic) gear keeps it — the
+        // deeper depth's gear is not pulled in over a real recommendation.
+        let own = PartyEquipment {
+            weapon: Some("steel_sword".to_string()),
+            armor: Some("steel_armor".to_string()),
+            accessory: Some("steel_ring".to_string()),
+            gems: None,
+        };
+        let deeper = PartyEquipment {
+            weapon: Some("titanium_sword".to_string()),
+            armor: Some("titanium_armor".to_string()),
+            accessory: Some("titanium_ring".to_string()),
+            gems: None,
+        };
+        let mut d1_slot = make_slot(Some(Class::Defender), None);
+        d1_slot.equipment = Some(own);
+        let mut d2_slot = make_slot(Some(Class::Defender), Some(Element::Fire));
+        d2_slot.equipment = Some(deeper);
+        let dd = dungeon_with_depths(vec![vec![d1_slot], vec![d2_slot]]);
+
+        let pets = vec![mock_pet("Guard", Element::Fire, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+
+        assert!(
+            plan.assignments[0].equipment_hint.is_none(),
+            "a slot with its own real gear must not be overwritten by propagation",
+        );
+    }
+
+    #[test]
+    fn test_concrete_slot_claims_less_specific_neighbor() {
+        // Scrapyard D3 -> D4 shape: D4 drops elements, so a concrete Wind
+        // Assassin must still pair with a D4 "any Assassin" rather than failing
+        // to match and leaving that slot for the wildcard. The wildcard should
+        // therefore inherit the genuine leftover (Defender), not an Assassin.
+        let current = vec![
+            make_slot(Some(Class::Assassin), Some(Element::Wind)),
+            make_slot(None, None),
+        ];
+        let deeper = vec![
+            make_slot(Some(Class::Assassin), None),
+            make_slot(Some(Class::Defender), None),
+        ];
+        let dd = dungeon_with_depths(vec![current, deeper]);
+
+        let hints = compute_slot_hints(&dd, 1);
+        // Concrete Assassin/Wind consumed the D2 Assassin (no refinement).
+        assert!(hints[0].is_empty());
+        // Wildcard picked up the leftover Defender, not the Assassin slot.
+        assert_eq!(hints[1].class, Some(Class::Defender));
+    }
+
+    #[test]
+    fn test_no_propagation_when_pet_class_mismatches_hint() {
+        // A wildcard slot whose look-ahead wants a Defender, but a Mage is
+        // forced in. The Mage must NOT borrow the Defender's gear; instead the
+        // slot gets a future-swap note pointing at the Defender.
+        let mut d2_defender = make_slot(Some(Class::Defender), None);
+        d2_defender.equipment = Some(PartyEquipment {
+            weapon: Some("titanium_sword".to_string()),
+            armor: Some("titanium_armor".to_string()),
+            accessory: Some("titanium_ring".to_string()),
+            gems: None,
+        });
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(None, None)], // D1 wildcard, no equipment
+            vec![d2_defender],           // D2 Defender with real gear
+        ]);
+
+        let pets = vec![mock_pet("Archmage", Element::Fire, Some(Class::Mage),
+            RecommendedClass::Single(Class::Mage), true)];
+
+        let mut constraints = SolverConstraints::default();
+        constraints.forced.insert(Dungeon::Scrapyard, vec!["Archmage".into()]);
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        let sa = &plans[0].assignments[0];
+        assert!(
+            sa.equipment_hint.is_none(),
+            "a Mage must not inherit Defender gear from the look-ahead",
+        );
+        let future = sa.future_class.expect("should flag the future Defender");
+        assert_eq!(future.class, Class::Defender);
+        assert_eq!(future.from_depth, 2);
+    }
+
+    #[test]
+    fn test_propagation_when_pet_class_matches_hint() {
+        // Same shape, but the forced pet IS the hinted class — gear propagates
+        // and there's no future-swap note.
+        let mut d2_defender = make_slot(Some(Class::Defender), None);
+        d2_defender.equipment = Some(PartyEquipment {
+            weapon: Some("titanium_sword".to_string()),
+            armor: Some("titanium_armor".to_string()),
+            accessory: Some("titanium_ring".to_string()),
+            gems: None,
+        });
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(None, None)],
+            vec![d2_defender],
+        ]);
+
+        let pets = vec![mock_pet("Bulwark", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+
+        let mut constraints = SolverConstraints::default();
+        constraints.forced.insert(Dungeon::Scrapyard, vec!["Bulwark".into()]);
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        let sa = &plans[0].assignments[0];
+        assert!(sa.equipment_hint.is_some(),
+            "a Defender should inherit the Defender gear");
+        assert!(sa.future_class.is_none(), "no swap note when the class fits");
+    }
+
+    #[test]
+    fn test_readiness_beats_growth() {
+        // Two equally-matching Defenders compete for one slot: a high-level
+        // low-growth veteran and a low-level high-growth rookie. The veteran
+        // should win — actual DL/CL outrank growth.
+        let mut veteran = mock_pet_with_evo("Veteran", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 10_000);
+        {
+            let e = veteran.export.as_mut().unwrap();
+            e.dungeon_level = 200;
+            e.class_level = 50;
+            e.growth = 10_000;
+        }
+        let mut rookie = mock_pet_with_evo("Rookie", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 999_999);
+        {
+            let e = rookie.export.as_mut().unwrap();
+            e.dungeon_level = 20;
+            e.class_level = 5;
+            e.growth = 999_999;
+        }
+        let pets = vec![veteran, rookie];
+
+        let dd = dungeon_with_depths(vec![vec![make_slot(
+            Some(Class::Defender),
+            Some(Element::Neutral),
+        )]]);
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Veteran"),
+            "the higher-leveled pet should win despite much lower growth");
+    }
+
+    #[test]
+    fn test_growth_breaks_tie_when_levels_similar() {
+        // Two Defenders within the same DL/CL buckets — growth is the
+        // tiebreaker, so the higher-growth pet wins even if slightly lower DL.
+        let mut high_growth = mock_pet_with_evo("HighGrowth", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 999_999);
+        {
+            let e = high_growth.export.as_mut().unwrap();
+            e.dungeon_level = 100; // bucket 10
+            e.class_level = 22;    // bucket 4
+            e.growth = 999_999;
+        }
+        let mut high_level = mock_pet_with_evo("HighLevel", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 10_000);
+        {
+            let e = high_level.export.as_mut().unwrap();
+            e.dungeon_level = 105; // bucket 10 (same)
+            e.class_level = 24;    // bucket 4 (same)
+            e.growth = 10_000;
+        }
+        let pets = vec![high_growth, high_level];
+
+        let dd = dungeon_with_depths(vec![vec![make_slot(
+            Some(Class::Defender),
+            Some(Element::Neutral),
+        )]]);
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "HighGrowth"),
+            "with similar DL/CL, higher growth should decide");
+    }
+
+    #[test]
+    fn test_lookahead_beats_lookbehind_on_conflict() {
+        // When a deeper and a shallower depth disagree on an open field, the
+        // deeper (look-ahead) value wins — we prioritize where the team is
+        // headed over where it's been.
+        let dd = dungeon_with_depths(vec![
+            vec![make_slot(Some(Class::Defender), Some(Element::Earth))], // D1 (behind)
+            vec![make_slot(Some(Class::Defender), None)],                 // D2 (planned)
+            vec![make_slot(Some(Class::Defender), Some(Element::Fire))],  // D3 (ahead)
+        ]);
+        let hints = compute_slot_hints(&dd, 2);
+        assert_eq!(
+            hints[0].element,
+            Some(Element::Fire),
+            "look-ahead (D3 Fire) should win over look-behind (D1 Earth)",
+        );
+    }
+
+    #[test]
+    fn test_forward_hint_does_not_override_match_quality() {
+        // The hint is only a tiebreaker: it must not promote a worse-quality
+        // candidate. D1 wildcard hinted toward Assassin, but the only Assassin
+        // is unevolved (Evolvable) while an evolved Defender is Exact for the
+        // "any" slot — the evolved pet must still win.
+        let dd = two_depth_dungeon(
+            vec![make_slot(None, None)],
+            vec![make_slot(Some(Class::Assassin), Some(Element::Wind))],
+        );
+
+        let pets = vec![
+            // Evolved defender → Exact for an "any" slot.
+            mock_pet_with_evo("Guard", Element::Earth, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true, 1, 1, 10000),
+            // Unevolved assassin → only Evolvable, even though it fits the hint.
+            mock_pet_with_evo("Recruit", Element::Wind, None,
+                RecommendedClass::Single(Class::Assassin), true, 1, 1, 99999),
+        ];
+
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, quality: MatchQuality::Exact } if pet.name == "Guard"),
+            "an Exact evolved pet must beat an Evolvable pet that merely fits the hint");
+    }
+
+    // ========================================================================
+    // Event enable/disable in coverage
+    // ========================================================================
+
+    fn class_event(name: &str, class: Class, optional: bool) -> EventEntry {
+        EventEntry {
+            name: name.to_string(),
+            chance_pct: 20,
+            countered_by: vec![CounterCondition {
+                item: None,
+                class: Some(class),
+                element: None,
+                count: None,
+                quantity_per_clear: None,
+                notes: None,
+            }],
+            optional,
+        }
+    }
+
+    /// Build a one-depth dungeon whose D1 has the given events and a single
+    /// "any" slot, so we can drive the coverage check via `solve_multi`.
+    fn dungeon_with_events(events: Vec<EventEntry>) -> DungeonData {
+        let mut depths = std::collections::BTreeMap::new();
+        depths.insert(1, DepthData {
+            rooms: 5, monsters_per_room: 2, gem_level: None,
+            requirements: DepthRequirements {
+                dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                class_level: 3, total_growth: None,
+            },
+            monsters: Vec::new(),
+            bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+            party: vec![make_slot(None, None)],
+            party_items: Vec::new(), traps: Vec::new(), events,
+        });
+        DungeonData { name: "Test".to_string(), depths }
+    }
+
+    fn event_warning_names(plan: &DungeonPlan) -> Vec<String> {
+        plan.warnings
+            .iter()
+            .filter(|w| matches!(w.kind, CoverageKind::Event))
+            .map(|w| w.name.clone())
+            .collect()
+    }
+
+    #[test]
+    fn test_optional_event_skipped_by_default() {
+        // A Defender team fails both a normal Rogue event and an optional
+        // Blacksmith event. By default only the normal event warns.
+        let dd = dungeon_with_events(vec![
+            class_event("Rogue Event", Class::Rogue, false),
+            class_event("Blacksmith Event", Class::Blacksmith, true),
+        ]);
+        let pets = vec![mock_pet("Guard", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+
+        let requests = [DungeonRequest { dungeon: Dungeon::WaterTemple, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &SolverConstraints::default(), None);
+
+        let warned = event_warning_names(&plans[0]);
+        assert!(warned.contains(&"Rogue Event".to_string()));
+        assert!(
+            !warned.contains(&"Blacksmith Event".to_string()),
+            "optional events should be skipped by default",
+        );
+    }
+
+    #[test]
+    fn test_event_overrides_flip_coverage() {
+        // Overrides can disable a normal event and enable an optional one.
+        let dd = dungeon_with_events(vec![
+            class_event("Rogue Event", Class::Rogue, false),
+            class_event("Blacksmith Event", Class::Blacksmith, true),
+        ]);
+        let pets = vec![mock_pet("Guard", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+
+        let mut constraints = SolverConstraints::default();
+        // Disable the normal Rogue event…
+        constraints.event_overrides.insert(
+            (Dungeon::WaterTemple, 1, "Rogue Event".to_string()), false);
+        // …and enable the optional Blacksmith event.
+        constraints.event_overrides.insert(
+            (Dungeon::WaterTemple, 1, "Blacksmith Event".to_string()), true);
+
+        let requests = [DungeonRequest { dungeon: Dungeon::WaterTemple, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        let warned = event_warning_names(&plans[0]);
+        assert!(
+            !warned.contains(&"Rogue Event".to_string()),
+            "an explicitly disabled normal event should not warn",
+        );
+        assert!(
+            warned.contains(&"Blacksmith Event".to_string()),
+            "an explicitly enabled optional event should warn when uncovered",
+        );
+    }
+
+    #[test]
+    fn test_unblockable_trap_emits_no_warning() {
+        // A trap whose only counter field is `notes` (the D4 "unblockable"
+        // traps like Railgun) is uncounterable, so coverage must not warn.
+        let mut depths = std::collections::BTreeMap::new();
+        depths.insert(1, DepthData {
+            rooms: 5, monsters_per_room: 2, gem_level: None,
+            requirements: DepthRequirements {
+                dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                class_level: 3, total_growth: None,
+            },
+            monsters: Vec::new(),
+            bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+            party: vec![make_slot(None, None)],
+            party_items: Vec::new(),
+            traps: vec![TrapEntry {
+                name: "Railgun".to_string(),
+                chance_pct: 100,
+                countered_by: CounterCondition {
+                    item: None, class: None, element: None,
+                    count: None, quantity_per_clear: None,
+                    notes: Some("Unblockable — no counter available.".to_string()),
+                },
+            }],
+            events: Vec::new(),
+        });
+        let dd = DungeonData { name: "Test".to_string(), depths };
+        let pets = vec![mock_pet("Guard", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &SolverConstraints::default(), None);
+
+        assert!(
+            !plans[0].warnings.iter().any(|w| matches!(w.kind, CoverageKind::Trap)),
+            "an unblockable (notes-only) trap should not produce a coverage warning",
+        );
     }
 }
