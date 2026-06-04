@@ -522,12 +522,12 @@ mod tests {
     // appears *before* the Evolution Requirements block, which has its own
     // "Total Growth" (the threshold). The parser must pick the latter.
     const MOUSE_EVO_HTML: &str = r#"
-        <tr><td colspan="2"><b>Total Growth</b></td><td colspan="2">420</td></tr>
+        <tr><td colspan="2"><b>Total Growth</b> </td><td colspan="2">420</td></tr>
         <tr><td colspan="4"><i><b>Evolution Requirements</b></i></td></tr>
         <tr><td colspan="4" rowspan="3">Defeat <a href="/wiki/Gods">Hyperion</a></td>
-        <td colspan="2"><b>Total Growth</b></td><td colspan="2">100</td></tr>
-        <tr><td colspan="2"><b>Material</b></td><td colspan="2">5 Wood</td></tr>
-        <tr><td colspan="2"><b>Other</b></td><td colspan="2">100 Puny Food</td></tr>
+        <td colspan="2"><b>Total Growth</b> </td><td colspan="2">100</td></tr>
+        <tr><td colspan="2"><b>Material</b> </td><td colspan="2">5 Wood</td></tr>
+        <tr><td colspan="2"><b>Other</b> </td><td colspan="2">100 Puny Food</td></tr>
     "#;
 
     #[test]
@@ -543,9 +543,9 @@ mod tests {
         // Sylph-style: large threshold and a wikilinked questline in "Other".
         let html = r#"
             <td colspan="4"><i><b>Evolution Requirements</b></i></td></tr>
-            <tr><td colspan="2"><b>Total Growth</b></td><td colspan="2">55,555</td></tr>
-            <tr><td colspan="2"><b>Material</b></td><td colspan="2">2778 <a href="/wiki/Bound_Feather">Bound Feather</a></td></tr>
-            <tr><td colspan="2"><b>Other</b></td><td colspan="2">Finish the <a href="/wiki/Sylph">Questline</a> (You <b>cannot</b> use a Pet Token)</td></tr>
+            <tr><td colspan="2"><b>Total Growth</b> </td><td colspan="2">55,555</td></tr>
+            <tr><td colspan="2"><b>Material</b> </td><td colspan="2">2778 <a href="/wiki/Bound_Feather">Bound Feather</a></td></tr>
+            <tr><td colspan="2"><b>Other</b> </td><td colspan="2">Finish the <a href="/wiki/Sylph">Questline</a> (You <b>cannot</b> use a Pet Token)</td></tr>
         "#;
         let evo = parse_evo_requirements(html).expect("should parse");
         assert_eq!(evo.total_growth, 55555);
@@ -567,9 +567,9 @@ mod tests {
         // its "Other" is the literal "none".
         let html = r#"
             <td colspan="4"><i><b>Evolution Requirements</b></i></td></tr>
-            <tr><td colspan="2"><b>Total Growth</b></td><td colspan="2">300000 <b>base growth</b></td></tr>
-            <tr><td colspan="2"><b>Material</b></td><td colspan="2">3000 Magic Ore</td></tr>
-            <tr><td colspan="2"><b>Other</b></td><td colspan="2">none</td></tr>
+            <tr><td colspan="2"><b>Total Growth</b> </td><td colspan="2">300000 <b>base growth</b> </td></tr>
+            <tr><td colspan="2"><b>Material</b> </td><td colspan="2">3000 Magic Ore</td></tr>
+            <tr><td colspan="2"><b>Other</b> </td><td colspan="2">none</td></tr>
         "#;
         let evo = parse_evo_requirements(html).expect("should parse despite suffix");
         assert_eq!(evo.total_growth, 300000);
