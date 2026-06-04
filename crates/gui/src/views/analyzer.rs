@@ -6,7 +6,7 @@ use itrtg_models::{
     CampaignType, Class, Dungeon, Element, PetAction, RecommendedClass, UnlockCondition,
     VillageJob,
 };
-use itrtg_planner::merge::MergedPet;
+use itrtg_planner::merge::{EvoReadiness, MergedPet};
 use serde::{Deserialize, Serialize};
 
 use crate::data::DataStore;
@@ -424,6 +424,9 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
             });
     }
 
+    // Evolution requirements + readiness
+    show_evolution_section(ui, pet);
+
     // Export data section
     if let Some(export) = &pet.export {
         ui.add_space(8.0);
@@ -551,6 +554,89 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
     }
 }
 
+/// Evolution requirements (growth threshold, material, other) plus a
+/// readiness badge for unevolved pets. No-op for pets without scraped evo data.
+fn show_evolution_section(ui: &mut Ui, pet: &MergedPet) {
+    let Some(req) = pet.wiki.as_ref().and_then(|w| w.evo_requirements.as_ref()) else {
+        return;
+    };
+
+    ui.add_space(8.0);
+    ui.separator();
+    ui.label(
+        RichText::new("Evolution Requirements")
+            .color(style::TEXT_BRIGHT)
+            .size(13.0)
+            .strong(),
+    );
+    ui.add_space(2.0);
+
+    egui::Grid::new("pet_evo_grid")
+        .num_columns(2)
+        .spacing([12.0, 4.0])
+        .show(ui, |ui| {
+            // Growth threshold. Base-growth thresholds (Baby Carno) are flagged
+            // because the Magic Egg can't help reach them.
+            let label = if req.growth.requires_base_growth() {
+                "Growth (base):"
+            } else {
+                "Growth:"
+            };
+            ui.label(RichText::new(label).color(style::TEXT_MUTED).size(12.0));
+            ui.label(
+                RichText::new(format_number(req.growth.value().max(0) as u64))
+                    .color(style::TEXT_NORMAL)
+                    .size(12.0)
+                    .family(egui::FontFamily::Monospace),
+            );
+            ui.end_row();
+
+            if let Some(material) = &req.material {
+                ui.label(RichText::new("Material:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(RichText::new(material).color(style::TEXT_NORMAL).size(12.0));
+                ui.end_row();
+            }
+            if let Some(other) = &req.other {
+                ui.label(RichText::new("Other:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(RichText::new(other).color(style::TEXT_NORMAL).size(12.0));
+                ui.end_row();
+            }
+        });
+
+    // Readiness badge — only present for unlocked, still-unevolved pets.
+    if let Some(readiness) = pet.evo_readiness() {
+        ui.add_space(2.0);
+        match readiness {
+            EvoReadiness::Ready => {
+                ui.label(
+                    RichText::new("✓ Ready to evolve")
+                        .color(style::SUCCESS)
+                        .size(12.0)
+                        .strong(),
+                );
+            }
+            EvoReadiness::ReadyWithEgg => {
+                ui.label(
+                    RichText::new("Ready to evolve with Magic Egg (+30%)")
+                        .color(style::WARNING)
+                        .size(12.0)
+                        .strong(),
+                );
+            }
+            EvoReadiness::NotYet => {
+                if let Some(export) = &pet.export {
+                    let needed = (req.growth.value() - export.growth as i64).max(0);
+                    ui.label(
+                        RichText::new(format!("{} more growth to threshold", format_number(needed as u64)))
+                            .color(style::TEXT_MUTED)
+                            .size(12.0),
+                    );
+                }
+            }
+        }
+    }
+}
+
 fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
     ui.horizontal(|ui| {
         let total = data.merged.len();
@@ -574,6 +660,29 @@ fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
                 .color(style::ACCENT)
                 .size(13.0),
         );
+
+        // Unevolved pets that meet (or can reach with the Magic Egg) their
+        // evolution growth threshold.
+        let ready = data
+            .merged
+            .iter()
+            .filter(|p| p.evo_readiness() == Some(EvoReadiness::Ready))
+            .count();
+        let ready_egg = data
+            .merged
+            .iter()
+            .filter(|p| p.evo_readiness() == Some(EvoReadiness::ReadyWithEgg))
+            .count();
+        if ready + ready_egg > 0 {
+            ui.separator();
+            let text = if ready_egg > 0 {
+                format!("Ready to evolve: {ready} (+{ready_egg} w/ egg)")
+            } else {
+                format!("Ready to evolve: {ready}")
+            };
+            ui.label(RichText::new(text).color(style::SUCCESS).size(13.0))
+                .on_hover_text("Unevolved pets whose growth meets the evolution threshold (the '+N w/ egg' reach it only with a Magic Egg equipped)");
+        }
 
         // Total growth of unlocked pets
         let total_growth: u64 = data
@@ -862,12 +971,12 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                     }
                 });
 
-                // Growth
+                // Growth (+ evolution-readiness marker)
                 row.col(|ui| {
                     if let Some(export) = &pet.export {
-                        if export.has_magic_egg() {
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 2.0;
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
+                            if export.has_magic_egg() {
                                 ui.label(
                                     RichText::new(format_number(export.growth))
                                         .color(style::TEXT_MUTED)
@@ -880,15 +989,28 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                                         .size(12.0)
                                         .family(egui::FontFamily::Monospace),
                                 );
-                            });
-                        } else {
-                            ui.label(
-                                RichText::new(format_number(export.growth))
-                                    .color(text_color)
-                                    .size(12.0)
-                                    .family(egui::FontFamily::Monospace),
-                            );
-                        }
+                            } else {
+                                ui.label(
+                                    RichText::new(format_number(export.growth))
+                                        .color(text_color)
+                                        .size(12.0)
+                                        .family(egui::FontFamily::Monospace),
+                                );
+                            }
+                            // Readiness check-mark: green = ready now, amber =
+                            // only with a Magic Egg. Nothing when not ready.
+                            match pet.evo_readiness() {
+                                Some(EvoReadiness::Ready) => {
+                                    ui.label(RichText::new("✓").color(style::SUCCESS).size(12.0))
+                                        .on_hover_text("Meets the evolution growth threshold — ready to evolve");
+                                }
+                                Some(EvoReadiness::ReadyWithEgg) => {
+                                    ui.label(RichText::new("✓").color(style::WARNING).size(12.0))
+                                        .on_hover_text("Reaches the evolution threshold with a Magic Egg equipped (+30% growth)");
+                                }
+                                _ => {}
+                            }
+                        });
                     }
                 });
 
