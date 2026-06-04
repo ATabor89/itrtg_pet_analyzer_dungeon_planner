@@ -271,14 +271,16 @@ fn pet_fits_class(pet: &MergedPet, class: Class) -> bool {
 /// Otherwise the preference depends on the pet's combat role:
 /// - **Offensive** classes (Mage, Assassin, Rogue) deal elemental damage, so
 ///   they want to *counter* the dungeon element — a Wind mage in the Earth
-///   Forest hits harder. +1 when the pet counters the dungeon.
+///   Forest hits harder.
 /// - **Defensive** classes (Defender, Supporter) want to *match* the dungeon
-///   element: with matching-element resistance gear they shrug off the
-///   dungeon's attacks. +1 on a match.
+///   element: with matching-element resistance gear they shrug off its attacks.
 ///
-/// Only positive preferences are scored — bad matchups aren't penalized, just
-/// not preferred. (The Assassin/Rogue = offensive classification is a best
-/// guess — they deal some elemental damage — and is easy to adjust here.)
+/// Either way, a pet the dungeon element is *strong against* (Fire dungeon vs a
+/// Wind pet) is scored -1: it deals less damage and takes more, the worst case
+/// for both roles. So the scale is +1 favorable / 0 neutral / -1 unfavorable.
+///
+/// (The Assassin/Rogue = offensive classification is a best guess — they deal
+/// some elemental damage — and is easy to adjust here.)
 fn elemental_affinity(pet: &MergedPet, slot: &PartySlot, dungeon: Dungeon) -> i32 {
     if slot.element.is_some() {
         return 0; // explicit element is ground truth
@@ -290,6 +292,12 @@ fn elemental_affinity(pet: &MergedPet, slot: &PartySlot, dungeon: Dungeon) -> i3
     let Some(pet_el) = pet.element() else { return 0 };
     if pet_el == Element::Neutral || pet_el == Element::All {
         return 0;
+    }
+
+    // The dungeon's element is strong against the pet (e.g. Fire vs Wind) —
+    // bad for offense and defense alike.
+    if dungeon_el.counters() == pet_el {
+        return -1;
     }
 
     match pet.evolved_class().or(slot.class) {
@@ -2972,13 +2980,17 @@ mod tests {
             RecommendedClass::Single(Class::Defender), true);
         let water_mage = mock_pet("WtM", Element::Water, Some(Class::Mage),
             RecommendedClass::Single(Class::Mage), true);
+        let wind_def = mock_pet("WD", Element::Wind, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true);
 
         // Offensive: Wind counters Earth (Forest) → +1.
         assert_eq!(elemental_affinity(&wind_mage, &wildcard, Dungeon::Forest), 1);
         // Defensive: Fire defender matches Volcano (Fire) → +1.
         assert_eq!(elemental_affinity(&fire_def, &wildcard, Dungeon::Volcano), 1);
-        // Water mage doesn't counter Earth → 0 (no penalty either).
-        assert_eq!(elemental_affinity(&water_mage, &wildcard, Dungeon::Forest), 0);
+        // Water mage in Forest: Earth is strong against Water → -1.
+        assert_eq!(elemental_affinity(&water_mage, &wildcard, Dungeon::Forest), -1);
+        // Wind defender in Volcano: Fire is strong against Wind → -1 (worst case).
+        assert_eq!(elemental_affinity(&wind_def, &wildcard, Dungeon::Volcano), -1);
         // Explicit-element slot → ground truth, no adjustment.
         assert_eq!(elemental_affinity(&wind_mage, &fire_slot, Dungeon::Forest), 0);
         // Neutral dungeon → no matchup.
