@@ -100,6 +100,42 @@ pub struct EvoDifficulty {
     pub with_conditions: u8,
 }
 
+/// A pet's growth threshold to evolve, tagged with *which* growth value the
+/// game checks it against.
+///
+/// Most pets check **total** growth, so a Magic Egg's +30% (which boosts total
+/// but not base growth) counts toward reaching the threshold. A few — currently
+/// just Baby Carno — require **base** growth, where the Magic Egg does not help.
+/// Keeping the basis in the type forces every consumer to decide how the egg
+/// applies instead of silently assuming total growth.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GrowthRequirement {
+    /// Checked against total/effective growth — a Magic Egg's boost counts.
+    Total(i64),
+    /// Checked against base growth only — a Magic Egg's boost does *not* count.
+    Base(i64),
+}
+
+impl GrowthRequirement {
+    /// The numeric threshold, regardless of basis.
+    pub fn value(&self) -> i64 {
+        match self {
+            Self::Total(v) | Self::Base(v) => *v,
+        }
+    }
+
+    /// Whether the threshold is checked against base growth only (Baby Carno).
+    pub fn requires_base_growth(&self) -> bool {
+        matches!(self, Self::Base(_))
+    }
+
+    /// Whether a Magic Egg's growth boost counts toward reaching this
+    /// threshold. True for total-growth requirements, false for base-growth.
+    pub fn magic_egg_counts(&self) -> bool {
+        matches!(self, Self::Total(_))
+    }
+}
+
 /// The three evolution requirements shown in a pet page's infobox, under the
 /// "Evolution Requirements" heading. Scraped per-pet (the main Pets table does
 /// not carry these). Optional because the crawl can miss pets or a pet may have
@@ -107,12 +143,15 @@ pub struct EvoDifficulty {
 ///
 /// Note: the infobox labels the growth threshold "Total Growth", which is a
 /// different value from the pet's own `total_growth` starting stat. Here
-/// [`Self::total_growth`] is the *threshold* (raw infobox param `evo_growth`).
+/// [`Self::growth`] is the *threshold* (raw infobox param `evo_growth`), and its
+/// [`GrowthRequirement`] variant records whether it is a base- or total-growth
+/// requirement.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvoRequirements {
-    /// Growth threshold the pet must reach to evolve (e.g. Mouse 100,
-    /// Sylph 55555). This is the load-bearing field for evolution planning.
-    pub total_growth: i64,
+    /// Growth threshold the pet must reach to evolve (e.g. Mouse `Total(100)`,
+    /// Sylph `Total(55555)`, Baby Carno `Base(300000)`). The load-bearing field
+    /// for evolution planning.
+    pub growth: GrowthRequirement,
 
     /// Material(s) needed, as displayed (e.g. "5 Wood", "2778 Bound Feather").
     /// Template-computed in the infobox, so only available from the rendered
@@ -145,4 +184,37 @@ pub struct WikiPet {
     /// populates it, so existing data without this field still deserializes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evo_requirements: Option<EvoRequirements>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The bundled `wiki_pets.yaml` must deserialize into `WikiPet`s — this
+    /// guards the `evo_requirements` / `GrowthRequirement` serde format the GUI
+    /// relies on at runtime, and confirms the base/total tagging round-trips.
+    #[test]
+    fn real_wiki_pets_yaml_deserializes_with_evo() {
+        let yaml = include_str!("../../../data/wiki_pets.yaml");
+        let pets: Vec<WikiPet> =
+            serde_yaml::from_str(yaml).expect("wiki_pets.yaml should deserialize");
+        assert!(!pets.is_empty());
+
+        let find = |name: &str| {
+            pets.iter()
+                .find(|p| p.name == name)
+                .unwrap_or_else(|| panic!("{name} missing from wiki_pets.yaml"))
+        };
+
+        // A normal total-growth pet: the Magic Egg counts toward its threshold.
+        let mouse = find("Mouse").evo_requirements.as_ref().expect("Mouse evo");
+        assert_eq!(mouse.growth, GrowthRequirement::Total(100));
+        assert!(mouse.growth.magic_egg_counts());
+
+        // Baby Carno requires base growth: the Magic Egg does not help.
+        let carno = find("Baby Carno").evo_requirements.as_ref().expect("Carno evo");
+        assert_eq!(carno.growth, GrowthRequirement::Base(300000));
+        assert!(carno.growth.requires_base_growth());
+        assert!(!carno.growth.magic_egg_counts());
+    }
 }

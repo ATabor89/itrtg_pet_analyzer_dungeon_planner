@@ -362,12 +362,20 @@ pub fn parse_evo_requirements(html: &str) -> Option<EvoRequirements> {
     let marker = html.find("Evolution Requirements")?;
     let scope = &html[marker..];
 
-    // The value may carry trailing text (e.g. Baby Carno's "300000 base
-    // growth"), so pull the leading integer rather than parsing the whole cell.
-    let total_growth = evo_field(scope, "Total Growth").and_then(|v| parse_leading_int(&v))?;
+    // The value may carry trailing text, which tells us the basis: most pets
+    // render a bare number (total-growth threshold), but a base-growth pet like
+    // Baby Carno renders "300000 base growth". Pull the leading integer for the
+    // value and look for "base" to pick the variant.
+    let growth_cell = evo_field(scope, "Total Growth")?;
+    let value = parse_leading_int(&growth_cell)?;
+    let growth = if growth_cell.to_ascii_lowercase().contains("base") {
+        GrowthRequirement::Base(value)
+    } else {
+        GrowthRequirement::Total(value)
+    };
 
     Some(EvoRequirements {
-        total_growth,
+        growth,
         material: evo_field(scope, "Material").and_then(meaningful),
         other: evo_field(scope, "Other").and_then(meaningful),
     })
@@ -533,7 +541,11 @@ mod tests {
     #[test]
     fn test_parse_evo_requirements_basic() {
         let evo = parse_evo_requirements(MOUSE_EVO_HTML).expect("should parse");
-        assert_eq!(evo.total_growth, 100, "must use the Evolution Requirements threshold, not the 420 stat");
+        assert_eq!(
+            evo.growth,
+            GrowthRequirement::Total(100),
+            "must use the Evolution Requirements threshold (total-growth), not the 420 stat"
+        );
         assert_eq!(evo.material.as_deref(), Some("5 Wood"));
         assert_eq!(evo.other.as_deref(), Some("100 Puny Food"));
     }
@@ -548,7 +560,7 @@ mod tests {
             <tr><td colspan="2"><b>Other</b> </td><td colspan="2">Finish the <a href="/wiki/Sylph">Questline</a> (You <b>cannot</b> use a Pet Token)</td></tr>
         "#;
         let evo = parse_evo_requirements(html).expect("should parse");
-        assert_eq!(evo.total_growth, 55555);
+        assert_eq!(evo.growth, GrowthRequirement::Total(55555));
         assert_eq!(evo.material.as_deref(), Some("2778 Bound Feather"));
         assert_eq!(
             evo.other.as_deref(),
@@ -572,7 +584,12 @@ mod tests {
             <tr><td colspan="2"><b>Other</b> </td><td colspan="2">none</td></tr>
         "#;
         let evo = parse_evo_requirements(html).expect("should parse despite suffix");
-        assert_eq!(evo.total_growth, 300000);
+        assert_eq!(
+            evo.growth,
+            GrowthRequirement::Base(300000),
+            "the 'base growth' marker must yield a Base requirement (Magic Egg won't help)"
+        );
+        assert!(!evo.growth.magic_egg_counts());
         assert_eq!(evo.material.as_deref(), Some("3000 Magic Ore"));
         assert_eq!(evo.other, None, "literal 'none' should be dropped");
     }
