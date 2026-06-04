@@ -10,7 +10,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 100
+    growth: !Total 100
     material: 5 Wood
     other: 100 Puny Food
 - name: Frog
@@ -25,7 +25,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 100
+    growth: !Total 100
     material: 5 Ice
     other: Give it 1 pet stone
 - name: Bee
@@ -40,7 +40,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 150
+    growth: !Total 150
     material: 8 Feather
     other: Have 10 Mystic Garden Upgrades
 - name: Cupid
@@ -57,7 +57,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 200
+    growth: !Total 200
     material: 10 Feather
     other: 100 Chocolate
 - name: Egg/Chicken
@@ -72,7 +72,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 300
+    growth: !Total 300
     material: 15 Feather
     other: Title has to be Chicken God/Goddess (flee from an UBv2 to get it)
 - name: Armadillo
@@ -87,7 +87,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 400
+    growth: !Total 400
     material: 20 Wood
     other: Have 100% critical chance on TBS.
 - name: Squirrel
@@ -102,7 +102,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 500
+    growth: !Total 500
     material: 25 Hot Stone
     other: 100 God Power; Complete 1 DRC
 - name: Rabbit
@@ -117,7 +117,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 1000
+    growth: !Total 1000
     material: 50 Wood
     other: Beat Baal and don't kill any bunny.
 - name: Cat
@@ -132,7 +132,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 1500
+    growth: !Total 1500
     material: 75 iron Bar
     other: 150 God Power
 - name: Dog
@@ -147,7 +147,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 3500
+    growth: !Total 3500
     material: 175 iron Bar
     other: 1000 Strong Food
 - name: Fairy
@@ -162,7 +162,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 5000
+    growth: !Total 5000
     material: 250 Bound Feather
     other: 10 Godly Liquid
 - name: Dragon
@@ -177,7 +177,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 7000
+    growth: !Total 7000
     material: 350 Fire Stone
     other: Pet Rebirth Multiplier of 2000%
 - name: Snake
@@ -192,7 +192,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 10000
+    growth: !Total 10000
     material: 500 Nevermelting Ice
     other: Give it 100 Chakra Pills
 - name: Shark
@@ -209,7 +209,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 10000
+    growth: !Total 10000
     material: 500 Nevermelting Ice
     other: All pets 5000+ total growth
 - name: Octopus
@@ -224,7 +224,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 15000
+    growth: !Total 15000
     material: 750 Nevermelting Ice
     other: S-grade Tsunami Spear (item is lost upon evolving)
 - name: Valkyrie
@@ -239,7 +239,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 11000
+    growth: !Total 11000
     material: 550 Bound Feather
     other: Defeat a total of 2000 dungeon bosses
 - name: Slime
@@ -254,7 +254,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 12000
+    growth: !Total 12000
     material: 600 Nevermelting Ice
     other: All pets &gt; 100 million total stats
 - name: Whale
@@ -269,7 +269,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 15000
+    growth: !Total 15000
     material: 750 Nevermelting Ice
     other: Have a level 20 Ultimate Crystal (not consumed)
 - name: Hydra
@@ -284,7 +284,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 20000
+    growth: !Total 20000
     material: 1000 Nevermelting Ice
     other: Pet Rebirth Multiplier of 5000%
 - name: Pandora's Box
@@ -299,7 +299,7 @@
   token_improvable: false
   special_ability: Extra Camp Buff
   evo_requirements:
-    total_growth: 40000
+    growth: !Total 40000
     material: 2000 iron Bar
     other: Defeat P.Baal v66 in a Day Baal Challenge (You cannot use a Pet Token to skip this evo condition.)
 - name: Lucky Coin
@@ -316,7 +316,7 @@
   token_improvable: true
   special_ability: Bonus Damage
   evo_requirements:
-    total_growth: 77777
+    growth: !Total 77777
     material: 3889 Special Wood
     other: Do a total damage of 77,777,777 in dungeons (You cannot use a Pet Token to skip this evo condition.)
 - name: Balrog
@@ -333,7 +333,7 @@
   token_improvable: false
   special_ability: Bonus Health
   evo_requirements:
-    total_growth: 90000
+    growth: !Total 90000
     material: 4500 Fire Stone
     other: Defeat Evo Balrog (You cannot use a Pet Token to skip this evo condition.)
 - name: Gray
@@ -348,7 +348,7 @@
   token_improvable: true
   special_ability: Children
   evo_requirements:
-    total_growth: 100000
+    growth: !Total 100000
     material: 5000 iron Bar
     other: Have 50,000 total Spacedim levels in the current rebirth. Give her 1 of each T3 bar, 5000 of each T2 material and 100 elixirs.
 - name: Ant Queen
@@ -363,7 +363,7 @@
   token_improvable: false
   special_ability: Uncap GP Camp Limit, increases ant gain
   evo_requirements:
-    total_growth: 150000
+    growth: !Total 150000
     material: 1500 Magic Fire Stone
     other: Find 10 million ants in dungeons
 - name: Crocodile
@@ -378,7 +378,7 @@
   token_improvable: false
   special_ability: Stunning attacks
   evo_requirements:
-    total_growth: 250000
+    growth: !Total 250000
     material: 2500 Magic Wood
     other: Stun at least 3333 enemies with it.
 - name: Big Burger
@@ -393,7 +393,7 @@
   token_improvable: false
   special_ability: Food Camp Conversion
   evo_requirements:
-    total_growth: 200000
+    growth: !Total 200000
     material: 2000 Magic Ice
     other: Give it 999,999 Mighty Food
 - name: Oni
@@ -408,7 +408,7 @@
   token_improvable: false
   special_ability: P.Baal Weakening
   evo_requirements:
-    total_growth: 1000000
+    growth: !Total 1000000
     material: 1000 Sun Stones
     other: Defeat P.Baal v222
 - name: Bug
@@ -425,7 +425,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 333
+    growth: !Total 333
     material: 17 Hot Stone
     other: Give it 100 ants.
 - name: Mole
@@ -442,7 +442,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 500
+    growth: !Total 500
     material: 25 Wood
     other: Defeat Doppelganger in a special fight while having at least 200 levels in Physical Attack + and Mystic Defense might
 - name: Camel
@@ -459,7 +459,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 1000
+    growth: !Total 1000
     material: 50 Hot Stone
     other: Kill Baal without getting any achievement
 - name: Goat
@@ -476,7 +476,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 7500
+    growth: !Total 7500
     material: 375 Special Wood
     other: Have 10000 of all creations on hand (these are consumed), build a 100/25 Black Hole, no fighting monsters. Ultimate Beings can be killed. (You cannot use a Pet Token to skip this evo condition.)
 - name: Ape
@@ -493,7 +493,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 15000
+    growth: !Total 15000
     material: 750 Fire Stone
     other: Equip a level 20 Ultimate Crystal, have a 5000/1000 Temple of God (You cannot use a Pet Token to skip this evo condition.)
 - name: Flying Cloud
@@ -510,7 +510,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 25000
+    growth: !Total 25000
     material: 1250 Bound Feather
     other: 1 Billion stats on Ape, 12 hour specifically on each campaign for Ape within the same rebirth (progress details can be seen by trying to evolve the Cloud). This cannot be segmented into smaller hours, and must be a 12 hour campaign. The order of getting the stats and doing all the camps does not matter. (You cannot use a Pet Token to skip this evo condition.)
 - name: Holy ITRTG Book
@@ -525,7 +525,7 @@
   token_improvable: true
   special_ability: Crit Immunity and Class Change
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 Fire Stone
     other: Give it 6.8E27 (6.8 octillion) divinity, have 2 billion suns created, have an unleash power (Attack multiplier) of 50 million&#160;% With a DMC score of ~37,000, 60 million clones, 1500 Creation Count and 100k% base creating speed, it takes about 8-9 days to evolve it. It also helps if you saved up some Lucky Draws, to get your divinity doubled a few times. (You cannot use a Pet Token to skip this evo condition.)
 - name: God Power (Pet)
@@ -542,7 +542,7 @@
   token_improvable: true
   special_ability: Receive Some GP when Fed
   evo_requirements:
-    total_growth: 2500
+    growth: !Total 2500
     material: 125 Fire Stone
     other: Have at least 25 God Power Challenges completed.
 - name: Turtle
@@ -557,7 +557,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 10000
+    growth: !Total 10000
     material: 500 Special Wood
     other: Have finished at least 2 UACs, give it 200 God Power
 - name: Afky Clone
@@ -572,7 +572,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 10000
+    growth: !Total 10000
     material: 500 iron Bar
     other: Afky Clone campaign bonus &gt;= +20% (1.126e15 Afky God power)
 - name: Stone/Golem
@@ -587,7 +587,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 25000
+    growth: !Total 25000
     material: 1250 Special Wood
 - name: Chameleon
   wiki_url: https://itrtg.wiki.gg/wiki/Chameleon
@@ -601,7 +601,7 @@
   token_improvable: false
   special_ability: Freely Change it's Element
   evo_requirements:
-    total_growth: 22000
+    growth: !Total 22000
     material: 1100 T2 Material
     other: Survive all dungeons in depth 2 for 48 rooms. The tier 2 materials may be any element.
 - name: Undine
@@ -616,7 +616,7 @@
   token_improvable: false
   special_ability: AoE Damage
   evo_requirements:
-    total_growth: 55555
+    growth: !Total 55555
     material: 2778 Nevermelting Ice
     other: Have Undines final form (You cannot use a Pet Token to skip this evo condition.)
 - name: Gnome
@@ -631,7 +631,7 @@
   token_improvable: false
   special_ability: AoE Party Shield
   evo_requirements:
-    total_growth: 55555
+    growth: !Total 55555
     material: 2778 Special Wood
     other: Finish the Questline (You cannot use a Pet Token to skip this evo condition.)
 - name: Salamander
@@ -646,7 +646,7 @@
   token_improvable: false
   special_ability: AoE Heals Every Turn
   evo_requirements:
-    total_growth: 55555
+    growth: !Total 55555
     material: 2778 Fire Stone
     other: Finish the Questline (You cannot use a Pet Token to skip this evo condition.)
 - name: Sylph
@@ -661,7 +661,7 @@
   token_improvable: false
   special_ability: Extra Attacks
   evo_requirements:
-    total_growth: 55555
+    growth: !Total 55555
     material: 2778 Bound Feather
     other: Finish the Questline (You cannot use a Pet Token to skip this evo condition.)
 - name: Aether
@@ -676,7 +676,7 @@
   token_improvable: false
   special_ability: Special Boss Fight Improves
   evo_requirements:
-    total_growth: 55555
+    growth: !Total 55555
     material: 2778 iron Bar
     other: Win 25 times against Delirious Essence of the Forgotten (You cannot use a Pet Token to skip this evo condition.)
 - name: Anteater
@@ -691,7 +691,7 @@
   token_improvable: false
   special_ability: Crafting Improves with Number of Ants owned
   evo_requirements:
-    total_growth: 20000
+    growth: !Total 20000
     material: 1000 Special Wood
     other: Have 50,000 ants
 - name: Gold Dragon
@@ -706,7 +706,7 @@
   token_improvable: false
   special_ability: Distributes 25% of its Feeding Growth to All Pets
   evo_requirements:
-    total_growth: 15000
+    growth: !Total 15000
     material: 750 iron Bar
     other: Have Titanium Armor, Sword and Ring equipped (items are not lost on evolving) (You cannot use a Pet Token to skip this evo condition.)
 - name: Living Draw
@@ -721,7 +721,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 30000
+    growth: !Total 30000
     material: 1500 iron Bar
     other: Have a total of 1500 Lucky Draws opened
 - name: Black Hole Chan
@@ -738,7 +738,7 @@
   token_improvable: false
   special_ability: Scales with UBv4 Points
   evo_requirements:
-    total_growth: 66666
+    growth: !Total 66666
     material: 3333 iron Bar
     other: 1000 UBV4 points (You cannot use a Pet Token to skip this evo condition.)
 - name: Treasure/Mimic
@@ -753,7 +753,7 @@
   token_improvable: false
   special_ability: Bonus Exp received by RTI Pets
   evo_requirements:
-    total_growth: 75000
+    growth: !Total 75000
     material: 3750 iron Bar
     other: Have at least 5000 Mimic points.
 - name: Seed/Yggdrasil
@@ -768,7 +768,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 120000
+    growth: !Total 120000
     material: 6000 Special Wood
     other: Defeat P.Baal v150 (You cannot use a Pet Token to skip this evo condition.)
 - name: Rudolph
@@ -783,7 +783,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 5000
+    growth: !Total 5000
     material: 250 Bound Feather
     other: 1000 Baal Power
 - name: Santa
@@ -798,7 +798,7 @@
   token_improvable: false
   special_ability: Trade Nothings for Choco
   evo_requirements:
-    total_growth: 20000
+    growth: !Total 20000
     material: 1000 Fire Stone
     other: Give her 100 x nothing
 - name: Elf
@@ -813,7 +813,7 @@
   token_improvable: false
   special_ability: Bonus to Crafting. Scales with Tier3/4 Gear
   evo_requirements:
-    total_growth: 40000
+    growth: !Total 40000
     material: 2000 Bound Feather
     other: Have at least 10% of her unique crafting bonus from equip.
 - name: Pumpkin
@@ -828,7 +828,7 @@
   token_improvable: true
   special_ability: Finds Choco in Food Campaigns
   evo_requirements:
-    total_growth: 5000
+    growth: !Total 5000
     material: 250 Fire Stone
     other: 666 Chocolate
 - name: Ghost
@@ -843,7 +843,7 @@
   token_improvable: false
   special_ability: Debuff Enemies Attack and Defense
   evo_requirements:
-    total_growth: 15000
+    growth: !Total 15000
     material: 750 iron Bar
     other: Kill the depth 2 boss of each dungeon (Ghost does not even need to be in the dungeon team to get credit for the kills.)
 - name: Nightmare
@@ -858,7 +858,7 @@
   token_improvable: false
   special_ability: Uncap GP Camp Limit
   evo_requirements:
-    total_growth: 40000
+    growth: !Total 40000
     material: 2000 Fire Stone
     other: Have it equipped with a +20 grade SSS Magic Stick (item is not lost on evolving)
 - name: Question
@@ -873,7 +873,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 999
+    growth: !Total 999
     material: 50 Iron Ore
     other: 1 Universe
 - name: Chocobear
@@ -888,7 +888,7 @@
   token_improvable: true
   special_ability: Campaign Bonus when Fed Choco
   evo_requirements:
-    total_growth: 6000
+    growth: !Total 6000
     material: 300 Special Wood
     other: Save up campaign bonus for the next 200 hours of campaigns. The 200 hours are consumed on evolving.
 - name: Rose
@@ -903,7 +903,7 @@
   token_improvable: false
   special_ability: Increased Enchanting Speed
   evo_requirements:
-    total_growth: 25000
+    growth: !Total 25000
     material: 1250 Special Wood
     other: Give it 100 Magic Herbs
 - name: Doughnut
@@ -920,7 +920,7 @@
   token_improvable: true
   special_ability: Cheaper Mighty Food
   evo_requirements:
-    total_growth: 5000
+    growth: !Total 5000
     material: 250 Special Wood
     other: 100 Mighty Food
 - name: Eagle
@@ -935,7 +935,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 2000
+    growth: !Total 2000
     material: 100 Bound Feather
     other: 50 Lucky Draws
 - name: Penguin
@@ -950,7 +950,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 3500
+    growth: !Total 3500
     material: 175 Nevermelting Ice
     other: Give 35000 Pet Stones
 - name: Hermit Crab
@@ -965,7 +965,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 1000
+    growth: !Total 1000
     material: 50 Ice
     other: Total Pet Mystic multiplier &gt; 2 million&#160;%
 - name: Hedgehog
@@ -980,7 +980,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 7500
+    growth: !Total 7500
     material: 375 Fire Stone
     other: 1e19 divinity
 - name: Phoenix
@@ -995,7 +995,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 10000
+    growth: !Total 10000
     material: 500 Fire Stone
     other: All pets &gt; Level 9000
 - name: Wizard
@@ -1012,7 +1012,7 @@
   token_improvable: false
   special_ability: Debuffs the Balrog Boss
   evo_requirements:
-    total_growth: 12500
+    growth: !Total 12500
     material: 625 Bound Feather
     other: All monuments and upgrades except Black Hole at 666/666 or more.
 - name: Pegasus
@@ -1027,7 +1027,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 20000
+    growth: !Total 20000
     material: 1000 Bound Feather
     other: 50000 Pet Stones
 - name: Panda
@@ -1042,7 +1042,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 17500
+    growth: !Total 17500
     material: 875 Special Wood
     other: Have 1000 Herbs (they'll be consumed)
 - name: UFO
@@ -1057,7 +1057,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 20000
+    growth: !Total 20000
     material: 1000 iron Bar
     other: Total Pet Physical Multiplier &gt; 100 million&#160;%
 - name: Robot
@@ -1074,7 +1074,7 @@
   token_improvable: true
   special_ability: T4 Gear Crafting Bonus
   evo_requirements:
-    total_growth: 25000
+    growth: !Total 25000
     material: 1250 iron Bar
     other: All pets &gt; 9000 total growth
 - name: Otter
@@ -1089,7 +1089,7 @@
   token_improvable: false
   special_ability: Receive Some Dungeon Materials when Fed
   evo_requirements:
-    total_growth: 30000
+    growth: !Total 30000
     material: 1500 Nevermelting Ice
     other: Have at least 35 evolved pets.
 - name: FSM
@@ -1104,7 +1104,7 @@
   token_improvable: false
   special_ability: DivGen Boost
   evo_requirements:
-    total_growth: 35000
+    growth: !Total 35000
     material: 1750 Bound Feather
     other: Have it equipped with SSS rank hurricane bow, armor and ring (items are not lost on evolving)
 - name: Elephant
@@ -1119,7 +1119,7 @@
   token_improvable: false
   special_ability: Retaliatory Burn Damage
   evo_requirements:
-    total_growth: 30000
+    growth: !Total 30000
     material: 1500 Fire Stone
     other: Have a dungeon defense of at least 300
 - name: Vaccina
@@ -1134,7 +1134,7 @@
   token_improvable: false
   special_ability: Can Craft Vaccines
   evo_requirements:
-    total_growth: 15000
+    growth: !Total 15000
     material: 750 Special Wood
     other: Have Corona evolved and at least 100 Cure Potions
 - name: Corona
@@ -1151,7 +1151,7 @@
   token_improvable: true
   special_ability: Causes Pet illness
   evo_requirements:
-    total_growth: 20000
+    growth: !Total 20000
     material: 1000 Bound Feather
     other: Had a total of 100 sick pets (a cured pet which got sick again counts again).
 - name: Firefox
@@ -1166,7 +1166,7 @@
   token_improvable: false
   special_ability: Buffs Fire Element
   evo_requirements:
-    total_growth: 25000
+    growth: !Total 25000
     material: 1250 Fire Stone
     other: Give him 33 Magic Fire Stones
 - name: Beachball
@@ -1181,7 +1181,7 @@
   token_improvable: false
   special_ability: Campaign Bonus Scales with Pet Stones
   evo_requirements:
-    total_growth: 17500
+    growth: !Total 17500
     material: 875 Nevermelting Ice
     other: have 1 million pet stones available
 - name: Tanuki
@@ -1196,7 +1196,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 18000
+    growth: !Total 18000
     material: 900 iron Bar
     other: Give it 100 health potion S.
 - name: Seal
@@ -1211,7 +1211,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 13500
+    growth: !Total 13500
     material: 675 Nevermelting Ice
     other: Finish a Day Pet Challenge while Seal having the highest stats
 - name: Raven
@@ -1226,7 +1226,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 17500
+    growth: !Total 17500
     material: 875 Bound Feather
     other: Have it equipped with Bursting Knives SSS+20
 - name: Hourglass
@@ -1241,7 +1241,7 @@
   token_improvable: false
   special_ability: Speed Buff to Party and Debuffs Enemies
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 Bound Feather
     other: Slow 200.000 enemies in total
 - name: Archer
@@ -1256,7 +1256,7 @@
   token_improvable: false
   special_ability: Attack Twice in Dungeons if Using a Bow
   evo_requirements:
-    total_growth: 70000
+    growth: !Total 70000
     material: 3500 iron Bar
     other: Equip a Hurricane Bow SSS +20 (20) and consume another one (This also needs to be a SSS+20 (20)).
 - name: Thunder Ball/Raiju
@@ -1271,7 +1271,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 80000
+    growth: !Total 80000
     material: 4000 Bound Feather
     other: Have 1billion% creating multiplier (RTI(∞) Tab) from pets
 - name: Bottle
@@ -1286,7 +1286,7 @@
   token_improvable: false
   special_ability: Chance to Craft Alchemy Items for Free
   evo_requirements:
-    total_growth: 40000
+    growth: !Total 40000
     material: 2000 Fire Stone
     other: Give it 100 Elixirs
 - name: Bag
@@ -1301,7 +1301,7 @@
   token_improvable: true
   special_ability: Gives Portion of Growth Campaign to Weakest Pet
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 iron Bar
     other: ALL pets have &gt;= 20k Growth
 - name: Mysterious Egg
@@ -1316,7 +1316,7 @@
   token_improvable: false
   special_ability: Bonus Clone Pet Training Exp
   evo_requirements:
-    total_growth: 100000
+    growth: !Total 100000
     material: 5000 Fire Stone
     other: Have 2 million combined pet levels
 - name: Succubus
@@ -1331,7 +1331,7 @@
   token_improvable: false
   special_ability: HP Leech and Always Receives Growth Camp Gains
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 Fire Stone
     other: Give her 5 inferno bars.
 - name: Clam
@@ -1346,7 +1346,7 @@
   token_improvable: false
   special_ability: Double GP from Dungeon Events
   evo_requirements:
-    total_growth: 10000
+    growth: !Total 10000
     material: 500 Nevermelting Ice
     other: Give it 200 God Power
 - name: Earth Eater
@@ -1361,7 +1361,7 @@
   token_improvable: true
   special_ability: Buffable Campaign Bonus
   evo_requirements:
-    total_growth: 82000
+    growth: !Total 82000
     material: 4100 Special Wood
     other: Have it eat 1.5 Million Earthlike Planets
 - name: Portal
@@ -1376,7 +1376,7 @@
   token_improvable: false
   special_ability: DivGen ratios and Div GP buy
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 Bound Feather
     other: Give it 500 God Power and 10 septillion Divinity*
 - name: Cardboardbox
@@ -1391,7 +1391,7 @@
   token_improvable: false
   special_ability: Dungeon Event Reward Bonus/Nerf
   evo_requirements:
-    total_growth: 40000
+    growth: !Total 40000
     material: 2000 Bound Feather
     other: Kill every D3 boss at least once with it in the team.
 - name: Unicorn
@@ -1406,7 +1406,7 @@
   token_improvable: false
   special_ability: Crystal Power Bonus
   evo_requirements:
-    total_growth: 70000
+    growth: !Total 70000
     material: 3500 iron Bar
     other: Have 10,000 Challenge Points
 - name: Stale Tortilla/Taco
@@ -1421,7 +1421,7 @@
   token_improvable: false
   special_ability: Dungeon Alchemist with Buffs
   evo_requirements:
-    total_growth: 30000
+    growth: !Total 30000
     material: 1500 iron Bar
     other: Give it one of each fire, water, earth and wind T3 materials.
 - name: Witch
@@ -1436,7 +1436,7 @@
   token_improvable: false
   special_ability: Buffs Water Element
   evo_requirements:
-    total_growth: 75000
+    growth: !Total 75000
     material: 3750 Nevermelting Ice
     other: Give her 25 Ocean Stones.
 - name: Sloth
@@ -1451,7 +1451,7 @@
   token_improvable: false
   special_ability: Longer camps  more buff
   evo_requirements:
-    total_growth: 75000
+    growth: !Total 75000
     material: 3750 Special Wood
     other: Have done campaigns with a total of 120,000% bonus. (This does NOT need to be in a single rebirth.)
 - name: Cocoa
@@ -1466,7 +1466,7 @@
   token_improvable: false
   special_ability: Craft Chocolate
   evo_requirements:
-    total_growth: 5000
+    growth: !Total 5000
     material: 250 iron Bar
     other: Give it 200 chocolate.
 - name: Wolf
@@ -1481,7 +1481,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 iron Bar
     other: Have at least 24 hours of Challenge Overtime.
 - name: Vesuvius
@@ -1496,7 +1496,7 @@
   token_improvable: false
   special_ability: Gives Portion of Growth from Dungeons to Weakest Pet
   evo_requirements:
-    total_growth: 28000
+    growth: !Total 28000
     material: 1400 Fire Stone
     other: Get a total of 7500 growth from dungeon.(The tooltip only needs to show 3750 as Vesuvius gives half the growth it receives in dungeon at CL0.)
 - name: Swan
@@ -1511,7 +1511,7 @@
   token_improvable: false
   special_ability: Auto Fishing Speed Increase
   evo_requirements:
-    total_growth: 7500
+    growth: !Total 7500
     material: 375 Nevermelting Ice
     other: Give it 1 million Fishing Power. (See Fishing Pond)
 - name: Void
@@ -1526,7 +1526,7 @@
   token_improvable: false
   special_ability: Faster at Crafting Nothings
   evo_requirements:
-    total_growth: 35000
+    growth: !Total 35000
     material: 1750 iron Bar
     other: Give it 333 Nothing
 - name: Pignata
@@ -1541,7 +1541,7 @@
   token_improvable: false
   special_ability: RebirthBacon Generation
   evo_requirements:
-    total_growth: 10000
+    growth: !Total 10000
     material: 500 Special Wood
     other: Bash it open 30 times.
 - name: Baby Carno
@@ -1556,7 +1556,7 @@
   token_improvable: true
   special_ability: Growth from Food Camp
   evo_requirements:
-    total_growth: 300000
+    growth: !Base 300000
     material: 3000 Magic Ore
 - name: Lizard/Zookeeper
   wiki_url: https://itrtg.wiki.gg/wiki/Lizard
@@ -1570,7 +1570,7 @@
   token_improvable: false
   special_ability: Gives Growth in Food Camp
   evo_requirements:
-    total_growth: 40000
+    growth: !Total 40000
     material: 2000 Nevermelting Ice
     other: Have (unlocked pets + evolved pets) ≥ 100.
 - name: Meteor
@@ -1585,7 +1585,7 @@
   token_improvable: false
   special_ability: Camp buff from time in camps
   evo_requirements:
-    total_growth: 35000
+    growth: !Total 35000
     material: 1750 Fire Stone
     other: Create 1e12 (1 trillion) stones in one rebirth.
 - name: Sphinx
@@ -1600,7 +1600,7 @@
   token_improvable: true
   special_ability: Small Increase to Dungeon XP
   evo_requirements:
-    total_growth: 17500
+    growth: !Total 17500
     material: 875 Special Wood
     other: All pets level 3500+ and a total of 100+ class levels between all pets.
 - name: Alien
@@ -1615,7 +1615,7 @@
   token_improvable: false
   special_ability: Increases the rate of Dungeon Events
   evo_requirements:
-    total_growth: 35000
+    growth: !Total 35000
     material: 1750 Nevermelting Ice
     other: Kill pets 10,000 times. (counted from beginning of the game, not unlock)
 - name: Bat
@@ -1630,7 +1630,7 @@
   token_improvable: false
   special_ability: 40% More Class exp for Self
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 iron Bar
     other: Give it a SSS Legendary Hammer. The hammer is consumed. (You cannot use a Pet Token to skip this evo condition.)
 - name: Flying Eyeball
@@ -1645,7 +1645,7 @@
   token_improvable: false
   special_ability: Dungeon Adventurer
   evo_requirements:
-    total_growth: 35000
+    growth: !Total 35000
     material: 1750 Bound Feather
     other: Kill 4000 marked enemies.
 - name: Leviathan
@@ -1660,7 +1660,7 @@
   token_improvable: false
   special_ability: Counterattack
   evo_requirements:
-    total_growth: 1000000
+    growth: !Total 1000000
     material: 1000 Ocean Stone
     other: Leviathan has 1 million Max HP.
 - name: Basilisk
@@ -1675,7 +1675,7 @@
   token_improvable: false
   special_ability: AoE Element Debuff
   evo_requirements:
-    total_growth: 0
+    growth: !Total 0
     material: 0 Special Wood
     other: Uses an AoE attack that reduces Elements of all enemies if Basilisk is a Mage
 - name: Cherub
@@ -1690,7 +1690,7 @@
   token_improvable: false
   special_ability: Stunning attacks, reduces speed damage
   evo_requirements:
-    total_growth: 200000
+    growth: !Total 200000
     material: 2000 Magic Feather
     other: Have at least 50% bonus to HP from Dojo.
 - name: Tödlicher Löffel
@@ -1705,7 +1705,7 @@
   token_improvable: false
   special_ability: Defense debuff, counts as all elements except Neutral for Events
   evo_requirements:
-    total_growth: 69420
+    growth: !Total 69420
     material: 3471 iron Bar
     other: Give it 666 Shiny Stones and 1 of each T4 material
 - name: Goblin
@@ -1720,7 +1720,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 100
+    growth: !Total 100
     material: 5 Wood
     other: Do 25 Overflow Challenges. (Not mentioned in the tooltip, but you cannot use a Pet Token to skip this evo condition.)
 - name: Koi
@@ -1735,7 +1735,7 @@
   token_improvable: false
   special_ability: Fish seller speed
   evo_requirements:
-    total_growth: 12500
+    growth: !Total 12500
     material: 625 Nevermelting Ice
     other: Unlock the Midlife Pond in Fishing (Requires level 15 fishing).
 - name: Decorator Crab
@@ -1750,7 +1750,7 @@
   token_improvable: false
   special_ability: Extra items from item camp
   evo_requirements:
-    total_growth: 125000
+    growth: !Total 125000
     material: 1,250 Magic Ice
     other: Give it 2000 Shiny Stones.
 - name: Dwarf
@@ -1765,7 +1765,7 @@
   token_improvable: false
   special_ability: Donate Gems Better crafter
   evo_requirements:
-    total_growth: 40000
+    growth: !Total 40000
     material: 2000 Fire Stone
     other: Give it a total of 100 level 13 gems on hand. The gems are consumed.
 - name: Caterpillar
@@ -1780,7 +1780,7 @@
   token_improvable: false
   special_ability: Faster material upgrade
   evo_requirements:
-    total_growth: 5000
+    growth: !Total 5000
     material: 250 Bound Feather
     other: Give it an extra 250 Special Wood.
 - name: Bunny Girl
@@ -1795,7 +1795,7 @@
   token_improvable: false
   special_ability: Bonus speed crafting talisman/T3 Bars
   evo_requirements:
-    total_growth: 67500
+    growth: !Total 67500
     material: 3375 iron Bar
     other: Give her 777 Lucky Talismans.
 - name: Elemental
@@ -1810,7 +1810,7 @@
   token_improvable: false
   special_ability: Increases dungeon team elements and boosts own damage
   evo_requirements:
-    total_growth: 150000
+    growth: !Total 150000
     material: 1500 Magic Ore
     other: Defeat any Depth 4 Difficulty 5 boss.
 - name: Mist Sphere
@@ -1825,7 +1825,7 @@
   token_improvable: false
   special_ability: Shields pets it heals
   evo_requirements:
-    total_growth: 40000
+    growth: !Total 40000
     material: 2000 Nevermelting Ice
     other: It needs to have at least 500 water element.
 - name: Shadow Clone
@@ -1840,7 +1840,7 @@
   token_improvable: false
   special_ability: Can create shadow clones
   evo_requirements:
-    total_growth: 35000
+    growth: !Total 35000
     material: 1750 Fire Stone
     other: Create 1 billion Shadow Clones in the current rebirth (your max count can be lower).
 - name: Sniper
@@ -1855,7 +1855,7 @@
   token_improvable: false
   special_ability: Attacks only once per turn, high damage output
   evo_requirements:
-    total_growth: 200000
+    growth: !Total 200000
     material: 2000 Magic Feather
     other: Have at least 50% attack in the Dojo
 - name: White Tiger
@@ -1870,7 +1870,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 Bound Feather
     other: Have Hurricane Armor, Bow and Ring equipped.(not consumed)
 - name: Black Tortoise
@@ -1885,7 +1885,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 Nevermelting Ice
     other: Have Tsunami Armor, Spear, and Necklace equipped. (not consumed)
 - name: Azure Dragon
@@ -1900,7 +1900,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 Special Wood
     other: Have Forest Armor, Axe, and Bracelet equipped. (not consumed)
 - name: Vermilion Pheasant
@@ -1915,7 +1915,7 @@
   token_improvable: true
   special_ability: null
   evo_requirements:
-    total_growth: 50000
+    growth: !Total 50000
     material: 2500 Fire Stone
     other: Have Inferno Armor, Sword, and Gloves equipped. (not consumed)
 - name: Tenko
@@ -1930,7 +1930,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 60000
+    growth: !Total 60000
     material: 3000 iron Bar
     other: Have her in divinity campaigns for a total 1000 hours.
 - name: Vampire
@@ -1945,7 +1945,7 @@
   token_improvable: true
   special_ability: Crafting or Dungeon Alchemist
   evo_requirements:
-    total_growth: 125000
+    growth: !Total 125000
     material: 1250 Magic Fire Stone
     other: Give her 1000 monster blood
 - name: Strategist
@@ -1960,7 +1960,7 @@
   token_improvable: true
   special_ability: Improves health of its dungeon team.
   evo_requirements:
-    total_growth: 250000
+    growth: !Total 250000
     material: 2500 Magic Ore
     other: Give it 25000 Strategy Books
 - name: Mermaid
@@ -1975,7 +1975,7 @@
   token_improvable: false
   special_ability: Improves multiple stats of its dungeon team.
   evo_requirements:
-    total_growth: 333333
+    growth: !Total 333333
     material: 3333 Magic Ice
     other: Give her 1000 Scales.
 - name: Monk
@@ -1990,7 +1990,7 @@
   token_improvable: false
   special_ability: Dojo Pet
   evo_requirements:
-    total_growth: 150000
+    growth: !Total 150000
     material: 1500 Magic Ore
     other: Have her meditate for 240 hours in the Dojo.
 - name: Honeybadger
@@ -2005,7 +2005,7 @@
   token_improvable: false
   special_ability: Immune to stun, doesn't need blacksmith for bonus damage
   evo_requirements:
-    total_growth: 250000
+    growth: !Total 250000
     material: 2500 Magic Wood
     other: Give it a full set of SSS+20 Jungle equip
 - name: Hamster
@@ -2020,7 +2020,7 @@
   token_improvable: true
   special_ability: Crafts and Upgrades Earmuff Accessory
   evo_requirements:
-    total_growth: 750
+    growth: !Total 750
     material: 38 Wood
     other: Equip a Shaping Hammer (tier 2) (not consumed)
 - name: Pack Mule
@@ -2035,7 +2035,7 @@
   token_improvable: false
   special_ability: Increases rewards of quests it participates in
   evo_requirements:
-    total_growth: 20000
+    growth: !Total 20000
     material: 1000 iron Bar
     other: Complete 20 Quests with Pack Mule on the team
 - name: Anni Cake
@@ -2050,7 +2050,7 @@
   token_improvable: false
   special_ability: Grants bonus pet stats for time in Food Camp
   evo_requirements:
-    total_growth: 87672
+    growth: !Total 87672
     material: 4384 Special Wood
     other: Give it 3653 puny food, strong food, mighty food, and chocolate.
 - name: Llysnafedda
@@ -2065,7 +2065,7 @@
   token_improvable: false
   special_ability: Leveling Busy Pets
   evo_requirements:
-    total_growth: 15000
+    growth: !Total 15000
     material: 750 Nevermelting Ice
     other: Defeat 10 Million Shadow Clones with It
 - name: Serow
@@ -2082,7 +2082,7 @@
   token_improvable: true
   special_ability: Saving Dungeon Consumables
   evo_requirements:
-    total_growth: 15000
+    growth: !Total 15000
     material: 750 Bound Feather
     other: Serow needs to save you at least 1000 items in dungeons.
 - name: Aurelius
@@ -2097,7 +2097,7 @@
   token_improvable: true
   special_ability: Faster Elemental Crafting
   evo_requirements:
-    total_growth: 1000
+    growth: !Total 1000
     material: 50 Iron Ore
     other: Have 4 Elemental Pets Unlocked
 - name: Ancient Mimic
@@ -2112,7 +2112,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 1000000
+    growth: !Total 1000000
     material: 1000 Mythril (see Note)
     other: Have at least 25000 Ancient Mimic points.
 - name: Student
@@ -2127,7 +2127,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 500000
+    growth: !Total 500000
     material: 5000 Magic Wood
     other: Clear each D4-0 or higher (with 60 or more rooms) with it in party.
 - name: Hwangeum Pig
@@ -2142,7 +2142,7 @@
   token_improvable: false
   special_ability: Bonus damage, wind element bonus
   evo_requirements:
-    total_growth: 150000
+    growth: !Total 150000
     material: 1500 Magic Wood
     other: Give it 4269 god power.
 - name: Lamb
@@ -2157,7 +2157,7 @@
   token_improvable: false
   special_ability: Bonus output in Alchemy Hut
   evo_requirements:
-    total_growth: 7500
+    growth: !Total 7500
     material: 375 Special Wood
     other: Have at least 10 days of Working Experience in the Alchemy Hut
 - name: Duragizer
@@ -2172,7 +2172,7 @@
   token_improvable: true
   special_ability: No Penalty EXP Drain
   evo_requirements:
-    total_growth: 10000
+    growth: !Total 10000
     material: 500 iron Bar
     other: Give 50 of each T1 Material to it.
 - name: Nugget
@@ -2187,7 +2187,7 @@
   token_improvable: false
   special_ability: Class Change
   evo_requirements:
-    total_growth: 25000
+    growth: !Total 25000
     material: 1250 iron Bar
     other: Defeat a D3-10 Boss. Nugget does not need to be in the Party.
 - name: Arachne
@@ -2202,7 +2202,7 @@
   token_improvable: false
   special_ability: Poison Attacks
   evo_requirements:
-    total_growth: 125000
+    growth: !Total 125000
     material: 1250 Magic Feather
     other: Give it 100 Not Nothings
 - name: Simulacrum
@@ -2217,7 +2217,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 150000
+    growth: !Total 150000
     material: 1500 Magic Feather
     other: Have a RTI Score of 150 or Above
 - name: Pixie Goatmother
@@ -2232,7 +2232,7 @@
   token_improvable: false
   special_ability: Bonus Actions
   evo_requirements:
-    total_growth: 300000
+    growth: !Total 300000
     material: 3000 Magic Feather
     other: Give it a full set of SSS T4+20 Wind Equipment
 - name: Fainting Capra
@@ -2247,7 +2247,7 @@
   token_improvable: false
   special_ability: Random DR and in-built knife effect
   evo_requirements:
-    total_growth: 250000
+    growth: !Total 250000
     material: 2500 Magic Ice
     other: Have it faint 1000 times
 - name: Wolpertinger
@@ -2262,7 +2262,7 @@
   token_improvable: false
   special_ability: Tavernkeep Bonuses
   evo_requirements:
-    total_growth: 82116
+    growth: !Total 82116
     material: 4106 Bound Feathers
     other: Give it 1000 Ale. This will not count towards its special ability.
 - name: Skeleton
@@ -2277,7 +2277,7 @@
   token_improvable: false
   special_ability: Boosts Pumpkin Chocolate
   evo_requirements:
-    total_growth: 33333
+    growth: !Total 33333
     material: 1667 iron Bar
     other: Have Pumpkin evolved
 - name: Bear
@@ -2292,7 +2292,7 @@
   token_improvable: false
   special_ability: Campaign Bonus for Honey
   evo_requirements:
-    total_growth: 25000
+    growth: !Total 25000
     material: 1250 Fire Stone
     other: Give it 5000 Honey.
 - name: Dark Gift
@@ -2307,7 +2307,7 @@
   token_improvable: false
   special_ability: null
   evo_requirements:
-    total_growth: 750000
+    growth: !Total 750000
     material: 7500 Magic Ore
     other: Give it 10k God Power, 75k Baal Power, and have it spend 150 Hours in Divinity and GP Camps.
 - name: Dorgegebelle
@@ -2322,7 +2322,7 @@
   token_improvable: false
   special_ability: Bonus to Food, Starvation
   evo_requirements:
-    total_growth: 108000
+    growth: !Total 108000
     material: 5400 Nevermelting Ice
     other: Rebirth it having an empty hunger bar 6 times
 - name: Nothing (Other)
@@ -2337,7 +2337,7 @@
   token_improvable: true
   special_ability: Class Change
   evo_requirements:
-    total_growth: 999999
+    growth: !Total 999999
     material: 10000 Magic Ore
     other: Nothing is too weak to be able to evolve! (You cannot use a Pet Token to skip the questline.)
 - name: Fool
@@ -2352,7 +2352,7 @@
   token_improvable: false
   special_ability: Confuse Enemies
   evo_requirements:
-    total_growth: 70007
+    growth: !Total 70007
     material: 3500 iron Bar
     other: Have 999 Fools Coins. (You cannot use a Pet Token to skip this evo condition.)
 - name: Feather Pile/Owl
@@ -2367,6 +2367,6 @@
   token_improvable: true
   special_ability: Varies
   evo_requirements:
-    total_growth: 0
+    growth: !Total 0
     material: 0 iron Bar
     other: Upon finishing the Questline, it will Evo automatically.
