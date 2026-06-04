@@ -21,7 +21,10 @@ well-tested logic and concise UI code that follows existing patterns.
   - `solver.rs` — party assignment (which pet fills which slot, across
     dungeons), look-around hints, elemental matchup, coverage checks.
   - `equipment.rs` — equipment/gem recommendation + tier handling.
-  - `merge.rs` — merges wiki + export into `MergedPet`.
+  - `merge.rs` — merges wiki + export into `MergedPet`; evolution readiness
+    (`evo_readiness`).
+  - `growth.rs` — base-growth-over-time estimates (Growing Love Pendant + Moai
+    rates, the pendant cap, time-to-target).
 - `crates/gui` — egui app. `views/dungeon.rs` is the main planner view;
   `views/analyzer.rs`, `views/log_viewer.rs` are secondary. `state.rs` is the
   persisted `AppState`.
