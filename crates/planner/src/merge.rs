@@ -112,11 +112,23 @@ impl MergedPet {
         let req = self.wiki.as_ref()?.evo_requirements.as_ref()?;
         let threshold = req.growth.value();
 
-        if export.growth as i64 >= threshold {
+        // Base-growth thresholds (Baby Carno) ignore the Magic Egg entirely:
+        // only true base growth counts.
+        if !req.growth.magic_egg_counts() {
+            return Some(if export.growth as i64 >= threshold {
+                EvoReadiness::Ready
+            } else {
+                EvoReadiness::NotYet
+            });
+        }
+
+        // Total-growth thresholds: "ready now" uses the pet's *current* growth,
+        // which already includes the egg's boost if one is equipped (export
+        // growth is stored as true base). Otherwise, see whether equipping an
+        // egg would clear the bar.
+        if export.effective_growth() as i64 >= threshold {
             Some(EvoReadiness::Ready)
-        } else if req.growth.magic_egg_counts()
-            && export.growth_with_magic_egg() as i64 >= threshold
-        {
+        } else if export.growth_with_magic_egg() as i64 >= threshold {
             Some(EvoReadiness::ReadyWithEgg)
         } else {
             Some(EvoReadiness::NotYet)
@@ -284,6 +296,19 @@ mod tests {
         MergedPet { name: "Test".to_string(), wiki: Some(wiki), export: Some(export) }
     }
 
+    /// Equip a Magic Egg on the pet's weapon slot (so `effective_growth`
+    /// applies the +30%). `growth` is still stored as true base growth.
+    fn equip_magic_egg(pet: &mut MergedPet) {
+        pet.export.as_mut().unwrap().loadout.weapon = Some(Equipment {
+            name: "Magic Egg".to_string(),
+            upgrade_level: None,
+            quality: Quality::SSS,
+            enchant_level: None,
+            gem: None,
+            gem_level: None,
+        });
+    }
+
     #[test]
     fn test_evo_readiness_total_growth() {
         // Total-growth threshold of 1000.
@@ -294,6 +319,27 @@ mod tests {
         assert_eq!(readiness_pet(800, None, true, req()).evo_readiness(), Some(EvoReadiness::ReadyWithEgg));
         // base 700 → 910 < 1000 → NotYet
         assert_eq!(readiness_pet(700, None, true, req()).evo_readiness(), Some(EvoReadiness::NotYet));
+    }
+
+    #[test]
+    fn test_evo_readiness_egg_already_equipped_is_ready_now() {
+        // base 800 < threshold 1000, but with an egg equipped the in-game total
+        // is 800*1.3 = 1040 >= 1000 — evolvable *now*, so Ready (not ReadyWithEgg).
+        let mut pet = readiness_pet(800, None, true, Some(GrowthRequirement::Total(1000)));
+        equip_magic_egg(&mut pet);
+        assert_eq!(pet.evo_readiness(), Some(EvoReadiness::Ready));
+
+        // With the egg equipped but still short even after the boost -> NotYet.
+        let mut pet = readiness_pet(700, None, true, Some(GrowthRequirement::Total(1000)));
+        equip_magic_egg(&mut pet);
+        assert_eq!(pet.evo_readiness(), Some(EvoReadiness::NotYet));
+    }
+
+    #[test]
+    fn test_evo_readiness_zero_threshold_is_ready() {
+        // 0 is a real threshold (some questline/auto-evo pets), always met.
+        assert_eq!(readiness_pet(0, None, true, Some(GrowthRequirement::Total(0))).evo_readiness(), Some(EvoReadiness::Ready));
+        assert_eq!(readiness_pet(0, None, true, Some(GrowthRequirement::Base(0))).evo_readiness(), Some(EvoReadiness::Ready));
     }
 
     #[test]
