@@ -256,6 +256,10 @@ pub struct AnalyzerState {
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
     pub selected_pet: Option<String>,
+    /// Scratch input for the detail card's growth-time calculator — ephemeral,
+    /// shared across pets so a target can be compared between them.
+    #[serde(skip)]
+    pub custom_target: String,
 }
 
 impl Default for AnalyzerState {
@@ -275,6 +279,7 @@ impl Default for AnalyzerState {
             sort_ascending: SortColumn::default().default_ascending(),
             moai: [MoaiStatue::default(), MoaiStatue::default()],
             selected_pet: None,
+            custom_target: String::new(),
         }
     }
 }
@@ -368,6 +373,7 @@ fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore, 
     if let Some(pet_name) = state.selected_pet.clone() {
         let pet = data.merged.iter().find(|p| p.name == pet_name);
         let mut open = true;
+        let custom_target = &mut state.custom_target;
 
         egui::Window::new(format!("Pet: {pet_name}"))
             .open(&mut open)
@@ -376,7 +382,7 @@ fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore, 
             .default_size([400.0, 350.0])
             .show(ui.ctx(), |ui| {
                 if let Some(pet) = pet {
-                    show_pet_details(ui, pet, rates);
+                    show_pet_details(ui, pet, rates, custom_target);
                 } else {
                     ui.label(
                         RichText::new("Pet not found in current data.")
@@ -391,7 +397,7 @@ fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore, 
     }
 }
 
-fn show_pet_details(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
+fn show_pet_details(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates, custom_target: &mut String) {
     // Wiki data section
     if let Some(wiki) = &pet.wiki {
         // Wiki link
@@ -589,6 +595,59 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
                 }
             });
     }
+
+    // Growth-time calculator — works for any pet with export data, evolved or
+    // not (e.g. "how long to grow this pet before slotting it into rotation").
+    if let Some(export) = &pet.export {
+        show_custom_target(ui, export.growth, rates, custom_target);
+    }
+}
+
+/// A growth-time calculator: enter an arbitrary target base growth and see the
+/// estimated time to reach it, with and without a Magic Egg. Like the evolution
+/// estimate, "with egg" reaches the target at base = target / 1.3.
+fn show_custom_target(ui: &mut Ui, base: u64, rates: &GrowthRates, input: &mut String) {
+    ui.add_space(8.0);
+    ui.separator();
+    ui.label(
+        RichText::new("Growth time calculator")
+            .color(style::TEXT_BRIGHT)
+            .size(13.0)
+            .strong(),
+    );
+    ui.add_space(2.0);
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Target base growth:").color(style::TEXT_MUTED).size(12.0));
+        ui.add(
+            egui::TextEdit::singleline(input)
+                .desired_width(110.0)
+                .hint_text("e.g. 50000"),
+        );
+    });
+
+    // Tolerate commas/spaces in the input by keeping only digits.
+    let digits: String = input.chars().filter(|c| c.is_ascii_digit()).collect();
+    let Ok(target) = digits.parse::<u64>() else {
+        return;
+    };
+    if target == 0 {
+        return;
+    }
+
+    let target_egg = (target as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Time — no egg:").color(style::TEXT_MUTED).size(11.0));
+        eta_label(ui, rates.hours_to_target(base, target));
+        ui.label(RichText::new("· with egg:").color(style::TEXT_MUTED).size(11.0));
+        eta_label(ui, rates.hours_to_target(base, target_egg));
+    });
+    ui.label(
+        RichText::new("assumes a dedicated pendant + your Moai")
+            .color(style::TEXT_MUTED)
+            .italics()
+            .size(10.0),
+    );
 }
 
 /// Evolution requirements (growth threshold, material, other) plus a
