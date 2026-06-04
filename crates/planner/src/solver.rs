@@ -336,6 +336,144 @@ fn readiness(pet: &MergedPet) -> (u32, u32) {
     (dl, cl)
 }
 
+/// Local-search pass over the finished assignment: repeatedly swap two pets
+/// between their (cross-dungeon) slots when doing so strictly increases total
+/// elemental affinity, without lowering either pet's match quality or breaking
+/// a dungeon-force / anti-synergy constraint.
+///
+/// This repairs the per-pet greedy placement, which fills each forced pet's
+/// best slot in list order and can hand a matchup-favorable slot to an
+/// indifferent pet processed earlier (a Fire mage taking the Earth Forest's
+/// Mage slot before a Wind mage that counters Earth is even considered).
+fn improve_affinity_by_swaps(
+    assignment_map: &mut HashMap<(usize, usize), SlotAssignment>,
+    requests: &[DungeonRequest],
+    depth_datas: &[Option<&DepthData>],
+    constraints: &SolverConstraints,
+    config: Option<&PlannerConfig>,
+) {
+    // Forced pets bypass the non-dungeon-class filter when scored; otherwise
+    // honor the explicit whitelist.
+    let whitelisted_for = |name: &str| -> bool {
+        constraints.whitelisted.contains(name)
+            || constraints.forced_any.iter().any(|n| n == name)
+            || constraints.forced.values().any(|v| v.iter().any(|n| n == name))
+    };
+    // A pet forced to a specific dungeon may only occupy that dungeon's slots.
+    let forced_dungeon = |name: &str| -> Option<Dungeon> {
+        constraints
+            .forced
+            .iter()
+            .find(|(_, names)| names.iter().any(|n| n == name))
+            .map(|(d, _)| *d)
+    };
+    // Members of request `ri`'s team, excluding the slot at `skip`.
+    let team_excluding = |map: &HashMap<(usize, usize), SlotAssignment>,
+                          ri: usize,
+                          skip: usize|
+     -> Vec<MergedPet> {
+        map.iter()
+            .filter(|((r, s), _)| *r == ri && *s != skip)
+            .filter_map(|(_, a)| match &a.assignment {
+                Assignment::Filled { pet, .. } => Some(pet.clone()),
+                Assignment::Empty { .. } => None,
+            })
+            .collect()
+    };
+
+    let keys: Vec<(usize, usize)> = assignment_map.keys().copied().collect();
+
+    // Total affinity is bounded and strictly increases per swap, so this
+    // terminates; the pass cap is just a safety net.
+    for _ in 0..8 {
+        let mut improved = false;
+        for ai in 0..keys.len() {
+            for bi in (ai + 1)..keys.len() {
+                let (ra, sa) = keys[ai];
+                let (rb, sb) = keys[bi];
+                if ra == rb {
+                    continue; // cross-dungeon swaps only
+                }
+                let (Some(dd_a), Some(dd_b)) = (depth_datas[ra], depth_datas[rb]) else {
+                    continue;
+                };
+
+                let (pet_a, qa) = match assignment_map.get(&(ra, sa)) {
+                    Some(SlotAssignment {
+                        assignment: Assignment::Filled { pet, quality },
+                        ..
+                    }) => (pet.clone(), *quality),
+                    _ => continue,
+                };
+                let (pet_b, qb) = match assignment_map.get(&(rb, sb)) {
+                    Some(SlotAssignment {
+                        assignment: Assignment::Filled { pet, quality },
+                        ..
+                    }) => (pet.clone(), *quality),
+                    _ => continue,
+                };
+
+                let slot_a = &dd_a.party[sa];
+                let slot_b = &dd_b.party[sb];
+                let dun_a = requests[ra].dungeon;
+                let dun_b = requests[rb].dungeon;
+
+                // Must strictly improve total elemental affinity.
+                let cur = elemental_affinity(&pet_a, slot_a, dun_a)
+                    + elemental_affinity(&pet_b, slot_b, dun_b);
+                let swapped = elemental_affinity(&pet_a, slot_b, dun_b)
+                    + elemental_affinity(&pet_b, slot_a, dun_a);
+                if swapped <= cur {
+                    continue;
+                }
+
+                // Respect dungeon-force constraints.
+                if forced_dungeon(&pet_a.name).is_some_and(|d| d != dun_b)
+                    || forced_dungeon(&pet_b.name).is_some_and(|d| d != dun_a)
+                {
+                    continue;
+                }
+
+                // Both pets must still validly fill the swapped slots, no worse.
+                let (Some(qa2), Some(qb2)) = (
+                    score_pet(&pet_a, slot_b, whitelisted_for(&pet_a.name), config),
+                    score_pet(&pet_b, slot_a, whitelisted_for(&pet_b.name), config),
+                ) else {
+                    continue;
+                };
+                if qa2 > qa || qb2 > qb {
+                    continue;
+                }
+
+                // Don't introduce a new dungeon anti-synergy.
+                if let Some(cfg) = config {
+                    let team_b = team_excluding(assignment_map, rb, sb);
+                    let team_a = team_excluding(assignment_map, ra, sa);
+                    let team_b_refs: Vec<&MergedPet> = team_b.iter().collect();
+                    let team_a_refs: Vec<&MergedPet> = team_a.iter().collect();
+                    if conflicts_with_team(&pet_a, &team_b_refs, cfg)
+                        || conflicts_with_team(&pet_b, &team_a_refs, cfg)
+                    {
+                        continue;
+                    }
+                }
+
+                // Perform the swap.
+                if let Some(slot) = assignment_map.get_mut(&(ra, sa)) {
+                    slot.assignment = Assignment::Filled { pet: pet_b.clone(), quality: qb2 };
+                }
+                if let Some(slot) = assignment_map.get_mut(&(rb, sb)) {
+                    slot.assignment = Assignment::Filled { pet: pet_a.clone(), quality: qa2 };
+                }
+                improved = true;
+            }
+        }
+        if !improved {
+            break;
+        }
+    }
+}
+
 // =============================================================================
 // Single-dungeon solver (backward-compatible)
 // =============================================================================
@@ -745,6 +883,24 @@ pub fn solve_multi(
             },
         );
     }
+
+    // Phase 4: Elemental-matchup swap pass.
+    //
+    // The per-pet greedy placement above (Phase 1b) can leave a pet in a
+    // dungeon where its element gives it no advantage while another pet of the
+    // same class sits in the dungeon that *would* favor it — e.g. a Fire mage
+    // claims the Earth Forest's Mage slot before a Wind mage (which counters
+    // Earth) is even processed. A local search fixes this: repeatedly swap two
+    // assigned pets between their slots when doing so strictly increases total
+    // elemental affinity without reducing either pet's match quality (and
+    // without breaking dungeon-force or anti-synergy constraints).
+    improve_affinity_by_swaps(
+        &mut assignment_map,
+        requests,
+        &depth_datas,
+        constraints,
+        config,
+    );
 
     // Build DungeonPlans for each request
     requests
@@ -3054,6 +3210,40 @@ mod tests {
     }
 
     #[test]
+    fn test_affinity_swap_pass_fixes_greedy_order() {
+        // Forest (Earth) has a Mage/any slot; Scrapyard (Neutral) an any/any
+        // slot. Dragon (Fire mage), forced first, greedily takes Forest's Mage
+        // slot (higher specificity), leaving Sylph (Wind mage) in Scrapyard.
+        // The swap pass should put Sylph in Forest (Wind counters Earth) and
+        // move Dragon to Scrapyard.
+        let forest = dungeon_with_depths(vec![vec![make_slot(Some(Class::Mage), None)]]);
+        let scrap = dungeon_with_depths(vec![vec![make_slot(None, None)]]);
+
+        let pets = vec![
+            mock_pet("Dragon", Element::Fire, Some(Class::Mage),
+                RecommendedClass::Single(Class::Mage), true),
+            mock_pet("Sylph", Element::Wind, Some(Class::Mage),
+                RecommendedClass::Single(Class::Mage), true),
+        ];
+        let constraints = SolverConstraints {
+            forced_any: vec!["Dragon".into(), "Sylph".into()],
+            ..Default::default()
+        };
+        let requests = [
+            DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &scrap },
+            DungeonRequest { dungeon: Dungeon::Forest, depth: 1, data: &forest },
+        ];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        assert!(matches!(&plans[1].assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Sylph"),
+            "Sylph should be swapped into Forest");
+        assert!(matches!(&plans[0].assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Dragon"),
+            "Dragon should move to Scrapyard");
+    }
+
+    #[test]
     fn test_greedy_avoids_penalized_matchup() {
         // Two Defenders for one wildcard slot in Volcano (Fire): a Wind
         // defender (Fire is strong against Wind → -1) and a Neutral-element
@@ -3346,6 +3536,72 @@ mod tests {
         assert!(
             !plans[0].warnings.iter().any(|w| matches!(w.kind, CoverageKind::Trap)),
             "an unblockable (notes-only) trap should not produce a coverage warning",
+        );
+    }
+
+    // ========================================================================
+    // Full-roster regression: elemental matchup across competing pets
+    // ========================================================================
+
+    #[test]
+    fn test_sylph_lands_in_forest_with_full_roster() {
+        // Reproduces a reported case: forcing an 18-pet roster across
+        // Scrapyard/Water Temple/Forest D3, the Wind mage Sylph should end up
+        // in the Earth Forest (Wind counters Earth), not the neutral Scrapyard
+        // — even though the Fire mage Dragon is earlier in the list and also
+        // fits Forest's Mage slot (with no matchup advantage).
+        let recs_yaml = include_str!("../../../data/dungeon_recommendations.yaml");
+        let file: itrtg_models::dungeon::DungeonRecommendationsFile =
+            serde_yaml::from_str(recs_yaml).unwrap();
+
+        let p = |name: &str, el: Element, class: Class| {
+            mock_pet(name, el, Some(class), RecommendedClass::Single(class), true)
+        };
+        let pets = vec![
+            p("Egg/Chicken", Element::Wind, Class::Assassin),
+            p("Rudolph", Element::Wind, Class::Rogue),
+            p("Dog", Element::Neutral, Class::Defender),
+            p("Salamander", Element::Fire, Class::Supporter),
+            p("Dragon", Element::Fire, Class::Mage),
+            p("Penguin", Element::Water, Class::Assassin),
+            p("Clam", Element::Water, Class::Rogue),
+            p("Whale", Element::Water, Class::Defender),
+            p("Frog", Element::Water, Class::Supporter),
+            p("Fairy", Element::Wind, Class::Supporter),
+            p("Rabbit", Element::Earth, Class::Mage),
+            p("Cat", Element::Neutral, Class::Assassin),
+            p("Squirrel", Element::Fire, Class::Rogue),
+            p("Armadillo", Element::Earth, Class::Defender),
+            p("Mist Sphere", Element::Water, Class::Supporter),
+            p("Sylph", Element::Wind, Class::Mage),
+            p("Serow", Element::Wind, Class::Assassin),
+            p("Succubus", Element::Fire, Class::Assassin),
+        ];
+
+        let constraints = SolverConstraints {
+            forced_any: pets.iter().map(|p| p.name.clone()).collect(),
+            ..Default::default()
+        };
+        let requests = [
+            DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 3, data: &file.dungeons[&Dungeon::Scrapyard] },
+            DungeonRequest { dungeon: Dungeon::WaterTemple, depth: 3, data: &file.dungeons[&Dungeon::WaterTemple] },
+            DungeonRequest { dungeon: Dungeon::Forest, depth: 3, data: &file.dungeons[&Dungeon::Forest] },
+        ];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        let placement = |name: &str| {
+            plans.iter().find_map(|plan| {
+                plan.assignments.iter().find_map(|a| match &a.assignment {
+                    Assignment::Filled { pet, .. } if pet.name == name => Some(plan.dungeon),
+                    _ => None,
+                })
+            })
+        };
+        assert_eq!(
+            placement("Sylph"),
+            Some(Dungeon::Forest),
+            "Sylph should be in Forest; Dragon is in {:?}",
+            placement("Dragon"),
         );
     }
 }
