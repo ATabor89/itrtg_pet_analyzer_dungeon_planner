@@ -3,9 +3,10 @@ use std::cell::RefCell;
 use eframe::egui::{self, Color32, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::{
-    CampaignType, Class, Dungeon, Element, PetAction, RecommendedClass, UnlockCondition,
-    VillageJob,
+    CampaignType, Class, Dungeon, Element, MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass,
+    UnlockCondition, VillageJob,
 };
+use itrtg_planner::growth::{format_duration, GrowthRates};
 use itrtg_planner::merge::{EvoReadiness, MergedPet};
 use serde::{Deserialize, Serialize};
 
@@ -230,6 +231,9 @@ pub struct AnalyzerState {
     pub filter_improvable: ImprovableFilter,
     pub sort_column: SortColumn,
     pub sort_ascending: bool,
+    /// Moai statue levels (Easter 2026 event) used for growth-time estimates.
+    /// Persisted — it's player-specific config, not derivable from the export.
+    pub moai_statues: Vec<u8>,
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -251,6 +255,7 @@ impl Default for AnalyzerState {
             filter_improvable: ImprovableFilter::default(),
             sort_column: SortColumn::default(),
             sort_ascending: SortColumn::default().default_ascending(),
+            moai_statues: Vec::new(),
             selected_pet: None,
         }
     }
@@ -270,6 +275,7 @@ impl AnalyzerState {
         self.filter_improvable = src.filter_improvable;
         self.sort_column = src.sort_column;
         self.sort_ascending = src.sort_ascending;
+        self.moai_statues = src.moai_statues.clone();
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -308,8 +314,12 @@ impl SortColumn {
 // =============================================================================
 
 pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
+    // Base-growth rates from the roster + the player's Moai statues. Computed
+    // once per frame; edits to Moai below take effect next frame.
+    let rates = GrowthRates::compute(&data.merged, &state.moai_statues);
+
     // Pet detail window (rendered before table so it floats above)
-    show_detail_window(ui, state, data);
+    show_detail_window(ui, state, data, &rates);
 
     // Stats bar
     show_stats_bar(ui, data);
@@ -319,6 +329,9 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     // Filter bars (two rows)
     show_filters(ui, state);
 
+    // Growth-estimate settings (pendant/cap readout + Moai statue editor)
+    show_growth_settings(ui, state, &rates);
+
     ui.add_space(4.0);
     ui.separator();
 
@@ -327,7 +340,7 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     show_table(ui, &filtered, state);
 }
 
-fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
+fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore, rates: &GrowthRates) {
     if let Some(pet_name) = state.selected_pet.clone() {
         let pet = data.merged.iter().find(|p| p.name == pet_name);
         let mut open = true;
@@ -339,7 +352,7 @@ fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) 
             .default_size([400.0, 350.0])
             .show(ui.ctx(), |ui| {
                 if let Some(pet) = pet {
-                    show_pet_details(ui, pet);
+                    show_pet_details(ui, pet, rates);
                 } else {
                     ui.label(
                         RichText::new("Pet not found in current data.")
@@ -354,7 +367,7 @@ fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) 
     }
 }
 
-fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
+fn show_pet_details(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
     // Wiki data section
     if let Some(wiki) = &pet.wiki {
         // Wiki link
@@ -425,7 +438,7 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
     }
 
     // Evolution requirements + readiness
-    show_evolution_section(ui, pet);
+    show_evolution_section(ui, pet, rates);
 
     // Export data section
     if let Some(export) = &pet.export {
@@ -555,8 +568,9 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
 }
 
 /// Evolution requirements (growth threshold, material, other) plus a
-/// readiness badge for unevolved pets. No-op for pets without scraped evo data.
-fn show_evolution_section(ui: &mut Ui, pet: &MergedPet) {
+/// readiness badge and time-to-grow estimate for unevolved pets. No-op for pets
+/// without scraped evo data.
+fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
     let Some(req) = pet.wiki.as_ref().and_then(|w| w.evo_requirements.as_ref()) else {
         return;
     };
@@ -634,7 +648,124 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet) {
                 }
             }
         }
+
+        // Time-to-grow estimate (pendant + Moai) for pets that can't evolve yet.
+        if readiness != EvoReadiness::Ready
+            && let Some(export) = &pet.export
+        {
+            let threshold = req.growth.value().max(0) as u64;
+            ui.add_space(2.0);
+            if req.growth.requires_base_growth() {
+                // Base-growth threshold: the egg never helps, so one estimate.
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Est. time to grow:").color(style::TEXT_MUTED).size(11.0));
+                    eta_label(ui, rates.hours_to_target(export.growth, threshold));
+                    ui.label(RichText::new("(egg doesn't help)").color(style::TEXT_MUTED).size(10.0));
+                });
+            } else {
+                // Total-growth threshold: with the egg you only need
+                // threshold / 1.3 of base growth.
+                let target_egg = (threshold as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Est. grow time — no egg:").color(style::TEXT_MUTED).size(11.0));
+                    eta_label(ui, rates.hours_to_target(export.growth, threshold));
+                    ui.label(RichText::new("· with egg:").color(style::TEXT_MUTED).size(11.0));
+                    eta_label(ui, rates.hours_to_target(export.growth, target_egg));
+                });
+            }
+            ui.label(
+                RichText::new("assumes a dedicated pendant + your Moai")
+                    .color(style::TEXT_MUTED)
+                    .italics()
+                    .size(10.0),
+            );
+        }
     }
+}
+
+/// Render an estimated time-to-target as a short label: "ready now" at zero,
+/// "~3.4 days" for a finite estimate, or "—" when unreachable with the tools.
+fn eta_label(ui: &mut Ui, hours: Option<f64>) {
+    match hours {
+        Some(h) if h <= 0.0 => {
+            ui.label(RichText::new("ready now").color(style::SUCCESS).size(11.0));
+        }
+        Some(h) => {
+            ui.label(
+                RichText::new(format!("~{}", format_duration(h)))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0),
+            );
+        }
+        None => {
+            ui.label(RichText::new("—").color(style::TEXT_MUTED).size(11.0))
+                .on_hover_text(
+                    "Unreachable with a pendant alone (target above its cap) — add Moai statues or grow another way",
+                );
+        }
+    }
+}
+
+/// Growth-estimate settings: a read-only pendant/cap readout plus a Moai statue
+/// editor. The pendant rate and cap are derived from the roster; Moai statues
+/// are player-entered and persisted.
+fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRates) {
+    egui::CollapsingHeader::new(
+        RichText::new("Growth estimate settings")
+            .color(style::TEXT_BRIGHT)
+            .size(13.0),
+    )
+    .default_open(false)
+    .show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Growing Love Pendant:").color(style::TEXT_MUTED).size(12.0));
+            ui.label(
+                RichText::new(format!("{} base growth/hr", rates.evolved_pets))
+                    .color(style::TEXT_NORMAL)
+                    .size(12.0),
+            )
+            .on_hover_text("One per evolved pet, per hour — grows faster as you evolve more pets");
+            ui.separator();
+            ui.label(RichText::new("Cap:").color(style::TEXT_MUTED).size(12.0));
+            ui.label(
+                RichText::new(format_number(rates.pendant_cap))
+                    .color(style::TEXT_NORMAL)
+                    .size(12.0),
+            )
+            .on_hover_text("The pendant stops working once a pet's base growth reaches your 10th-highest pet's growth");
+        });
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Moai statues:").color(style::TEXT_MUTED).size(12.0));
+            ui.label(
+                RichText::new(format!("{:.2} base growth/hr total", rates.moai_per_hour))
+                    .color(style::TEXT_NORMAL)
+                    .size(12.0),
+            );
+            if ui.small_button("+ Add").clicked() {
+                state.moai_statues.push(20); // default to max level
+            }
+        });
+
+        // One row per statue: a level drag (1–20) and a remove button.
+        let mut remove: Option<usize> = None;
+        for (i, level) in state.moai_statues.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("#{}", i + 1)).color(style::TEXT_MUTED).size(11.0));
+                ui.add(egui::DragValue::new(level).range(1..=20).prefix("Lv "));
+                let per_hr = (*level as f64 * 0.05).min(1.0);
+                ui.label(
+                    RichText::new(format!("({per_hr:.2}/hr)")).color(style::TEXT_MUTED).size(11.0),
+                );
+                if ui.small_button("✕").clicked() {
+                    remove = Some(i);
+                }
+            });
+        }
+        if let Some(i) = remove {
+            state.moai_statues.remove(i);
+        }
+    });
 }
 
 fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
