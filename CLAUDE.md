@@ -38,6 +38,12 @@ well-tested logic and concise UI code that follows existing patterns.
 - `pet_special_info.yaml` — per-pet quirks (synergies, locked classes, etc.).
 - `wiki_pets.yaml` — scraped wiki data (auto-refreshed weekly).
 - `app_state.yaml` — per-user state; **untracked**, do not commit.
+- `dungeon_logs/` — sample dungeon log HTML used as `log_parser` test fixtures
+  and the file-dialog default directory.
+
+`data/` holds only machine-consumed files. Human-reference material (wiki page
+text, in-game help text, research notes, the old JS analyzer) lives in the
+top-level `reference/` directory — none of it is read by code.
 
 ## Verify before committing
 
