@@ -107,6 +107,35 @@ impl GrowthRates {
     }
 }
 
+/// How a growth climb from `current` toward `target` relates to the pendant
+/// cap — used to explain why an estimate is slow (growth past the cap is
+/// Moai-only, since the pendant auto-unequips there).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CapRelation {
+    /// The whole climb stays below the cap — the pendant works the entire way.
+    BelowCap,
+    /// The climb crosses the cap: the pendant works until `hours_to_cap`
+    /// (`None` if even reaching the cap is impossible), then it's Moai-only.
+    CrossesCap { hours_to_cap: Option<f64> },
+    /// The pet already exceeds the cap — the pendant never engages (Moai-only).
+    AboveCap,
+}
+
+impl GrowthRates {
+    /// Classify a climb from `current` to `target` against the pendant cap.
+    pub fn cap_relation(&self, current: u64, target: u64) -> CapRelation {
+        if current >= self.pendant_cap {
+            CapRelation::AboveCap
+        } else if target > self.pendant_cap {
+            CapRelation::CrossesCap {
+                hours_to_cap: self.hours_to_target(current, self.pendant_cap),
+            }
+        } else {
+            CapRelation::BelowCap
+        }
+    }
+}
+
 /// Format an hours value as a short human-readable duration ("45 min",
 /// "6.2 hours", "3.4 days", "2.1 months", "1.3 years").
 pub fn format_duration(hours: f64) -> String {
@@ -201,6 +230,24 @@ mod tests {
         // At the cap with no Moai → unreachable.
         let r = rates(80, 0.0, 1000);
         assert_eq!(r.hours_to_target(1000, 1100), None);
+    }
+
+    #[test]
+    fn test_cap_relation() {
+        let r = rates(80, 2.0, 1000); // cap = 1000, combined = 82/hr
+        // Entirely below the cap.
+        assert_eq!(r.cap_relation(200, 900), CapRelation::BelowCap);
+        // Crosses the cap: pendant reaches it, then Moai only.
+        match r.cap_relation(180, 5000) {
+            CapRelation::CrossesCap { hours_to_cap } => {
+                // (1000 - 180) / 82 = 10 hours to the cap.
+                assert!((hours_to_cap.unwrap() - 10.0).abs() < 1e-9);
+            }
+            other => panic!("expected CrossesCap, got {other:?}"),
+        }
+        // Already above the cap.
+        assert_eq!(r.cap_relation(1000, 5000), CapRelation::AboveCap);
+        assert_eq!(r.cap_relation(1500, 5000), CapRelation::AboveCap);
     }
 
     #[test]
