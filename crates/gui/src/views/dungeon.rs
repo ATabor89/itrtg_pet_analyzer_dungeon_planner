@@ -1560,6 +1560,53 @@ fn show_plan(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: &DataS
             });
         }
     }
+
+    // Unavoidable hazards: 100%/uncounterable traps (Railgun, LethalPoison, …)
+    // that no team composition can prevent. Not coverage warnings — just an
+    // FYI so you bring extra sustain (revives/healing) into deeper runs.
+    show_unavoidable_hazards(ui, plan, data);
+}
+
+/// List the dungeon's uncounterable traps across all sub-depths up to the
+/// planned depth — informational, since the player can't plan around them.
+fn show_unavoidable_hazards(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
+    let Some(recs) = &data.dungeon_recs else { return };
+    let Some(dungeon_data) = recs.dungeons.get(&plan.dungeon) else { return };
+
+    let mut hazards: Vec<(u8, &str, u8)> = Vec::new();
+    for depth in 1..=plan.depth {
+        let Some(dd) = dungeon_data.depths.get(&depth) else { continue };
+        for trap in &dd.traps {
+            if !trap.countered_by.is_actionable() {
+                hazards.push((depth, trap.name.as_str(), trap.chance_pct));
+            }
+        }
+    }
+    if hazards.is_empty() {
+        return;
+    }
+
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new("Unavoidable Hazards")
+            .color(style::TEXT_MUTED)
+            .size(13.0),
+    );
+    for (depth, name, chance) in hazards {
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(format!("  D{depth} Trap:"))
+                    .color(style::TEXT_MUTED)
+                    .size(12.0),
+            );
+            ui.label(RichText::new(name).color(style::TEXT_NORMAL).size(12.0));
+            ui.label(
+                RichText::new(format!("— {chance}% chance, no counter (bring sustain)"))
+                    .color(style::TEXT_MUTED)
+                    .size(12.0),
+            );
+        });
+    }
 }
 
 fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {

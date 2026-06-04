@@ -1646,7 +1646,7 @@ fn check_coverage(
 /// this guard `counter_satisfied` would vacuously report them as covered,
 /// which works today but only by accident.)
 fn is_actionable_counter(condition: &CounterCondition) -> bool {
-    condition.item.is_some() || condition.class.is_some() || condition.element.is_some()
+    condition.is_actionable()
 }
 
 /// Check if a counter condition is satisfied by the team.
