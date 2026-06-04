@@ -3,9 +3,10 @@ use std::cell::RefCell;
 use eframe::egui::{self, Color32, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::{
-    CampaignType, Class, Dungeon, Element, PetAction, RecommendedClass, UnlockCondition,
-    VillageJob,
+    CampaignType, Class, Dungeon, Element, MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass,
+    UnlockCondition, VillageJob,
 };
+use itrtg_planner::growth::{format_duration, GrowthRates};
 use itrtg_planner::merge::{EvoReadiness, MergedPet};
 use serde::{Deserialize, Serialize};
 
@@ -215,6 +216,22 @@ impl ImprovableFilter {
 // State
 // =============================================================================
 
+/// One Moai statue (Easter 2026 event): whether the player owns it and its
+/// level (1–20). Only two exist in-game, so the UI shows a fixed pair.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MoaiStatue {
+    pub owned: bool,
+    pub level: u8,
+}
+
+impl Default for MoaiStatue {
+    fn default() -> Self {
+        // Level defaults to the max (20); only counts once `owned` is ticked.
+        Self { owned: false, level: 20 }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AnalyzerState {
@@ -230,6 +247,11 @@ pub struct AnalyzerState {
     pub filter_improvable: ImprovableFilter,
     pub sort_column: SortColumn,
     pub sort_ascending: bool,
+    /// The two Moai statues (Easter 2026) used for growth-time estimates —
+    /// owned flag + level each. Persisted (player config, not in the export).
+    /// Renamed from the earlier free-list `moai_statues`; the old key is simply
+    /// ignored on load.
+    pub moai: [MoaiStatue; 2],
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -251,6 +273,7 @@ impl Default for AnalyzerState {
             filter_improvable: ImprovableFilter::default(),
             sort_column: SortColumn::default(),
             sort_ascending: SortColumn::default().default_ascending(),
+            moai: [MoaiStatue::default(), MoaiStatue::default()],
             selected_pet: None,
         }
     }
@@ -270,6 +293,7 @@ impl AnalyzerState {
         self.filter_improvable = src.filter_improvable;
         self.sort_column = src.sort_column;
         self.sort_ascending = src.sort_ascending;
+        self.moai = src.moai.clone();
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -308,8 +332,18 @@ impl SortColumn {
 // =============================================================================
 
 pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
+    // Base-growth rates from the roster + the player's owned Moai statues.
+    // Computed once per frame; edits to Moai below take effect next frame.
+    let moai_levels: Vec<u8> = state
+        .moai
+        .iter()
+        .filter(|m| m.owned)
+        .map(|m| m.level)
+        .collect();
+    let rates = GrowthRates::compute(&data.merged, &moai_levels);
+
     // Pet detail window (rendered before table so it floats above)
-    show_detail_window(ui, state, data);
+    show_detail_window(ui, state, data, &rates);
 
     // Stats bar
     show_stats_bar(ui, data);
@@ -319,6 +353,9 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     // Filter bars (two rows)
     show_filters(ui, state);
 
+    // Growth-estimate settings (pendant/cap readout + Moai statue editor)
+    show_growth_settings(ui, state, &rates);
+
     ui.add_space(4.0);
     ui.separator();
 
@@ -327,7 +364,7 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     show_table(ui, &filtered, state);
 }
 
-fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
+fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore, rates: &GrowthRates) {
     if let Some(pet_name) = state.selected_pet.clone() {
         let pet = data.merged.iter().find(|p| p.name == pet_name);
         let mut open = true;
@@ -339,7 +376,7 @@ fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) 
             .default_size([400.0, 350.0])
             .show(ui.ctx(), |ui| {
                 if let Some(pet) = pet {
-                    show_pet_details(ui, pet);
+                    show_pet_details(ui, pet, rates);
                 } else {
                     ui.label(
                         RichText::new("Pet not found in current data.")
@@ -354,7 +391,7 @@ fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) 
     }
 }
 
-fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
+fn show_pet_details(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
     // Wiki data section
     if let Some(wiki) = &pet.wiki {
         // Wiki link
@@ -425,7 +462,7 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
     }
 
     // Evolution requirements + readiness
-    show_evolution_section(ui, pet);
+    show_evolution_section(ui, pet, rates);
 
     // Export data section
     if let Some(export) = &pet.export {
@@ -555,8 +592,9 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet) {
 }
 
 /// Evolution requirements (growth threshold, material, other) plus a
-/// readiness badge for unevolved pets. No-op for pets without scraped evo data.
-fn show_evolution_section(ui: &mut Ui, pet: &MergedPet) {
+/// readiness badge and time-to-grow estimate for unevolved pets. No-op for pets
+/// without scraped evo data.
+fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
     let Some(req) = pet.wiki.as_ref().and_then(|w| w.evo_requirements.as_ref()) else {
         return;
     };
@@ -634,7 +672,131 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet) {
                 }
             }
         }
+
+        // Time-to-grow estimate (pendant + Moai) for pets that can't evolve yet.
+        if readiness != EvoReadiness::Ready
+            && let Some(export) = &pet.export
+        {
+            let threshold = req.growth.value().max(0) as u64;
+            ui.add_space(2.0);
+            if req.growth.requires_base_growth() {
+                // Base-growth threshold: the egg never helps, so one estimate.
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Est. time to grow:").color(style::TEXT_MUTED).size(11.0));
+                    eta_label(ui, rates.hours_to_target(export.growth, threshold));
+                    ui.label(RichText::new("(egg doesn't help)").color(style::TEXT_MUTED).size(10.0));
+                });
+            } else {
+                // Total-growth threshold: with the egg you only need
+                // threshold / 1.3 of base growth.
+                let target_egg = (threshold as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Est. grow time — no egg:").color(style::TEXT_MUTED).size(11.0));
+                    eta_label(ui, rates.hours_to_target(export.growth, threshold));
+                    ui.label(RichText::new("· with egg:").color(style::TEXT_MUTED).size(11.0));
+                    // Stay consistent with the readiness badge: if the egg
+                    // already clears the threshold, it's ready now (avoids a
+                    // ~1-unit rounding disagreement with `evo_readiness`).
+                    if readiness == EvoReadiness::ReadyWithEgg {
+                        eta_label(ui, Some(0.0));
+                    } else {
+                        eta_label(ui, rates.hours_to_target(export.growth, target_egg));
+                    }
+                });
+            }
+            ui.label(
+                RichText::new("assumes a dedicated pendant + your Moai")
+                    .color(style::TEXT_MUTED)
+                    .italics()
+                    .size(10.0),
+            );
+        }
     }
+}
+
+/// Render an estimated time-to-target as a short label: "ready now" at zero,
+/// "~3.4 days" for a finite estimate, or "—" when unreachable with the tools.
+fn eta_label(ui: &mut Ui, hours: Option<f64>) {
+    match hours {
+        Some(h) if h <= 0.0 => {
+            ui.label(RichText::new("ready now").color(style::SUCCESS).size(11.0));
+        }
+        Some(h) => {
+            ui.label(
+                RichText::new(format!("~{}", format_duration(h)))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0),
+            );
+        }
+        None => {
+            ui.label(RichText::new("—").color(style::TEXT_MUTED).size(11.0))
+                .on_hover_text(
+                    "Unreachable with a pendant alone (target above its cap) — add Moai statues or grow another way",
+                );
+        }
+    }
+}
+
+/// Growth-estimate settings: a read-only pendant/cap readout plus a Moai statue
+/// editor. The pendant rate and cap are derived from the roster; Moai statues
+/// are player-entered and persisted.
+fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRates) {
+    egui::CollapsingHeader::new(
+        RichText::new("Growth estimate settings")
+            .color(style::TEXT_BRIGHT)
+            .size(13.0),
+    )
+    .default_open(false)
+    .show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Growing Love Pendant:").color(style::TEXT_MUTED).size(12.0));
+            ui.label(
+                RichText::new(format!("{} base growth/hr", rates.evolved_pets))
+                    .color(style::TEXT_NORMAL)
+                    .size(12.0),
+            )
+            .on_hover_text("One per evolved pet, per hour — grows faster as you evolve more pets");
+            ui.separator();
+            ui.label(RichText::new("Cap:").color(style::TEXT_MUTED).size(12.0));
+            let cap_text = if rates.pendant_cap == u64::MAX {
+                "—".to_string() // fewer than 10 pets: effectively no cap
+            } else {
+                format_number(rates.pendant_cap)
+            };
+            ui.label(
+                RichText::new(cap_text)
+                    .color(style::TEXT_NORMAL)
+                    .size(12.0),
+            )
+            .on_hover_text("The pendant stops working once a pet's base growth reaches your 10th-highest pet's growth");
+        });
+
+        ui.label(
+            RichText::new(format!("Moai statues — {:.2} base growth/hr total", rates.moai_per_hour))
+                .color(style::TEXT_MUTED)
+                .size(12.0),
+        );
+
+        // Exactly two statues exist in-game: show both, tick the ones you own
+        // and set each level independently.
+        for (i, m) in state.moai.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                ui.checkbox(
+                    &mut m.owned,
+                    RichText::new(format!("Moai #{}", i + 1)).size(12.0),
+                );
+                // Level only matters (and is editable) once owned.
+                ui.add_enabled(
+                    m.owned,
+                    egui::DragValue::new(&mut m.level).range(1..=20).prefix("Lv "),
+                );
+                let per_hr = if m.owned { (m.level as f64 * 0.05).min(1.0) } else { 0.0 };
+                ui.label(
+                    RichText::new(format!("({per_hr:.2}/hr)")).color(style::TEXT_MUTED).size(11.0),
+                );
+            });
+        }
+    });
 }
 
 fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
