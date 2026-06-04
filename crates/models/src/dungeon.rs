@@ -512,6 +512,18 @@ pub struct CounterCondition {
     pub notes: Option<String>,
 }
 
+impl CounterCondition {
+    /// Whether this condition can actually be satisfied by team composition or
+    /// items — i.e. it names a class, element, or item. A condition with only
+    /// `notes` (or nothing) describes an *uncounterable* hazard, such as the
+    /// D4 "unblockable" traps (Railgun, LethalPoison, …). Those aren't a
+    /// team-planning problem, so coverage skips them; the UI surfaces them as
+    /// informational "unavoidable hazards" instead.
+    pub fn is_actionable(&self) -> bool {
+        self.item.is_some() || self.class.is_some() || self.element.is_some()
+    }
+}
+
 // =============================================================================
 // Custom Deserialization Helpers
 // =============================================================================
@@ -621,6 +633,22 @@ mod tests {
         let ev: EventEntry = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(ev.countered_by.len(), 1);
         assert_eq!(ev.countered_by[0].item, Some("torch".to_string()));
+    }
+
+    #[test]
+    fn test_counter_is_actionable() {
+        let trap: TrapEntry = serde_yaml::from_str(
+            "name: Darkness\nchance_pct: 100\ncountered_by:\n  item: torch\n",
+        )
+        .unwrap();
+        assert!(trap.countered_by.is_actionable());
+
+        // A notes-only condition (unblockable trap) is NOT actionable.
+        let unblockable: TrapEntry = serde_yaml::from_str(
+            "name: Railgun\nchance_pct: 100\ncountered_by:\n  notes: \"Unblockable\"\n",
+        )
+        .unwrap();
+        assert!(!unblockable.countered_by.is_actionable());
     }
 
     #[test]
