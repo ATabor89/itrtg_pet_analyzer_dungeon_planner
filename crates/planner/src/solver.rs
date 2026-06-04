@@ -265,8 +265,9 @@ fn pet_fits_class(pet: &MergedPet, class: Class) -> bool {
 /// slot of a given dungeon. Higher is better; only ever a tiebreaker.
 ///
 /// Returns 0 when the slot pins an element (ground truth), the dungeon is
-/// element-neutral (Scrapyard / Newbie Ground), or the pet has no specific
-/// element (Neutral, or Chameleon's `All` which already fits anything).
+/// element-neutral (Scrapyard / Newbie Ground), the pet has no element data,
+/// or it has no specific element (Neutral, or Chameleon's `All` which already
+/// fits anything). Also 0 when the pet's role can't be determined.
 ///
 /// Otherwise the preference depends on the pet's combat role:
 /// - **Offensive** classes (Mage, Assassin, Rogue) deal elemental damage, so
@@ -300,7 +301,15 @@ fn elemental_affinity(pet: &MergedPet, slot: &PartySlot, dungeon: Dungeon) -> i3
         return -1;
     }
 
-    match pet.evolved_class().or(slot.class) {
+    // Role: evolved class, else the slot's required class, else the pet's
+    // recommended class (so an unevolved pet in a fully-wildcard slot still
+    // gets the heuristic). Truly classless/wildcard pets get no preference.
+    let role = pet
+        .evolved_class()
+        .or(slot.class)
+        .or_else(|| pet.recommended_class().and_then(|rc| rc.primary_class()));
+
+    match role {
         // Defensive: matching element → resistance gear shrugs off the dungeon.
         Some(Class::Defender) | Some(Class::Supporter) => i32::from(pet_el == dungeon_el),
         // Offensive: countering the dungeon element deals more damage.
@@ -3042,6 +3051,30 @@ mod tests {
             Assignment::Filled { pet, .. } if pet.name == "Sylph");
         assert!(!in_scrapyard, "Sylph should not land in the neutral Scrapyard");
         assert!(in_forest, "Sylph should land in Forest, where Wind counters Earth");
+    }
+
+    #[test]
+    fn test_greedy_avoids_penalized_matchup() {
+        // Two Defenders for one wildcard slot in Volcano (Fire): a Wind
+        // defender (Fire is strong against Wind → -1) and a Neutral-element
+        // defender (no matchup → 0). The penalty should send the slot to the
+        // neutral pet even though the Wind pet has higher growth.
+        let mut wind_def = mock_pet_with_evo("WindGuard", Element::Wind, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 999_999);
+        let mut neutral_def = mock_pet_with_evo("PlainGuard", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 10_000);
+        for p in [&mut wind_def, &mut neutral_def] {
+            let e = p.export.as_mut().unwrap();
+            e.dungeon_level = 100;
+            e.class_level = 20;
+        }
+        let pets = vec![wind_def, neutral_def];
+
+        let dd = dungeon_with_depths(vec![vec![make_slot(Some(Class::Defender), None)]]);
+        let plan = solve(Dungeon::Volcano, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "PlainGuard"),
+            "the penalized Wind defender should lose to the neutral one in Volcano");
     }
 
     #[test]
