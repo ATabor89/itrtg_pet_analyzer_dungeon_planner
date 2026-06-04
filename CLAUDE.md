@@ -36,7 +36,10 @@ well-tested logic and concise UI code that follows existing patterns.
 - `planner_config.yaml` — class→equipment selection rules (no hardcoded gear
   logic in Rust; tweak here).
 - `pet_special_info.yaml` — per-pet quirks (synergies, locked classes, etc.).
-- `wiki_pets.yaml` — scraped wiki data (auto-refreshed weekly).
+- `wiki_pets.yaml` — scraped wiki data (auto-refreshed weekly). Includes
+  per-pet `evo_requirements` (growth threshold, material, "other" condition),
+  which `wiki-extractor` fills in by crawling each pet's page — see its
+  `parse_evo_requirements` and the `--skip-evo` flag.
 - `app_state.yaml` — per-user state; **untracked**, do not commit.
 - `dungeon_logs/` — sample dungeon log HTML used as `log_parser` test fixtures
   and the file-dialog default directory.
