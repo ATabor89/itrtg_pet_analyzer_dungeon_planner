@@ -261,6 +261,48 @@ fn pet_fits_class(pet: &MergedPet, class: Class) -> bool {
     }
 }
 
+/// A soft elemental-matchup bonus for placing a pet into a *wildcard-element*
+/// slot of a given dungeon. Higher is better; only ever a tiebreaker.
+///
+/// Returns 0 when the slot pins an element (ground truth), the dungeon is
+/// element-neutral (Scrapyard / Newbie Ground), or the pet has no specific
+/// element (Neutral, or Chameleon's `All` which already fits anything).
+///
+/// Otherwise the preference depends on the pet's combat role:
+/// - **Offensive** classes (Mage, Assassin, Rogue) deal elemental damage, so
+///   they want to *counter* the dungeon element — a Wind mage in the Earth
+///   Forest hits harder. +1 when the pet counters the dungeon.
+/// - **Defensive** classes (Defender, Supporter) want to *match* the dungeon
+///   element: with matching-element resistance gear they shrug off the
+///   dungeon's attacks. +1 on a match.
+///
+/// Only positive preferences are scored — bad matchups aren't penalized, just
+/// not preferred. (The Assassin/Rogue = offensive classification is a best
+/// guess — they deal some elemental damage — and is easy to adjust here.)
+fn elemental_affinity(pet: &MergedPet, slot: &PartySlot, dungeon: Dungeon) -> i32 {
+    if slot.element.is_some() {
+        return 0; // explicit element is ground truth
+    }
+    let dungeon_el = dungeon.element();
+    if dungeon_el == Element::Neutral {
+        return 0; // no matchup in a neutral dungeon
+    }
+    let Some(pet_el) = pet.element() else { return 0 };
+    if pet_el == Element::Neutral || pet_el == Element::All {
+        return 0;
+    }
+
+    match pet.evolved_class().or(slot.class) {
+        // Defensive: matching element → resistance gear shrugs off the dungeon.
+        Some(Class::Defender) | Some(Class::Supporter) => i32::from(pet_el == dungeon_el),
+        // Offensive: countering the dungeon element deals more damage.
+        Some(Class::Mage) | Some(Class::Assassin) | Some(Class::Rogue) => {
+            i32::from(pet_el.counters() == dungeon_el)
+        }
+        _ => 0,
+    }
+}
+
 /// A pet's readiness for a slot, as bucketed (dungeon level, class level).
 /// These reflect how prepared a pet actually is to clear the dungeon, so a
 /// meaningfully higher-leveled pet should beat an equally-matching but weaker
@@ -449,8 +491,10 @@ pub fn solve_multi(
 
         // Find the best (request, slot) pair across all dungeons: best match
         // quality first, then the most specific slot (so a flexible pet claims
-        // a tighter slot and leaves looser ones open for less-flexible pets).
-        let mut best: Option<(usize, usize, MatchQuality, u8)> = None;
+        // a tighter slot and leaves looser ones open for less-flexible pets),
+        // then the best elemental matchup for the pet's role (so a Wind mage
+        // lands in the Earth Forest rather than an element-neutral dungeon).
+        let mut best: Option<(usize, usize, MatchQuality, u8, i32)> = None;
         let mut first_open: Option<(usize, usize)> = None;
 
         for (ri, dd_opt) in depth_datas.iter().enumerate() {
@@ -464,18 +508,20 @@ pub fn solve_multi(
                 }
                 if let Some(q) = score_pet(pet, slot, true, config) {
                     let spec = slot_specificity(slot);
-                    let better = best.as_ref().is_none_or(|(_, _, bq, bspec)| {
-                        q < *bq || (q == *bq && spec > *bspec)
+                    let aff = elemental_affinity(pet, slot, requests[ri].dungeon);
+                    let better = best.as_ref().is_none_or(|(_, _, bq, bspec, baff)| {
+                        (q, std::cmp::Reverse(spec), std::cmp::Reverse(aff))
+                            < (*bq, std::cmp::Reverse(*bspec), std::cmp::Reverse(*baff))
                     });
                     if better {
-                        best = Some((ri, si, q, spec));
+                        best = Some((ri, si, q, spec, aff));
                     }
                 }
             }
         }
 
         let target = best
-            .map(|(ri, si, q, _)| (ri, si, q))
+            .map(|(ri, si, q, _, _)| (ri, si, q))
             .or_else(|| first_open.map(|(ri, si)| (ri, si, MatchQuality::Fallback)));
 
         if let Some((ri, si, quality)) = target {
@@ -632,6 +678,16 @@ pub fn solve_multi(
                         readiness(available[*pi_b]).cmp(&readiness(available[*pi_a]));
                     if read_cmp != std::cmp::Ordering::Equal {
                         return read_cmp;
+                    }
+                    // Elemental-matchup tiebreaker: among comparably-leveled
+                    // pets, prefer the better element matchup for this slot's
+                    // role in this dungeon (a wildcard-element slot only).
+                    let dungeon = requests[gs.req_idx].dungeon;
+                    let aff_a = elemental_affinity(available[*pi_a], gs.slot, dungeon);
+                    let aff_b = elemental_affinity(available[*pi_b], gs.slot, dungeon);
+                    let aff_cmp = aff_b.cmp(&aff_a);
+                    if aff_cmp != std::cmp::Ordering::Equal {
+                        return aff_cmp;
                     }
                     // Higher growth = final tiebreak when levels are similar.
                     let ga = available[*pi_a]
@@ -2899,6 +2955,105 @@ mod tests {
         assert!(sa.equipment_hint.is_some(),
             "a Defender should inherit the Defender gear");
         assert!(sa.future_class.is_none(), "no swap note when the class fits");
+    }
+
+    // ========================================================================
+    // Elemental matchup
+    // ========================================================================
+
+    #[test]
+    fn test_elemental_affinity_scoring() {
+        let wildcard = make_slot(None, None);
+        let fire_slot = make_slot(None, Some(Element::Fire));
+
+        let wind_mage = mock_pet("WM", Element::Wind, Some(Class::Mage),
+            RecommendedClass::Single(Class::Mage), true);
+        let fire_def = mock_pet("FD", Element::Fire, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true);
+        let water_mage = mock_pet("WtM", Element::Water, Some(Class::Mage),
+            RecommendedClass::Single(Class::Mage), true);
+
+        // Offensive: Wind counters Earth (Forest) → +1.
+        assert_eq!(elemental_affinity(&wind_mage, &wildcard, Dungeon::Forest), 1);
+        // Defensive: Fire defender matches Volcano (Fire) → +1.
+        assert_eq!(elemental_affinity(&fire_def, &wildcard, Dungeon::Volcano), 1);
+        // Water mage doesn't counter Earth → 0 (no penalty either).
+        assert_eq!(elemental_affinity(&water_mage, &wildcard, Dungeon::Forest), 0);
+        // Explicit-element slot → ground truth, no adjustment.
+        assert_eq!(elemental_affinity(&wind_mage, &fire_slot, Dungeon::Forest), 0);
+        // Neutral dungeon → no matchup.
+        assert_eq!(elemental_affinity(&wind_mage, &wildcard, Dungeon::Scrapyard), 0);
+    }
+
+    #[test]
+    fn test_forced_any_prefers_advantageous_dungeon() {
+        // A Wind mage forced into "any" team, with an open wildcard Mage slot
+        // in both Scrapyard (Neutral) and Forest (Earth). She should land in
+        // Forest, where Wind counters Earth — not the lower-indexed Scrapyard.
+        let mage_slot_dungeon = || {
+            let mut depths = std::collections::BTreeMap::new();
+            depths.insert(1, DepthData {
+                rooms: 5, monsters_per_room: 2, gem_level: None,
+                requirements: DepthRequirements {
+                    dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                    class_level: 3, total_growth: None,
+                },
+                monsters: Vec::new(),
+                bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+                party: vec![make_slot(Some(Class::Mage), None)], // wildcard element
+                party_items: Vec::new(), traps: Vec::new(), events: Vec::new(),
+            });
+            DungeonData { name: "D".to_string(), depths }
+        };
+        let scrap = mage_slot_dungeon();
+        let forest = mage_slot_dungeon();
+
+        let pets = vec![mock_pet("Sylph", Element::Wind, Some(Class::Mage),
+            RecommendedClass::Single(Class::Mage), true)];
+
+        let constraints = SolverConstraints {
+            forced_any: vec!["Sylph".into()],
+            ..Default::default()
+        };
+        // Scrapyard is listed first (lower index) to prove affinity, not order,
+        // decides.
+        let requests = [
+            DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &scrap },
+            DungeonRequest { dungeon: Dungeon::Forest, depth: 1, data: &forest },
+        ];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        // Sylph should be in Forest (plan index 1), not Scrapyard (index 0).
+        let in_scrapyard = matches!(&plans[0].assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Sylph");
+        let in_forest = matches!(&plans[1].assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Sylph");
+        assert!(!in_scrapyard, "Sylph should not land in the neutral Scrapyard");
+        assert!(in_forest, "Sylph should land in Forest, where Wind counters Earth");
+    }
+
+    #[test]
+    fn test_greedy_prefers_matching_defender_element() {
+        // Two Defenders compete for one wildcard-element slot in Volcano (Fire).
+        // The Fire defender should win on the matchup tiebreaker even though the
+        // Water defender has higher growth.
+        let mut fire_def = mock_pet_with_evo("FireGuard", Element::Fire, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 10_000);
+        let mut water_def = mock_pet_with_evo("WaterGuard", Element::Water, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 999_999);
+        // Equal levels so readiness ties and the matchup decides over growth.
+        for p in [&mut fire_def, &mut water_def] {
+            let e = p.export.as_mut().unwrap();
+            e.dungeon_level = 100;
+            e.class_level = 20;
+        }
+        let pets = vec![water_def, fire_def];
+
+        let dd = dungeon_with_depths(vec![vec![make_slot(Some(Class::Defender), None)]]);
+        let plan = solve(Dungeon::Volcano, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "FireGuard"),
+            "the Fire defender should win in the Fire dungeon despite lower growth");
     }
 
     #[test]
