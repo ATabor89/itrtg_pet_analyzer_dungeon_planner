@@ -2221,14 +2221,14 @@ fn show_equipment_comparison(
     let rec_color = if is_computed {
         Color32::from_rgb(0x88, 0x99, 0xcc)
     } else if propagated_from.is_some() {
-        // Borrowed from a neighboring depth — distinct purple so the user
-        // notices it may be a higher tier than this depth normally wants.
+        // Borrowed from a neighboring depth (retiered to this slot's tier) —
+        // distinct purple so the user notices it came from another depth.
         Color32::from_rgb(0xcc, 0x99, 0xff)
     } else {
         style::TEXT_NORMAL
     };
 
-    // Note where propagated gear came from, since it isn't tier-adjusted.
+    // Note which depth the borrowed gear came from.
     if let Some(from_depth) = propagated_from {
         ui.label(
             RichText::new(format!("↑ gear from D{from_depth} recommendation"))

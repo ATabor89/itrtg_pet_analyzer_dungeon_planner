@@ -1370,7 +1370,9 @@ fn check_coverage(
 
         // Check traps
         for trap in &dd.traps {
-            if !counter_satisfied(&trap.countered_by, team, config) {
+            if is_actionable_counter(&trap.countered_by)
+                && !counter_satisfied(&trap.countered_by, team, config)
+            {
                 warnings.push(CoverageWarning {
                     source_depth: depth,
                     kind: CoverageKind::Trap,
@@ -1386,7 +1388,9 @@ fn check_coverage(
                 continue;
             }
             for condition in &event.countered_by {
-                if !counter_satisfied(condition, team, config) {
+                if is_actionable_counter(condition)
+                    && !counter_satisfied(condition, team, config)
+                {
                     warnings.push(CoverageWarning {
                         source_depth: depth,
                         kind: CoverageKind::Event,
@@ -1399,6 +1403,17 @@ fn check_coverage(
     }
 
     warnings
+}
+
+/// Whether a counter condition is something the team or items can actually
+/// satisfy. A condition with no item, class, or element (only `notes`) is an
+/// *uncounterable* hazard — e.g. the D4 "unblockable" traps like Railgun /
+/// LethalPoison. Those aren't a team-composition problem, so coverage skips
+/// them rather than emitting a warning the player can never resolve. (Without
+/// this guard `counter_satisfied` would vacuously report them as covered,
+/// which works today but only by accident.)
+fn is_actionable_counter(condition: &CounterCondition) -> bool {
+    condition.item.is_some() || condition.class.is_some() || condition.element.is_some()
 }
 
 /// Check if a counter condition is satisfied by the team.
@@ -3092,6 +3107,45 @@ mod tests {
         assert!(
             warned.contains(&"Blacksmith Event".to_string()),
             "an explicitly enabled optional event should warn when uncovered",
+        );
+    }
+
+    #[test]
+    fn test_unblockable_trap_emits_no_warning() {
+        // A trap whose only counter field is `notes` (the D4 "unblockable"
+        // traps like Railgun) is uncounterable, so coverage must not warn.
+        let mut depths = std::collections::BTreeMap::new();
+        depths.insert(1, DepthData {
+            rooms: 5, monsters_per_room: 2, gem_level: None,
+            requirements: DepthRequirements {
+                dungeon_level_avg: 5, levels_per_difficulty: vec![1, 2],
+                class_level: 3, total_growth: None,
+            },
+            monsters: Vec::new(),
+            bosses: vec![MonsterEntry { name: "B".into(), element: None, hp: 50, att: 20, def: 10, spd: 10 }],
+            party: vec![make_slot(None, None)],
+            party_items: Vec::new(),
+            traps: vec![TrapEntry {
+                name: "Railgun".to_string(),
+                chance_pct: 100,
+                countered_by: CounterCondition {
+                    item: None, class: None, element: None,
+                    count: None, quantity_per_clear: None,
+                    notes: Some("Unblockable — no counter available.".to_string()),
+                },
+            }],
+            events: Vec::new(),
+        });
+        let dd = DungeonData { name: "Test".to_string(), depths };
+        let pets = vec![mock_pet("Guard", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &SolverConstraints::default(), None);
+
+        assert!(
+            !plans[0].warnings.iter().any(|w| matches!(w.kind, CoverageKind::Trap)),
+            "an unblockable (notes-only) trap should not produce a coverage warning",
         );
     }
 }
