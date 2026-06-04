@@ -6,7 +6,7 @@ use itrtg_models::{
     CampaignType, Class, Dungeon, Element, MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass,
     UnlockCondition, VillageJob,
 };
-use itrtg_planner::growth::{format_duration, GrowthRates};
+use itrtg_planner::growth::{format_duration, CapRelation, GrowthRates};
 use itrtg_planner::merge::{EvoReadiness, MergedPet};
 use serde::{Deserialize, Serialize};
 
@@ -648,6 +648,9 @@ fn show_custom_target(ui: &mut Ui, base: u64, rates: &GrowthRates, input: &mut S
             .italics()
             .size(10.0),
     );
+    if base < target {
+        show_cap_note(ui, rates, base, target);
+    }
 }
 
 /// Evolution requirements (growth threshold, material, other) plus a
@@ -769,6 +772,8 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
                     .italics()
                     .size(10.0),
             );
+            // Explain a slow estimate when the threshold is past the cap.
+            show_cap_note(ui, rates, export.growth, threshold);
         }
     }
 }
@@ -792,6 +797,39 @@ fn eta_label(ui: &mut Ui, hours: Option<f64>) {
                 .on_hover_text(
                     "Unreachable with a pendant alone (target above its cap) — add Moai statues or grow another way",
                 );
+        }
+    }
+}
+
+/// Explain the pendant cap when a growth target sits above it — that's why an
+/// estimate can read in months (growth past the cap is Moai-only since the
+/// pendant auto-unequips there). Renders nothing when the climb stays below the
+/// cap. Intended for `current < target`.
+fn show_cap_note(ui: &mut Ui, rates: &GrowthRates, current: u64, target: u64) {
+    let cap = format_number(rates.pendant_cap);
+    match rates.cap_relation(current, target) {
+        CapRelation::BelowCap => {}
+        CapRelation::CrossesCap { hours_to_cap } => {
+            let when = match hours_to_cap {
+                Some(h) => format!("reached in ~{}", format_duration(h)),
+                None => "unreachable".to_string(),
+            };
+            ui.label(
+                RichText::new(format!(
+                    "Pendant cap {cap} {when}; growth beyond it is Moai-only (slow)"
+                ))
+                .color(style::WARNING)
+                .size(10.0),
+            );
+        }
+        CapRelation::AboveCap => {
+            ui.label(
+                RichText::new(format!(
+                    "Above the pendant cap ({cap}) — growth is Moai-only (slow)"
+                ))
+                .color(style::WARNING)
+                .size(10.0),
+            );
         }
     }
 }
