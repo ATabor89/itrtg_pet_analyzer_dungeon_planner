@@ -34,11 +34,12 @@ pub enum EquipmentSource {
     Static,
     /// Computed by the equipment recommendation engine.
     Computed,
-    /// Pulled verbatim from a neighboring depth's matching slot via a
-    /// look-around hint, to fill a slot whose own recommendation is absent or
-    /// generic. `from_depth` is the depth it was borrowed from — usually a
-    /// deeper one, so the gear may be a higher tier than the depth being
-    /// planned (no tier adjustment is applied yet).
+    /// Pulled from a neighboring depth's matching slot via a look-around hint,
+    /// to fill a slot whose own recommendation is absent or generic.
+    /// `from_depth` is the depth it was borrowed from. The borrowed gear is
+    /// retiered to match the planned slot's generic placeholder tier (see
+    /// `retier_equipment`), so e.g. D3 gear borrowed into a `generic_t4` slot
+    /// is upgraded to T4.
     Propagated { from_depth: u8 },
 }
 
@@ -287,6 +288,13 @@ fn recommend_for_pet(
     let ctx = SelectCtx {
         pet_element,
         dungeon_element: dungeon.element(),
+        // The computed path caps the catalog tier at T3: it's a fallback for
+        // slots that don't get D4 gear via propagation (which retiers to T4),
+        // and the catalog's T4 coverage is incomplete (e.g. no clean T4
+        // neutral armor — mythril_armor is tagged T5 — and Alchemist Cape is
+        // T3-only), so a naive T4 lookup would drop those items entirely.
+        // Raising this safely needs a tier-fallback lookup; tracked as a
+        // follow-up.
         tier: depth.clamp(1, 3),
     };
 
@@ -322,6 +330,7 @@ pub fn recommend_equipment(
     let ctx = SelectCtx {
         pet_element,
         dungeon_element: dungeon.element(),
+        // Capped at T3 — see the note in `recommend_for_pet`.
         tier: depth.clamp(1, 3),
     };
 
