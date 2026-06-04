@@ -918,6 +918,21 @@ accessories:
     }
 
     #[test]
+    fn test_computed_path_falls_back_when_tier_missing() {
+        // The minimal test catalog tops out at T3. A D4 (tier-4) request must
+        // degrade to the best available item rather than dropping it — this
+        // exercises the tier-fallback loop itself (T4 miss → T3 hit).
+        let cat = test_catalog();
+        let cfg = default_config();
+        let s = recommend_equipment(
+            Class::Defender, Element::Earth, Dungeon::WaterTemple, 4, &cat, &cfg,
+        );
+        // Defender armor is neutral; the catalog's highest neutral armor is
+        // titanium_armor (T3), so the fallback resolves to it instead of None.
+        assert_eq!(s.equipment.armor.as_deref(), Some("titanium_armor"));
+    }
+
+    #[test]
     fn test_mage_d3_own_element_armor() {
         let cat = test_catalog();
         let cfg = default_config();
