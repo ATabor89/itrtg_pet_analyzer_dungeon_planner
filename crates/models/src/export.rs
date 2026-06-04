@@ -44,6 +44,9 @@ pub struct ExportPet {
     pub has_partner: bool,
 }
 
+/// Multiplier the Magic Egg applies to a pet's growth while equipped (+30%).
+pub const MAGIC_EGG_GROWTH_MULT: f64 = 1.3;
+
 impl ExportPet {
     /// Whether this pet currently has a Magic Egg equipped.
     pub fn has_magic_egg(&self) -> bool {
@@ -53,10 +56,17 @@ impl ExportPet {
             .is_some_and(|w| w.name == "Magic Egg")
     }
 
-    /// Growth value the game uses (includes 30% Magic Egg bonus if equipped).
+    /// Growth this pet *would* have with a Magic Egg equipped, regardless of its
+    /// current loadout. Used for "could evolve if the egg were equipped" checks.
+    pub fn growth_with_magic_egg(&self) -> u64 {
+        (self.growth as f64 * MAGIC_EGG_GROWTH_MULT).round() as u64
+    }
+
+    /// Growth value the game uses *now* — includes the Magic Egg bonus only if
+    /// one is actually equipped.
     pub fn effective_growth(&self) -> u64 {
         if self.has_magic_egg() {
-            (self.growth as f64 * 1.3).round() as u64
+            self.growth_with_magic_egg()
         } else {
             self.growth
         }
