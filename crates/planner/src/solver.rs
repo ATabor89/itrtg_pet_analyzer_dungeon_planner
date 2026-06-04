@@ -261,6 +261,22 @@ fn pet_fits_class(pet: &MergedPet, class: Class) -> bool {
     }
 }
 
+/// A pet's readiness for a slot, as bucketed (dungeon level, class level).
+/// These reflect how prepared a pet actually is to clear the dungeon, so a
+/// meaningfully higher-leveled pet should beat an equally-matching but weaker
+/// one. Levels are bucketed so that only real gaps decide — pets within a
+/// bucket tie here and fall through to the growth tiebreak. Higher is better.
+fn readiness(pet: &MergedPet) -> (u32, u32) {
+    /// Dungeon levels within this band count as "similar" (growth decides).
+    const DL_BUCKET: u32 = 10;
+    /// Class levels within this band count as "similar".
+    const CL_BUCKET: u32 = 5;
+    let export = pet.export.as_ref();
+    let dl = export.map(|e| e.dungeon_level).unwrap_or(0) / DL_BUCKET;
+    let cl = export.map(|e| e.class_level).unwrap_or(0) / CL_BUCKET;
+    (dl, cl)
+}
+
 // =============================================================================
 // Single-dungeon solver (backward-compatible)
 // =============================================================================
@@ -608,7 +624,16 @@ pub fn solve_multi(
                             return fwd_cmp;
                         }
                     }
-                    // Higher growth = better tiebreak (prefer stronger pets)
+                    // Readiness tiebreaker: among equally-matching pets the
+                    // soft preferences above didn't separate, prefer the one
+                    // that's actually more leveled (bucketed DL then CL).
+                    // Higher is better.
+                    let read_cmp =
+                        readiness(available[*pi_b]).cmp(&readiness(available[*pi_a]));
+                    if read_cmp != std::cmp::Ordering::Equal {
+                        return read_cmp;
+                    }
+                    // Higher growth = final tiebreak when levels are similar.
                     let ga = available[*pi_a]
                         .export
                         .as_ref()
@@ -2859,6 +2884,71 @@ mod tests {
         assert!(sa.equipment_hint.is_some(),
             "a Defender should inherit the Defender gear");
         assert!(sa.future_class.is_none(), "no swap note when the class fits");
+    }
+
+    #[test]
+    fn test_readiness_beats_growth() {
+        // Two equally-matching Defenders compete for one slot: a high-level
+        // low-growth veteran and a low-level high-growth rookie. The veteran
+        // should win — actual DL/CL outrank growth.
+        let mut veteran = mock_pet_with_evo("Veteran", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 10_000);
+        {
+            let e = veteran.export.as_mut().unwrap();
+            e.dungeon_level = 200;
+            e.class_level = 50;
+            e.growth = 10_000;
+        }
+        let mut rookie = mock_pet_with_evo("Rookie", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 999_999);
+        {
+            let e = rookie.export.as_mut().unwrap();
+            e.dungeon_level = 20;
+            e.class_level = 5;
+            e.growth = 999_999;
+        }
+        let pets = vec![veteran, rookie];
+
+        let dd = dungeon_with_depths(vec![vec![make_slot(
+            Some(Class::Defender),
+            Some(Element::Neutral),
+        )]]);
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "Veteran"),
+            "the higher-leveled pet should win despite much lower growth");
+    }
+
+    #[test]
+    fn test_growth_breaks_tie_when_levels_similar() {
+        // Two Defenders within the same DL/CL buckets — growth is the
+        // tiebreaker, so the higher-growth pet wins even if slightly lower DL.
+        let mut high_growth = mock_pet_with_evo("HighGrowth", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 999_999);
+        {
+            let e = high_growth.export.as_mut().unwrap();
+            e.dungeon_level = 100; // bucket 10
+            e.class_level = 22;    // bucket 4
+            e.growth = 999_999;
+        }
+        let mut high_level = mock_pet_with_evo("HighLevel", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true, 1, 1, 10_000);
+        {
+            let e = high_level.export.as_mut().unwrap();
+            e.dungeon_level = 105; // bucket 10 (same)
+            e.class_level = 24;    // bucket 4 (same)
+            e.growth = 10_000;
+        }
+        let pets = vec![high_growth, high_level];
+
+        let dd = dungeon_with_depths(vec![vec![make_slot(
+            Some(Class::Defender),
+            Some(Element::Neutral),
+        )]]);
+        let plan = solve(Dungeon::Scrapyard, 1, &dd, &pets, None);
+        assert!(matches!(&plan.assignments[0].assignment,
+            Assignment::Filled { pet, .. } if pet.name == "HighGrowth"),
+            "with similar DL/CL, higher growth should decide");
     }
 
     #[test]
