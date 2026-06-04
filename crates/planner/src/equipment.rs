@@ -288,14 +288,11 @@ fn recommend_for_pet(
     let ctx = SelectCtx {
         pet_element,
         dungeon_element: dungeon.element(),
-        // The computed path caps the catalog tier at T3: it's a fallback for
-        // slots that don't get D4 gear via propagation (which retiers to T4),
-        // and the catalog's T4 coverage is incomplete (e.g. no clean T4
-        // neutral armor — mythril_armor is tagged T5 — and Alchemist Cape is
-        // T3-only), so a naive T4 lookup would drop those items entirely.
-        // Raising this safely needs a tier-fallback lookup; tracked as a
-        // follow-up.
-        tier: depth.clamp(1, 3),
+        // Target the depth's tier (D4 -> T4). The catalog lookups fall back to
+        // the best item at or below this tier (see `lookup_element`), so a slot
+        // whose exact tier/element is missing still resolves sensibly instead
+        // of dropping the recommendation.
+        tier: depth.clamp(1, 4),
     };
 
     // Weapon: apply pet-level overrides first (required/forbidden kinds),
@@ -330,8 +327,9 @@ pub fn recommend_equipment(
     let ctx = SelectCtx {
         pet_element,
         dungeon_element: dungeon.element(),
-        // Capped at T3 — see the note in `recommend_for_pet`.
-        tier: depth.clamp(1, 3),
+        // Target the depth's tier with at-or-below fallback — see
+        // `recommend_for_pet`.
+        tier: depth.clamp(1, 4),
     };
 
     let weapon_key = resolve_selector(rule.weapon, &ctx, catalog, EquipmentSlot::Weapon);
@@ -405,9 +403,13 @@ fn resolve_selector(
             };
             lookup_element(catalog, slot, el, ctx.tier, kind.as_deref())
         }
-        EquipmentSelector::ByName { name_contains } => catalog
-            .find_by_name(slot, ctx.tier, name_contains)
-            .map(|(k, _)| k.to_string()),
+        EquipmentSelector::ByName { name_contains } => (1..=ctx.tier)
+            .rev()
+            .find_map(|t| {
+                catalog
+                    .find_by_name(slot, t, name_contains)
+                    .map(|(k, _)| k.to_string())
+            }),
         EquipmentSelector::Chain { options } => options
             .iter()
             .find_map(|s| resolve_selector(s, ctx, catalog, slot)),
@@ -424,6 +426,10 @@ fn effective_pet_element(pet_element: Element, fallback: Element) -> Element {
 
 /// Look up a catalog entry for (slot, element, tier), optionally filtered by
 /// a name substring ("knives", "sword", etc.).
+///
+/// Falls back to the best item *at or below* `tier`, so a request at a tier the
+/// element line doesn't reach (e.g. a T4 item that only exists up to T3) still
+/// resolves to the nearest lower-tier piece instead of dropping out.
 fn lookup_element(
     catalog: &EquipmentCatalog,
     slot: EquipmentSlot,
@@ -431,13 +437,13 @@ fn lookup_element(
     tier: u8,
     kind: Option<&str>,
 ) -> Option<String> {
-    if let Some(kind) = kind {
-        catalog
-            .find_by_kind(slot, element, tier, kind)
-            .map(|(k, _)| k.to_string())
-    } else {
-        catalog.find(slot, element, tier).map(|(k, _)| k.to_string())
-    }
+    (1..=tier).rev().find_map(|t| {
+        match kind {
+            Some(kind) => catalog.find_by_kind(slot, element, t, kind),
+            None => catalog.find(slot, element, t),
+        }
+        .map(|(k, _)| k.to_string())
+    })
 }
 
 // =============================================================================
@@ -881,6 +887,49 @@ accessories:
         assert_eq!(s.equipment.accessory.as_deref(), Some("steel_ring"));
         let gems = s.equipment.gems.unwrap();
         assert_eq!(gems.weapon, Some(Element::Water));
+    }
+
+    #[test]
+    fn test_computed_path_reaches_tier_4_at_d4() {
+        // Real catalog + config so the full T4 equipment lines are present.
+        let cat_yaml = include_str!("../../../data/equipment_catalog.yaml");
+        let cat: EquipmentCatalog = serde_yaml::from_str(cat_yaml).unwrap();
+        let rules_yaml = include_str!("../../../data/planner_config.yaml");
+        let file: PlannerConfigFile = serde_yaml::from_str(rules_yaml).unwrap();
+        let cfg = PlannerConfig::new(file, std::collections::BTreeMap::new());
+
+        // A neutral Defender's armor at D4 should resolve to a tier-4 item now,
+        // instead of being capped at T3.
+        let s4 = recommend_equipment(
+            Class::Defender, Element::Earth, Dungeon::WaterTemple, 4, &cat, &cfg,
+        );
+        let armor4 = cat.lookup(s4.equipment.armor.as_deref().unwrap()).unwrap();
+        assert_eq!(
+            armor4.tier, 4,
+            "D4 computed armor should be tier 4, got {:?}", s4.equipment.armor
+        );
+
+        // D3 is unchanged: still tier 3.
+        let s3 = recommend_equipment(
+            Class::Defender, Element::Earth, Dungeon::WaterTemple, 3, &cat, &cfg,
+        );
+        let armor3 = cat.lookup(s3.equipment.armor.as_deref().unwrap()).unwrap();
+        assert_eq!(armor3.tier, 3, "D3 computed armor should stay tier 3");
+    }
+
+    #[test]
+    fn test_computed_path_falls_back_when_tier_missing() {
+        // The minimal test catalog tops out at T3. A D4 (tier-4) request must
+        // degrade to the best available item rather than dropping it — this
+        // exercises the tier-fallback loop itself (T4 miss → T3 hit).
+        let cat = test_catalog();
+        let cfg = default_config();
+        let s = recommend_equipment(
+            Class::Defender, Element::Earth, Dungeon::WaterTemple, 4, &cat, &cfg,
+        );
+        // Defender armor is neutral; the catalog's highest neutral armor is
+        // titanium_armor (T3), so the fallback resolves to it instead of None.
+        assert_eq!(s.equipment.armor.as_deref(), Some("titanium_armor"));
     }
 
     #[test]
