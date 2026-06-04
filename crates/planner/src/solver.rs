@@ -381,7 +381,11 @@ fn improve_affinity_by_swaps(
             .collect()
     };
 
-    let keys: Vec<(usize, usize)> = assignment_map.keys().copied().collect();
+    // Sort the slot keys so the visit order (and thus which local optimum a
+    // multi-improvement landscape settles into) is deterministic — HashMap
+    // iteration order is randomized per run.
+    let mut keys: Vec<(usize, usize)> = assignment_map.keys().copied().collect();
+    keys.sort_unstable();
 
     // Total affinity is bounded and strictly increases per swap, so this
     // terminates; the pass cap is just a safety net.
