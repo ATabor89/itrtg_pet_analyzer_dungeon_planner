@@ -161,6 +161,7 @@ mod tests {
             evo_difficulty: EvoDifficulty { base: 1, with_conditions: 1 },
             token_improvable: false,
             special_ability: None,
+            evo_requirements: None,
         }
     }
 

@@ -339,10 +339,95 @@ pub fn parse_pets(source: &str) -> anyhow::Result<Vec<WikiPet>> {
             evo_difficulty,
             token_improvable,
             special_ability,
+            // Populated separately by crawling each pet's page (see
+            // `parse_evo_requirements`); the main table has no evo data.
+            evo_requirements: None,
         });
     }
 
     Ok(pets)
+}
+
+/// Parse the "Evolution Requirements" block from a pet page's *rendered* HTML.
+///
+/// The infobox renders three labelled rows — "Total Growth" (the growth
+/// threshold), "Material", and "Other" — as `<b>Label</b>` cells each followed
+/// by a value cell. We scope the search to text *after* the "Evolution
+/// Requirements" marker so we don't pick up the pet's own "Total Growth" stat
+/// row higher in the infobox. Materials are template-computed and only exist in
+/// the rendered page, which is why this works on HTML rather than raw wikitext.
+///
+/// Returns `None` if the block or a parseable growth threshold is absent.
+pub fn parse_evo_requirements(html: &str) -> Option<EvoRequirements> {
+    let marker = html.find("Evolution Requirements")?;
+    let scope = &html[marker..];
+
+    // The value may carry trailing text, which tells us the basis: most pets
+    // render a bare number (total-growth threshold), but a base-growth pet like
+    // Baby Carno renders "300000 base growth". Pull the leading integer for the
+    // value and look for "base" to pick the variant.
+    let growth_cell = evo_field(scope, "Total Growth")?;
+    let value = parse_leading_int(&growth_cell)?;
+    let growth = if growth_cell.to_ascii_lowercase().contains("base") {
+        GrowthRequirement::Base(value)
+    } else {
+        GrowthRequirement::Total(value)
+    };
+
+    Some(EvoRequirements {
+        growth,
+        material: evo_field(scope, "Material").and_then(meaningful),
+        other: evo_field(scope, "Other").and_then(meaningful),
+    })
+}
+
+/// Extract the first integer from a value cell, allowing thousands separators
+/// and ignoring any trailing words (e.g. "300000 base growth" -> 300000).
+fn parse_leading_int(s: &str) -> Option<i64> {
+    let digits: String = s
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(|c| c.is_ascii_digit() || *c == ',')
+        .filter(|c| *c != ',')
+        .collect();
+    digits.parse::<i64>().ok()
+}
+
+/// Drop empty or "none"/"-" placeholder values so display fields stay clean.
+fn meaningful(s: String) -> Option<String> {
+    let t = s.trim();
+    if t.is_empty() || t.eq_ignore_ascii_case("none") || t == "-" {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+/// Find an evolution-requirement value by its bold label, returning the cleaned
+/// text of the immediately following table cell.
+fn evo_field(scope: &str, label: &str) -> Option<String> {
+    // <b>Label</b> </td> <td ...> VALUE </td>
+    let pattern = format!(
+        r"(?s)<b>\s*{}\s*</b>\s*</td>\s*<td[^>]*>(.*?)</td>",
+        regex::escape(label)
+    );
+    let re = Regex::new(&pattern).ok()?;
+    let cap = re.captures(scope)?;
+    Some(clean_html_value(cap.get(1)?.as_str()))
+}
+
+/// Strip HTML tags, decode the few entities that show up in pet infoboxes, and
+/// collapse whitespace.
+fn clean_html_value(s: &str) -> String {
+    let tags = Regex::new(r"<[^>]*>").unwrap();
+    let text = tags.replace_all(s, "");
+    let text = text
+        .replace("&amp;", "&")
+        .replace("&#39;", "'")
+        .replace("&#039;", "'")
+        .replace("&quot;", "\"")
+        .replace("&nbsp;", " ");
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Split a table row into individual cells.
@@ -439,6 +524,74 @@ mod tests {
             RecommendedClass::Dual(Class::Assassin, Class::Adventurer) => {}
             other => panic!("Expected Dual(Assassin, Adventurer), got {:?}", other),
         }
+    }
+
+    // Mirrors the real rendered infobox: the pet's own "Total Growth" stat row
+    // appears *before* the Evolution Requirements block, which has its own
+    // "Total Growth" (the threshold). The parser must pick the latter.
+    const MOUSE_EVO_HTML: &str = r#"
+        <tr><td colspan="2"><b>Total Growth</b> </td><td colspan="2">420</td></tr>
+        <tr><td colspan="4"><i><b>Evolution Requirements</b></i></td></tr>
+        <tr><td colspan="4" rowspan="3">Defeat <a href="/wiki/Gods">Hyperion</a></td>
+        <td colspan="2"><b>Total Growth</b> </td><td colspan="2">100</td></tr>
+        <tr><td colspan="2"><b>Material</b> </td><td colspan="2">5 Wood</td></tr>
+        <tr><td colspan="2"><b>Other</b> </td><td colspan="2">100 Puny Food</td></tr>
+    "#;
+
+    #[test]
+    fn test_parse_evo_requirements_basic() {
+        let evo = parse_evo_requirements(MOUSE_EVO_HTML).expect("should parse");
+        assert_eq!(
+            evo.growth,
+            GrowthRequirement::Total(100),
+            "must use the Evolution Requirements threshold (total-growth), not the 420 stat"
+        );
+        assert_eq!(evo.material.as_deref(), Some("5 Wood"));
+        assert_eq!(evo.other.as_deref(), Some("100 Puny Food"));
+    }
+
+    #[test]
+    fn test_parse_evo_requirements_strips_links_and_commas() {
+        // Sylph-style: large threshold and a wikilinked questline in "Other".
+        let html = r#"
+            <td colspan="4"><i><b>Evolution Requirements</b></i></td></tr>
+            <tr><td colspan="2"><b>Total Growth</b> </td><td colspan="2">55,555</td></tr>
+            <tr><td colspan="2"><b>Material</b> </td><td colspan="2">2778 <a href="/wiki/Bound_Feather">Bound Feather</a></td></tr>
+            <tr><td colspan="2"><b>Other</b> </td><td colspan="2">Finish the <a href="/wiki/Sylph">Questline</a> (You <b>cannot</b> use a Pet Token)</td></tr>
+        "#;
+        let evo = parse_evo_requirements(html).expect("should parse");
+        assert_eq!(evo.growth, GrowthRequirement::Total(55555));
+        assert_eq!(evo.material.as_deref(), Some("2778 Bound Feather"));
+        assert_eq!(
+            evo.other.as_deref(),
+            Some("Finish the Questline (You cannot use a Pet Token)")
+        );
+    }
+
+    #[test]
+    fn test_parse_evo_requirements_absent() {
+        assert!(parse_evo_requirements("<p>no infobox here</p>").is_none());
+    }
+
+    #[test]
+    fn test_parse_evo_requirements_base_growth_suffix_and_none() {
+        // Baby Carno: threshold cell carries trailing "base growth" markup, and
+        // its "Other" is the literal "none".
+        let html = r#"
+            <td colspan="4"><i><b>Evolution Requirements</b></i></td></tr>
+            <tr><td colspan="2"><b>Total Growth</b> </td><td colspan="2">300000 <b>base growth</b> </td></tr>
+            <tr><td colspan="2"><b>Material</b> </td><td colspan="2">3000 Magic Ore</td></tr>
+            <tr><td colspan="2"><b>Other</b> </td><td colspan="2">none</td></tr>
+        "#;
+        let evo = parse_evo_requirements(html).expect("should parse despite suffix");
+        assert_eq!(
+            evo.growth,
+            GrowthRequirement::Base(300000),
+            "the 'base growth' marker must yield a Base requirement (Magic Egg won't help)"
+        );
+        assert!(!evo.growth.magic_egg_counts());
+        assert_eq!(evo.material.as_deref(), Some("3000 Magic Ore"));
+        assert_eq!(evo.other, None, "literal 'none' should be dropped");
     }
 
     #[test]
