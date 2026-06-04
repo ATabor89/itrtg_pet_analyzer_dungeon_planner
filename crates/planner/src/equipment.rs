@@ -1077,6 +1077,7 @@ accessories:
             evo_difficulty: EvoDifficulty { base: 1, with_conditions: 1 },
             token_improvable: false,
             special_ability: None,
+            evo_requirements: None,
         };
         let export = ExportPet {
             export_name: name.to_string(),
