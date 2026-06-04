@@ -1754,6 +1754,7 @@ mod tests {
             evo_difficulty: EvoDifficulty { base: evo_base, with_conditions: evo_cond },
             token_improvable: false,
             special_ability: None,
+            evo_requirements: None,
         };
         let export = ExportPet {
             export_name: name.to_string(),

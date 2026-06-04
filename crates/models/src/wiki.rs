@@ -100,6 +100,33 @@ pub struct EvoDifficulty {
     pub with_conditions: u8,
 }
 
+/// The three evolution requirements shown in a pet page's infobox, under the
+/// "Evolution Requirements" heading. Scraped per-pet (the main Pets table does
+/// not carry these). Optional because the crawl can miss pets or a pet may have
+/// no evolution.
+///
+/// Note: the infobox labels the growth threshold "Total Growth", which is a
+/// different value from the pet's own `total_growth` starting stat. Here
+/// [`Self::total_growth`] is the *threshold* (raw infobox param `evo_growth`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvoRequirements {
+    /// Growth threshold the pet must reach to evolve (e.g. Mouse 100,
+    /// Sylph 55555). This is the load-bearing field for evolution planning.
+    pub total_growth: i64,
+
+    /// Material(s) needed, as displayed (e.g. "5 Wood", "2778 Bound Feather").
+    /// Template-computed in the infobox, so only available from the rendered
+    /// page. Free text for display only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material: Option<String>,
+
+    /// The variable third condition (infobox "Other" row, raw param
+    /// `evo_special`), e.g. "100 Puny Food" or "Finish the Questline...".
+    /// Free text for display only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub other: Option<String>,
+}
+
 /// A pet entry as described by the wiki. Static reference data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WikiPet {
@@ -112,4 +139,10 @@ pub struct WikiPet {
     pub evo_difficulty: EvoDifficulty,
     pub token_improvable: bool,
     pub special_ability: Option<String>,
+
+    /// Per-pet evolution requirements (growth threshold, material, other),
+    /// scraped from the pet's wiki page infobox. `None` until the crawl
+    /// populates it, so existing data without this field still deserializes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evo_requirements: Option<EvoRequirements>,
 }
