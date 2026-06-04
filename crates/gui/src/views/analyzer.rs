@@ -216,6 +216,22 @@ impl ImprovableFilter {
 // State
 // =============================================================================
 
+/// One Moai statue (Easter 2026 event): whether the player owns it and its
+/// level (1–20). Only two exist in-game, so the UI shows a fixed pair.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MoaiStatue {
+    pub owned: bool,
+    pub level: u8,
+}
+
+impl Default for MoaiStatue {
+    fn default() -> Self {
+        // Level defaults to the max (20); only counts once `owned` is ticked.
+        Self { owned: false, level: 20 }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AnalyzerState {
@@ -231,9 +247,11 @@ pub struct AnalyzerState {
     pub filter_improvable: ImprovableFilter,
     pub sort_column: SortColumn,
     pub sort_ascending: bool,
-    /// Moai statue levels (Easter 2026 event) used for growth-time estimates.
-    /// Persisted — it's player-specific config, not derivable from the export.
-    pub moai_statues: Vec<u8>,
+    /// The two Moai statues (Easter 2026) used for growth-time estimates —
+    /// owned flag + level each. Persisted (player config, not in the export).
+    /// Renamed from the earlier free-list `moai_statues`; the old key is simply
+    /// ignored on load.
+    pub moai: [MoaiStatue; 2],
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -255,7 +273,7 @@ impl Default for AnalyzerState {
             filter_improvable: ImprovableFilter::default(),
             sort_column: SortColumn::default(),
             sort_ascending: SortColumn::default().default_ascending(),
-            moai_statues: Vec::new(),
+            moai: [MoaiStatue::default(), MoaiStatue::default()],
             selected_pet: None,
         }
     }
@@ -275,7 +293,7 @@ impl AnalyzerState {
         self.filter_improvable = src.filter_improvable;
         self.sort_column = src.sort_column;
         self.sort_ascending = src.sort_ascending;
-        self.moai_statues = src.moai_statues.clone();
+        self.moai = src.moai.clone();
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -314,9 +332,15 @@ impl SortColumn {
 // =============================================================================
 
 pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
-    // Base-growth rates from the roster + the player's Moai statues. Computed
-    // once per frame; edits to Moai below take effect next frame.
-    let rates = GrowthRates::compute(&data.merged, &state.moai_statues);
+    // Base-growth rates from the roster + the player's owned Moai statues.
+    // Computed once per frame; edits to Moai below take effect next frame.
+    let moai_levels: Vec<u8> = state
+        .moai
+        .iter()
+        .filter(|m| m.owned)
+        .map(|m| m.level)
+        .collect();
+    let rates = GrowthRates::compute(&data.merged, &moai_levels);
 
     // Pet detail window (rendered before table so it floats above)
     show_detail_window(ui, state, data, &rates);
@@ -747,35 +771,30 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
             .on_hover_text("The pendant stops working once a pet's base growth reaches your 10th-highest pet's growth");
         });
 
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Moai statues:").color(style::TEXT_MUTED).size(12.0));
-            ui.label(
-                RichText::new(format!("{:.2} base growth/hr total", rates.moai_per_hour))
-                    .color(style::TEXT_NORMAL)
-                    .size(12.0),
-            );
-            if ui.small_button("+ Add").clicked() {
-                state.moai_statues.push(20); // default to max level
-            }
-        });
+        ui.label(
+            RichText::new(format!("Moai statues — {:.2} base growth/hr total", rates.moai_per_hour))
+                .color(style::TEXT_MUTED)
+                .size(12.0),
+        );
 
-        // One row per statue: a level drag (1–20) and a remove button.
-        let mut remove: Option<usize> = None;
-        for (i, level) in state.moai_statues.iter_mut().enumerate() {
+        // Exactly two statues exist in-game: show both, tick the ones you own
+        // and set each level independently.
+        for (i, m) in state.moai.iter_mut().enumerate() {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("#{}", i + 1)).color(style::TEXT_MUTED).size(11.0));
-                ui.add(egui::DragValue::new(level).range(1..=20).prefix("Lv "));
-                let per_hr = (*level as f64 * 0.05).min(1.0);
+                ui.checkbox(
+                    &mut m.owned,
+                    RichText::new(format!("Moai #{}", i + 1)).size(12.0),
+                );
+                // Level only matters (and is editable) once owned.
+                ui.add_enabled(
+                    m.owned,
+                    egui::DragValue::new(&mut m.level).range(1..=20).prefix("Lv "),
+                );
+                let per_hr = if m.owned { (m.level as f64 * 0.05).min(1.0) } else { 0.0 };
                 ui.label(
                     RichText::new(format!("({per_hr:.2}/hr)")).color(style::TEXT_MUTED).size(11.0),
                 );
-                if ui.small_button("✕").clicked() {
-                    remove = Some(i);
-                }
             });
-        }
-        if let Some(i) = remove {
-            state.moai_statues.remove(i);
         }
     });
 }
