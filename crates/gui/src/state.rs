@@ -25,7 +25,21 @@ pub struct AppState {
     pub inventory: BTreeMap<String, u8>,
     pub equipment_standards: BTreeMap<Dungeon, EquipmentStandardOverride>,
     pub constraints: ConstraintsState,
+    /// User overrides for dungeon-event coverage checks. Only stores
+    /// deviations from each event's default (optional events default to
+    /// disabled, normal events to enabled), so the file stays minimal.
+    pub event_overrides: Vec<EventOverride>,
     pub analyzer: AnalyzerState,
+}
+
+/// A user's explicit enable/disable choice for one dungeon event, identified
+/// by dungeon + depth + event name.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventOverride {
+    pub dungeon: Dungeon,
+    pub depth: u8,
+    pub event: String,
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

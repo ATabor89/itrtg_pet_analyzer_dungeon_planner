@@ -1034,7 +1034,7 @@ armor:
   mythril_armor:
     name: "Mythril Armor"
     type: Armor
-    tier: 5
+    tier: 4
     element: Neutral
     upgraded_from: "titanium_armor"
     stats_a0:

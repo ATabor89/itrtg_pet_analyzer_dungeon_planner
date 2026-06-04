@@ -150,6 +150,53 @@ impl EquipmentCatalog {
             || self.is_upgrade_of(base_key, candidate_key)
     }
 
+    /// Find the equipment in the same upgrade line as `key` that sits at
+    /// `target_tier`. Used to retier propagated gear to match the tier the
+    /// planned slot actually wants.
+    ///
+    /// Walks the `upgraded_from` chain downward, or scans for an upgrade
+    /// upward. When the line doesn't reach `target_tier` (e.g. capes only
+    /// exist at T3/T4, so they floor at T3), the nearest reachable tier in
+    /// that direction is returned instead of failing. Returns `None` only if
+    /// `key` itself isn't in the catalog.
+    pub fn retier(&self, key: &str, target_tier: u8) -> Option<String> {
+        let entry = self.lookup(key)?;
+        if entry.tier == target_tier {
+            return Some(key.to_string());
+        }
+
+        if entry.tier > target_tier {
+            // Walk down the upgrade chain toward the target. Stop at the
+            // target tier, or at the bottom of the chain if it ends first.
+            let mut cur = key.to_string();
+            loop {
+                let e = self.lookup(&cur)?;
+                if e.tier <= target_tier {
+                    return Some(cur);
+                }
+                match &e.upgraded_from {
+                    Some(parent) => cur = parent.clone(),
+                    None => return Some(cur), // bottomed out (e.g. cape at T3)
+                }
+            }
+        } else {
+            // Need a higher tier: among items in the same slot that are
+            // upgrades of `key`, pick the highest tier that doesn't exceed
+            // the target. If none qualifies, keep `key` as-is.
+            let mut best: Option<(u8, &str)> = None;
+            for (k, e) in self.slot_map(entry.slot) {
+                if e.tier > entry.tier
+                    && e.tier <= target_tier
+                    && self.is_upgrade_of(k, key)
+                    && best.is_none_or(|(t, _)| e.tier > t)
+                {
+                    best = Some((e.tier, k.as_str()));
+                }
+            }
+            Some(best.map(|(_, k)| k.to_string()).unwrap_or_else(|| key.to_string()))
+        }
+    }
+
     fn slot_map(&self, slot: EquipmentSlot) -> &BTreeMap<String, CatalogEquipment> {
         match slot {
             EquipmentSlot::Weapon => &self.weapons,
@@ -437,6 +484,13 @@ pub struct EventEntry {
     /// requirement, all of which must be met).
     #[serde(deserialize_with = "deserialize_counter")]
     pub countered_by: Vec<CounterCondition>,
+    /// Whether this event is "optional" — failing it carries no penalty
+    /// in-game (e.g. the D4 Path / elemental-shrine events). Optional events
+    /// default to *disabled* in the planner's coverage check so they don't
+    /// nag, but the user can still enable them. Defaults to `false`
+    /// (a normal, enabled-by-default event) when omitted from the YAML.
+    #[serde(default)]
+    pub optional: bool,
 }
 
 /// A single counter condition. When multiple fields are present, they are all
