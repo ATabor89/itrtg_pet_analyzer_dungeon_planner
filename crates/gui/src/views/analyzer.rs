@@ -378,6 +378,22 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     ui.add_space(4.0);
     ui.separator();
 
+    // Echo an active time-sort above the table: its only other cue is the
+    // button in the growth panel, which the user may have collapsed.
+    let time_sort = match state.sort_column {
+        SortColumn::TimeToEvolve => Some("time to evolve"),
+        SortColumn::TimeToTarget => Some("time to custom target"),
+        _ => None,
+    };
+    if let Some(label) = time_sort {
+        let dir = if state.sort_ascending { "soonest first" } else { "longest first" };
+        ui.label(
+            RichText::new(format!("Sorted by {label} ({dir})"))
+                .color(style::ACCENT)
+                .size(11.0),
+        );
+    }
+
     // Pet table
     let filtered = filter_and_sort(&data.merged, state, &rates);
     show_table(ui, &filtered, state);
