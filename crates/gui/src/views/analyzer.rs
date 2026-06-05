@@ -1027,15 +1027,18 @@ fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
 
         // Unevolved pets that meet (or can reach with the Magic Egg) their
         // evolution growth threshold.
+        // Scoped to unlocked pets: this is a roster summary ("N of your pets
+        // can evolve now"), unlike the per-pet checks which also flag unowned
+        // pets for planning.
         let ready = data
             .merged
             .iter()
-            .filter(|p| p.evo_readiness() == Some(EvoReadiness::Ready))
+            .filter(|p| p.is_unlocked() && p.evo_readiness() == Some(EvoReadiness::Ready))
             .count();
         let ready_egg = data
             .merged
             .iter()
-            .filter(|p| p.evo_readiness() == Some(EvoReadiness::ReadyWithEgg))
+            .filter(|p| p.is_unlocked() && p.evo_readiness() == Some(EvoReadiness::ReadyWithEgg))
             .count();
         if ready + ready_egg > 0 {
             ui.separator();
