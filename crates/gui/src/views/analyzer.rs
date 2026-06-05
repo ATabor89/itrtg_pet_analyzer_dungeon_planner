@@ -260,6 +260,8 @@ pub struct AnalyzerState {
     /// threshold / 1.3) for total-growth thresholds. Persisted. Base-growth
     /// pets (Baby Carno) ignore this either way.
     pub evolve_sort_use_egg: bool,
+    /// Secondary key for the time-based sorts when times tie. Persisted.
+    pub time_sort_tiebreak: TimeSortTiebreak,
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -288,6 +290,7 @@ impl Default for AnalyzerState {
             moai: [MoaiStatue::default(), MoaiStatue::default()],
             global_growth_target: 0,
             evolve_sort_use_egg: false,
+            time_sort_tiebreak: TimeSortTiebreak::default(),
             selected_pet: None,
             custom_target: String::new(),
         }
@@ -311,6 +314,7 @@ impl AnalyzerState {
         self.moai = src.moai.clone();
         self.global_growth_target = src.global_growth_target;
         self.evolve_sort_use_egg = src.evolve_sort_use_egg;
+        self.time_sort_tiebreak = src.time_sort_tiebreak;
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -350,6 +354,19 @@ impl SortColumn {
             Self::TimeToEvolve | Self::TimeToTarget => true,
         }
     }
+}
+
+/// Secondary sort key for the time-based sorts, applied when two pets have the
+/// same estimated time (common when several already meet the target).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TimeSortTiebreak {
+    /// Higher effective growth first — matches every other column's tiebreaker;
+    /// favors pets that add more to total-growth milestones and stats.
+    #[default]
+    Growth,
+    /// Easier-to-evolve first (by wiki evo difficulty) — accounts for the
+    /// material and third-condition grind beyond growth.
+    EvoDifficulty,
 }
 
 // =============================================================================
@@ -961,6 +978,20 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
             .on_hover_text(
                 "On: total-growth thresholds are reached at base = threshold / 1.3. \
                  Base-growth pets (e.g. Baby Carno) are unaffected — the egg can't help them.",
+            );
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Tiebreaker:").color(style::TEXT_MUTED).size(12.0))
+                .on_hover_text("Secondary sort when several pets have the same estimated time");
+            ui.selectable_value(
+                &mut state.time_sort_tiebreak,
+                TimeSortTiebreak::Growth,
+                "Growth",
+            );
+            ui.selectable_value(
+                &mut state.time_sort_tiebreak,
+                TimeSortTiebreak::EvoDifficulty,
+                "Evo difficulty",
             );
         });
         ui.label(
@@ -1772,14 +1803,15 @@ fn filter_and_sort<'a>(
                 ka.cmp(&kb).then_with(|| gb.cmp(&ga))
             }
             // Time sorts: soonest first; not-applicable/unreachable pets (∞)
-            // fall to the end. Tiebreak by name so order is stable.
+            // fall to the end. Ties (e.g. several already-met pets) break by the
+            // user-chosen secondary key, then name for stability.
             SortColumn::TimeToEvolve => {
                 let egg = state.evolve_sort_use_egg;
                 let ta = a.hours_to_evolve(rates, egg).unwrap_or(f64::INFINITY);
                 let tb = b.hours_to_evolve(rates, egg).unwrap_or(f64::INFINITY);
                 ta.partial_cmp(&tb)
                     .unwrap_or(std::cmp::Ordering::Equal)
-                    .then_with(|| a.name.cmp(&b.name))
+                    .then_with(|| time_tiebreak(a, b, ga, gb, state.time_sort_tiebreak))
             }
             SortColumn::TimeToTarget => {
                 let target = state.global_growth_target;
@@ -1787,13 +1819,41 @@ fn filter_and_sort<'a>(
                 let tb = b.hours_to_growth(target, rates).unwrap_or(f64::INFINITY);
                 ta.partial_cmp(&tb)
                     .unwrap_or(std::cmp::Ordering::Equal)
-                    .then_with(|| a.name.cmp(&b.name))
+                    .then_with(|| time_tiebreak(a, b, ga, gb, state.time_sort_tiebreak))
             }
         };
         if asc { ord } else { ord.reverse() }
     });
 
     filtered
+}
+
+/// Secondary ordering for the time sorts when estimates tie (e.g. several pets
+/// already meet the target). `ga`/`gb` are the pets' effective growths.
+fn time_tiebreak(
+    a: &MergedPet,
+    b: &MergedPet,
+    ga: u64,
+    gb: u64,
+    tiebreak: TimeSortTiebreak,
+) -> std::cmp::Ordering {
+    match tiebreak {
+        // Higher effective growth first (matches the other columns' tiebreaker).
+        TimeSortTiebreak::Growth => gb.cmp(&ga).then_with(|| a.name.cmp(&b.name)),
+        // Easiest evo difficulty first, then higher growth, then name.
+        TimeSortTiebreak::EvoDifficulty => {
+            let key = |p: &MergedPet| {
+                p.wiki
+                    .as_ref()
+                    .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
+                    .unwrap_or((99, 99))
+            };
+            key(a)
+                .cmp(&key(b))
+                .then_with(|| gb.cmp(&ga))
+                .then_with(|| a.name.cmp(&b.name))
+        }
+    }
 }
 
 fn rec_class_sort_key(rec: Option<&RecommendedClass>) -> u8 {
