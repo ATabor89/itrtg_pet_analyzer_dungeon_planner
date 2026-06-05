@@ -398,6 +398,13 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     // Growth-estimate settings (pendant/cap readout + Moai statue editor)
     show_growth_settings(ui, state, &rates);
 
+    // If the target sort is active but the target was cleared to 0, it would
+    // collapse every pet onto the tiebreak — revert to the default sort instead.
+    if state.sort_column == SortColumn::TimeToTarget && state.global_growth_target == 0 {
+        state.sort_column = SortColumn::default();
+        state.sort_ascending = SortColumn::default().default_ascending();
+    }
+
     ui.add_space(4.0);
     ui.separator();
 
