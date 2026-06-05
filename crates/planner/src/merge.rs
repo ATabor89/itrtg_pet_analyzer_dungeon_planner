@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use itrtg_models::{
-    Class, Element, ExportPet, RecommendedClass, WikiPet,
+    Class, Element, ExportPet, MAGIC_EGG_GROWTH_MULT, RecommendedClass, WikiPet,
     resolve_wiki_name,
 };
+
+use crate::growth::GrowthRates;
 
 /// Whether an unevolved pet meets its evolution *growth* threshold (the other
 /// requirements — material, special condition — are not considered here).
@@ -98,15 +100,19 @@ impl MergedPet {
 
     /// How close an unevolved pet is to meeting its evolution *growth*
     /// threshold. Returns `None` when readiness doesn't apply: the pet is
-    /// already evolved, isn't unlocked, or has no scraped evolution data.
+    /// already evolved or has no scraped evolution data.
+    ///
+    /// Works for *unowned* pets too — the export carries their growth, and
+    /// knowing a locked pet is already evolve-ready (or how close it is) helps
+    /// decide what to unlock next. Filtering controls whether they're shown.
     ///
     /// For total-growth thresholds the Magic Egg's +30% can count toward
     /// reaching the bar; for base-growth thresholds (Baby Carno) it cannot, so
     /// `ReadyWithEgg` is never produced for those.
     pub fn evo_readiness(&self) -> Option<EvoReadiness> {
         let export = self.export.as_ref()?;
-        // Only an unlocked, still-unevolved pet has a meaningful readiness.
-        if !export.unlocked || export.class.is_some() {
+        // Already-evolved pets have no readiness; locked pets still do.
+        if export.class.is_some() {
             return None;
         }
         let req = self.wiki.as_ref()?.evo_requirements.as_ref()?;
@@ -133,6 +139,44 @@ impl MergedPet {
         } else {
             Some(EvoReadiness::NotYet)
         }
+    }
+
+    /// Estimated hours to grow this pet's base growth to its evolution
+    /// threshold, via a dedicated pendant + Moai. `None` when not applicable
+    /// (already evolved or no evo data) or the threshold is unreachable with
+    /// these tools. `Some(0.0)` if already met. Computed for unowned pets too
+    /// (a planning aid for what to unlock next).
+    ///
+    /// With `use_egg`, a *total*-growth threshold is reached at base =
+    /// threshold / 1.3 (the egg covers the rest). A *base*-growth threshold
+    /// (Baby Carno) ignores the egg entirely, so `use_egg` makes no difference
+    /// for it — this is what keeps its estimate honest rather than falsely short.
+    ///
+    /// With `use_egg = false`, this is the honest base-growth grind time and
+    /// orders pets Ready (0) → ReadyWithEgg (small) → NotYet (large).
+    pub fn hours_to_evolve(&self, rates: &GrowthRates, use_egg: bool) -> Option<f64> {
+        let export = self.export.as_ref()?;
+        if export.class.is_some() {
+            return None;
+        }
+        let req = self.wiki.as_ref()?.evo_requirements.as_ref()?;
+        let threshold = req.growth.value().max(0) as u64;
+        // The egg only discounts total-growth thresholds; base-growth pets gain
+        // nothing, so never discount them (or we'd report a false, too-short time).
+        let target = if use_egg && req.growth.magic_egg_counts() {
+            (threshold as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64
+        } else {
+            threshold
+        };
+        rates.hours_to_target(export.growth, target)
+    }
+
+    /// Estimated hours to grow this pet's base growth to an arbitrary `target`,
+    /// via a dedicated pendant + Moai. `None` when there's no export data or the
+    /// target is unreachable. Applies to any pet — evolved or not, owned or not.
+    pub fn hours_to_growth(&self, target: u64, rates: &GrowthRates) -> Option<f64> {
+        let export = self.export.as_ref()?;
+        rates.hours_to_target(export.growth, target)
     }
 
     /// Whether this pet's element matches the target. `Element::All` (Chameleon) matches
@@ -356,10 +400,70 @@ mod tests {
         let req = || Some(GrowthRequirement::Total(1000));
         // Already evolved → None
         assert_eq!(readiness_pet(5000, Some(Class::Mage), true, req()).evo_readiness(), None);
-        // Locked → None
-        assert_eq!(readiness_pet(5000, None, false, req()).evo_readiness(), None);
         // No evolution data → None
         assert_eq!(readiness_pet(5000, None, true, None).evo_readiness(), None);
+    }
+
+    #[test]
+    fn test_evo_readiness_unowned_pets_count() {
+        // Locked (unowned) but unevolved pets still get readiness — knowing an
+        // unowned pet is already evolve-ready helps decide what to unlock next.
+        let req = || Some(GrowthRequirement::Total(1000));
+        assert_eq!(readiness_pet(5000, None, false, req()).evo_readiness(), Some(EvoReadiness::Ready));
+        assert_eq!(readiness_pet(500, None, false, req()).evo_readiness(), Some(EvoReadiness::NotYet));
+    }
+
+    fn rates(evolved: u32, moai: f64, cap: u64) -> GrowthRates {
+        GrowthRates { evolved_pets: evolved, moai_per_hour: moai, pendant_cap: cap }
+    }
+
+    #[test]
+    fn test_hours_to_evolve() {
+        let r = rates(80, 0.0, 1_000_000); // 80/hr, no cap concern
+        // Unevolved, unlocked, Total(1000), growth 200 → (800)/80 = 10h (no egg).
+        let pet = readiness_pet(200, None, true, Some(GrowthRequirement::Total(1000)));
+        assert_eq!(pet.hours_to_evolve(&r, false), Some(10.0));
+        // Already at threshold → 0.
+        let pet = readiness_pet(1000, None, true, Some(GrowthRequirement::Total(1000)));
+        assert_eq!(pet.hours_to_evolve(&r, false), Some(0.0));
+        // Unowned (locked) but unevolved pets are still estimated (planning aid).
+        assert_eq!(readiness_pet(200, None, false, Some(GrowthRequirement::Total(1000))).hours_to_evolve(&r, false), Some(10.0));
+        // Not applicable: evolved / no evo data → None.
+        assert_eq!(readiness_pet(200, Some(Class::Mage), true, Some(GrowthRequirement::Total(1000))).hours_to_evolve(&r, false), None);
+        assert_eq!(readiness_pet(200, None, true, None).hours_to_evolve(&r, false), None);
+    }
+
+    #[test]
+    fn test_hours_to_evolve_egg_time() {
+        let r = rates(80, 0.0, 1_000_000);
+        // Total(1300) with egg: target = ceil(1300/1.3) = 1000, growth 200 →
+        // (800)/80 = 10h. Without egg it's the full 1300 → (1100)/80 = 13.75h.
+        let pet = readiness_pet(200, None, true, Some(GrowthRequirement::Total(1300)));
+        assert_eq!(pet.hours_to_evolve(&r, true), Some(10.0));
+        assert_eq!(pet.hours_to_evolve(&r, false), Some(13.75));
+
+        // Baby Carno case: a BASE-growth threshold ignores the egg, so use_egg
+        // must NOT discount it (a false discount would give ~7.1h, not 10h).
+        let carno = readiness_pet(200, None, true, Some(GrowthRequirement::Base(1000)));
+        assert_eq!(carno.hours_to_evolve(&r, true), Some(10.0));
+        assert_eq!(carno.hours_to_evolve(&r, false), Some(10.0));
+    }
+
+    #[test]
+    fn test_hours_to_growth_arbitrary_target() {
+        let r = rates(80, 0.0, 1_000_000);
+        // Applies to any pet — evolved or not, owned or not.
+        let pet = readiness_pet(200, Some(Class::Mage), true, None);
+        assert_eq!(pet.hours_to_growth(1000, &r), Some(10.0));
+        // Unowned (locked) pet is still estimated.
+        assert_eq!(readiness_pet(200, None, false, None).hours_to_growth(1000, &r), Some(10.0));
+        // No export data → None.
+        let no_export = MergedPet {
+            name: "X".to_string(),
+            wiki: Some(make_wiki_pet("X", Element::Earth, RecommendedClass::Wildcard)),
+            export: None,
+        };
+        assert_eq!(no_export.hours_to_growth(1000, &r), None);
     }
 
     #[test]

@@ -252,6 +252,16 @@ pub struct AnalyzerState {
     /// Renamed from the earlier free-list `moai_statues`; the old key is simply
     /// ignored on load.
     pub moai: [MoaiStatue; 2],
+    /// Global growth target (base growth) used for the "time to target" table
+    /// sort. Persisted; `0` means unset. Distinct from the pet card's ephemeral
+    /// `custom_target` scratch input.
+    pub global_growth_target: u64,
+    /// Whether the "time to evolve" sort uses egg-boosted targets (base =
+    /// threshold / 1.3) for total-growth thresholds. Persisted. Base-growth
+    /// pets (Baby Carno) ignore this either way.
+    pub evolve_sort_use_egg: bool,
+    /// Secondary key for the time-based sorts when times tie. Persisted.
+    pub time_sort_tiebreak: TimeSortTiebreak,
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -278,6 +288,9 @@ impl Default for AnalyzerState {
             sort_column: SortColumn::default(),
             sort_ascending: SortColumn::default().default_ascending(),
             moai: [MoaiStatue::default(), MoaiStatue::default()],
+            global_growth_target: 0,
+            evolve_sort_use_egg: false,
+            time_sort_tiebreak: TimeSortTiebreak::default(),
             selected_pet: None,
             custom_target: String::new(),
         }
@@ -299,6 +312,9 @@ impl AnalyzerState {
         self.sort_column = src.sort_column;
         self.sort_ascending = src.sort_ascending;
         self.moai = src.moai.clone();
+        self.global_growth_target = src.global_growth_target;
+        self.evolve_sort_use_egg = src.evolve_sort_use_egg;
+        self.time_sort_tiebreak = src.time_sort_tiebreak;
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -319,6 +335,12 @@ pub enum SortColumn {
     Class,
     ClassLevel,
     Action,
+    /// Estimated time to grow each pet to its evolution threshold. Not a table
+    /// column — triggered from the growth-settings panel.
+    TimeToEvolve,
+    /// Estimated time to grow each pet to the global custom target. Not a table
+    /// column — triggered from the growth-settings panel.
+    TimeToTarget,
 }
 
 impl SortColumn {
@@ -328,8 +350,23 @@ impl SortColumn {
         match self {
             Self::Name | Self::Element | Self::RecClass | Self::Class | Self::Action => true,
             Self::EvoDifficulty | Self::Growth | Self::DungeonLevel | Self::ClassLevel => false,
+            // Time sorts: soonest first.
+            Self::TimeToEvolve | Self::TimeToTarget => true,
         }
     }
+}
+
+/// Secondary sort key for the time-based sorts, applied when two pets have the
+/// same estimated time (common when several already meet the target).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TimeSortTiebreak {
+    /// Higher effective growth first — matches every other column's tiebreaker;
+    /// favors pets that add more to total-growth milestones and stats.
+    #[default]
+    Growth,
+    /// Easier-to-evolve first (by wiki evo difficulty) — accounts for the
+    /// material and third-condition grind beyond growth.
+    EvoDifficulty,
 }
 
 // =============================================================================
@@ -361,11 +398,38 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     // Growth-estimate settings (pendant/cap readout + Moai statue editor)
     show_growth_settings(ui, state, &rates);
 
+    // If the target sort is active but the target was cleared to 0, it would
+    // collapse every pet onto the tiebreak — revert to the default sort instead.
+    if state.sort_column == SortColumn::TimeToTarget && state.global_growth_target == 0 {
+        state.sort_column = SortColumn::default();
+        state.sort_ascending = SortColumn::default().default_ascending();
+    }
+
     ui.add_space(4.0);
     ui.separator();
 
+    // Echo an active time-sort above the table: its only other cue is the
+    // button in the growth panel, which the user may have collapsed.
+    let time_sort = match state.sort_column {
+        SortColumn::TimeToEvolve => Some(if state.evolve_sort_use_egg {
+            "time to evolve (with egg)"
+        } else {
+            "time to evolve (no egg)"
+        }),
+        SortColumn::TimeToTarget => Some("time to custom target"),
+        _ => None,
+    };
+    if let Some(label) = time_sort {
+        let dir = if state.sort_ascending { "soonest first" } else { "longest first" };
+        ui.label(
+            RichText::new(format!("Sorted by {label} ({dir})"))
+                .color(style::ACCENT)
+                .size(11.0),
+        );
+    }
+
     // Pet table
-    let filtered = filter_and_sort(&data.merged, state);
+    let filtered = filter_and_sort(&data.merged, state, &rates);
     show_table(ui, &filtered, state);
 }
 
@@ -834,12 +898,11 @@ fn show_cap_note(ui: &mut Ui, rates: &GrowthRates, current: u64, target: u64) {
     }
 }
 
-/// Growth-estimate settings: a read-only pendant/cap readout plus a Moai statue
-/// editor. The pendant rate and cap are derived from the roster; Moai statues
-/// are player-entered and persisted.
+/// Growth estimates & sorting: a read-only pendant/cap readout, the Moai statue
+/// editor, a persisted global growth target, and the time-based table sorts.
 fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRates) {
     egui::CollapsingHeader::new(
-        RichText::new("Growth estimate settings")
+        RichText::new("Growth estimates & sorting")
             .color(style::TEXT_BRIGHT)
             .size(13.0),
     )
@@ -893,7 +956,87 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
                 );
             });
         }
+
+        ui.separator();
+
+        // Persisted global target + the time-based table sorts. These override
+        // any active column sort; clicking a column header switches back.
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Custom target:").color(style::TEXT_MUTED).size(12.0));
+            ui.add(
+                egui::DragValue::new(&mut state.global_growth_target)
+                    .speed(100.0)
+                    .range(0..=1_000_000_000),
+            )
+            .on_hover_text("Base growth target for the 'time to target' sort (0 = unset)");
+        });
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Sort table by:").color(style::TEXT_MUTED).size(12.0));
+            sort_toggle_button(ui, state, SortColumn::TimeToEvolve, "Time to evolve", true);
+            let has_target = state.global_growth_target > 0;
+            sort_toggle_button(ui, state, SortColumn::TimeToTarget, "Time to target", has_target);
+        });
+        ui.horizontal(|ui| {
+            ui.checkbox(
+                &mut state.evolve_sort_use_egg,
+                RichText::new("'Time to evolve' uses egg growth (+30%)").size(11.0),
+            )
+            .on_hover_text(
+                "On: total-growth thresholds are reached at base = threshold / 1.3. \
+                 Base-growth pets (e.g. Baby Carno) are unaffected — the egg can't help them.",
+            );
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Tiebreaker:").color(style::TEXT_MUTED).size(12.0))
+                .on_hover_text("Secondary sort when several pets have the same estimated time");
+            ui.selectable_value(
+                &mut state.time_sort_tiebreak,
+                TimeSortTiebreak::Growth,
+                "Growth",
+            );
+            ui.selectable_value(
+                &mut state.time_sort_tiebreak,
+                TimeSortTiebreak::EvoDifficulty,
+                "Evo difficulty",
+            );
+        });
+        ui.label(
+            RichText::new("Time sorts assume a dedicated pendant + your Moai; they respect the filters above")
+                .color(style::TEXT_MUTED)
+                .italics()
+                .size(10.0),
+        );
     });
+}
+
+/// A selectable button that activates a non-column sort mode, or toggles its
+/// direction if it's already active. `enabled` gates the target sort until a
+/// target is set. These share `sort_column`, so they replace any column sort.
+fn sort_toggle_button(
+    ui: &mut Ui,
+    state: &mut AnalyzerState,
+    col: SortColumn,
+    label: &str,
+    enabled: bool,
+) {
+    let active = state.sort_column == col;
+    let text = if active {
+        format!("{label} {}", if state.sort_ascending { "▲" } else { "▼" })
+    } else {
+        label.to_string()
+    };
+    if ui
+        .add_enabled(enabled, egui::SelectableLabel::new(active, text))
+        .clicked()
+    {
+        if active {
+            state.sort_ascending = !state.sort_ascending;
+        } else {
+            state.sort_column = col;
+            state.sort_ascending = col.default_ascending();
+        }
+    }
 }
 
 fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
@@ -922,15 +1065,18 @@ fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
 
         // Unevolved pets that meet (or can reach with the Magic Egg) their
         // evolution growth threshold.
+        // Scoped to unlocked pets: this is a roster summary ("N of your pets
+        // can evolve now"), unlike the per-pet checks which also flag unowned
+        // pets for planning.
         let ready = data
             .merged
             .iter()
-            .filter(|p| p.evo_readiness() == Some(EvoReadiness::Ready))
+            .filter(|p| p.is_unlocked() && p.evo_readiness() == Some(EvoReadiness::Ready))
             .count();
         let ready_egg = data
             .merged
             .iter()
-            .filter(|p| p.evo_readiness() == Some(EvoReadiness::ReadyWithEgg))
+            .filter(|p| p.is_unlocked() && p.evo_readiness() == Some(EvoReadiness::ReadyWithEgg))
             .count();
         if ready + ready_egg > 0 {
             ui.separator();
@@ -1509,7 +1655,11 @@ fn format_unlock_condition(cond: &UnlockCondition) -> String {
 // Filtering & Sorting
 // =============================================================================
 
-fn filter_and_sort<'a>(pets: &'a [MergedPet], state: &AnalyzerState) -> Vec<&'a MergedPet> {
+fn filter_and_sort<'a>(
+    pets: &'a [MergedPet],
+    state: &AnalyzerState,
+    rates: &GrowthRates,
+) -> Vec<&'a MergedPet> {
     let search_lower = state.search.to_lowercase();
 
     let mut filtered: Vec<&MergedPet> = pets
@@ -1659,11 +1809,58 @@ fn filter_and_sort<'a>(pets: &'a [MergedPet], state: &AnalyzerState) -> Vec<&'a 
                 let kb = b.export.as_ref().map(|e| action_sort_key(&e.action)).unwrap_or(999);
                 ka.cmp(&kb).then_with(|| gb.cmp(&ga))
             }
+            // Time sorts: soonest first; not-applicable/unreachable pets (∞)
+            // fall to the end. Ties (e.g. several already-met pets) break by the
+            // user-chosen secondary key, then name for stability.
+            SortColumn::TimeToEvolve => {
+                let egg = state.evolve_sort_use_egg;
+                let ta = a.hours_to_evolve(rates, egg).unwrap_or(f64::INFINITY);
+                let tb = b.hours_to_evolve(rates, egg).unwrap_or(f64::INFINITY);
+                ta.partial_cmp(&tb)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| time_tiebreak(a, b, ga, gb, state.time_sort_tiebreak))
+            }
+            SortColumn::TimeToTarget => {
+                let target = state.global_growth_target;
+                let ta = a.hours_to_growth(target, rates).unwrap_or(f64::INFINITY);
+                let tb = b.hours_to_growth(target, rates).unwrap_or(f64::INFINITY);
+                ta.partial_cmp(&tb)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| time_tiebreak(a, b, ga, gb, state.time_sort_tiebreak))
+            }
         };
         if asc { ord } else { ord.reverse() }
     });
 
     filtered
+}
+
+/// Secondary ordering for the time sorts when estimates tie (e.g. several pets
+/// already meet the target). `ga`/`gb` are the pets' effective growths.
+fn time_tiebreak(
+    a: &MergedPet,
+    b: &MergedPet,
+    ga: u64,
+    gb: u64,
+    tiebreak: TimeSortTiebreak,
+) -> std::cmp::Ordering {
+    match tiebreak {
+        // Higher effective growth first (matches the other columns' tiebreaker).
+        TimeSortTiebreak::Growth => gb.cmp(&ga).then_with(|| a.name.cmp(&b.name)),
+        // Easiest evo difficulty first, then higher growth, then name.
+        TimeSortTiebreak::EvoDifficulty => {
+            let key = |p: &MergedPet| {
+                p.wiki
+                    .as_ref()
+                    .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
+                    .unwrap_or((99, 99))
+            };
+            key(a)
+                .cmp(&key(b))
+                .then_with(|| gb.cmp(&ga))
+                .then_with(|| a.name.cmp(&b.name))
+        }
+    }
 }
 
 fn rec_class_sort_key(rec: Option<&RecommendedClass>) -> u8 {
