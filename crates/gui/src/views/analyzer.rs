@@ -252,6 +252,10 @@ pub struct AnalyzerState {
     /// Renamed from the earlier free-list `moai_statues`; the old key is simply
     /// ignored on load.
     pub moai: [MoaiStatue; 2],
+    /// Global growth target (base growth) used for the "time to target" table
+    /// sort. Persisted; `0` means unset. Distinct from the pet card's ephemeral
+    /// `custom_target` scratch input.
+    pub global_growth_target: u64,
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -278,6 +282,7 @@ impl Default for AnalyzerState {
             sort_column: SortColumn::default(),
             sort_ascending: SortColumn::default().default_ascending(),
             moai: [MoaiStatue::default(), MoaiStatue::default()],
+            global_growth_target: 0,
             selected_pet: None,
             custom_target: String::new(),
         }
@@ -299,6 +304,7 @@ impl AnalyzerState {
         self.sort_column = src.sort_column;
         self.sort_ascending = src.sort_ascending;
         self.moai = src.moai.clone();
+        self.global_growth_target = src.global_growth_target;
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -319,6 +325,12 @@ pub enum SortColumn {
     Class,
     ClassLevel,
     Action,
+    /// Estimated time to grow each pet to its evolution threshold. Not a table
+    /// column — triggered from the growth-settings panel.
+    TimeToEvolve,
+    /// Estimated time to grow each pet to the global custom target. Not a table
+    /// column — triggered from the growth-settings panel.
+    TimeToTarget,
 }
 
 impl SortColumn {
@@ -328,6 +340,8 @@ impl SortColumn {
         match self {
             Self::Name | Self::Element | Self::RecClass | Self::Class | Self::Action => true,
             Self::EvoDifficulty | Self::Growth | Self::DungeonLevel | Self::ClassLevel => false,
+            // Time sorts: soonest first.
+            Self::TimeToEvolve | Self::TimeToTarget => true,
         }
     }
 }
@@ -365,7 +379,7 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     ui.separator();
 
     // Pet table
-    let filtered = filter_and_sort(&data.merged, state);
+    let filtered = filter_and_sort(&data.merged, state, &rates);
     show_table(ui, &filtered, state);
 }
 
@@ -834,12 +848,11 @@ fn show_cap_note(ui: &mut Ui, rates: &GrowthRates, current: u64, target: u64) {
     }
 }
 
-/// Growth-estimate settings: a read-only pendant/cap readout plus a Moai statue
-/// editor. The pendant rate and cap are derived from the roster; Moai statues
-/// are player-entered and persisted.
+/// Growth estimates & sorting: a read-only pendant/cap readout, the Moai statue
+/// editor, a persisted global growth target, and the time-based table sorts.
 fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRates) {
     egui::CollapsingHeader::new(
-        RichText::new("Growth estimate settings")
+        RichText::new("Growth estimates & sorting")
             .color(style::TEXT_BRIGHT)
             .size(13.0),
     )
@@ -893,7 +906,63 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
                 );
             });
         }
+
+        ui.separator();
+
+        // Persisted global target + the time-based table sorts. These override
+        // any active column sort; clicking a column header switches back.
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Custom target:").color(style::TEXT_MUTED).size(12.0));
+            ui.add(
+                egui::DragValue::new(&mut state.global_growth_target)
+                    .speed(100.0)
+                    .range(0..=1_000_000_000),
+            )
+            .on_hover_text("Base growth target for the 'time to target' sort (0 = unset)");
+        });
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Sort table by:").color(style::TEXT_MUTED).size(12.0));
+            sort_toggle_button(ui, state, SortColumn::TimeToEvolve, "Time to evolve", true);
+            let has_target = state.global_growth_target > 0;
+            sort_toggle_button(ui, state, SortColumn::TimeToTarget, "Time to target", has_target);
+        });
+        ui.label(
+            RichText::new("Sorted by base-growth time (no egg); respects the filters above")
+                .color(style::TEXT_MUTED)
+                .italics()
+                .size(10.0),
+        );
     });
+}
+
+/// A selectable button that activates a non-column sort mode, or toggles its
+/// direction if it's already active. `enabled` gates the target sort until a
+/// target is set. These share `sort_column`, so they replace any column sort.
+fn sort_toggle_button(
+    ui: &mut Ui,
+    state: &mut AnalyzerState,
+    col: SortColumn,
+    label: &str,
+    enabled: bool,
+) {
+    let active = state.sort_column == col;
+    let text = if active {
+        format!("{label} {}", if state.sort_ascending { "▲" } else { "▼" })
+    } else {
+        label.to_string()
+    };
+    if ui
+        .add_enabled(enabled, egui::SelectableLabel::new(active, text))
+        .clicked()
+    {
+        if active {
+            state.sort_ascending = !state.sort_ascending;
+        } else {
+            state.sort_column = col;
+            state.sort_ascending = col.default_ascending();
+        }
+    }
 }
 
 fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
@@ -1509,7 +1578,11 @@ fn format_unlock_condition(cond: &UnlockCondition) -> String {
 // Filtering & Sorting
 // =============================================================================
 
-fn filter_and_sort<'a>(pets: &'a [MergedPet], state: &AnalyzerState) -> Vec<&'a MergedPet> {
+fn filter_and_sort<'a>(
+    pets: &'a [MergedPet],
+    state: &AnalyzerState,
+    rates: &GrowthRates,
+) -> Vec<&'a MergedPet> {
     let search_lower = state.search.to_lowercase();
 
     let mut filtered: Vec<&MergedPet> = pets
@@ -1658,6 +1731,23 @@ fn filter_and_sort<'a>(pets: &'a [MergedPet], state: &AnalyzerState) -> Vec<&'a 
                 let ka = a.export.as_ref().map(|e| action_sort_key(&e.action)).unwrap_or(999);
                 let kb = b.export.as_ref().map(|e| action_sort_key(&e.action)).unwrap_or(999);
                 ka.cmp(&kb).then_with(|| gb.cmp(&ga))
+            }
+            // Time sorts: soonest first; not-applicable/unreachable pets (∞)
+            // fall to the end. Tiebreak by name so order is stable.
+            SortColumn::TimeToEvolve => {
+                let ta = a.hours_to_evolve(rates).unwrap_or(f64::INFINITY);
+                let tb = b.hours_to_evolve(rates).unwrap_or(f64::INFINITY);
+                ta.partial_cmp(&tb)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a.name.cmp(&b.name))
+            }
+            SortColumn::TimeToTarget => {
+                let target = state.global_growth_target;
+                let ta = a.hours_to_growth(target, rates).unwrap_or(f64::INFINITY);
+                let tb = b.hours_to_growth(target, rates).unwrap_or(f64::INFINITY);
+                ta.partial_cmp(&tb)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a.name.cmp(&b.name))
             }
         };
         if asc { ord } else { ord.reverse() }
