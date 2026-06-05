@@ -256,6 +256,10 @@ pub struct AnalyzerState {
     /// sort. Persisted; `0` means unset. Distinct from the pet card's ephemeral
     /// `custom_target` scratch input.
     pub global_growth_target: u64,
+    /// Whether the "time to evolve" sort uses egg-boosted targets (base =
+    /// threshold / 1.3) for total-growth thresholds. Persisted. Base-growth
+    /// pets (Baby Carno) ignore this either way.
+    pub evolve_sort_use_egg: bool,
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -283,6 +287,7 @@ impl Default for AnalyzerState {
             sort_ascending: SortColumn::default().default_ascending(),
             moai: [MoaiStatue::default(), MoaiStatue::default()],
             global_growth_target: 0,
+            evolve_sort_use_egg: false,
             selected_pet: None,
             custom_target: String::new(),
         }
@@ -305,6 +310,7 @@ impl AnalyzerState {
         self.sort_ascending = src.sort_ascending;
         self.moai = src.moai.clone();
         self.global_growth_target = src.global_growth_target;
+        self.evolve_sort_use_egg = src.evolve_sort_use_egg;
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -381,7 +387,11 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     // Echo an active time-sort above the table: its only other cue is the
     // button in the growth panel, which the user may have collapsed.
     let time_sort = match state.sort_column {
-        SortColumn::TimeToEvolve => Some("time to evolve"),
+        SortColumn::TimeToEvolve => Some(if state.evolve_sort_use_egg {
+            "time to evolve (with egg)"
+        } else {
+            "time to evolve (no egg)"
+        }),
         SortColumn::TimeToTarget => Some("time to custom target"),
         _ => None,
     };
@@ -943,8 +953,18 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
             let has_target = state.global_growth_target > 0;
             sort_toggle_button(ui, state, SortColumn::TimeToTarget, "Time to target", has_target);
         });
+        ui.horizontal(|ui| {
+            ui.checkbox(
+                &mut state.evolve_sort_use_egg,
+                RichText::new("'Time to evolve' uses egg growth (+30%)").size(11.0),
+            )
+            .on_hover_text(
+                "On: total-growth thresholds are reached at base = threshold / 1.3. \
+                 Base-growth pets (e.g. Baby Carno) are unaffected — the egg can't help them.",
+            );
+        });
         ui.label(
-            RichText::new("Sorted by base-growth time (no egg); respects the filters above")
+            RichText::new("Time sorts assume a dedicated pendant + your Moai; they respect the filters above")
                 .color(style::TEXT_MUTED)
                 .italics()
                 .size(10.0),
@@ -1751,8 +1771,9 @@ fn filter_and_sort<'a>(
             // Time sorts: soonest first; not-applicable/unreachable pets (∞)
             // fall to the end. Tiebreak by name so order is stable.
             SortColumn::TimeToEvolve => {
-                let ta = a.hours_to_evolve(rates).unwrap_or(f64::INFINITY);
-                let tb = b.hours_to_evolve(rates).unwrap_or(f64::INFINITY);
+                let egg = state.evolve_sort_use_egg;
+                let ta = a.hours_to_evolve(rates, egg).unwrap_or(f64::INFINITY);
+                let tb = b.hours_to_evolve(rates, egg).unwrap_or(f64::INFINITY);
                 ta.partial_cmp(&tb)
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| a.name.cmp(&b.name))

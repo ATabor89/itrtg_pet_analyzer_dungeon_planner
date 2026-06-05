@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use itrtg_models::{
-    Class, Element, ExportPet, RecommendedClass, WikiPet,
+    Class, Element, ExportPet, MAGIC_EGG_GROWTH_MULT, RecommendedClass, WikiPet,
     resolve_wiki_name,
 };
 
@@ -138,20 +138,32 @@ impl MergedPet {
     }
 
     /// Estimated hours to grow this pet's base growth to its evolution
-    /// threshold (no-egg target), via a dedicated pendant + Moai. `None` when
-    /// not applicable (already evolved, not unlocked, or no evo data) or the
-    /// threshold is unreachable with these tools. `Some(0.0)` if already met.
+    /// threshold, via a dedicated pendant + Moai. `None` when not applicable
+    /// (already evolved, not unlocked, or no evo data) or the threshold is
+    /// unreachable with these tools. `Some(0.0)` if already met.
     ///
-    /// Uses the no-egg target so the value is the honest base-growth grind time;
-    /// it orders pets Ready (0) → ReadyWithEgg (small) → NotYet (large).
-    pub fn hours_to_evolve(&self, rates: &GrowthRates) -> Option<f64> {
+    /// With `use_egg`, a *total*-growth threshold is reached at base =
+    /// threshold / 1.3 (the egg covers the rest). A *base*-growth threshold
+    /// (Baby Carno) ignores the egg entirely, so `use_egg` makes no difference
+    /// for it — this is what keeps its estimate honest rather than falsely short.
+    ///
+    /// With `use_egg = false`, this is the honest base-growth grind time and
+    /// orders pets Ready (0) → ReadyWithEgg (small) → NotYet (large).
+    pub fn hours_to_evolve(&self, rates: &GrowthRates, use_egg: bool) -> Option<f64> {
         let export = self.export.as_ref()?;
         if !export.unlocked || export.class.is_some() {
             return None;
         }
         let req = self.wiki.as_ref()?.evo_requirements.as_ref()?;
         let threshold = req.growth.value().max(0) as u64;
-        rates.hours_to_target(export.growth, threshold)
+        // The egg only discounts total-growth thresholds; base-growth pets gain
+        // nothing, so never discount them (or we'd report a false, too-short time).
+        let target = if use_egg && req.growth.magic_egg_counts() {
+            (threshold as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64
+        } else {
+            threshold
+        };
+        rates.hours_to_target(export.growth, target)
     }
 
     /// Estimated hours to grow this pet's base growth to an arbitrary `target`,
@@ -400,16 +412,32 @@ mod tests {
     #[test]
     fn test_hours_to_evolve() {
         let r = rates(80, 0.0, 1_000_000); // 80/hr, no cap concern
-        // Unevolved, unlocked, Total(1000), growth 200 → (800)/80 = 10h.
+        // Unevolved, unlocked, Total(1000), growth 200 → (800)/80 = 10h (no egg).
         let pet = readiness_pet(200, None, true, Some(GrowthRequirement::Total(1000)));
-        assert_eq!(pet.hours_to_evolve(&r), Some(10.0));
+        assert_eq!(pet.hours_to_evolve(&r, false), Some(10.0));
         // Already at threshold → 0.
         let pet = readiness_pet(1000, None, true, Some(GrowthRequirement::Total(1000)));
-        assert_eq!(pet.hours_to_evolve(&r), Some(0.0));
+        assert_eq!(pet.hours_to_evolve(&r, false), Some(0.0));
         // Not applicable: evolved / locked / no evo data → None.
-        assert_eq!(readiness_pet(200, Some(Class::Mage), true, Some(GrowthRequirement::Total(1000))).hours_to_evolve(&r), None);
-        assert_eq!(readiness_pet(200, None, false, Some(GrowthRequirement::Total(1000))).hours_to_evolve(&r), None);
-        assert_eq!(readiness_pet(200, None, true, None).hours_to_evolve(&r), None);
+        assert_eq!(readiness_pet(200, Some(Class::Mage), true, Some(GrowthRequirement::Total(1000))).hours_to_evolve(&r, false), None);
+        assert_eq!(readiness_pet(200, None, false, Some(GrowthRequirement::Total(1000))).hours_to_evolve(&r, false), None);
+        assert_eq!(readiness_pet(200, None, true, None).hours_to_evolve(&r, false), None);
+    }
+
+    #[test]
+    fn test_hours_to_evolve_egg_time() {
+        let r = rates(80, 0.0, 1_000_000);
+        // Total(1300) with egg: target = ceil(1300/1.3) = 1000, growth 200 →
+        // (800)/80 = 10h. Without egg it's the full 1300 → (1100)/80 = 13.75h.
+        let pet = readiness_pet(200, None, true, Some(GrowthRequirement::Total(1300)));
+        assert_eq!(pet.hours_to_evolve(&r, true), Some(10.0));
+        assert_eq!(pet.hours_to_evolve(&r, false), Some(13.75));
+
+        // Baby Carno case: a BASE-growth threshold ignores the egg, so use_egg
+        // must NOT discount it (a false discount would give ~7.1h, not 10h).
+        let carno = readiness_pet(200, None, true, Some(GrowthRequirement::Base(1000)));
+        assert_eq!(carno.hours_to_evolve(&r, true), Some(10.0));
+        assert_eq!(carno.hours_to_evolve(&r, false), Some(10.0));
     }
 
     #[test]
