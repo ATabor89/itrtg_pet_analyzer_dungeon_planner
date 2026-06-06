@@ -31,6 +31,12 @@ pub struct CampaignContext<'a> {
     pub roster: &'a [MergedPet],
 }
 
+/// Round a percentage to 2 decimal places. Dynamic campaign formulas produce
+/// long fractions (e.g. `growth^0.4`); the game displays two decimals.
+fn round2(x: f64) -> f32 {
+    ((x * 100.0).round() / 100.0) as f32
+}
+
 /// A pet with wiki reference data merged with the player's actual game data.
 ///
 /// Either side can be missing:
@@ -237,14 +243,14 @@ impl MergedPet {
                     .map(|e| e.growth)
                     .min()
                 {
-                    let v = (lowest as f64).powf(0.4).min(100.0) as f32;
+                    let v = round2((lowest as f64).powf(0.4).min(100.0));
                     map.insert(CampaignType::Growth, v);
                 }
             }
             // Mermaid: -(own growth / 1000)% to all campaigns, capped at -333%.
             "Mermaid" => {
                 if let Some(g) = self.export.as_ref().map(|e| e.growth) {
-                    let v = (-(g as f64 / 1000.0)).max(-333.0) as f32;
+                    let v = round2((-(g as f64 / 1000.0)).max(-333.0));
                     for c in CampaignType::ALL {
                         map.insert(c, v);
                     }
@@ -255,7 +261,7 @@ impl MergedPet {
             "Lizard/Zookeeper" => {
                 let unlocked = ctx.roster.iter().filter(|p| p.is_unlocked()).count();
                 let evolved = ctx.roster.iter().filter(|p| p.is_evolved()).count();
-                let v = (((unlocked + evolved) as f64).sqrt() * 10.0).min(100.0) as f32;
+                let v = round2((((unlocked + evolved) as f64).sqrt() * 10.0).min(100.0));
                 let target = if self.is_evolved() {
                     CampaignType::Food
                 } else {
@@ -641,8 +647,8 @@ mod tests {
         let bag = MergedPet { name: "Bag".into(), wiki: None, export: None };
         let roster = pets(bag.clone());
         let ctx = CampaignContext { overrides: &empty, roster: &roster };
-        let v = bag.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
-        assert!((v - 39.8).abs() < 0.2, "got {v}");
+        // 10000^0.4 = 39.8107… rounded to 2 decimals.
+        assert_eq!(bag.campaign_bonus_for(CampaignType::Growth, &ctx), Some(39.81));
 
         // Mermaid: -(own growth / 1000) to all, capped -333. growth 50000 → -50.
         let mut mer_export = make_export_pet("Mermaid", Element::Water, None);
