@@ -275,11 +275,11 @@ impl MergedPet {
                 };
                 map.insert(target, v);
             }
-            // Beachball: sqrt(stones^1.00001 - stones) * 2, to all campaigns.
-            // Stones = currently held + those given to (locked into) Beachball.
+            // Beachball: sqrt(stones^1.00001 - stones) * 2, capped at 200%, to
+            // all campaigns. Stones = held + those given to (locked into) it.
             "Beachball" => {
                 let s = (ctx.inputs.pet_stones + ctx.inputs.beachball_given_stones) as f64;
-                let v = round2(((s.powf(1.00001) - s).max(0.0)).sqrt() * 2.0);
+                let v = round2((((s.powf(1.00001) - s).max(0.0)).sqrt() * 2.0).min(200.0));
                 for c in CampaignType::ALL {
                     map.insert(c, v);
                 }
@@ -824,6 +824,11 @@ mod tests {
             bb.campaign_bonus_for(CampaignType::Growth, &c1),
             bb.campaign_bonus_for(CampaignType::Growth, &c2),
         );
+
+        // Beachball caps at 200% (1e9 stones would otherwise give ~900%).
+        let huge = CampaignInputs { pet_stones: 1_000_000_000, ..Default::default() };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &huge };
+        assert_eq!(bb.campaign_bonus_for(CampaignType::Growth, &ctx), Some(200.0));
     }
 
     #[test]
