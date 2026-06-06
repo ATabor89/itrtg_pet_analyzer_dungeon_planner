@@ -101,6 +101,25 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
       simulate growth/reward outcomes.
 
+## Future: class & equipment bonuses (toggleable)
+
+Beyond the pet's *innate* campaign bonus, two more sources stack on top in-game:
+
+- **Class (Adventurer):** Adventurers add a bonus to all campaigns, and pets with
+  an Adventurer **evo bonus** get extra. Computable from the export's class +
+  the wiki evo-bonus data. Interesting because a pet with a lower innate bonus
+  but a strong Adventurer evo bonus can overtake a higher-innate one.
+- **Equipment:** Walking / Journeying / Magic / Legendary sticks (and some
+  limited event gear) boost campaign gains — the boost depends on the item
+  tier/quality/upgrade *and* the pet (e.g. a Magic Stick SSS+10 gives Earth
+  Eater +50% but Otter +26.19%). The game exposes the formulas (to be provided).
+
+Design intent: surface these as **toggles**, defaulting off, because planning
+around a pet's durable innate bonus is usually better than around whatever stick
+it happens to hold now. They'd layer in via the same `campaign_bonuses` seam
+(class first, then equipment), gated by the toggles — so the filter/sort/card
+pick them up only when the user opts in. Not built yet; tracked here.
+
 ## Deferred odds and ends
 
 - **Event campaigns** — a possible 8th `CampaignType`. Currently unmodeled, so
