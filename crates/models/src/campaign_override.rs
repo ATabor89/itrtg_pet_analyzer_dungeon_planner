@@ -188,6 +188,23 @@ mod tests {
         ov.apply("Holy ITRTG Book", &mut m, false, false);
         assert_eq!(m.get(&CampaignType::Divinity), Some(&150.0));
         assert_eq!(m.len(), 3);
+
+        // Mouse flips its food penalty on evolution.
+        let mut m = BTreeMap::new();
+        ov.apply("Mouse", &mut m, false, false);
+        assert_eq!(m.get(&CampaignType::Food), Some(&-50.0));
+        let mut m = BTreeMap::new();
+        ov.apply("Mouse", &mut m, true, false);
+        assert_eq!(m.get(&CampaignType::Food), Some(&50.0));
+
+        // Elemental 2-state: worst unevolved, best evolved.
+        let mut m = BTreeMap::new();
+        ov.apply("Gnome", &mut m, false, false);
+        assert_eq!(m.get(&CampaignType::Growth), Some(&-200.0));
+        let mut m = BTreeMap::new();
+        ov.apply("Gnome", &mut m, true, false);
+        assert_eq!(m.get(&CampaignType::Growth), Some(&100.0));
+        assert_eq!(m.len(), 7);
     }
 
     #[test]
