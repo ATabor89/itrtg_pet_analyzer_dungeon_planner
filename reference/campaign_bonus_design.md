@@ -48,8 +48,9 @@ Two homes, chosen by what each pet actually needs:
   - **Bag** = `lowest *unlocked* pet's growth ^ 0.4` (from roster).
   - **Mermaid** = `-growth / 1000` (own export growth, capped).
   - **Lizard magnitude** = `(unlocked + evolved) ^ 0.5 * 10`.
-  - **Beachball / Unicorn / Bear** = `sqrt(stones)`, `sqrt(challenge points)/2`,
-    `honey/500` — from **user-input fields** persisted in `AppState`.
+  - **Beachball / Unicorn / Bear** = `sqrt(stones^1.00001 − stones)·2`,
+    `sqrt(challenge points)/2`, `honey/500` — from **user-input fields**
+    persisted in `AppState`.
   - **Cupid couples** = token-improved Cupid's per-couple bonus. The game only
     reports "current couples" (a pet can be coupled with itself, so couples ≠
     pets-in-couples). Compromise: a "current couples" user input, **+2% per
