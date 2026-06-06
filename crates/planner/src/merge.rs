@@ -22,12 +22,13 @@ pub enum EvoReadiness {
 
 /// Runtime context for computing effective campaign bonuses.
 ///
-/// Today it carries only the curated overrides. Later phases will grow it with
-/// user-input values and a roster reference (for export-derived formulas like
-/// Bag and Mermaid) — adding fields here rather than changing the seam's
-/// signature again.
+/// Carries the curated overrides and the full roster (for export-derived
+/// formulas like Bag's lowest-growth and Lizard's pet counts). A future phase
+/// will add persisted user-input values here (pet stones, challenge points,
+/// Delirious-Essence fights, …) — extending this rather than the seam signature.
 pub struct CampaignContext<'a> {
     pub overrides: &'a CampaignOverrides,
+    pub roster: &'a [MergedPet],
 }
 
 /// A pet with wiki reference data merged with the player's actual game data.
@@ -208,7 +209,58 @@ impl MergedPet {
             .unwrap_or_default();
         let improved = self.export.as_ref().is_some_and(|e| e.improved);
         ctx.overrides.apply(&self.name, &mut map, self.is_evolved(), improved);
+        self.apply_campaign_formulas(&mut map, ctx);
         map
+    }
+
+    /// Apply per-pet export-derived campaign formulas — bespoke math the parser
+    /// can't express, computed from the roster and the pet's own export. No-op
+    /// for pets without a formula. (User-input-driven formulas like Aether and
+    /// Cupid's couples come in a later phase once the inputs are persisted.)
+    fn apply_campaign_formulas(
+        &self,
+        map: &mut BTreeMap<CampaignType, f32>,
+        ctx: &CampaignContext,
+    ) {
+        match self.name.as_str() {
+            // Bag: lowest *unlocked* pet's growth ^ 0.4, capped at 100%, to Growth.
+            "Bag" => {
+                if let Some(lowest) = ctx
+                    .roster
+                    .iter()
+                    .filter(|p| p.is_unlocked())
+                    .filter_map(|p| p.export.as_ref())
+                    .map(|e| e.growth)
+                    .min()
+                {
+                    let v = (lowest as f64).powf(0.4).min(100.0) as f32;
+                    map.insert(CampaignType::Growth, v);
+                }
+            }
+            // Mermaid: -(own growth / 1000)% to all campaigns, capped at -333%.
+            "Mermaid" => {
+                if let Some(g) = self.export.as_ref().map(|e| e.growth) {
+                    let v = (-(g as f64 / 1000.0)).max(-333.0) as f32;
+                    for c in CampaignType::ALL {
+                        map.insert(c, v);
+                    }
+                }
+            }
+            // Lizard: (unlocked + evolved pets) ^ 0.5 * 10, capped at 100%. The
+            // bonus is to Growth before evolving, Food after.
+            "Lizard/Zookeeper" => {
+                let unlocked = ctx.roster.iter().filter(|p| p.is_unlocked()).count();
+                let evolved = ctx.roster.iter().filter(|p| p.is_evolved()).count();
+                let v = (((unlocked + evolved) as f64).sqrt() * 10.0).min(100.0) as f32;
+                let target = if self.is_evolved() {
+                    CampaignType::Food
+                } else {
+                    CampaignType::Growth
+                };
+                map.insert(target, v);
+            }
+            _ => {}
+        }
     }
 
     /// This pet's effective bonus to a single campaign, if known. `None` when the
@@ -510,7 +562,7 @@ mod tests {
     #[test]
     fn test_campaign_bonuses_seam() {
         let empty = CampaignOverrides::default();
-        let ctx = CampaignContext { overrides: &empty };
+        let ctx = CampaignContext { overrides: &empty, roster: &[] };
 
         let mut wiki = make_wiki_pet("Dwarf", Element::Fire, RecommendedClass::Wildcard);
         wiki.campaign_bonus = Some(CampaignBonus {
@@ -538,7 +590,7 @@ mod tests {
             "Hedgehog:\n  - when: TokenImproved\n    add: { Growth: 141 }\n",
         )
         .unwrap();
-        let ctx = CampaignContext { overrides: &ov };
+        let ctx = CampaignContext { overrides: &ov, roster: &[] };
 
         let mut wiki = make_wiki_pet("Hedgehog", Element::Earth, RecommendedClass::Wildcard);
         wiki.campaign_bonus = Some(CampaignBonus {
@@ -554,6 +606,60 @@ mod tests {
         let export2 = make_export_pet("Hedgehog", Element::Earth, None); // improved = false
         let pet2 = MergedPet { name: "Hedgehog".into(), wiki: Some(wiki), export: Some(export2) };
         assert_eq!(pet2.campaign_bonus_for(CampaignType::Growth, &ctx), Some(25.0));
+    }
+
+    #[test]
+    fn test_campaign_formulas() {
+        let empty = CampaignOverrides::default();
+
+        // Build a small roster: a low-growth unlocked pet, a higher one, and a
+        // very-low locked pet that must be ignored by Bag.
+        let mut low = make_export_pet("Frog", Element::Water, None);
+        low.growth = 10_000; // 10000^0.4 ≈ 39.8
+        low.unlocked = true;
+        let mut high = make_export_pet("Bee", Element::Wind, Some(Class::Mage));
+        high.growth = 1_000_000;
+        high.unlocked = true;
+        let mut locked = make_export_pet("Void", Element::Neutral, None);
+        locked.growth = 1; // would dominate the min, but it's locked
+        locked.unlocked = false;
+
+        let pets = |extra: MergedPet| {
+            vec![
+                MergedPet { name: "Frog".into(), wiki: None, export: Some(low.clone()) },
+                MergedPet { name: "Bee".into(), wiki: None, export: Some(high.clone()) },
+                MergedPet { name: "Void".into(), wiki: None, export: Some(locked.clone()) },
+                extra,
+            ]
+        };
+
+        // Bag: lowest *unlocked* growth (10000) ^ 0.4 → ~39.8 to Growth.
+        let bag = MergedPet { name: "Bag".into(), wiki: None, export: None };
+        let roster = pets(bag.clone());
+        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        let v = bag.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
+        assert!((v - 39.8).abs() < 0.2, "got {v}");
+
+        // Mermaid: -(own growth / 1000) to all, capped -333. growth 50000 → -50.
+        let mut mer_export = make_export_pet("Mermaid", Element::Water, None);
+        mer_export.growth = 50_000;
+        let mermaid = MergedPet { name: "Mermaid".into(), wiki: None, export: Some(mer_export) };
+        let roster = pets(mermaid.clone());
+        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        assert_eq!(mermaid.campaign_bonus_for(CampaignType::GodPower, &ctx), Some(-50.0));
+
+        // Lizard: (unlocked + evolved)^0.5 * 10, capped 100, to Growth (unevolved).
+        // Roster has 3 unlocked (Frog, Bee, Lizard) + 1 evolved (Bee) = 4 → 20.
+        let lizard = MergedPet { name: "Lizard/Zookeeper".into(), wiki: None, export: Some({
+            let mut e = make_export_pet("Lizard", Element::Earth, None);
+            e.unlocked = true;
+            e
+        }) };
+        let roster = pets(lizard.clone());
+        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        // unlocked: Frog, Bee, Lizard = 3; evolved: Bee = 1 → 4^0.5*10 = 20.
+        assert_eq!(lizard.campaign_bonus_for(CampaignType::Growth, &ctx), Some(20.0));
+        assert_eq!(lizard.campaign_bonus_for(CampaignType::Food, &ctx), None);
     }
 
     #[test]

@@ -89,8 +89,14 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       and the elemental 2-state progression (Gnome/Salamander/Sylph/Undine).
       Pumpkin has no inherent bonus (chocolate-finding). Lizard's evo-swap waits on
       its Phase-3 magnitude formula.
-- [ ] **3** — export/user-input formulas (Bag, Mermaid, Aether, Cupid couples;
-      stones/points/honey/fights inputs for Beachball/Unicorn/Bear/Aether).
+- [x] **3a** — export-only formulas (`apply_campaign_formulas` + a `roster` ref
+      on `CampaignContext`): Bag (lowest unlocked growth ^0.4), Mermaid
+      (-growth/1000, cap -333), Lizard ((unlocked+evolved)^0.5×10, to Growth
+      unevolved / Food evolved).
+- [ ] **3b** — user-input formulas: a persisted `CampaignInputs` struct + a
+      settings panel for stones / challenge points / honey / Delirious-Essence
+      fights / current couples, driving Aether, Cupid's couples, Beachball,
+      Unicorn, Bear.
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
       simulate growth/reward outcomes.
