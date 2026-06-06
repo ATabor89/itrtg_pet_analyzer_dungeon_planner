@@ -54,17 +54,24 @@ Two homes, chosen by what each pet actually needs:
     reports "current couples" (a pet can be coupled with itself, so couples ≠
     pets-in-couples). Compromise: a "current couples" user input, **+2% per
     couple** to all campaigns, on top of the flat token bonus already curated.
+  - **Aether** = a user-input for "Delirious Essence fights completed" drives
+    both (a) the all-campaign penalty: `-99%` reduced by `10%` per fight, maxing
+    at `+1%` after 10 fights; and (b) an *added* growth-campaign bonus:
+    `((elementals_unlocked + 5) / 10) * fights * (1 + 0.57 * log_1000(growth))`%,
+    where growth clamps to 1 if non-positive and `elementals_unlocked` counts
+    Undine/Gnome/Salamander/Sylph/Elemental.
 
 `CampaignContext` carries the persisted user inputs + a roster reference; the
 pet's own evolved/improved/growth state comes from its export.
 
-## Elementals (their own sub-phase)
+## Elementals
 
-Aether/Salamander/Gnome/Sylph/Undine are the spiciest. Undine and the
-Gnome/Sylph evolved forms fit the declarative `on_evolved` model. Aether needs a
-dedicated formula (penalty shrinks with boss kills / growth / owning the other
-elementals — likely a user-input for the boss-kill count). Salamander is literal
-`+???%` on the wiki, so it stays raw-only until the wiki states a number.
+Gnome/Salamander/Sylph/Undine now use a declarative **2-state approximation**
+(curated): unevolved → worst (base) stage, evolved → best (final) stage, since
+evolving requires full upgrades. Their intermediate quest stages are recorded as
+yaml comments but can't yet be told apart from the export — revisit once we can
+read a pet's upgrade stage (watch Undine's export columns when unlocking it).
+Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
 
 ## Phase status
 
@@ -75,11 +82,30 @@ elementals — likely a user-input for the boss-kill count). Salamander is liter
       Corona evo flips, the clear "more levels / divinity / god power" prose
       corrections). Set-all / set / add ops × Always / Evolved / Unevolved /
       TokenImproved conditions.
-- [ ] **2b** — expand curation: the rest of the unambiguous prose pets, the
-      remaining per-form elementals (Undine, evolved Gnome/Sylph). Lizard's
-      evo-swap waits on its Phase-3 magnitude formula.
-- [ ] **3** — export/user-input formulas (Bag, Mermaid; stones/points/honey
-      inputs for Beachball/Unicorn/Bear).
+- [x] **2b** — expanded curation: Cupid token, Holy ITRTG Book / Fainting Capra
+      (campaign clauses split from non-campaign prose), Nightmare, Slime, Clam
+      (Item only), Baby Carno (pre/post-evo); the food/item pets confirmed
+      in-game (Mouse evo-flip, Robot, Squirrel, Goat, Octopus, Mole, Rudolph);
+      and the elemental 2-state progression (Gnome/Salamander/Sylph/Undine).
+      Pumpkin has no inherent bonus (chocolate-finding). Lizard's evo-swap waits on
+      its Phase-3 magnitude formula.
+- [ ] **3** — export/user-input formulas (Bag, Mermaid, Aether, Cupid couples;
+      stones/points/honey/fights inputs for Beachball/Unicorn/Bear/Aether).
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
       simulate growth/reward outcomes.
+
+## Deferred odds and ends
+
+- **Event campaigns** — a possible 8th `CampaignType`. Currently unmodeled, so
+  Clam's "+50% Event" is dropped (we keep its Item 35). Adding it ripples through
+  the exhaustive `CampaignType` matches (`format_action`, `action_sort_key`,
+  `campaign_label`) and the "all campaigns" vs "all non-event" distinction —
+  `CampaignType::ALL` (used by `set_all` / parser "all campaigns") should stay
+  the 7 standard, with Event set only by explicit clauses. Low priority (rarely
+  appears in-game).
+- **Nightmare's team malus** — reduces *other* pets' campaign contribution by
+  `(20 - 0.25 * class_level)%` each (min 1%; 20% unevolved). Not Nightmare's own
+  bonus (already +200 all), but the campaign **simulator** stretch will need it.
+- **Pumpkin** — no inherent campaign bonus; finds chocolate, so a simulator
+  should still favor it for food campaigns.
