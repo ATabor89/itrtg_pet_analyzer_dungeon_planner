@@ -93,10 +93,12 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       on `CampaignContext`): Bag (lowest unlocked growth ^0.4), Mermaid
       (-growth/1000, cap -333), Lizard ((unlocked+evolved)^0.5×10, to Growth
       unevolved / Food evolved).
-- [ ] **3b** — user-input formulas: a persisted `CampaignInputs` struct + a
-      settings panel for stones / challenge points / honey / Delirious-Essence
-      fights / current couples, driving Aether, Cupid's couples, Beachball,
-      Unicorn, Bear.
+- [~] **3b** — user-input formulas: a persisted `CampaignInputs` struct + a
+      "Campaign bonus inputs" panel (stones / challenge points / honey / ants /
+      couples / Delirious-Essence fights), wired into `CampaignContext`. Done:
+      Beachball, Unicorn, Bear, Ant Queen, and Cupid's couples. Remaining: Aether
+      (its two-part formula — the all-campaign penalty *and* the growth bonus from
+      fights × elementals-unlocked × log_1000(growth)).
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
       simulate growth/reward outcomes.
