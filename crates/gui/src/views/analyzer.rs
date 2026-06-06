@@ -419,7 +419,10 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
 
     // Effective-campaign-bonus context (curated overrides applied to the parsed
     // baseline). Cheap to build; borrows the loaded overrides.
-    let camp_ctx = CampaignContext { overrides: &data.campaign_overrides };
+    let camp_ctx = CampaignContext {
+        overrides: &data.campaign_overrides,
+        roster: &data.merged,
+    };
 
     // Pet detail window (rendered before table so it floats above)
     show_detail_window(ui, state, data, &rates, &camp_ctx);
