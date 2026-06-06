@@ -1,0 +1,156 @@
+Mouse	Mouse decreases the chance to find food and better quality food by 50% in food campaigns
+Frog	None
+Bee	None
+Cupid	Cupid increases the divinity gain by 100% in divinity campaigns.
+Chicken	Egg has +10% in item campaigns, +10% in growth campaigns.
+Armadillo	None.
+Squirrel	Squirrel increases the chance to find food and better quality food by 75% in food campaigns.
+Rabbit	Rabbit increases levels gained by all pets by 35% in level campaigns.
+Cat	Cat has a 50% greater chance to find god power in god power campaigns.
+Dog	Dog has 50% greater chance to find rare items, and gains 50% more pet stones in item campaign. Dog gains 50% less multiplier in multiplier campaign.
+Fairy	It has a 50% bonus to item campaign.
+Dragon	Dragon gains 100% more multiplier in multiplier campaign.
+Snake	Snake gains 50% more divinity when on a divinity campaign.
+Shark	Shark has +100% in growth campaigns.
+Octopus	Octopus has 100% greater chance to find foods in food campaigns. Octopus has an 80% worse chance to find god power in god power campaigns.
+Valkyrie	It has +35% in growth campaigns, +50% in level campaigns, +100% in multiplier campaigns.
+Slime	Slime has 25% greater result in all campaigns (20% for level campaigns).
+Whale	Whale has +75% in divinity campaigns, +35% in level campaigns, +35% in growth campaigns.
+Hydra	Hydra has +25% in item campaigns, +200% in multiplier campaigns.
+Pandora's_Box	Pandora's box increases all campaign rewards for the campaigns it participates by 3% for every 5000 growth (increase of the total gain). This caps at 100k growth. Reaching the cap will increase it to 4% every 5k. This increases by 0.1% for every feeding, for up to 2% additional (resets to 0% after rebirthing or if hunger reaches 0).
+Lucky_Coin	It has +7% in item campaigns, +77% in godpower campaigns, +777% in food campaigns.
+Balrog	None.
+Gray	
+Ant_Queen	+(# of ants you have)^0.27 % in divinity and god power campaigns
+Crocodile	Crocodile has -90% in food campaigns, -25% in growth campaigns, +69% in item campaigns.
+Big_Burger	+333% (Food), +222%(Level), +111%(Multiplier)
+Oni	+150% to Growth and Item Camps
+Bug	Random (see description).
+Mole	Mole has 50% worse chance to find foods in food campaigns.
+Camel	Camel has a 60% greater chance to find god power in god power campaigns.
+Goat	Goat cannot find any food in food campaigns. Goat has 100% greater chance to find rare items, and gains 100% more pet stones in item campaigns.
+Ape	It has +100% in growth campaigns.
+Flying_Cloud	Flying Cloud has 100% greater chance to find rare items, gains 100% more pet stones in item campaign and has +50% in multiplier campaigns.
+Holy_ITRTG_Book	It doubles your attack power and makes you immune against critical hits when fighting other gods. It has +150% in divinity campaigns, +100% in god power campaigns, +50% in level campaigns.
+God_Power_(Pet)	+50% in godpower campaigns
+Turtle	Turtle has a 25% penalty in 1 hour campaigns. Turtle has a 25% bonus in 12 hour campaigns.
+Afky_Clone	Starts with +20% to food campaign and -30% to all other campaigns. This is increased by log<sub>2</sub>(Highest Afky Power)% with a maximum of +100% to food campaign and +50% to all other campaigns.
+Golem	It is bad in all campaigns but can get better with higher growth. (Starts with -100% to all campaigns, and gains +20% per 5000 growth, until 0% penalty at 25000 growth.)
+Chameleon	None
+Undine	Undine's bonus evolves from a -111% for all campaigns (first form), to a +111% to all campaigns (final form).
+Gnome	All Campaigns -200%
+Salamander	All campaigns +???%
+Sylph	All Campaigns -150%
+Aether	-99% to All Campaigns. The penalties will decrease progressively as you defeat [[Aether#Delirious Essence of the Forgotten|Delirious Essence of the Forgotten]] more, get more growth, and have [[Undine]], [[Gnome]], [[Salamander]], and [[Sylph]]; eventually turning positive.
+Anteater	None
+Gold_Dragon	When you feed it all pets you own will receive 25% of the growth the dragon receives
+Living_Draw	80% in item campaigns. Additional lucky draws can increase this bonus by 5% at a time, up to 200%.
+Black_Hole_Chan	25 + sqrt(UBV4 points^1.01, capped at 200) % to all campaigns
+Mimic	None. See description for penalty if used with Pandora.
+Yggdrasil	1% Growth based on highest RTI god killed
+Rudolph	Rudolph increases the chance to find rare items and the number of pet stones by 35% in item campaigns, increases the chance to find food and better quality food by 35% in food campaigns.
+Santa	It has +50% in item campaigns, +50% in food campaigns.
+Elf	It has +150% in food campaigns, +75% in item campaigns.
+Pumpkin	Pumpkin has a 30% chance to find chocolate in food campaigns. This is increased by 30% every hour. In a 12 hour campaign it finds 3 chocolates with a 60% chance for a 4th.
+Ghost	Ghost has no campaign bonuses or maluses.
+Nightmare	All campaigns +200%. Reduces reward from other pets in the same campaign by (20 - 0.25 * class level)% each. This is subtractive, not multiplicative. Nightmare also uncaps reward in god power campaigns.
+Question	Question has +42% in divinity campaigns, food campaigns, godpower campaigns, level campaigns and multiplier campaigns.
+Chocobear	Increases its boost to all campaigns by 50% if you feed it chocolate or do food campaigns with it. +33% in growth campaigns +33% in item campaigns +100% in food campaigns (Token Improved) Increases its boost to all campaigns by 75% if you feed it chocolate or do food campaigns with it. +50% in growth campaigns +50% in item campaigns +100% in food campaigns
+Rose	+37% level, +22% multiplier, +58% godpower
+Doughnut	Doughnut has 75% greater chance to find food in food campaigns.
+Eagle	Eagle has 75% greater chance to find rare items, and gains 75% more pet stones in item campaign.
+Penguin	Penguin has 75% greater chance to find god power in god power campaigns.
+Hermit_Crab	It has +50% in multiplier campaigns.
+Hedgehog	Hedgehog has +25% in divinity campaigns, +25% in growth campaigns.
+Phoenix	Phoenix gives 50% more levels to all pets in level campaign.
+Wizard	-50% in divinity campaigns, +75% in multiplier campaigns.
+Pegasus	Pegasus gives 40% more levels to all pets in level campaigns.
+Panda	Panda has +300% in food campaigns.
+UFO	Ufo gives 75% more multiplier in multiplier campaigns.
+Robot	Robot increases the growth it gives in growth campaigns by +100%, and increases the chance to find food and better quality food by +100% in food campaigns.
+Otter	It has +75% in growth campaigns, +125% in multiplier campaigns.
+FSM	It increases the divinity you gain from your divinity generator by log2(Total Stats)%. In god power campaigns it doubles god power rewards of all campaign members.
+Elephant	None
+Vaccina	It has +150% in divinity campaigns.
+Corona	Corona decreases all its campaign gains by 30%. After evolution, Corona decreases all its campaign gains by 50%.
+Firefox	None
+Beachball	Increases bonus to all campaigns by sqrt(stones^1.00001 - stones) * 2 %
+Tanuki	+22% to all non-event campaigns
+Seal	It has +40% in godpower campaigns, +55% in multiplier campaigns.
+Raven	It has +60% in item campaigns.
+Hourglass	All campaigns +x% (days since you start playing the game, maxed at 75).
+Archer	+75% divinity, +50% item
+Raiju	It has +80% in growth campaigns, +40% in item campaigns, +80% in divinity campaigns.
+Bottle	none
+Bag	+(Lowest pet's growth^0.4 (max 100%)) growth camp
+Mysterious_Egg	+100% in level campaigns
+Succubus	
+Clam	It has +50% to Event Campaigns and +35% to Item Campaigns.
+Earth_Eater	-80% to All Campaigns. Can be raised to +82% to All Campaigns by feeding EarthLike Planets(1% per 30 Earthlike, 1 feeding per second). This resets every rebirth.
+Portal	+77% to Divinity campaigns.
+Cardboardbox	+30% God Power campaign and -50% Item campaign
+Unicorn	Increases its campaign boost by '''sqrt(challenge points)/2''' up to 100% and gives a bonus to your crystal power of '''class level/2''', up to 25%. Additive with the improvement from [[Overflow Points]].<br> This effects growth, godpower, and divinity campaigns.
+Taco	It has a -30% in food campaigns.
+Witch	She has -666% in divinity campaigns, +666% in food campaigns, and +66% in multiplier campaigns.
+Sloth	Sloth has +10% * hours the campaign takes for item/food/multiplier campaigns.
+Cocoa	None.
+Wolf	25% increase to Item Campaign and a further 10% for each challenge you complete listed [[Wolf#Challenges to Improve Campaign|below]]
+Vesuvius	It has -50% in growth campaigns, +65% in item campaigns, and +65% in godpower campaigns.
+Swan	It has +55% in divinity campaigns.
+Void	None.
+Pignata	None.
+Baby_Carno	Pre-Evo: It has +50% in level campaigns, -300% in food campaigns, +50% in multiplier campaigns, -150% in item campaigns. Post-Evo: It has +75% in level campaigns, +150% in multiplier campaigns, -250% in item campaigns.
+Lizard	It has '''up to''' +100% in growth campaigns.<br> The exact bonus comes from '''(unlocked pets + evolved pets) ^0.5 * 10'''. For example, one combination to reach the 100% cap would be owning 60 pets with 40 of them evolved. Any combination equaling 100 from the pets/evos will give you the 100% cap.<br> After evo, the bonus for growth campaign changes into a bonus for food campaign.
+Meteor	All campaigns +25%.
+Sphinx	It has +37.5% in growth campaign, +75% in level campaign, and +75% in multiplier campaign.
+Alien	None.
+Bat	It has +66% in growth campaigns, +66% in level campaigns, +125% in food campaigns.
+Flying_Eyeball	None.
+Leviathan	None
+Basilisk	Unknown
+Cherub	+100% in divinity campaigns, +50% in item campaigns.
+Tödlicher_Löffel	
+Goblin	-100% for growth and item camps, +150% for divinity camps and +50% for all other camps.
+Koi	+45% growth and item camps.
+Decorator_Crab	+35% item camps.
+Dwarf	+151% food camp, +75% godpower camp.
+Caterpillar	+75% level camp, +25% multiplier camp.
+Bunny_Girl	+77% item camp and +77% growth camp.
+Elemental_(Pet)	Increases all her campaign gains by 150%
+Mist_Sphere	None.
+Shadow_Clone	It has +25% in Level campaign.
+Sniper	It has +100% in level campaigns and +50% in divinity campaigns.
+White_Tiger	White tiger has -95% food campaign, +99% godpower campaign.
+Black_Tortoise	Black Tortoise has -63% level campaign, +79% multiplier campaign.
+Azure_Dragon	Azure Dragon has +371% level campaign, -35% multiplier campaign.
+Vermilion_Pheasant	Vermilion Pheasant has +69% item campaign, -86% growth campaign.
+Tenko	
+Vampire	+69% in Growth Campaigns, +1% in Divinity Campaigns, +337% in Food Campaigns, +42% in Multiplier Campaigns, +90.01% in God Power Campaigns
+Strategist	+75% food and +75% divinity campaign
+Mermaid	-(growth/1,000)% to all campaigns, capped at -333%.
+Monk	+10% all campaigns.
+Honeybadger	+300% food campaign.
+Hamster	None
+Pack_Mule	Decreases all rewards from campaigns by -100%
+Anni_Cake	+365% in food campaigns, +365% in multiplier campaigns
+Llysnafedda	Llysnafedda has a -25% bonus to Growth campaigns, -100% bonus to Item campaigns, -150% bonus in Food Campaigns, +100% bonus in Level Campaigns, and +50% bonus in Multiplier Campaigns
+Serow	Serow has +150% in Food Campaigns, +50% in Item Campaigns, -75% in Multiplier Campaigns, -50% in Level Campaigns
+Aurelius	None
+Ancient_Mimic	None.
+Student_(pet)	Student has +99% in growth campaigns.
+Hwangeum_Pig	Hwangeum Pig has -42% in godpower campaigns, +80% in item campaigns.
+Lamb	
+Duragizer	22% All Camps
+Nugget	None
+Arachne	None
+Simulacrum	None
+Pixie_Goatmother	+33% Godpower, +50% Item, +50% divinity, -200% Food
+Fainting_Capra	+33% Growth, +33% Level, +100% Divinity, -80% Food. Has a 10% + DL^0.6% chance to faint, reducing incoming damage by the same percentage chance. 
+Wolpertinger	+21% (Godpower), +21% (Item), +21% (Multiplier) 
+Skeleton	+250% (Food) 
+Bear	It will increase all campaign bonuses by (Honey Given/500)%, up to a maximum bonus of 100% at 50,000 Honey.
+Dark_Gift	-500% (Divinity and God Power), -100% (All Other Camps)
+Dorgegebelle	-108% (Food), +108% (Growth)
+Nothing_(Other)	Nothing '''decreases''' all it's campaign gains by 75%. This becomes a '''positive''' 75% bonus to all campaigns after evolution.
+Fool	It has +70% in divinity campaigns, +7% in food campaigns, +70% in godpower campaigns and +7% in growth campaigns.
+Owl	Alternates depending on Owl's focus.
