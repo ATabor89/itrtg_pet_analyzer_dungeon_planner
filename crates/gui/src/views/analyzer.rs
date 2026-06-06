@@ -1153,7 +1153,8 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
                 });
             };
         }
-        row!("Pet stones:", &mut ci.pet_stones, "→ Beachball");
+        row!("Pet stones (held):", &mut ci.pet_stones, "→ Beachball");
+        row!("Stones given to Beachball:", &mut ci.beachball_given_stones, "→ Beachball");
         row!("Challenge points:", &mut ci.challenge_points, "→ Unicorn");
         row!("Honey given:", &mut ci.honey, "→ Bear");
         row!("Ants:", &mut ci.ants, "→ Ant Queen");

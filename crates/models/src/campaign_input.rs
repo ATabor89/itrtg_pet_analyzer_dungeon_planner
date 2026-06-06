@@ -10,8 +10,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CampaignInputs {
-    /// Pet Stones held — Beachball.
+    /// Pet Stones currently held — counts toward Beachball's bonus.
     pub pet_stones: u64,
+    /// Pet Stones *given* to Beachball (locked in, max 100k; shown on its
+    /// mouseover). Beachball's bonus uses held + given combined.
+    pub beachball_given_stones: u64,
     /// Challenge Points — Unicorn.
     pub challenge_points: u64,
     /// Total Honey given to Bear.
