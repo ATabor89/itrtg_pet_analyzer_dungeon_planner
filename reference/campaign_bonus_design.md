@@ -48,8 +48,9 @@ Two homes, chosen by what each pet actually needs:
   - **Bag** = `lowest *unlocked* pet's growth ^ 0.4` (from roster).
   - **Mermaid** = `-growth / 1000` (own export growth, capped).
   - **Lizard magnitude** = `(unlocked + evolved) ^ 0.5 * 10`.
-  - **Beachball / Unicorn / Bear** = `sqrt(stones)`, `sqrt(challenge points)/2`,
-    `honey/500` — from **user-input fields** persisted in `AppState`.
+  - **Beachball / Unicorn / Bear** = `sqrt(stones^1.00001 − stones)·2`,
+    `sqrt(challenge points)/2`, `honey/500` — from **user-input fields**
+    persisted in `AppState`.
   - **Cupid couples** = token-improved Cupid's per-couple bonus. The game only
     reports "current couples" (a pet can be coupled with itself, so couples ≠
     pets-in-couples). Compromise: a "current couples" user input, **+2% per
@@ -93,10 +94,12 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       on `CampaignContext`): Bag (lowest unlocked growth ^0.4), Mermaid
       (-growth/1000, cap -333), Lizard ((unlocked+evolved)^0.5×10, to Growth
       unevolved / Food evolved).
-- [ ] **3b** — user-input formulas: a persisted `CampaignInputs` struct + a
-      settings panel for stones / challenge points / honey / Delirious-Essence
-      fights / current couples, driving Aether, Cupid's couples, Beachball,
-      Unicorn, Bear.
+- [~] **3b** — user-input formulas: a persisted `CampaignInputs` struct + a
+      "Campaign bonus inputs" panel (stones / challenge points / honey / ants /
+      couples / Delirious-Essence fights), wired into `CampaignContext`. Done:
+      Beachball, Unicorn, Bear, Ant Queen, and Cupid's couples. Remaining: Aether
+      (its two-part formula — the all-campaign penalty *and* the growth bonus from
+      fights × elementals-unlocked × log_1000(growth)).
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
       simulate growth/reward outcomes.
