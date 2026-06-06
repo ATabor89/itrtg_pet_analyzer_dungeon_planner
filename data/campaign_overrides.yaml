@@ -89,3 +89,40 @@ Pack Mule:
 Elemental:
   - when: Always
     set_all: 150
+Nightmare:
+  # Its own bonus is +200% to all; the separate "reduces other pets' reward"
+  # malus is a team effect, not part of Nightmare's own campaign bonus.
+  - when: Always
+    set_all: 200
+Slime:
+  - when: Always
+    set_all: 25
+    set: { Level: 20 }
+
+# --- Campaign clauses mixed with non-campaign prose (combat/utility) ---
+Holy ITRTG Book:
+  # The attack-power / crit-immunity text isn't a campaign bonus.
+  - when: Always
+    set: { Divinity: 150, GodPower: 100, Level: 50 }
+Fainting Capra:
+  # The faint/damage-reduction text isn't a campaign bonus.
+  - when: Always
+    set: { Growth: 33, Level: 33, Divinity: 100, Food: -80 }
+Clam:
+  # Event campaigns aren't one of the seven modeled types, so only Item applies.
+  - when: Always
+    set: { Item: 35 }
+
+# --- Per-form / pre-evo vs post-evo ---
+Baby Carno:
+  - when: Unevolved
+    set: { Level: 50, Food: -300, Multiplier: 50, Item: -150 }
+  - when: Evolved
+    set: { Level: 75, Multiplier: 150, Item: -250 }
+Undine:
+  # Approximation: the wiki gives only first-form (-111) and final-form (+111)
+  # for "all campaigns"; intermediate forms differ. Treated as a 2-state flip.
+  - when: Unevolved
+    set_all: -111
+  - when: Evolved
+    set_all: 111

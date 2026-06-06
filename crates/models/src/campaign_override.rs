@@ -170,6 +170,24 @@ mod tests {
         let mut m = BTreeMap::new();
         ov.apply("Nothing (Other)", &mut m, true, false);
         assert_eq!(m.get(&CampaignType::Multiplier), Some(&75.0));
+
+        // Cupid token: +30 all, +50 divinity over base 100.
+        let mut m = BTreeMap::new();
+        ov.apply("Cupid", &mut m, false, true);
+        assert_eq!(m.get(&CampaignType::Divinity), Some(&150.0));
+        assert_eq!(m.get(&CampaignType::Level), Some(&30.0));
+
+        // Baby Carno is form-dependent: post-evo drops the food penalty.
+        let mut m = BTreeMap::new();
+        ov.apply("Baby Carno", &mut m, true, false);
+        assert_eq!(m.get(&CampaignType::Item), Some(&-250.0));
+        assert_eq!(m.get(&CampaignType::Food), None);
+
+        // Mixed prose: only the campaign clauses are kept.
+        let mut m = BTreeMap::new();
+        ov.apply("Holy ITRTG Book", &mut m, false, false);
+        assert_eq!(m.get(&CampaignType::Divinity), Some(&150.0));
+        assert_eq!(m.len(), 3);
     }
 
     #[test]
