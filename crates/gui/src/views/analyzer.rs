@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use eframe::egui::{self, Color32, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::{
-    CampaignType, Class, Dungeon, Element, MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass,
-    UnlockCondition, VillageJob,
+    CampaignInputs, CampaignType, Class, Dungeon, Element, MAGIC_EGG_GROWTH_MULT, PetAction,
+    RecommendedClass, UnlockCondition, VillageJob,
 };
 use itrtg_planner::growth::{format_duration, CapRelation, GrowthRates};
 use itrtg_planner::merge::{CampaignContext, EvoReadiness, MergedPet};
@@ -265,6 +265,9 @@ pub struct AnalyzerState {
     pub evolve_sort_use_egg: bool,
     /// Secondary key for the time-based sorts when times tie. Persisted.
     pub time_sort_tiebreak: TimeSortTiebreak,
+    /// Player-entered values for formula-based campaign bonuses (pet stones,
+    /// challenge points, honey, …). Persisted.
+    pub campaign_inputs: CampaignInputs,
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -295,6 +298,7 @@ impl Default for AnalyzerState {
             global_growth_target: 0,
             evolve_sort_use_egg: false,
             time_sort_tiebreak: TimeSortTiebreak::default(),
+            campaign_inputs: CampaignInputs::default(),
             selected_pet: None,
             custom_target: String::new(),
         }
@@ -320,6 +324,7 @@ impl AnalyzerState {
         self.global_growth_target = src.global_growth_target;
         self.evolve_sort_use_egg = src.evolve_sort_use_egg;
         self.time_sort_tiebreak = src.time_sort_tiebreak;
+        self.campaign_inputs = src.campaign_inputs.clone();
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -419,9 +424,13 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
 
     // Effective-campaign-bonus context (curated overrides applied to the parsed
     // baseline). Cheap to build; borrows the loaded overrides.
+    // Clone the (tiny) inputs so the context doesn't borrow `state`, which is
+    // mutated by the panels below. Edits take effect next frame.
+    let campaign_inputs = state.campaign_inputs.clone();
     let camp_ctx = CampaignContext {
         overrides: &data.campaign_overrides,
         roster: &data.merged,
+        inputs: &campaign_inputs,
     };
 
     // Pet detail window (rendered before table so it floats above)
@@ -437,6 +446,9 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
 
     // Growth-estimate settings (pendant/cap readout + Moai statue editor)
     show_growth_settings(ui, state, &rates);
+
+    // Campaign-bonus inputs (values the export can't provide)
+    show_campaign_inputs(ui, state);
 
     // If a value-dependent sort is active but its value is unset, it would
     // collapse every pet onto the tiebreak — revert to the default sort instead.
@@ -1114,6 +1126,39 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
                 .italics()
                 .size(10.0),
         );
+    });
+}
+
+/// Editor for the player-entered values that drive formula-based campaign
+/// bonuses (Beachball, Unicorn, Bear, Ant Queen, Cupid couples, Aether).
+fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
+    egui::CollapsingHeader::new(
+        RichText::new("Campaign bonus inputs").color(style::TEXT_BRIGHT).size(13.0),
+    )
+    .default_open(false)
+    .show(ui, |ui| {
+        ui.label(
+            RichText::new("Values the export can't provide, for formula-based bonuses:")
+                .color(style::TEXT_MUTED)
+                .italics()
+                .size(10.0),
+        );
+        let ci = &mut state.campaign_inputs;
+        macro_rules! row {
+            ($label:expr, $field:expr, $pet:expr) => {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new($label).color(style::TEXT_MUTED).size(12.0));
+                    ui.add(egui::DragValue::new($field).speed(1.0));
+                    ui.label(RichText::new($pet).color(style::TEXT_MUTED).size(10.0));
+                });
+            };
+        }
+        row!("Pet stones:", &mut ci.pet_stones, "→ Beachball");
+        row!("Challenge points:", &mut ci.challenge_points, "→ Unicorn");
+        row!("Honey given:", &mut ci.honey, "→ Bear");
+        row!("Ants:", &mut ci.ants, "→ Ant Queen");
+        row!("Current couples:", &mut ci.couples, "→ Cupid (token-improved)");
+        row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "→ Aether (coming soon)");
     });
 }
 

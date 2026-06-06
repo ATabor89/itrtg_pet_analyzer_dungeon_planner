@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use itrtg_models::{
-    CampaignOverrides, CampaignType, Class, Element, ExportPet, MAGIC_EGG_GROWTH_MULT,
-    RecommendedClass, WikiPet, resolve_wiki_name,
+    CampaignInputs, CampaignOverrides, CampaignType, Class, Element, ExportPet,
+    MAGIC_EGG_GROWTH_MULT, RecommendedClass, WikiPet, resolve_wiki_name,
 };
 
 use crate::growth::GrowthRates;
@@ -29,6 +29,7 @@ pub enum EvoReadiness {
 pub struct CampaignContext<'a> {
     pub overrides: &'a CampaignOverrides,
     pub roster: &'a [MergedPet],
+    pub inputs: &'a CampaignInputs,
 }
 
 /// Round a percentage to 2 decimal places. Dynamic campaign formulas produce
@@ -268,6 +269,47 @@ impl MergedPet {
                     CampaignType::Growth
                 };
                 map.insert(target, v);
+            }
+            // Beachball: sqrt(stones^1.00001 - stones) * 2, to all campaigns.
+            "Beachball" => {
+                let s = ctx.inputs.pet_stones as f64;
+                let v = round2(((s.powf(1.00001) - s).max(0.0)).sqrt() * 2.0);
+                for c in CampaignType::ALL {
+                    map.insert(c, v);
+                }
+            }
+            // Unicorn: sqrt(challenge points) / 2, cap 100, to growth/godpower/divinity.
+            "Unicorn" => {
+                let v = round2(((ctx.inputs.challenge_points as f64).sqrt() / 2.0).min(100.0));
+                for c in [CampaignType::Growth, CampaignType::GodPower, CampaignType::Divinity] {
+                    map.insert(c, v);
+                }
+            }
+            // Bear: honey given / 500, cap 100, to all campaigns.
+            "Bear" => {
+                let v = round2(((ctx.inputs.honey as f64) / 500.0).min(100.0));
+                for c in CampaignType::ALL {
+                    map.insert(c, v);
+                }
+            }
+            // Ant Queen: ants ^ 0.27, to divinity and god power.
+            "Ant Queen" => {
+                let v = round2((ctx.inputs.ants as f64).powf(0.27));
+                for c in [CampaignType::Divinity, CampaignType::GodPower] {
+                    map.insert(c, v);
+                }
+            }
+            // Cupid: token-improved adds +2% per current couple to all campaigns,
+            // on top of the curated flat token bonus already applied.
+            "Cupid" => {
+                if self.export.as_ref().is_some_and(|e| e.improved) {
+                    let bonus = round2((ctx.inputs.couples as f64) * 2.0);
+                    if bonus != 0.0 {
+                        for c in CampaignType::ALL {
+                            *map.entry(c).or_insert(0.0) += bonus;
+                        }
+                    }
+                }
             }
             _ => {}
         }
@@ -572,7 +614,8 @@ mod tests {
     #[test]
     fn test_campaign_bonuses_seam() {
         let empty = CampaignOverrides::default();
-        let ctx = CampaignContext { overrides: &empty, roster: &[] };
+        let inputs = CampaignInputs::default();
+        let ctx = CampaignContext { overrides: &empty, roster: &[], inputs: &inputs };
 
         let mut wiki = make_wiki_pet("Dwarf", Element::Fire, RecommendedClass::Wildcard);
         wiki.campaign_bonus = Some(CampaignBonus {
@@ -600,7 +643,8 @@ mod tests {
             "Hedgehog:\n  - when: TokenImproved\n    add: { Growth: 141 }\n",
         )
         .unwrap();
-        let ctx = CampaignContext { overrides: &ov, roster: &[] };
+        let inputs = CampaignInputs::default();
+        let ctx = CampaignContext { overrides: &ov, roster: &[], inputs: &inputs };
 
         let mut wiki = make_wiki_pet("Hedgehog", Element::Earth, RecommendedClass::Wildcard);
         wiki.campaign_bonus = Some(CampaignBonus {
@@ -621,6 +665,7 @@ mod tests {
     #[test]
     fn test_campaign_formulas() {
         let empty = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
 
         // Build a small roster: a low-growth unlocked pet, a higher one, and a
         // very-low locked pet that must be ignored by Bag.
@@ -646,7 +691,7 @@ mod tests {
         // Bag: lowest *unlocked* growth (10000) ^ 0.4 → ~39.8 to Growth.
         let bag = MergedPet { name: "Bag".into(), wiki: None, export: None };
         let roster = pets(bag.clone());
-        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
         // 10000^0.4 = 39.8107… rounded to 2 decimals.
         assert_eq!(bag.campaign_bonus_for(CampaignType::Growth, &ctx), Some(39.81));
 
@@ -655,7 +700,7 @@ mod tests {
         mer_export.growth = 50_000;
         let mermaid = MergedPet { name: "Mermaid".into(), wiki: None, export: Some(mer_export) };
         let roster = pets(mermaid.clone());
-        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
         assert_eq!(mermaid.campaign_bonus_for(CampaignType::GodPower, &ctx), Some(-50.0));
 
         // Lizard: (unlocked + evolved)^0.5 * 10, capped 100, to Growth (unevolved).
@@ -666,7 +711,7 @@ mod tests {
             e
         }) };
         let roster = pets(lizard.clone());
-        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
         // unlocked: Frog, Bee, Lizard = 3; evolved: Bee = 1 → 4^0.5*10 = 20.
         assert_eq!(lizard.campaign_bonus_for(CampaignType::Growth, &ctx), Some(20.0));
         assert_eq!(lizard.campaign_bonus_for(CampaignType::Food, &ctx), None);
@@ -675,6 +720,7 @@ mod tests {
     #[test]
     fn test_campaign_formula_caps() {
         let empty = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
 
         // Bag clamps at +100 (1e6^0.4 ≈ 251).
         let mut p = make_export_pet("Frog", Element::Water, None);
@@ -685,7 +731,7 @@ mod tests {
             MergedPet { name: "Frog".into(), wiki: None, export: Some(p) },
             bag.clone(),
         ];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
         assert_eq!(bag.campaign_bonus_for(CampaignType::Growth, &ctx), Some(100.0));
 
         // Mermaid clamps at -333 (1e6/1000 = 1000).
@@ -693,8 +739,50 @@ mod tests {
         e.growth = 1_000_000;
         let mermaid = MergedPet { name: "Mermaid".into(), wiki: None, export: Some(e) };
         let roster = vec![mermaid.clone()];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
         assert_eq!(mermaid.campaign_bonus_for(CampaignType::Growth, &ctx), Some(-333.0));
+    }
+
+    #[test]
+    fn test_campaign_input_formulas() {
+        let empty = CampaignOverrides::default();
+        let inputs = CampaignInputs {
+            challenge_points: 10_000, // sqrt(10000)/2 = 50
+            honey: 25_000,            // 25000/500 = 50
+            ants: 10_000,
+            couples: 10,              // *2 = 20
+            pet_stones: 10_000,
+            ..Default::default()
+        };
+        let roster: Vec<MergedPet> = vec![];
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
+
+        let pet = |name: &str, improved: bool| {
+            let mut e = make_export_pet(name, Element::Neutral, None);
+            e.improved = improved;
+            MergedPet { name: name.into(), wiki: None, export: Some(e) }
+        };
+
+        // Unicorn → 50 on growth/godpower/divinity only.
+        let u = pet("Unicorn", false);
+        assert_eq!(u.campaign_bonus_for(CampaignType::Growth, &ctx), Some(50.0));
+        assert_eq!(u.campaign_bonus_for(CampaignType::Food, &ctx), None);
+
+        // Bear → 50 on all campaigns.
+        assert_eq!(pet("Bear", false).campaign_bonus_for(CampaignType::Item, &ctx), Some(50.0));
+
+        // Ant Queen → equal, positive bonus on divinity & god power.
+        let a = pet("Ant Queen", false);
+        let d = a.campaign_bonus_for(CampaignType::Divinity, &ctx);
+        assert_eq!(d, a.campaign_bonus_for(CampaignType::GodPower, &ctx));
+        assert!(d.unwrap() > 0.0);
+
+        // Cupid couples only count when token-improved (+2 each → +20 for 10).
+        assert_eq!(pet("Cupid", true).campaign_bonus_for(CampaignType::Growth, &ctx), Some(20.0));
+        assert_eq!(pet("Cupid", false).campaign_bonus_for(CampaignType::Growth, &ctx), None);
+
+        // Beachball → a positive all-campaign bonus from stones.
+        assert!(pet("Beachball", false).campaign_bonus_for(CampaignType::Growth, &ctx).unwrap() > 0.0);
     }
 
     #[test]
