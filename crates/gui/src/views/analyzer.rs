@@ -1159,7 +1159,7 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
         row!("Honey given:", &mut ci.honey, "→ Bear");
         row!("Ants:", &mut ci.ants, "→ Ant Queen");
         row!("Current couples:", &mut ci.couples, "→ Cupid (token-improved)");
-        row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "→ Aether (coming soon)");
+        row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "→ Aether");
     });
 }
 

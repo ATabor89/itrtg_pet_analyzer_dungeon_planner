@@ -38,6 +38,12 @@ fn round2(x: f64) -> f32 {
     ((x * 100.0).round() / 100.0) as f32
 }
 
+/// The elemental pets that count toward Aether's "elementals unlocked" term
+/// (Aether itself is excluded).
+fn is_elemental(name: &str) -> bool {
+    matches!(name, "Undine" | "Gnome" | "Salamander" | "Sylph" | "Elemental")
+}
+
 /// A pet with wiki reference data merged with the player's actual game data.
 ///
 /// Either side can be missing:
@@ -299,6 +305,29 @@ impl MergedPet {
                 for c in [CampaignType::Divinity, CampaignType::GodPower] {
                     map.insert(c, v);
                 }
+            }
+            // Aether: an all-campaign penalty that shrinks as you beat Delirious
+            // Essence (-99% reduced by 10% per fight, maxing at +1% after 10),
+            // PLUS an added growth-campaign bonus that scales with fights, the
+            // elementals you own, and Aether's own growth.
+            "Aether" => {
+                let fights = ctx.inputs.delirious_essence_fights as f64;
+                let penalty = round2((-99.0 + 10.0 * fights).min(1.0));
+                for c in CampaignType::ALL {
+                    map.insert(c, penalty);
+                }
+                let elementals = ctx
+                    .roster
+                    .iter()
+                    .filter(|p| p.is_unlocked() && is_elemental(&p.name))
+                    .count() as f64;
+                // The game floors Aether's growth at 1 for the log (it can be
+                // negative); export growth is u64, so 0 maps to 1.
+                let growth = self.export.as_ref().map(|e| e.growth).unwrap_or(0).max(1) as f64;
+                let growth_bonus = ((elementals + 5.0) / 10.0)
+                    * fights
+                    * (1.0 + 0.57 * growth.ln() / 1000_f64.ln());
+                *map.entry(CampaignType::Growth).or_insert(0.0) += round2(growth_bonus);
             }
             // Cupid: token-improved adds +2% per current couple to all campaigns,
             // on top of the curated flat token bonus already applied.
@@ -796,6 +825,45 @@ mod tests {
             bb.campaign_bonus_for(CampaignType::Growth, &c1),
             bb.campaign_bonus_for(CampaignType::Growth, &c2),
         );
+    }
+
+    #[test]
+    fn test_campaign_aether() {
+        let empty = CampaignOverrides::default();
+        let aether = |growth: u64| {
+            let mut e = make_export_pet("Aether", Element::Neutral, None);
+            e.growth = growth;
+            MergedPet { name: "Aether".into(), wiki: None, export: Some(e) }
+        };
+        let elemental = |name: &str| {
+            let mut e = make_export_pet(name, Element::Neutral, None);
+            e.unlocked = true;
+            MergedPet { name: name.into(), wiki: None, export: Some(e) }
+        };
+
+        // fights = 0 → full -99% penalty to all, no growth bonus.
+        let inputs0 = CampaignInputs::default();
+        let roster: Vec<MergedPet> = vec![];
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs0 };
+        let a = aether(1);
+        assert_eq!(a.campaign_bonus_for(CampaignType::Food, &ctx), Some(-99.0));
+        assert_eq!(a.campaign_bonus_for(CampaignType::Growth, &ctx), Some(-99.0));
+
+        // fights = 10 (penalty maxes at +1), 5 elementals owned, growth 1e6
+        // (log_1000 = 2). Growth bonus = (10/10)*10*(1+0.57*2) = 21.4 → 22.4.
+        let inputs10 = CampaignInputs { delirious_essence_fights: 10, ..Default::default() };
+        let roster = vec![
+            elemental("Undine"),
+            elemental("Gnome"),
+            elemental("Salamander"),
+            elemental("Sylph"),
+            elemental("Elemental"),
+        ];
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs10 };
+        let a = aether(1_000_000);
+        assert_eq!(a.campaign_bonus_for(CampaignType::Food, &ctx), Some(1.0)); // penalty only
+        let g = a.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
+        assert!((g - 22.4).abs() < 0.01, "got {g}");
     }
 
     #[test]
