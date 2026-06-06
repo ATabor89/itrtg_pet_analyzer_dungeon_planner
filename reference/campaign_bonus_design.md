@@ -48,9 +48,9 @@ Two homes, chosen by what each pet actually needs:
   - **Bag** = `lowest *unlocked* pet's growth ^ 0.4` (from roster).
   - **Mermaid** = `-growth / 1000` (own export growth, capped).
   - **Lizard magnitude** = `(unlocked + evolved) ^ 0.5 * 10`.
-  - **Beachball / Unicorn / Bear** = `sqrt(stones^1.00001 − stones)·2`,
-    `sqrt(challenge points)/2`, `honey/500` — from **user-input fields**
-    persisted in `AppState`.
+  - **Beachball / Unicorn / Bear** = `sqrt(stones^1.00001 − stones)·2` (cap 200),
+    `sqrt(challenge points)/2` (cap 100), `honey/500` (cap 100) — from
+    **user-input fields** persisted in `AppState`.
   - **Cupid couples** = token-improved Cupid's per-couple bonus. The game only
     reports "current couples" (a pet can be coupled with itself, so couples ≠
     pets-in-couples). Compromise: a "current couples" user input, **+2% per
@@ -60,7 +60,9 @@ Two homes, chosen by what each pet actually needs:
     at `+1%` after 10 fights; and (b) an *added* growth-campaign bonus:
     `((elementals_unlocked + 5) / 10) * fights * (1 + 0.57 * log_1000(growth))`%,
     where growth clamps to 1 if non-positive and `elementals_unlocked` counts
-    Undine/Gnome/Salamander/Sylph/Elemental.
+    Undine/Gnome/Salamander/Sylph/Elemental **and Aether itself** (per the wiki
+    source). `fights` = the Aether Ring's number (it starts at +0, so the number
+    is the exact kill count).
 
 `CampaignContext` carries the persisted user inputs + a roster reference; the
 pet's own evolved/improved/growth state comes from its export.
@@ -94,12 +96,12 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       on `CampaignContext`): Bag (lowest unlocked growth ^0.4), Mermaid
       (-growth/1000, cap -333), Lizard ((unlocked+evolved)^0.5×10, to Growth
       unevolved / Food evolved).
-- [~] **3b** — user-input formulas: a persisted `CampaignInputs` struct + a
-      "Campaign bonus inputs" panel (stones / challenge points / honey / ants /
-      couples / Delirious-Essence fights), wired into `CampaignContext`. Done:
-      Beachball, Unicorn, Bear, Ant Queen, and Cupid's couples. Remaining: Aether
-      (its two-part formula — the all-campaign penalty *and* the growth bonus from
-      fights × elementals-unlocked × log_1000(growth)).
+- [x] **3b** — user-input formulas: a persisted `CampaignInputs` struct + a
+      "Campaign bonus inputs" panel (held + Beachball-given stones / challenge
+      points / honey / ants / couples / Delirious-Essence fights), wired into
+      `CampaignContext`. Beachball, Unicorn, Bear, Ant Queen, Cupid's couples,
+      and **Aether** (the two-part penalty + growth formula). *Campaign-bonus
+      formula coverage is now complete for every modellable pet.*
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
       simulate growth/reward outcomes.
