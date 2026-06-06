@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use itrtg_models::{
-    Class, Element, ExportPet, MAGIC_EGG_GROWTH_MULT, RecommendedClass, WikiPet,
+    CampaignType, Class, Element, ExportPet, MAGIC_EGG_GROWTH_MULT, RecommendedClass, WikiPet,
     resolve_wiki_name,
 };
 
@@ -177,6 +177,32 @@ impl MergedPet {
     pub fn hours_to_growth(&self, target: u64, rates: &GrowthRates) -> Option<f64> {
         let export = self.export.as_ref()?;
         rates.hours_to_target(export.growth, target)
+    }
+
+    /// This pet's effective per-campaign bonus percentages — **the single entry
+    /// point** the UI uses for display, filtering, and sorting campaign bonuses.
+    ///
+    /// Today this returns the *static* parsed baseline scraped from the wiki.
+    /// Dynamic and conditional adjustments — token boosts (Hedgehog), evolution
+    /// swaps (Lizard), and export/user-input formulas (Bag, Mermaid, Beachball)
+    /// — will be layered in *here* in later phases (likely taking a context
+    /// argument). Callers go through this method rather than reading
+    /// `wiki.campaign_bonus.per_campaign` directly, so they won't change when the
+    /// numbers get richer.
+    pub fn campaign_bonuses(&self) -> BTreeMap<CampaignType, f32> {
+        self.wiki
+            .as_ref()
+            .and_then(|w| w.campaign_bonus.as_ref())
+            .map(|cb| cb.per_campaign.clone())
+            .unwrap_or_default()
+    }
+
+    /// This pet's effective bonus to a single campaign, if known. `None` when the
+    /// pet has no bonus or its bonus wasn't structured (raw-only) — distinct from
+    /// `Some(0.0)`. Routes through [`Self::campaign_bonuses`] so it tracks future
+    /// dynamic adjustments.
+    pub fn campaign_bonus_for(&self, campaign: CampaignType) -> Option<f32> {
+        self.campaign_bonuses().get(&campaign).copied()
     }
 
     /// Whether this pet's element matches the target. `Element::All` (Chameleon) matches
@@ -465,6 +491,27 @@ mod tests {
             export: None,
         };
         assert_eq!(no_export.hours_to_growth(1000, &r), None);
+    }
+
+    #[test]
+    fn test_campaign_bonuses_seam() {
+        let mut wiki = make_wiki_pet("Dwarf", Element::Fire, RecommendedClass::Wildcard);
+        wiki.campaign_bonus = Some(CampaignBonus {
+            raw: "+151% food camp, +75% godpower camp.".to_string(),
+            per_campaign: [(CampaignType::Food, 151.0), (CampaignType::GodPower, 75.0)]
+                .into_iter()
+                .collect(),
+        });
+        let pet = MergedPet { name: "Dwarf".into(), wiki: Some(wiki), export: None };
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Food), Some(151.0));
+        assert_eq!(pet.campaign_bonus_for(CampaignType::GodPower), Some(75.0));
+        // No entry for a campaign it doesn't affect → None (not Some(0.0)).
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Growth), None);
+
+        // A pet with no wiki bonus yields an empty map.
+        let bare = MergedPet { name: "X".into(), wiki: None, export: None };
+        assert!(bare.campaign_bonuses().is_empty());
+        assert_eq!(bare.campaign_bonus_for(CampaignType::Food), None);
     }
 
     #[test]
