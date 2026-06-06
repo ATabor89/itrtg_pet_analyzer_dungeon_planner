@@ -217,6 +217,10 @@ impl MergedPet {
     /// can't express, computed from the roster and the pet's own export. No-op
     /// for pets without a formula. (User-input-driven formulas like Aether and
     /// Cupid's couples come in a later phase once the inputs are persisted.)
+    ///
+    /// The Bag/Lizard arms walk the roster; only those two pets pay it, so it's
+    /// negligible at the current roster size, but worth precomputing the
+    /// aggregates into the context if more roster-scanning formulas are added.
     fn apply_campaign_formulas(
         &self,
         map: &mut BTreeMap<CampaignType, f32>,
@@ -660,6 +664,31 @@ mod tests {
         // unlocked: Frog, Bee, Lizard = 3; evolved: Bee = 1 → 4^0.5*10 = 20.
         assert_eq!(lizard.campaign_bonus_for(CampaignType::Growth, &ctx), Some(20.0));
         assert_eq!(lizard.campaign_bonus_for(CampaignType::Food, &ctx), None);
+    }
+
+    #[test]
+    fn test_campaign_formula_caps() {
+        let empty = CampaignOverrides::default();
+
+        // Bag clamps at +100 (1e6^0.4 ≈ 251).
+        let mut p = make_export_pet("Frog", Element::Water, None);
+        p.growth = 1_000_000;
+        p.unlocked = true;
+        let bag = MergedPet { name: "Bag".into(), wiki: None, export: None };
+        let roster = vec![
+            MergedPet { name: "Frog".into(), wiki: None, export: Some(p) },
+            bag.clone(),
+        ];
+        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        assert_eq!(bag.campaign_bonus_for(CampaignType::Growth, &ctx), Some(100.0));
+
+        // Mermaid clamps at -333 (1e6/1000 = 1000).
+        let mut e = make_export_pet("Mermaid", Element::Water, None);
+        e.growth = 1_000_000;
+        let mermaid = MergedPet { name: "Mermaid".into(), wiki: None, export: Some(e) };
+        let roster = vec![mermaid.clone()];
+        let ctx = CampaignContext { overrides: &empty, roster: &roster };
+        assert_eq!(mermaid.campaign_bonus_for(CampaignType::Growth, &ctx), Some(-333.0));
     }
 
     #[test]
