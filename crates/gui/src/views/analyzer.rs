@@ -904,12 +904,17 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
     }
 }
 
-/// Campaign-bonus card section: the raw prose plus parsed per-campaign chips
-/// (highest first). No-op for pets with no campaign bonus.
+/// Campaign-bonus card section: the raw prose (if any) plus effective
+/// per-campaign chips (highest first). No-op only when the pet has neither.
 fn show_campaign_section(ui: &mut Ui, pet: &MergedPet, camp_ctx: &CampaignContext) {
-    let Some(cb) = pet.wiki.as_ref().and_then(|w| w.campaign_bonus.as_ref()) else {
+    let raw = pet.wiki.as_ref().and_then(|w| w.campaign_bonus.as_ref()).map(|cb| &cb.raw);
+    // Effective per-campaign values (baseline + overrides).
+    let map = pet.campaign_bonuses(camp_ctx);
+    // An override-only pet may have a map without wiki prose, so show the
+    // section whenever either side has something.
+    if raw.is_none() && map.is_empty() {
         return;
-    };
+    }
     ui.add_space(8.0);
     ui.separator();
     ui.label(
@@ -919,11 +924,12 @@ fn show_campaign_section(ui: &mut Ui, pet: &MergedPet, camp_ctx: &CampaignContex
             .strong(),
     );
     ui.add_space(2.0);
-    // The cleaned prose is always available (the display fallback).
-    ui.label(RichText::new(&cb.raw).color(style::TEXT_NORMAL).size(11.0));
+    // The cleaned prose, when available (the display fallback).
+    if let Some(raw) = raw {
+        ui.label(RichText::new(raw).color(style::TEXT_NORMAL).size(11.0));
+    }
 
-    // Effective per-campaign values (baseline + overrides), highest first.
-    let map = pet.campaign_bonuses(camp_ctx);
+    // Per-campaign chips, highest first.
     if !map.is_empty() {
         let mut entries: Vec<(CampaignType, f32)> = map.into_iter().collect();
         entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
