@@ -258,6 +258,7 @@ mod tests {
             token_improvable: false,
             special_ability: None,
             evo_requirements: None,
+            campaign_bonus: None,
         }
     }
 

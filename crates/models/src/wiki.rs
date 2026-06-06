@@ -1,6 +1,8 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
-use crate::{Class, Element};
+use crate::{CampaignType, Class, Element};
 
 /// How the wiki recommends evolving a pet's class.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -166,6 +168,25 @@ pub struct EvoRequirements {
     pub other: Option<String>,
 }
 
+/// A pet's campaign-reward bonuses, from the infobox "Campaign Bonus" row.
+///
+/// `raw` is the cleaned prose and is always populated for a pet that has any
+/// bonus — it's the display fallback. `per_campaign` holds the parsed percentage
+/// per campaign, but only when the text was *confidently* parseable into the 7
+/// campaign types; it's empty for prose/dynamic/conditional bonuses we don't
+/// structure (yet), which still surface via `raw`. Pets with no bonus at all
+/// (`None`/empty on the wiki) carry no `CampaignBonus`.
+///
+/// `per_campaign` is the *static* baseline. Pets whose bonus depends on
+/// evolution/token state or runtime values (Lizard, Hedgehog, Bag, …) are
+/// adjusted from this baseline in the planner, not here.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CampaignBonus {
+    pub raw: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub per_campaign: BTreeMap<CampaignType, f32>,
+}
+
 /// A pet entry as described by the wiki. Static reference data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WikiPet {
@@ -184,6 +205,12 @@ pub struct WikiPet {
     /// populates it, so existing data without this field still deserializes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evo_requirements: Option<EvoRequirements>,
+
+    /// Per-pet campaign-reward bonus, scraped from the infobox. `None` means no
+    /// bonus (or not yet crawled); `Some` carries the raw prose plus a parsed
+    /// per-campaign map when the text was confidently parseable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub campaign_bonus: Option<CampaignBonus>,
 }
 
 #[cfg(test)]
@@ -216,5 +243,14 @@ mod tests {
         assert_eq!(carno.growth, GrowthRequirement::Base(300000));
         assert!(carno.growth.requires_base_growth());
         assert!(!carno.growth.magic_egg_counts());
+
+        // Campaign bonus round-trips: a parsed pet keeps its per-campaign map.
+        let dwarf = find("Dwarf").campaign_bonus.as_ref().expect("Dwarf campaign");
+        assert_eq!(dwarf.per_campaign.get(&CampaignType::Food), Some(&151.0));
+        assert_eq!(dwarf.per_campaign.get(&CampaignType::GodPower), Some(&75.0));
+        // A raw-only pet (prose) keeps its text but no parsed map.
+        let cat = find("Cat").campaign_bonus.as_ref().expect("Cat campaign");
+        assert!(!cat.raw.is_empty());
+        assert!(cat.per_campaign.is_empty());
     }
 }
