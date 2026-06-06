@@ -11,7 +11,8 @@
 #   set_all: <number>            # set every campaign to this value
 #   set:     { Campaign: <num> } # set specific campaigns (absolute)
 #   add:     { Campaign: <num> } # add to specific campaigns (delta)
-# Within a rule, ops apply in order set_all -> set -> add.
+#   add_all: <number>           # add a delta to every campaign
+# Within a rule, ops apply in order set_all -> set -> add_all -> add.
 # Campaigns: Growth, Divinity, Food, Item, Level, Multiplier, GodPower
 #
 # Phase 2a: a focused, high-confidence set (values taken straight from the
@@ -46,6 +47,11 @@ Rabbit:
 Cupid:
   - when: Always
     set: { Divinity: 100 }
+  # Token-improved: flat +30% to all campaigns, +50% to Divinity. (The separate
+  # per-couple bonus is a user-input formula, deferred to the input-fields phase.)
+  - when: TokenImproved
+    add_all: 30
+    add: { Divinity: 20 }
 Snake:
   - when: Always
     set: { Divinity: 50 }
