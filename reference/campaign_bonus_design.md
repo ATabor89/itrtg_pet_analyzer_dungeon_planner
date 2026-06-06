@@ -50,6 +50,10 @@ Two homes, chosen by what each pet actually needs:
   - **Lizard magnitude** = `(unlocked + evolved) ^ 0.5 * 10`.
   - **Beachball / Unicorn / Bear** = `sqrt(stones)`, `sqrt(challenge points)/2`,
     `honey/500` — from **user-input fields** persisted in `AppState`.
+  - **Cupid couples** = token-improved Cupid's per-couple bonus. The game only
+    reports "current couples" (a pet can be coupled with itself, so couples ≠
+    pets-in-couples). Compromise: a "current couples" user input, **+2% per
+    couple** to all campaigns, on top of the flat token bonus already curated.
 
 `CampaignContext` carries the persisted user inputs + a roster reference; the
 pet's own evolved/improved/growth state comes from its export.
@@ -66,8 +70,14 @@ elementals — likely a user-input for the boss-kill count). Salamander is liter
 
 - [x] **1a** — scrape + conservative parser + data (PR #18).
 - [x] **1b** — card display, "Campaign boost" filter, "Sort by bonus".
-- [ ] **2** — declarative overrides (`campaign_overrides.yaml`): Hedgehog token,
-      Lizard evo-swap, prose corrections, per-form elementals.
+- [~] **2a** — override mechanism (`campaign_overrides.yaml` + `CampaignContext`
+      seam) with a focused high-confidence curated set (Hedgehog token, Nothing/
+      Corona evo flips, the clear "more levels / divinity / god power" prose
+      corrections). Set-all / set / add ops × Always / Evolved / Unevolved /
+      TokenImproved conditions.
+- [ ] **2b** — expand curation: the rest of the unambiguous prose pets, the
+      remaining per-form elementals (Undine, evolved Gnome/Sylph). Lizard's
+      evo-swap waits on its Phase-3 magnitude formula.
 - [ ] **3** — export/user-input formulas (Bag, Mermaid; stones/points/honey
       inputs for Beachball/Unicorn/Bear).
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,

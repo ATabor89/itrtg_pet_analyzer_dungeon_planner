@@ -1,0 +1,91 @@
+# =============================================================================
+# Curated campaign-bonus overrides
+# =============================================================================
+# Applied on top of the wiki-parsed static baseline by the planner's
+# `campaign_bonuses` seam, conditioned on each pet's export state. This is where
+# campaign bonuses get defined that the infobox prose doesn't structure, or that
+# depend on evolution/token state the infobox doesn't encode.
+#
+# Keyed by canonical pet name. Each pet has a list of rules; each rule has:
+#   when:    Always | Evolved | Unevolved | TokenImproved | NotTokenImproved
+#   set_all: <number>            # set every campaign to this value
+#   set:     { Campaign: <num> } # set specific campaigns (absolute)
+#   add:     { Campaign: <num> } # add to specific campaigns (delta)
+#   add_all: <number>           # add a delta to every campaign
+# Within a rule, ops apply in order set_all -> set -> add_all -> add.
+# Campaigns: Growth, Divinity, Food, Item, Level, Multiplier, GodPower
+#
+# Phase 2a: a focused, high-confidence set (values taken straight from the
+# pets' wiki prose). Ambiguous prose pets (e.g. Doughnut's "mighty food"),
+# export/input formulas (Bag, Mermaid, Beachball), and the harder elementals
+# (Aether, Salamander) are deferred — they stay raw-only until later phases.
+# =============================================================================
+
+# --- Prose "greater chance to find god power" → standard God Power bonus ---
+Cat:
+  - when: Always
+    set: { GodPower: 50 }
+Camel:
+  - when: Always
+    set: { GodPower: 60 }
+Penguin:
+  - when: Always
+    set: { GodPower: 75 }
+
+# --- Prose "gives X% more levels" → standard Level bonus ---
+Pegasus:
+  - when: Always
+    set: { Level: 40 }
+Phoenix:
+  - when: Always
+    set: { Level: 50 }
+Rabbit:
+  - when: Always
+    set: { Level: 35 }
+
+# --- Prose "more divinity / multiplier / rare items" → standard bonus ---
+Cupid:
+  - when: Always
+    set: { Divinity: 100 }
+  # Token-improved: flat +30% to all campaigns, +50% to Divinity. (The separate
+  # per-couple bonus is a user-input formula, deferred to the input-fields phase.)
+  - when: TokenImproved
+    add_all: 30
+    add: { Divinity: 20 }
+Snake:
+  - when: Always
+    set: { Divinity: 50 }
+Dragon:
+  - when: Always
+    set: { Multiplier: 100 }
+UFO:
+  - when: Always
+    set: { Multiplier: 75 }
+Eagle:
+  - when: Always
+    set: { Item: 75 }
+
+# --- Token improvement: Hedgehog's +141% boost to growth & divinity ---
+Hedgehog:
+  - when: TokenImproved
+    add: { Growth: 141, Divinity: 141 }
+
+# --- Evolution-conditional: bonus flips/changes after evolving ---
+Nothing (Other):
+  - when: Unevolved
+    set_all: -75
+  - when: Evolved
+    set_all: 75
+Corona:
+  - when: Unevolved
+    set_all: -30
+  - when: Evolved
+    set_all: -50
+
+# --- All-campaign prose ---
+Pack Mule:
+  - when: Always
+    set_all: -100
+Elemental:
+  - when: Always
+    set_all: 150

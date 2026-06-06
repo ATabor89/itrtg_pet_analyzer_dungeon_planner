@@ -52,6 +52,11 @@ impl App {
             data.load_planner_config(&cfg_yaml, &info_yaml);
         }
 
+        // Load curated campaign-bonus overrides
+        if let Some(ov_yaml) = platform::load_campaign_overrides() {
+            data.load_campaign_overrides(&ov_yaml);
+        }
+
         // Load wiki pet data from YAML (baked on WASM, from disk on native)
         data.load_wiki_pets_from_yaml();
 
