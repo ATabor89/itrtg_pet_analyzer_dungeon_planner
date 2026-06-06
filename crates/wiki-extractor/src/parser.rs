@@ -573,8 +573,13 @@ pub fn parse_campaign_percentages(raw: &str) -> BTreeMap<CampaignType, f32> {
                 }
             }
             Scope::All => {
+                // A bare "all campaigns" fills only the campaigns not already
+                // set by a more specific clause, so explicit values always win
+                // regardless of clause order (no real pet mixes these today).
                 for c in ALL_CAMPAIGNS {
-                    map.insert(c, *value);
+                    if !mentioned.contains(&c) {
+                        map.insert(c, *value);
+                    }
                 }
             }
             Scope::AllOther => {}
