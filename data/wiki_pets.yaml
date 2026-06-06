@@ -293,7 +293,7 @@
   evo_requirements:
     growth: !Total 12000
     material: 600 Nevermelting Ice
-    other: All pets &gt; 100 million total stats
+    other: All pets > 100 million total stats
   campaign_bonus:
     raw: Slime has 25% greater result in all campaigns (20% for level campaigns).
 - name: Whale
@@ -425,7 +425,7 @@
     material: 1500 Magic Fire Stone
     other: Find 10 million ants in dungeons
   campaign_bonus:
-    raw: +(# of ants you have)^0.27&#160;% in divinity and god power campaigns
+    raw: +(# of ants you have)^0.27 % in divinity and god power campaigns
 - name: Crocodile
   wiki_url: https://itrtg.wiki.gg/wiki/Crocodile
   element: Earth
@@ -618,7 +618,7 @@
   evo_requirements:
     growth: !Total 50000
     material: 2500 Fire Stone
-    other: Give it 6.8E27 (6.8 octillion) divinity, have 2 billion suns created, have an unleash power (Attack multiplier) of 50 million&#160;% With a DMC score of ~37,000, 60 million clones, 1500 Creation Count and 100k% base creating speed, it takes about 8-9 days to evolve it. It also helps if you saved up some Lucky Draws, to get your divinity doubled a few times. (You cannot use a Pet Token to skip this evo condition.)
+    other: Give it 6.8E27 (6.8 octillion) divinity, have 2 billion suns created, have an unleash power (Attack multiplier) of 50 million % With a DMC score of ~37,000, 60 million clones, 1500 Creation Count and 100k% base creating speed, it takes about 8-9 days to evolve it. It also helps if you saved up some Lucky Draws, to get your divinity doubled a few times. (You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: It doubles your attack power and makes you immune against critical hits when fighting other gods. It has +150% in divinity campaigns, +100% in god power campaigns, +50% in level campaigns.
 - name: God Power (Pet)
@@ -673,7 +673,7 @@
   evo_requirements:
     growth: !Total 10000
     material: 500 iron Bar
-    other: Afky Clone campaign bonus &gt;= +20% (1.126e15 Afky God power)
+    other: Afky Clone campaign bonus >= +20% (1.126e15 Afky God power)
   campaign_bonus:
     raw: Starts with +20% to food campaign and -30% to all other campaigns. This is increased by log2(Highest Afky Power)% with a maximum of +100% to food campaign and +50% to all other campaigns.
 - name: Stone/Golem
@@ -875,7 +875,7 @@
     material: 3333 iron Bar
     other: 1000 UBV4 points (You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
-    raw: 25 + sqrt(UBV4 points^1.01, capped at 200)&#160;% to all campaigns
+    raw: 25 + sqrt(UBV4 points^1.01, capped at 200) % to all campaigns
 - name: Treasure/Mimic
   wiki_url: https://itrtg.wiki.gg/wiki/Treasure/Mimic
   element: Neutral
@@ -1146,7 +1146,7 @@
   evo_requirements:
     growth: !Total 1000
     material: 50 Ice
-    other: Total Pet Mystic multiplier &gt; 2 million&#160;%
+    other: Total Pet Mystic multiplier > 2 million %
   campaign_bonus:
     raw: It has +50% in multiplier campaigns.
     per_campaign:
@@ -1185,7 +1185,7 @@
   evo_requirements:
     growth: !Total 10000
     material: 500 Fire Stone
-    other: All pets &gt; Level 9000
+    other: All pets > Level 9000
   campaign_bonus:
     raw: Phoenix gives 50% more levels to all pets in level campaign.
 - name: Wizard
@@ -1260,7 +1260,7 @@
   evo_requirements:
     growth: !Total 20000
     material: 1000 iron Bar
-    other: Total Pet Physical Multiplier &gt; 100 million&#160;%
+    other: Total Pet Physical Multiplier > 100 million %
   campaign_bonus:
     raw: Ufo gives 75% more multiplier in multiplier campaigns.
 - name: Robot
@@ -1279,7 +1279,7 @@
   evo_requirements:
     growth: !Total 25000
     material: 1250 iron Bar
-    other: All pets &gt; 9000 total growth
+    other: All pets > 9000 total growth
   campaign_bonus:
     raw: Robot increases the growth it gives in growth campaigns by +100%, and increases the chance to find food and better quality food by +100% in food campaigns.
 - name: Otter
@@ -1403,7 +1403,7 @@
     material: 875 Nevermelting Ice
     other: have 1 million pet stones available
   campaign_bonus:
-    raw: Increases bonus to all campaigns by sqrt(stones^1.00001 - stones) * 2&#160;%
+    raw: Increases bonus to all campaigns by sqrt(stones^1.00001 - stones) * 2 %
 - name: Tanuki
   wiki_url: https://itrtg.wiki.gg/wiki/Tanuki
   element: Neutral
@@ -1555,7 +1555,7 @@
   evo_requirements:
     growth: !Total 50000
     material: 2500 iron Bar
-    other: ALL pets have &gt;= 20k Growth
+    other: ALL pets have >= 20k Growth
   campaign_bonus:
     raw: +(Lowest pet's growth^0.4 (max 100%)) growth camp
 - name: Mysterious Egg

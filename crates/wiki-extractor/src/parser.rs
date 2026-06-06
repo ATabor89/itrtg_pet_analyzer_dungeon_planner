@@ -598,17 +598,31 @@ pub fn parse_campaign_percentages(raw: &str) -> BTreeMap<CampaignType, f32> {
     map
 }
 
-/// Strip HTML tags, decode the few entities that show up in pet infoboxes, and
-/// collapse whitespace.
+/// Strip HTML tags, decode HTML entities, and collapse whitespace.
 fn clean_html_value(s: &str) -> String {
     let tags = Regex::new(r"<[^>]*>").unwrap();
     let text = tags.replace_all(s, "");
+
+    // Numeric entities (e.g. `&#160;` nbsp, `&#39;` apostrophe).
+    let numeric = Regex::new(r"&#(\d+);").unwrap();
+    let text = numeric.replace_all(&text, |c: &regex::Captures| {
+        c[1]
+            .parse::<u32>()
+            .ok()
+            .and_then(char::from_u32)
+            .map(String::from)
+            .unwrap_or_default()
+    });
+
+    // Named entities; decode `&amp;` last so it can't re-form another entity.
     let text = text
-        .replace("&amp;", "&")
-        .replace("&#39;", "'")
-        .replace("&#039;", "'")
+        .replace("&nbsp;", " ")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
         .replace("&quot;", "\"")
-        .replace("&nbsp;", " ");
+        .replace("&apos;", "'")
+        .replace("&amp;", "&");
+
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -668,6 +682,18 @@ mod tests {
     #[test]
     fn test_parse_name_simple() {
         assert_eq!(parse_name("[[Mouse]]"), Some("Mouse".to_string()));
+    }
+
+    #[test]
+    fn test_clean_html_value_entities() {
+        // Numeric nbsp (the Beachball bug) collapses to a normal space.
+        assert_eq!(clean_html_value("by sqrt(x) * 2&#160;%"), "by sqrt(x) * 2 %");
+        // Named gt/lt.
+        assert_eq!(clean_html_value("(-50% &gt; +50%)"), "(-50% > +50%)");
+        // Numeric apostrophe + tag stripping.
+        assert_eq!(clean_html_value("Bag&#39;s <b>bonus</b>"), "Bag's bonus");
+        // Ampersand decoded last (not re-formed into another entity).
+        assert_eq!(clean_html_value("A &amp; B"), "A & B");
     }
 
     #[test]
