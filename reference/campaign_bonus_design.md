@@ -50,6 +50,10 @@ Two homes, chosen by what each pet actually needs:
   - **Lizard magnitude** = `(unlocked + evolved) ^ 0.5 * 10`.
   - **Beachball / Unicorn / Bear** = `sqrt(stones)`, `sqrt(challenge points)/2`,
     `honey/500` — from **user-input fields** persisted in `AppState`.
+  - **Cupid couples** = token-improved Cupid's per-couple bonus. The game only
+    reports "current couples" (a pet can be coupled with itself, so couples ≠
+    pets-in-couples). Compromise: a "current couples" user input, **+2% per
+    couple** to all campaigns, on top of the flat token bonus already curated.
 
 `CampaignContext` carries the persisted user inputs + a roster reference; the
 pet's own evolved/improved/growth state comes from its export.

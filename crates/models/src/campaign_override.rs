@@ -33,8 +33,8 @@ pub enum OverrideWhen {
 
 /// One override rule: a condition plus the operations it performs on the
 /// per-campaign map. Within a rule, operations apply in the order
-/// `set_all` → `set` → `add`, so a specific `set` can override `set_all` and
-/// `add` adjusts the result.
+/// `set_all` → `set` → `add_all` → `add`: absolutes first (broad then
+/// specific), then deltas (broad then specific).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CampaignOverrideRule {
@@ -45,6 +45,10 @@ pub struct CampaignOverrideRule {
     /// Set specific campaigns to absolute values.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub set: BTreeMap<CampaignType, f32>,
+    /// Add this delta to *every* campaign (e.g. Cupid's token boost adds +30 to
+    /// all, then `add` tops up Divinity).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub add_all: Option<f32>,
     /// Add deltas to specific campaigns, on top of the current value (e.g.
     /// Hedgehog's token boost adds +141 to growth and divinity).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
@@ -88,6 +92,11 @@ impl CampaignOverrides {
             }
             for (c, v) in &rule.set {
                 base.insert(*c, *v);
+            }
+            if let Some(v) = rule.add_all {
+                for c in CampaignType::ALL {
+                    *base.entry(c).or_insert(0.0) += v;
+                }
             }
             for (c, v) in &rule.add {
                 *base.entry(*c).or_insert(0.0) += *v;
@@ -161,6 +170,26 @@ mod tests {
         let mut m = BTreeMap::new();
         ov.apply("Nothing (Other)", &mut m, true, false);
         assert_eq!(m.get(&CampaignType::Multiplier), Some(&75.0));
+    }
+
+    #[test]
+    fn test_add_all_then_add_specific() {
+        // Cupid: base +100 Divinity; token-improved adds +30 to all and +20
+        // more to Divinity (so +50 there) → Divinity 150, everything else 30.
+        let ov = overrides_from(
+            "Cupid:\n  - when: Always\n    set: { Divinity: 100 }\n  - when: TokenImproved\n    add_all: 30\n    add: { Divinity: 20 }\n",
+        );
+        let mut m = BTreeMap::new();
+        ov.apply("Cupid", &mut m, false, true);
+        assert_eq!(m.get(&CampaignType::Divinity), Some(&150.0));
+        assert_eq!(m.get(&CampaignType::Growth), Some(&30.0));
+        assert_eq!(m.get(&CampaignType::GodPower), Some(&30.0));
+        assert_eq!(m.len(), 7);
+
+        // Not improved: just the base.
+        let mut m = BTreeMap::new();
+        ov.apply("Cupid", &mut m, false, false);
+        assert_eq!(m, BTreeMap::from([(CampaignType::Divinity, 100.0)]));
     }
 
     #[test]
