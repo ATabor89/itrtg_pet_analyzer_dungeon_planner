@@ -271,8 +271,9 @@ impl MergedPet {
                 map.insert(target, v);
             }
             // Beachball: sqrt(stones^1.00001 - stones) * 2, to all campaigns.
+            // Stones = currently held + those given to (locked into) Beachball.
             "Beachball" => {
-                let s = ctx.inputs.pet_stones as f64;
+                let s = (ctx.inputs.pet_stones + ctx.inputs.beachball_given_stones) as f64;
                 let v = round2(((s.powf(1.00001) - s).max(0.0)).sqrt() * 2.0);
                 for c in CampaignType::ALL {
                     map.insert(c, v);
@@ -783,6 +784,18 @@ mod tests {
 
         // Beachball → a positive all-campaign bonus from stones.
         assert!(pet("Beachball", false).campaign_bonus_for(CampaignType::Growth, &ctx).unwrap() > 0.0);
+
+        // Beachball combines held + given stones: 5000 + 5000 == 10000 held.
+        let combined = CampaignInputs { pet_stones: 5_000, beachball_given_stones: 5_000, ..Default::default() };
+        let held_only = CampaignInputs { pet_stones: 10_000, ..Default::default() };
+        let roster: Vec<MergedPet> = vec![];
+        let c1 = CampaignContext { overrides: &empty, roster: &roster, inputs: &combined };
+        let c2 = CampaignContext { overrides: &empty, roster: &roster, inputs: &held_only };
+        let bb = pet("Beachball", false);
+        assert_eq!(
+            bb.campaign_bonus_for(CampaignType::Growth, &c1),
+            bb.campaign_bonus_for(CampaignType::Growth, &c2),
+        );
     }
 
     #[test]
