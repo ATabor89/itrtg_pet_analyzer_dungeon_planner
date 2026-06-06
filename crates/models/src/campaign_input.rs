@@ -12,8 +12,9 @@ use serde::{Deserialize, Serialize};
 pub struct CampaignInputs {
     /// Pet Stones currently held — counts toward Beachball's bonus.
     pub pet_stones: u64,
-    /// Pet Stones *given* to Beachball (locked in, max 100k; shown on its
-    /// mouseover). Beachball's bonus uses held + given combined.
+    /// Pet Stones *given* to Beachball — locked in permanently (given in 100k
+    /// chunks, no total cap; shown on its mouseover). Beachball's bonus uses
+    /// held + given combined.
     pub beachball_given_stones: u64,
     /// Challenge Points — Unicorn.
     pub challenge_points: u64,
