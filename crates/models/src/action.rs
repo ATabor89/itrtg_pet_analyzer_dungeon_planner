@@ -14,6 +14,19 @@ pub enum CampaignType {
     GodPower,
 }
 
+impl CampaignType {
+    /// All seven campaign types, in declaration order.
+    pub const ALL: [CampaignType; 7] = [
+        CampaignType::Growth,
+        CampaignType::Divinity,
+        CampaignType::Food,
+        CampaignType::Item,
+        CampaignType::Level,
+        CampaignType::Multiplier,
+        CampaignType::GodPower,
+    ];
+}
+
 /// Village jobs and their sub-roles.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VillageJob {

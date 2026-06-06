@@ -7,7 +7,7 @@ use itrtg_models::{
     UnlockCondition, VillageJob,
 };
 use itrtg_planner::growth::{format_duration, CapRelation, GrowthRates};
-use itrtg_planner::merge::{EvoReadiness, MergedPet};
+use itrtg_planner::merge::{CampaignContext, EvoReadiness, MergedPet};
 use serde::{Deserialize, Serialize};
 
 use crate::data::DataStore;
@@ -417,8 +417,12 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
         .collect();
     let rates = GrowthRates::compute(&data.merged, &moai_levels);
 
+    // Effective-campaign-bonus context (curated overrides applied to the parsed
+    // baseline). Cheap to build; borrows the loaded overrides.
+    let camp_ctx = CampaignContext { overrides: &data.campaign_overrides };
+
     // Pet detail window (rendered before table so it floats above)
-    show_detail_window(ui, state, data, &rates);
+    show_detail_window(ui, state, data, &rates, &camp_ctx);
 
     // Stats bar
     show_stats_bar(ui, data);
@@ -472,11 +476,17 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     }
 
     // Pet table
-    let filtered = filter_and_sort(&data.merged, state, &rates);
+    let filtered = filter_and_sort(&data.merged, state, &rates, &camp_ctx);
     show_table(ui, &filtered, state);
 }
 
-fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore, rates: &GrowthRates) {
+fn show_detail_window(
+    ui: &mut Ui,
+    state: &mut AnalyzerState,
+    data: &DataStore,
+    rates: &GrowthRates,
+    camp_ctx: &CampaignContext,
+) {
     if let Some(pet_name) = state.selected_pet.clone() {
         let pet = data.merged.iter().find(|p| p.name == pet_name);
         let mut open = true;
@@ -489,7 +499,7 @@ fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore, 
             .default_size([400.0, 350.0])
             .show(ui.ctx(), |ui| {
                 if let Some(pet) = pet {
-                    show_pet_details(ui, pet, rates, custom_target);
+                    show_pet_details(ui, pet, rates, custom_target, camp_ctx);
                 } else {
                     ui.label(
                         RichText::new("Pet not found in current data.")
@@ -504,7 +514,13 @@ fn show_detail_window(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore, 
     }
 }
 
-fn show_pet_details(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates, custom_target: &mut String) {
+fn show_pet_details(
+    ui: &mut Ui,
+    pet: &MergedPet,
+    rates: &GrowthRates,
+    custom_target: &mut String,
+    camp_ctx: &CampaignContext,
+) {
     // Wiki data section
     if let Some(wiki) = &pet.wiki {
         // Wiki link
@@ -577,8 +593,8 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates, custom_ta
     // Evolution requirements + readiness
     show_evolution_section(ui, pet, rates);
 
-    // Campaign bonus (raw prose + parsed per-campaign chips)
-    show_campaign_section(ui, pet);
+    // Campaign bonus (raw prose + effective per-campaign chips)
+    show_campaign_section(ui, pet, camp_ctx);
 
     // Export data section
     if let Some(export) = &pet.export {
@@ -890,7 +906,7 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
 
 /// Campaign-bonus card section: the raw prose plus parsed per-campaign chips
 /// (highest first). No-op for pets with no campaign bonus.
-fn show_campaign_section(ui: &mut Ui, pet: &MergedPet) {
+fn show_campaign_section(ui: &mut Ui, pet: &MergedPet, camp_ctx: &CampaignContext) {
     let Some(cb) = pet.wiki.as_ref().and_then(|w| w.campaign_bonus.as_ref()) else {
         return;
     };
@@ -906,8 +922,8 @@ fn show_campaign_section(ui: &mut Ui, pet: &MergedPet) {
     // The cleaned prose is always available (the display fallback).
     ui.label(RichText::new(&cb.raw).color(style::TEXT_NORMAL).size(11.0));
 
-    // Parsed per-campaign values, highest first.
-    let map = pet.campaign_bonuses();
+    // Effective per-campaign values (baseline + overrides), highest first.
+    let map = pet.campaign_bonuses(camp_ctx);
     if !map.is_empty() {
         let mut entries: Vec<(CampaignType, f32)> = map.into_iter().collect();
         entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -1766,6 +1782,7 @@ fn filter_and_sort<'a>(
     pets: &'a [MergedPet],
     state: &AnalyzerState,
     rates: &GrowthRates,
+    camp_ctx: &CampaignContext,
 ) -> Vec<&'a MergedPet> {
     let search_lower = state.search.to_lowercase();
 
@@ -1859,7 +1876,7 @@ fn filter_and_sort<'a>(
             // selected campaign. (Raw-only/unparsed pets have no entry, so they
             // sit out this filter until later phases structure them.)
             if let Some(c) = state.filter_campaign
-                && !pet.campaign_bonus_for(c).is_some_and(|v| v > 0.0)
+                && !pet.campaign_bonus_for(c, camp_ctx).is_some_and(|v| v > 0.0)
             {
                 return false;
             }
@@ -1948,8 +1965,8 @@ fn filter_and_sort<'a>(
                 // Ascending here (the `asc` flag below reverses to biggest-first
                 // by default). Pets without a known bonus to the campaign sink.
                 let c = state.filter_campaign;
-                let va = c.and_then(|c| a.campaign_bonus_for(c)).unwrap_or(f32::NEG_INFINITY);
-                let vb = c.and_then(|c| b.campaign_bonus_for(c)).unwrap_or(f32::NEG_INFINITY);
+                let va = c.and_then(|c| a.campaign_bonus_for(c, camp_ctx)).unwrap_or(f32::NEG_INFINITY);
+                let vb = c.and_then(|c| b.campaign_bonus_for(c, camp_ctx)).unwrap_or(f32::NEG_INFINITY);
                 va.partial_cmp(&vb)
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| ga.cmp(&gb))

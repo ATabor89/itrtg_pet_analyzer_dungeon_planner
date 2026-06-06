@@ -45,6 +45,14 @@ pub fn load_pet_special_info() -> Option<String> {
     )
 }
 
+/// Load the curated campaign-bonus overrides YAML.
+pub fn load_campaign_overrides() -> Option<String> {
+    load_game_data(
+        "data/campaign_overrides.yaml",
+        include_str!("../../../data/campaign_overrides.yaml"),
+    )
+}
+
 /// Save updated wiki pets YAML to disk (native only, no-op on WASM).
 #[cfg(not(target_arch = "wasm32"))]
 pub fn save_wiki_pets(yaml: &str) -> Result<(), String> {
