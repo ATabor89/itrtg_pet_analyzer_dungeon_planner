@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use regex::Regex;
 
 use itrtg_models::*;
@@ -342,6 +344,7 @@ pub fn parse_pets(source: &str) -> anyhow::Result<Vec<WikiPet>> {
             // Populated separately by crawling each pet's page (see
             // `parse_evo_requirements`); the main table has no evo data.
             evo_requirements: None,
+            campaign_bonus: None,
         });
     }
 
@@ -414,6 +417,180 @@ fn evo_field(scope: &str, label: &str) -> Option<String> {
     let re = Regex::new(&pattern).ok()?;
     let cap = re.captures(scope)?;
     Some(clean_html_value(cap.get(1)?.as_str()))
+}
+
+/// Parse the "Campaign Bonus" infobox row from a pet page's rendered HTML.
+///
+/// Unlike the evolution rows, the infobox pairs the "Campaign Bonus" and
+/// "Special Ability" *labels* in one row and their *values* in the next row, so
+/// we take the first table cell after the label row's `</tr>`.
+///
+/// Returns `None` when the pet has no campaign bonus ("None"/empty). Otherwise
+/// the cleaned prose is kept in `raw`, and [`parse_campaign_percentages`]
+/// attempts a structured per-campaign map (empty when not confidently parseable).
+pub fn parse_campaign_bonus(html: &str) -> Option<CampaignBonus> {
+    let marker = html.find("Campaign Bonus")?;
+    let after = &html[marker..];
+    let tr_end = after.find("</tr>")?;
+    let rest = &after[tr_end + "</tr>".len()..];
+    let cell_re = Regex::new(r"(?s)<td[^>]*>(.*?)</td>").unwrap();
+    let raw = clean_html_value(cell_re.captures(rest)?.get(1)?.as_str());
+
+    let check = raw.trim().trim_end_matches('.').trim().to_ascii_lowercase();
+    if check.is_empty() || check == "none" || check == "-" {
+        return None;
+    }
+
+    let per_campaign = parse_campaign_percentages(&raw);
+    Some(CampaignBonus { raw, per_campaign })
+}
+
+const ALL_CAMPAIGNS: [CampaignType; 7] = [
+    CampaignType::Growth,
+    CampaignType::Divinity,
+    CampaignType::Food,
+    CampaignType::Item,
+    CampaignType::Level,
+    CampaignType::Multiplier,
+    CampaignType::GodPower,
+];
+
+fn campaign_from_word(window: &str) -> Vec<CampaignType> {
+    let mut v = Vec::new();
+    for (w, c) in [
+        ("growth", CampaignType::Growth),
+        ("divinity", CampaignType::Divinity),
+        ("food", CampaignType::Food),
+        ("item", CampaignType::Item),
+        ("level", CampaignType::Level),
+        ("multiplier", CampaignType::Multiplier),
+        ("godpower", CampaignType::GodPower),
+    ] {
+        if window.contains(w) {
+            v.push(c);
+        }
+    }
+    v
+}
+
+/// One percentage's scope within a clause.
+enum Scope {
+    Camp(Vec<CampaignType>),
+    All,
+    AllOther,
+}
+
+fn scope_in(window: &str) -> Option<Scope> {
+    if window.contains("all other") || window.contains("all the other") {
+        Some(Scope::AllOther)
+    } else if window.contains("all camp")
+        || window.contains("all your camp")
+        || window.contains("all her camp")
+        || window.contains("all campaign")
+        || window.contains("non-event")
+    {
+        // "all non-event campaigns" — Event isn't one of our 7, so it's all 7.
+        Some(Scope::All)
+    } else {
+        let camps = campaign_from_word(window);
+        if camps.is_empty() { None } else { Some(Scope::Camp(camps)) }
+    }
+}
+
+/// Conservatively parse a campaign-bonus string into a per-campaign percentage
+/// map. Returns an **empty** map whenever the text isn't confidently parseable
+/// (formulas, dynamic/conditional values, or non-standard prose) — those pets
+/// stay raw-only rather than risk a wrong number.
+pub fn parse_campaign_percentages(raw: &str) -> BTreeMap<CampaignType, f32> {
+    let empty = BTreeMap::new();
+    let mut text = raw.to_ascii_lowercase().replace("god power", "godpower");
+
+    // Bail on anything dynamic / conditional / formula / non-standard prose.
+    const BAIL: &[&str] = &[
+        "sqrt", "^", "log", " per ", "based on", "depend", "point", "stone",
+        "of ants", "honey", "challenge", "days since", "hour", "pre-evo",
+        "post-evo", "first form", "final form", "after evo", "evolves",
+        "rebirth", "feed", "improved", "afky", "rti", "ubv4", "draw",
+        "earthlike", "highest", "total stats", "???", "unknown", "random",
+        "alternates", "capped", "/",
+        // Non-standard / prose reward forms (chance-to-find, levels-to-all, …).
+        "chance", "greater", "worse", "more ", "less ", "give", "gain",
+        "increases the", "decreases the", "decreases all", "result", "double",
+        "immune", "reward", "uncaps", "to all pets",
+        " hour", "see description", "no campaign",
+    ];
+    for b in BAIL {
+        if text.contains(b) {
+            return empty;
+        }
+    }
+
+    // Strip a leading "<name> has " / "it has " prefix if it's near the start.
+    if let Some(pos) = text.find(" has ")
+        && pos < 24
+    {
+        text = text[pos + " has ".len()..].to_string();
+    }
+    let text = text.trim();
+
+    // Locate every signed percentage and the campaigns each one applies to.
+    let num_re = Regex::new(r"([+-]?\d+(?:\.\d+)?)\s*%").unwrap();
+    let nums: Vec<_> = num_re.captures_iter(text).collect();
+    if nums.is_empty() {
+        return empty;
+    }
+
+    let mut clauses: Vec<(f32, Scope)> = Vec::new();
+    for (i, cap) in nums.iter().enumerate() {
+        let m = cap.get(0).unwrap();
+        let value: f32 = match cap[1].parse() {
+            Ok(v) => v,
+            Err(_) => return empty,
+        };
+        let next_start = nums.get(i + 1).map(|c| c.get(0).unwrap().start()).unwrap_or(text.len());
+        let prev_end = if i == 0 { 0 } else { nums[i - 1].get(0).unwrap().end() };
+        let forward = &text[m.end()..next_start];
+        let backward = &text[prev_end..m.start()];
+        // Prefer the campaign words that follow the percentage; fall back to the
+        // ones before it (handles "All Campaigns -150%").
+        match scope_in(forward).or_else(|| scope_in(backward)) {
+            Some(scope) => clauses.push((value, scope)),
+            // A percentage we can't tie to a campaign means we'd misparse — bail.
+            None => return empty,
+        }
+    }
+
+    // Resolve scopes into a map. Explicit campaigns first so "all other" can
+    // target the remainder.
+    let mut map: BTreeMap<CampaignType, f32> = BTreeMap::new();
+    let mut mentioned: Vec<CampaignType> = Vec::new();
+    for (value, scope) in &clauses {
+        match scope {
+            Scope::Camp(cs) => {
+                for c in cs {
+                    map.insert(*c, *value);
+                    mentioned.push(*c);
+                }
+            }
+            Scope::All => {
+                for c in ALL_CAMPAIGNS {
+                    map.insert(c, *value);
+                }
+            }
+            Scope::AllOther => {}
+        }
+    }
+    for (value, scope) in &clauses {
+        if let Scope::AllOther = scope {
+            for c in ALL_CAMPAIGNS {
+                if !mentioned.contains(&c) {
+                    map.insert(c, *value);
+                }
+            }
+        }
+    }
+
+    map
 }
 
 /// Strip HTML tags, decode the few entities that show up in pet infoboxes, and
@@ -600,6 +777,130 @@ mod tests {
             RecommendedClass::Village(role) => assert_eq!(role, "Fisher"),
             other => panic!("Expected Village(Fisher), got {:?}", other),
         }
+    }
+
+    fn camps(pairs: &[(CampaignType, f32)]) -> BTreeMap<CampaignType, f32> {
+        pairs.iter().copied().collect()
+    }
+
+    #[test]
+    fn test_parse_campaign_percentages_clean() {
+        use CampaignType::*;
+        // Multi-clause, varied phrasing.
+        assert_eq!(
+            parse_campaign_percentages("It has +35% in growth campaigns, +50% in level campaigns."),
+            camps(&[(Growth, 35.0), (Level, 50.0)])
+        );
+        // Parenthesized campaign, no "in".
+        assert_eq!(parse_campaign_percentages("+250% (Food)"), camps(&[(Food, 250.0)]));
+        // Multiple campaigns sharing one percentage.
+        assert_eq!(
+            parse_campaign_percentages("+150% to Growth and Item Camps"),
+            camps(&[(Growth, 150.0), (Item, 150.0)])
+        );
+        // Decimals and "God Power" → GodPower.
+        assert_eq!(
+            parse_campaign_percentages("+90.01% in God Power Campaigns"),
+            camps(&[(GodPower, 90.01)])
+        );
+        // A name containing "ant" (pheasant) must not trip the dynamic bail.
+        assert_eq!(
+            parse_campaign_percentages("Vermilion Pheasant has +69% item campaign, -86% growth campaign."),
+            camps(&[(Item, 69.0), (Growth, -86.0)])
+        );
+    }
+
+    #[test]
+    fn test_parse_campaign_percentages_all_scopes() {
+        use CampaignType::*;
+        // "All campaigns" with the number after the words.
+        assert_eq!(
+            parse_campaign_percentages("All Campaigns -150%"),
+            camps(&[(Growth, -150.0), (Divinity, -150.0), (Food, -150.0), (Item, -150.0),
+                    (Level, -150.0), (Multiplier, -150.0), (GodPower, -150.0)])
+        );
+        // "all non-event" == all 7 (Event isn't one of our types).
+        assert_eq!(parse_campaign_percentages("+22% to all non-event campaigns").len(), 7);
+        // "all other camps" targets the unmentioned campaigns (Goblin).
+        assert_eq!(
+            parse_campaign_percentages(
+                "-100% for growth and item camps, +150% for divinity camps and +50% for all other camps."
+            ),
+            camps(&[(Growth, -100.0), (Item, -100.0), (Divinity, 150.0),
+                    (Food, 50.0), (Level, 50.0), (Multiplier, 50.0), (GodPower, 50.0)])
+        );
+        // Parenthesized multi-campaign + "All Other Camps" (Dark Gift).
+        assert_eq!(
+            parse_campaign_percentages("-500% (Divinity and God Power), -100% (All Other Camps)"),
+            camps(&[(Divinity, -500.0), (GodPower, -500.0), (Growth, -100.0),
+                    (Food, -100.0), (Item, -100.0), (Level, -100.0), (Multiplier, -100.0)])
+        );
+    }
+
+    #[test]
+    fn test_parse_campaign_percentages_bails() {
+        // Dynamic formula / cap (Mermaid) — must not emit the cap as a static value.
+        assert!(parse_campaign_percentages("-(growth/1,000)% to all campaigns, capped at -333%.").is_empty());
+        // Exponent formula (Lizard).
+        assert!(parse_campaign_percentages("up to +100% in growth campaigns from (unlocked pets)^0.5 * 10").is_empty());
+        // Prose "chance to find" (Cat) — standard in-game but indistinguishable in text; raw-only for now.
+        assert!(parse_campaign_percentages("Cat has a 50% greater chance to find god power in god power campaigns.").is_empty());
+        // Conditional pre/post evo (Baby Carno).
+        assert!(parse_campaign_percentages("Pre-Evo: +50% level. Post-Evo: +75% level.").is_empty());
+    }
+
+    #[test]
+    fn test_parse_campaign_bonus_html() {
+        use CampaignType::*;
+        let html = r#"
+            <td colspan="4"><i><b>Campaign Bonus</b></i></td>
+            <td colspan="4"><i><b>Special Ability</b></i></td></tr>
+            <tr>
+            <td colspan="4">+50% in item campaigns</td>
+            <td colspan="4">some ability prose</td></tr>
+        "#;
+        let cb = parse_campaign_bonus(html).expect("should parse");
+        assert_eq!(cb.raw, "+50% in item campaigns");
+        assert_eq!(cb.per_campaign, camps(&[(Item, 50.0)]));
+
+        // "None" → no bonus at all.
+        let none_html = r#"<b>Campaign Bonus</b></i></td><td><i><b>Special Ability</b></i></td></tr><tr><td colspan="4">None</td></tr>"#;
+        assert!(parse_campaign_bonus(none_html).is_none());
+    }
+
+    /// Strip wiki-link markup so a raw-wikitext corpus value resembles the
+    /// rendered, tag-stripped text the real parser sees.
+    fn delink(s: &str) -> String {
+        let re = Regex::new(r"\[\[(?:[^\]|]*\|)?([^\]]+)\]\]").unwrap();
+        re.replace_all(s, "$1").replace("'''", "")
+    }
+
+    /// Dump the parser's result for every pet in the survey corpus, so coverage
+    /// and misparses can be eyeballed. Run with:
+    /// cargo test -p wiki-extractor dump_campaign_corpus -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn dump_campaign_corpus() {
+        let corpus = include_str!("../../../reference/campaign_bonus_survey.tsv");
+        let (mut parsed, mut raw_only, mut none) = (0, 0, 0);
+        for line in corpus.lines() {
+            let Some((slug, value)) = line.split_once('\t') else { continue };
+            let value = delink(value.trim());
+            let check = value.trim().trim_end_matches('.').trim().to_ascii_lowercase();
+            if check.is_empty() || check == "none" {
+                none += 1;
+                continue;
+            }
+            let map = parse_campaign_percentages(&value);
+            if map.is_empty() {
+                raw_only += 1;
+                println!("  RAW-ONLY  {slug}: {value}");
+            } else {
+                parsed += 1;
+                println!("  PARSED    {slug}: {map:?}  <=  {value}");
+            }
+        }
+        println!("\n=== parsed: {parsed}  raw-only: {raw_only}  none: {none} ===");
     }
 
     /// One-shot helper: fetch wiki, parse pets, write to data/wiki_pets.yaml.

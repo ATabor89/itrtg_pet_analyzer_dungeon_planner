@@ -62,20 +62,21 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Visit each pet's rendered wiki page and fill in its evolution requirements.
+/// Visit each pet's rendered wiki page and fill in the per-pet infobox data
+/// (evolution requirements and campaign bonus) from a single fetch.
 ///
 /// This is the slow path (one request per pet), so it only runs in the
 /// extractor/CI — never in the app, which reads the baked-in YAML. Failures for
 /// individual pets are logged and skipped: a missing page or block just leaves
-/// `evo_requirements` as `None` rather than aborting the whole run.
+/// the field as `None` rather than aborting the whole run.
 fn crawl_evo_requirements(pets: &mut [itrtg_models::WikiPet], delay_ms: u64) -> anyhow::Result<()> {
     let client = reqwest::blocking::Client::builder()
         .user_agent("pet_extractor/0.1.0 (ITRTG tool)")
         .build()?;
 
     let total = pets.len();
-    let mut found = 0usize;
-    eprintln!("Crawling evolution requirements for {total} pets...");
+    let (mut evo_found, mut camp_found) = (0usize, 0usize);
+    eprintln!("Crawling per-pet pages (evolution + campaign bonus) for {total} pets...");
 
     for (i, pet) in pets.iter_mut().enumerate() {
         // Be polite: space out requests so we don't hammer the wiki.
@@ -88,9 +89,13 @@ fn crawl_evo_requirements(pets: &mut [itrtg_models::WikiPet], delay_ms: u64) -> 
                 Ok(html) => {
                     if let Some(evo) = parser::parse_evo_requirements(&html) {
                         pet.evo_requirements = Some(evo);
-                        found += 1;
+                        evo_found += 1;
                     } else {
                         eprintln!("  [{}/{total}] {}: no evolution block found", i + 1, pet.name);
+                    }
+                    if let Some(cb) = parser::parse_campaign_bonus(&html) {
+                        pet.campaign_bonus = Some(cb);
+                        camp_found += 1;
                     }
                 }
                 Err(e) => eprintln!("  [{}/{total}] {}: read error: {e}", i + 1, pet.name),
@@ -102,6 +107,6 @@ fn crawl_evo_requirements(pets: &mut [itrtg_models::WikiPet], delay_ms: u64) -> 
         }
     }
 
-    eprintln!("Filled evolution requirements for {found}/{total} pets.");
+    eprintln!("Filled evolution requirements for {evo_found}/{total}, campaign bonuses for {camp_found}/{total} pets.");
     Ok(())
 }

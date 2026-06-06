@@ -1078,6 +1078,7 @@ accessories:
             token_improvable: false,
             special_ability: None,
             evo_requirements: None,
+            campaign_bonus: None,
         };
         let export = ExportPet {
             export_name: name.to_string(),
