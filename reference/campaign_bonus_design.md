@@ -75,9 +75,14 @@ elementals — likely a user-input for the boss-kill count). Salamander is liter
       Corona evo flips, the clear "more levels / divinity / god power" prose
       corrections). Set-all / set / add ops × Always / Evolved / Unevolved /
       TokenImproved conditions.
-- [ ] **2b** — expand curation: the rest of the unambiguous prose pets, the
-      remaining per-form elementals (Undine, evolved Gnome/Sylph). Lizard's
-      evo-swap waits on its Phase-3 magnitude formula.
+- [~] **2b** — expand curation: added Cupid token, Holy ITRTG Book / Fainting
+      Capra (campaign clauses split from non-campaign prose), Nightmare, Slime,
+      Clam (Item only — Event isn't modeled), Baby Carno (pre/post-evo), Undine
+      (2-state flip). Still deferred: the food/item-*finding* prose pets (Mouse,
+      Robot, Squirrel, Goat, Octopus, Mole, Rudolph…) pending confirmation they
+      map to the standard reward vs a special drop (cf. Doughnut's mighty food);
+      evolved Gnome/Sylph values; Salamander (`???`). Lizard's evo-swap waits on
+      its Phase-3 magnitude formula.
 - [ ] **3** — export/user-input formulas (Bag, Mermaid; stones/points/honey
       inputs for Beachball/Unicorn/Bear).
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,
