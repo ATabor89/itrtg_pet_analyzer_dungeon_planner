@@ -245,6 +245,9 @@ pub struct AnalyzerState {
     pub filter_rec_class: RecClassFilter,
     pub filter_my_class: MyClassFilter,
     pub filter_improvable: ImprovableFilter,
+    /// Show only pets with a (positive) parsed bonus to this campaign. Also the
+    /// campaign the `CampaignBonus` sort ranks by. Persisted.
+    pub filter_campaign: Option<CampaignType>,
     pub sort_column: SortColumn,
     pub sort_ascending: bool,
     /// The two Moai statues (Easter 2026) used for growth-time estimates —
@@ -285,6 +288,7 @@ impl Default for AnalyzerState {
             filter_rec_class: RecClassFilter::default(),
             filter_my_class: MyClassFilter::default(),
             filter_improvable: ImprovableFilter::default(),
+            filter_campaign: None,
             sort_column: SortColumn::default(),
             sort_ascending: SortColumn::default().default_ascending(),
             moai: [MoaiStatue::default(), MoaiStatue::default()],
@@ -309,6 +313,7 @@ impl AnalyzerState {
         self.filter_rec_class = src.filter_rec_class;
         self.filter_my_class = src.filter_my_class;
         self.filter_improvable = src.filter_improvable;
+        self.filter_campaign = src.filter_campaign;
         self.sort_column = src.sort_column;
         self.sort_ascending = src.sort_ascending;
         self.moai = src.moai.clone();
@@ -341,6 +346,9 @@ pub enum SortColumn {
     /// Estimated time to grow each pet to the global custom target. Not a table
     /// column — triggered from the growth-settings panel.
     TimeToTarget,
+    /// Pets ranked by their bonus to `filter_campaign`. Not a table column —
+    /// triggered alongside the campaign filter.
+    CampaignBonus,
 }
 
 impl SortColumn {
@@ -352,9 +360,34 @@ impl SortColumn {
             Self::EvoDifficulty | Self::Growth | Self::DungeonLevel | Self::ClassLevel => false,
             // Time sorts: soonest first.
             Self::TimeToEvolve | Self::TimeToTarget => true,
+            // Campaign bonus: biggest boost first.
+            Self::CampaignBonus => false,
         }
     }
 }
+
+/// Display label for a campaign type.
+fn campaign_label(c: CampaignType) -> &'static str {
+    match c {
+        CampaignType::Growth => "Growth",
+        CampaignType::Divinity => "Divinity",
+        CampaignType::Food => "Food",
+        CampaignType::Item => "Item",
+        CampaignType::Level => "Level",
+        CampaignType::Multiplier => "Multiplier",
+        CampaignType::GodPower => "God Power",
+    }
+}
+
+const ALL_CAMPAIGNS: [CampaignType; 7] = [
+    CampaignType::Growth,
+    CampaignType::Divinity,
+    CampaignType::Food,
+    CampaignType::Item,
+    CampaignType::Level,
+    CampaignType::Multiplier,
+    CampaignType::GodPower,
+];
 
 /// Secondary sort key for the time-based sorts, applied when two pets have the
 /// same estimated time (common when several already meet the target).
@@ -398,9 +431,12 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     // Growth-estimate settings (pendant/cap readout + Moai statue editor)
     show_growth_settings(ui, state, &rates);
 
-    // If the target sort is active but the target was cleared to 0, it would
+    // If a value-dependent sort is active but its value is unset, it would
     // collapse every pet onto the tiebreak — revert to the default sort instead.
-    if state.sort_column == SortColumn::TimeToTarget && state.global_growth_target == 0 {
+    let sort_needs_revert = (state.sort_column == SortColumn::TimeToTarget
+        && state.global_growth_target == 0)
+        || (state.sort_column == SortColumn::CampaignBonus && state.filter_campaign.is_none());
+    if sort_needs_revert {
         state.sort_column = SortColumn::default();
         state.sort_ascending = SortColumn::default().default_ascending();
     }
@@ -408,19 +444,26 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     ui.add_space(4.0);
     ui.separator();
 
-    // Echo an active time-sort above the table: its only other cue is the
-    // button in the growth panel, which the user may have collapsed.
-    let time_sort = match state.sort_column {
-        SortColumn::TimeToEvolve => Some(if state.evolve_sort_use_egg {
-            "time to evolve (with egg)"
-        } else {
-            "time to evolve (no egg)"
+    // Echo an active non-column sort above the table: its only other cue is a
+    // button in a panel/filter row the user may have scrolled past.
+    let soonest = if state.sort_ascending { "soonest first" } else { "longest first" };
+    let active_sort: Option<(String, &str)> = match state.sort_column {
+        SortColumn::TimeToEvolve => Some((
+            if state.evolve_sort_use_egg {
+                "time to evolve (with egg)".to_string()
+            } else {
+                "time to evolve (no egg)".to_string()
+            },
+            soonest,
+        )),
+        SortColumn::TimeToTarget => Some(("time to custom target".to_string(), soonest)),
+        SortColumn::CampaignBonus => state.filter_campaign.map(|c| {
+            let dir = if state.sort_ascending { "smallest first" } else { "biggest first" };
+            (format!("{} campaign bonus", campaign_label(c)), dir)
         }),
-        SortColumn::TimeToTarget => Some("time to custom target"),
         _ => None,
     };
-    if let Some(label) = time_sort {
-        let dir = if state.sort_ascending { "soonest first" } else { "longest first" };
+    if let Some((label, dir)) = active_sort {
         ui.label(
             RichText::new(format!("Sorted by {label} ({dir})"))
                 .color(style::ACCENT)
@@ -533,6 +576,9 @@ fn show_pet_details(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates, custom_ta
 
     // Evolution requirements + readiness
     show_evolution_section(ui, pet, rates);
+
+    // Campaign bonus (raw prose + parsed per-campaign chips)
+    show_campaign_section(ui, pet);
 
     // Export data section
     if let Some(export) = &pet.export {
@@ -839,6 +885,42 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
             // Explain a slow estimate when the threshold is past the cap.
             show_cap_note(ui, rates, export.growth, threshold);
         }
+    }
+}
+
+/// Campaign-bonus card section: the raw prose plus parsed per-campaign chips
+/// (highest first). No-op for pets with no campaign bonus.
+fn show_campaign_section(ui: &mut Ui, pet: &MergedPet) {
+    let Some(cb) = pet.wiki.as_ref().and_then(|w| w.campaign_bonus.as_ref()) else {
+        return;
+    };
+    ui.add_space(8.0);
+    ui.separator();
+    ui.label(
+        RichText::new("Campaign Bonus")
+            .color(style::TEXT_BRIGHT)
+            .size(13.0)
+            .strong(),
+    );
+    ui.add_space(2.0);
+    // The cleaned prose is always available (the display fallback).
+    ui.label(RichText::new(&cb.raw).color(style::TEXT_NORMAL).size(11.0));
+
+    // Parsed per-campaign values, highest first.
+    let map = pet.campaign_bonuses();
+    if !map.is_empty() {
+        let mut entries: Vec<(CampaignType, f32)> = map.into_iter().collect();
+        entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        ui.horizontal_wrapped(|ui| {
+            for (c, v) in entries {
+                let color = if v >= 0.0 { style::SUCCESS } else { style::ERROR };
+                ui.label(
+                    RichText::new(format!("{}: {v:+}%", campaign_label(c)))
+                        .color(color)
+                        .size(11.0),
+                );
+            }
+        });
     }
 }
 
@@ -1287,6 +1369,31 @@ fn show_filters(ui: &mut Ui, state: &mut AnalyzerState) {
                     ui.selectable_value(&mut state.filter_improvable, f, f.label());
                 }
             });
+    });
+
+    // Row 3: campaign-bonus filter + sort
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Campaign boost:").color(style::TEXT_MUTED));
+        egui::ComboBox::from_id_salt("campaign_filter")
+            .selected_text(match state.filter_campaign {
+                None => "Any",
+                Some(c) => campaign_label(c),
+            })
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut state.filter_campaign, None, "Any");
+                for c in ALL_CAMPAIGNS {
+                    ui.selectable_value(&mut state.filter_campaign, Some(c), campaign_label(c));
+                }
+            });
+        // Rank the (filtered) pets by that campaign's bonus, once one is chosen.
+        let has_campaign = state.filter_campaign.is_some();
+        sort_toggle_button(ui, state, SortColumn::CampaignBonus, "Sort by bonus", has_campaign);
+        ui.label(
+            RichText::new("shows pets with a parsed boost to the campaign")
+                .color(style::TEXT_MUTED)
+                .italics()
+                .size(10.0),
+        );
     });
 }
 
@@ -1748,6 +1855,15 @@ fn filter_and_sort<'a>(
                 }
             }
 
+            // Campaign boost: keep only pets with a positive parsed bonus to the
+            // selected campaign. (Raw-only/unparsed pets have no entry, so they
+            // sit out this filter until later phases structure them.)
+            if let Some(c) = state.filter_campaign
+                && !pet.campaign_bonus_for(c).is_some_and(|v| v > 0.0)
+            {
+                return false;
+            }
+
             true
         })
         .collect();
@@ -1827,6 +1943,17 @@ fn filter_and_sort<'a>(
                 ta.partial_cmp(&tb)
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| time_tiebreak(a, b, ga, gb, state.time_sort_tiebreak))
+            }
+            SortColumn::CampaignBonus => {
+                // Ascending here (the `asc` flag below reverses to biggest-first
+                // by default). Pets without a known bonus to the campaign sink.
+                let c = state.filter_campaign;
+                let va = c.and_then(|c| a.campaign_bonus_for(c)).unwrap_or(f32::NEG_INFINITY);
+                let vb = c.and_then(|c| b.campaign_bonus_for(c)).unwrap_or(f32::NEG_INFINITY);
+                va.partial_cmp(&vb)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| ga.cmp(&gb))
+                    .then_with(|| a.name.cmp(&b.name))
             }
         };
         if asc { ord } else { ord.reverse() }
