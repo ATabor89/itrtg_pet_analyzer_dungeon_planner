@@ -226,10 +226,9 @@ impl MergedPet {
         map
     }
 
-    /// Apply per-pet export-derived campaign formulas — bespoke math the parser
-    /// can't express, computed from the roster and the pet's own export. No-op
-    /// for pets without a formula. (User-input-driven formulas like Aether and
-    /// Cupid's couples come in a later phase once the inputs are persisted.)
+    /// Apply per-pet campaign formulas — bespoke math the parser can't express,
+    /// computed from the roster, the pet's own export, and the player-entered
+    /// `ctx.inputs` (pet stones, fights, …). No-op for pets without a formula.
     ///
     /// The Bag/Lizard arms walk the roster; only those two pets pay it, so it's
     /// negligible at the current roster size, but worth precomputing the
