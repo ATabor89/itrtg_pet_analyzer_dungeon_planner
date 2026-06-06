@@ -60,7 +60,9 @@ Two homes, chosen by what each pet actually needs:
     at `+1%` after 10 fights; and (b) an *added* growth-campaign bonus:
     `((elementals_unlocked + 5) / 10) * fights * (1 + 0.57 * log_1000(growth))`%,
     where growth clamps to 1 if non-positive and `elementals_unlocked` counts
-    Undine/Gnome/Salamander/Sylph/Elemental.
+    Undine/Gnome/Salamander/Sylph/Elemental **and Aether itself** (per the wiki
+    source). `fights` = the Aether Ring's number (it starts at +0, so the number
+    is the exact kill count).
 
 `CampaignContext` carries the persisted user inputs + a roster reference; the
 pet's own evolved/improved/growth state comes from its export.

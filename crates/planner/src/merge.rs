@@ -38,10 +38,10 @@ fn round2(x: f64) -> f32 {
     ((x * 100.0).round() / 100.0) as f32
 }
 
-/// The elemental pets that count toward Aether's "elementals unlocked" term
-/// (Aether itself is excluded).
+/// The elemental pets that count toward Aether's "elementals unlocked" term.
+/// Per the wiki source, this *includes* Aether itself.
 fn is_elemental(name: &str) -> bool {
-    matches!(name, "Undine" | "Gnome" | "Salamander" | "Sylph" | "Elemental")
+    matches!(name, "Undine" | "Gnome" | "Salamander" | "Sylph" | "Elemental" | "Aether")
 }
 
 /// A pet with wiki reference data merged with the player's actual game data.
@@ -308,7 +308,7 @@ impl MergedPet {
             // Aether: an all-campaign penalty that shrinks as you beat Delirious
             // Essence (-99% reduced by 10% per fight, maxing at +1% after 10),
             // PLUS an added growth-campaign bonus that scales with fights, the
-            // elementals you own, and Aether's own growth.
+            // elementals you own (Aether included), and Aether's own growth.
             "Aether" => {
                 let fights = ctx.inputs.delirious_essence_fights as f64;
                 let penalty = round2((-99.0 + 10.0 * fights).min(1.0));
@@ -863,6 +863,21 @@ mod tests {
         assert_eq!(a.campaign_bonus_for(CampaignType::Food, &ctx), Some(1.0)); // penalty only
         let g = a.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
         assert!((g - 22.4).abs() < 0.01, "got {g}");
+
+        // Real player values: Gnome/Salamander/Sylph/Aether unlocked, 28 fights,
+        // Aether growth 48,013. Aether counts itself among the 4 elementals:
+        // 1 + (9/10)*28*(1 + 0.57*log_1000(48013)) ≈ 48.61% (the game shows 49%).
+        let aether_pet = aether(48_013);
+        let roster = vec![
+            elemental("Gnome"),
+            elemental("Salamander"),
+            elemental("Sylph"),
+            aether_pet.clone(),
+        ];
+        let inputs28 = CampaignInputs { delirious_essence_fights: 28, ..Default::default() };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs28 };
+        let g = aether_pet.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
+        assert!((g - 48.61).abs() < 0.1, "got {g}");
     }
 
     #[test]
