@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use itrtg_models::{
-    CampaignType, Class, Element, ExportPet, MAGIC_EGG_GROWTH_MULT, RecommendedClass, WikiPet,
-    resolve_wiki_name,
+    CampaignOverrides, CampaignType, Class, Element, ExportPet, MAGIC_EGG_GROWTH_MULT,
+    RecommendedClass, WikiPet, resolve_wiki_name,
 };
 
 use crate::growth::GrowthRates;
@@ -18,6 +18,16 @@ pub enum EvoReadiness {
     ReadyWithEgg,
     /// Below the threshold even with a Magic Egg.
     NotYet,
+}
+
+/// Runtime context for computing effective campaign bonuses.
+///
+/// Today it carries only the curated overrides. Later phases will grow it with
+/// user-input values and a roster reference (for export-derived formulas like
+/// Bag and Mermaid) — adding fields here rather than changing the seam's
+/// signature again.
+pub struct CampaignContext<'a> {
+    pub overrides: &'a CampaignOverrides,
 }
 
 /// A pet with wiki reference data merged with the player's actual game data.
@@ -182,27 +192,31 @@ impl MergedPet {
     /// This pet's effective per-campaign bonus percentages — **the single entry
     /// point** the UI uses for display, filtering, and sorting campaign bonuses.
     ///
-    /// Today this returns the *static* parsed baseline scraped from the wiki.
-    /// Dynamic and conditional adjustments — token boosts (Hedgehog), evolution
-    /// swaps (Lizard), and export/user-input formulas (Bag, Mermaid, Beachball)
-    /// — will be layered in *here* in later phases (likely taking a context
-    /// argument). Callers go through this method rather than reading
-    /// `wiki.campaign_bonus.per_campaign` directly, so they won't change when the
-    /// numbers get richer.
-    pub fn campaign_bonuses(&self) -> BTreeMap<CampaignType, f32> {
-        self.wiki
+    /// Starts from the *static* parsed baseline scraped from the wiki, then
+    /// applies curated overrides conditioned on the pet's export state (token
+    /// boosts like Hedgehog, evolution flips like Nothing, prose corrections
+    /// like Cat). Export/user-input formulas (Bag, Mermaid, Beachball) will be
+    /// layered in here in later phases via `ctx`. Callers go through this method
+    /// rather than reading `wiki.campaign_bonus.per_campaign` directly, so they
+    /// won't change when the numbers get richer.
+    pub fn campaign_bonuses(&self, ctx: &CampaignContext) -> BTreeMap<CampaignType, f32> {
+        let mut map = self
+            .wiki
             .as_ref()
             .and_then(|w| w.campaign_bonus.as_ref())
             .map(|cb| cb.per_campaign.clone())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        let improved = self.export.as_ref().is_some_and(|e| e.improved);
+        ctx.overrides.apply(&self.name, &mut map, self.is_evolved(), improved);
+        map
     }
 
     /// This pet's effective bonus to a single campaign, if known. `None` when the
     /// pet has no bonus or its bonus wasn't structured (raw-only) — distinct from
-    /// `Some(0.0)`. Routes through [`Self::campaign_bonuses`] so it tracks future
-    /// dynamic adjustments.
-    pub fn campaign_bonus_for(&self, campaign: CampaignType) -> Option<f32> {
-        self.campaign_bonuses().get(&campaign).copied()
+    /// `Some(0.0)`. Routes through [`Self::campaign_bonuses`] so it tracks
+    /// overrides and future dynamic adjustments.
+    pub fn campaign_bonus_for(&self, campaign: CampaignType, ctx: &CampaignContext) -> Option<f32> {
+        self.campaign_bonuses(ctx).get(&campaign).copied()
     }
 
     /// Whether this pet's element matches the target. `Element::All` (Chameleon) matches
@@ -495,6 +509,9 @@ mod tests {
 
     #[test]
     fn test_campaign_bonuses_seam() {
+        let empty = CampaignOverrides::default();
+        let ctx = CampaignContext { overrides: &empty };
+
         let mut wiki = make_wiki_pet("Dwarf", Element::Fire, RecommendedClass::Wildcard);
         wiki.campaign_bonus = Some(CampaignBonus {
             raw: "+151% food camp, +75% godpower camp.".to_string(),
@@ -503,15 +520,40 @@ mod tests {
                 .collect(),
         });
         let pet = MergedPet { name: "Dwarf".into(), wiki: Some(wiki), export: None };
-        assert_eq!(pet.campaign_bonus_for(CampaignType::Food), Some(151.0));
-        assert_eq!(pet.campaign_bonus_for(CampaignType::GodPower), Some(75.0));
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Food, &ctx), Some(151.0));
+        assert_eq!(pet.campaign_bonus_for(CampaignType::GodPower, &ctx), Some(75.0));
         // No entry for a campaign it doesn't affect → None (not Some(0.0)).
-        assert_eq!(pet.campaign_bonus_for(CampaignType::Growth), None);
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Growth, &ctx), None);
 
         // A pet with no wiki bonus yields an empty map.
         let bare = MergedPet { name: "X".into(), wiki: None, export: None };
-        assert!(bare.campaign_bonuses().is_empty());
-        assert_eq!(bare.campaign_bonus_for(CampaignType::Food), None);
+        assert!(bare.campaign_bonuses(&ctx).is_empty());
+        assert_eq!(bare.campaign_bonus_for(CampaignType::Food, &ctx), None);
+    }
+
+    #[test]
+    fn test_campaign_bonuses_applies_overrides() {
+        // Hedgehog: +25 base, +141 each when token-improved.
+        let ov: CampaignOverrides = serde_yaml::from_str(
+            "Hedgehog:\n  - when: TokenImproved\n    add: { Growth: 141 }\n",
+        )
+        .unwrap();
+        let ctx = CampaignContext { overrides: &ov };
+
+        let mut wiki = make_wiki_pet("Hedgehog", Element::Earth, RecommendedClass::Wildcard);
+        wiki.campaign_bonus = Some(CampaignBonus {
+            raw: "+25% growth".into(),
+            per_campaign: [(CampaignType::Growth, 25.0)].into_iter().collect(),
+        });
+        let mut export = make_export_pet("Hedgehog", Element::Earth, None);
+        export.improved = true;
+        let pet = MergedPet { name: "Hedgehog".into(), wiki: Some(wiki.clone()), export: Some(export) };
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Growth, &ctx), Some(166.0));
+
+        // Not improved → baseline only.
+        let export2 = make_export_pet("Hedgehog", Element::Earth, None); // improved = false
+        let pet2 = MergedPet { name: "Hedgehog".into(), wiki: Some(wiki), export: Some(export2) };
+        assert_eq!(pet2.campaign_bonus_for(CampaignType::Growth, &ctx), Some(25.0));
     }
 
     #[test]
