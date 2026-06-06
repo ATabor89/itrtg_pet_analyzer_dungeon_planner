@@ -113,15 +113,67 @@ Clam:
   - when: Always
     set: { Item: 35 }
 
+# --- Food/item-"finding" prose pets (confirmed in-game as standard bonuses) ---
+Mouse:
+  # Evolve bonus flips the food penalty: -50% -> +50% (infobox documents this).
+  - when: Unevolved
+    set: { Food: -50 }
+  - when: Evolved
+    set: { Food: 50 }
+Robot:
+  # Also has a campaign anti-synergy with Thunder Ball (for a future simulator).
+  - when: Always
+    set: { Food: 100, Growth: 100 }
+Squirrel:
+  - when: Always
+    set: { Food: 75 }
+Goat:
+  - when: Always
+    set: { Food: -100, Item: 100 }
+Octopus:
+  - when: Always
+    set: { Food: 100, GodPower: -80 }
+Mole:
+  - when: Always
+    set: { Food: -50 }
+Rudolph:
+  - when: Always
+    set: { Item: 35, Food: 35 }
+# Pumpkin: no inherent campaign bonus (it finds chocolate) — left raw-only.
+
 # --- Per-form / pre-evo vs post-evo ---
 Baby Carno:
   - when: Unevolved
     set: { Level: 50, Food: -300, Multiplier: 50, Item: -150 }
   - when: Evolved
     set: { Level: 75, Multiplier: 150, Item: -250 }
+
+# --- Elemental quest progression (all campaigns) ---
+# All-or-nothing approximation: unevolved -> worst (base) stage, evolved -> best
+# (final) stage, since evolving requires full upgrades. Intermediate stages
+# (shown in comments) can't yet be told apart from the export; revisit once we
+# can read a pet's upgrade stage. Aether is handled in Phase 3 (its bonus needs
+# the Delirious-Essence-fights input and a growth/elementals-unlocked formula).
+Gnome:
+  # Stages: -200 -> -100 -> 0 -> 100
+  - when: Unevolved
+    set_all: -200
+  - when: Evolved
+    set_all: 100
+Salamander:
+  # Stages: -197 -> -58 -> -9 -> 40 -> 89
+  - when: Unevolved
+    set_all: -197
+  - when: Evolved
+    set_all: 89
+Sylph:
+  # Stages: -150 -> -100 -> -50 -> 25 -> 75
+  - when: Unevolved
+    set_all: -150
+  - when: Evolved
+    set_all: 75
 Undine:
-  # Approximation: the wiki gives only first-form (-111) and final-form (+111)
-  # for "all campaigns"; intermediate forms differ. Treated as a 2-state flip.
+  # Stages: -111 -> -66 -> -11 -> 11 -> 66 -> 111
   - when: Unevolved
     set_all: -111
   - when: Evolved
