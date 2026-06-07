@@ -30,6 +30,13 @@ pub struct CampaignInputs {
     /// permanent (token-improved) campaign bonus. Can reach tens of millions, so
     /// the UI accepts engineering/scientific notation (e.g. `32.4e6`).
     pub earth_eater_total_planets: u64,
+    /// When `false` (the default), Earth Eater is locked at its realistic +82%
+    /// (each rebirth is fed to the cap, and the token upgrade only *reduces* the
+    /// per-rebirth penalty — it never makes him worse than the fed value). Set
+    /// `true` to instead view the token-improved permanent value derived from
+    /// `earth_eater_total_planets`. The UI presents this inverted, as a checked-
+    /// by-default "Lock at +82%" box.
+    pub earth_eater_show_lifetime: bool,
     /// Ultimate Challenge Challenges completed — Goblin (+1%/all campaigns each,
     /// capped at 75).
     pub goblin_ucc: u32,
