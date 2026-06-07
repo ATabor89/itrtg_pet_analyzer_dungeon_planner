@@ -146,16 +146,29 @@ campaigns), gated by `CampaignContext` flags.
   bonus (already +200 all), but the campaign **simulator** stretch will need it.
 - **Pumpkin** — no inherent campaign bonus; finds chocolate, so a simulator
   should still favor it for food campaigns.
-- **Stone/Golem** — evolved flat **+100% all campaigns** is now curated
-  (`campaign_overrides.yaml`, `when: Evolved set_all: 100`). Its **unevolved**
-  state still ramps with growth (`-100% + 20% per 5000 growth, 0% at 25000`) and
-  stays raw-only — a small growth-driven code formula like Aether's penalty, not
-  yet written.
-- **Goblin** — beyond its curated innate bonus, it gains *more* campaign bonus
-  from **Overflow Challenges** (maxed at 470) and **UCCs** (maxed at 75). Needs
-  two user-input counts + the (unknown) per-unit formula; not yet modelled.
-- **Earth Eater** — its all-campaign bonus comes from feeding EarthLike Planets
-  (`+1% per 30 fed`, base `-80% → +82%`, resets each rebirth), so it needs a
-  user-input "EarthLike Planets fed" and resets awkwardly. Becomes easier to
-  pin down once it's evolved + token-improved. Not yet modelled — left raw-only;
-  handle when we revisit the input-driven pets.
+## Input-driven special cases (done)
+
+These three needed bespoke handling beyond the override/formula norm; all are
+now modelled (`apply_campaign_formulas` + `class_campaign_bonus`, with new
+`CampaignInputs` fields and a `parse_flexible_number` helper for big numbers).
+
+- **Stone/Golem** — evolved flat **+100% all campaigns** is curated
+  (`when: Evolved set_all: 100`). **Unevolved** it ramps with growth:
+  `-100% + 20% per 5000 growth`, capped at `0%` (25000 growth) — a code formula.
+  A **1500-CP campaign upgrade** (`stone_campaign_upgrade` checkbox) adds another
+  **+100% all campaigns** on top of either state.
+- **Goblin** — two parts. (1) **UCCs** (`goblin_ucc`, cap 75) add **+1% to every
+  campaign** on top of its curated base (`-100` growth/item, `+150` divinity,
+  `+50` others), reaching the documented `-25 / +225 / +125` at the cap. (2) Its
+  **Adventurer evo bonus is dynamic** — the `0.1` base climbs with **Overflow
+  Challenges** (`goblin_oc`, cap 470): the first 100 add `0.008` each, 101..=470
+  add `0.001622` each, reaching the full `1.5`/CL at the cap. Handled in
+  `class_campaign_bonus` (the only pet whose evo bonus reads `ctx`).
+- **Earth Eater** — flat all-campaign bonus ramping `-80% → +82%`. Before it's
+  token-improved we **assume the max (+82%)**, since each rebirth feeds to the
+  cap in ~1.35h (not worth a precise input). Once **token-improved** the bonus is
+  *permanent*, scaling with planets eaten across all rebirths: `+1% per 200k`,
+  capped at `+82%` (32.4M total). The total is a user input
+  (`earth_eater_total_planets`) entered as flexible-notation text (`32.4e6`).
+  *If the assume-max-when-untokened model proves wrong, this is the one knob to
+  revisit.*

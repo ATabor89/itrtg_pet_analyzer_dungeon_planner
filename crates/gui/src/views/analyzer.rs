@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use eframe::egui::{self, Color32, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::{
-    CampaignInputs, CampaignType, Class, Dungeon, Element, MAGIC_EGG_GROWTH_MULT, PetAction,
-    RecommendedClass, UnlockCondition, VillageJob,
+    parse_flexible_number, CampaignInputs, CampaignType, Class, Dungeon, Element,
+    MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass, UnlockCondition, VillageJob,
 };
 use itrtg_planner::growth::{format_duration, CapRelation, GrowthRates};
 use itrtg_planner::merge::{CampaignContext, EvoReadiness, MergedPet};
@@ -274,6 +274,11 @@ pub struct AnalyzerState {
     /// Include each pet's *class* campaign bonus (Adventurer 2%·CL) in its
     /// effective bonus. Off by default. Persisted.
     pub include_class_bonus: bool,
+    /// Editable text for Earth Eater's "total Earthlike Planets eaten" input.
+    /// Accepts engineering/scientific notation (e.g. `32.4e6`); parsed into
+    /// `campaign_inputs.earth_eater_total_planets` each frame. Persisted so the
+    /// typed form is preserved across launches.
+    pub earth_eater_planets_text: String,
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -307,6 +312,7 @@ impl Default for AnalyzerState {
             campaign_inputs: CampaignInputs::default(),
             include_equipment_bonus: false,
             include_class_bonus: false,
+            earth_eater_planets_text: String::new(),
             selected_pet: None,
             custom_target: String::new(),
         }
@@ -436,7 +442,11 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     // baseline). Cheap to build; borrows the loaded overrides.
     // Clone the (tiny) inputs so the context doesn't borrow `state`, which is
     // mutated by the panels below. Edits take effect next frame.
-    let campaign_inputs = state.campaign_inputs.clone();
+    let mut campaign_inputs = state.campaign_inputs.clone();
+    // Earth Eater's "total planets" is entered as flexible-notation text; parse
+    // it here so the value is current regardless of the inputs panel being open.
+    campaign_inputs.earth_eater_total_planets =
+        parse_flexible_number(&state.earth_eater_planets_text).unwrap_or(0.0).max(0.0) as u64;
     let camp_ctx = CampaignContext {
         overrides: &data.campaign_overrides,
         roster: &data.merged,
@@ -1172,6 +1182,25 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
         row!("Ants:", &mut ci.ants, "→ Ant Queen");
         row!("Current couples:", &mut ci.couples, "→ Cupid (token-improved)");
         row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "→ Aether");
+        row!("UCCs completed:", &mut ci.goblin_ucc, "→ Goblin (cap 75)");
+        row!("Overflow Challenges:", &mut ci.goblin_oc, "→ Goblin evo (cap 470)");
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut ci.stone_campaign_upgrade, "");
+            ui.label(RichText::new("Stone +100% campaign upgrade bought").color(style::TEXT_MUTED).size(12.0));
+            ui.label(RichText::new("→ Stone/Golem").color(style::TEXT_MUTED).size(10.0));
+        });
+        // Earth Eater's total accepts engineering/scientific notation (32.4e6),
+        // so it's a parsed text field rather than a DragValue. Placed after the
+        // `ci` rows so its borrow of `state` doesn't overlap theirs.
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Earth Eater planets (total):").color(style::TEXT_MUTED).size(12.0));
+            ui.add(
+                egui::TextEdit::singleline(&mut state.earth_eater_planets_text)
+                    .desired_width(80.0)
+                    .hint_text("e.g. 32.4e6"),
+            );
+            ui.label(RichText::new("→ Earth Eater (token-improved)").color(style::TEXT_MUTED).size(10.0));
+        });
     });
 }
 
