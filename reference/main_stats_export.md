@@ -84,8 +84,8 @@ beyond campaigns. Logged so the importer knows what's here.
 | `Crystals for Dwarf: 0` | Dwarf | 3rd evo req (100× lvl-13 crystals — the game's most expensive req, usually token-skipped). Also feeds his crafting bonus. |
 | `T3/T4/T5 gear bonus for Elf: 133/23/0 (max 2000 count)` | Elf | Crafting **speed + quality**: `0.1%/0.2%/0.3%` per T3/T4/T5 item, **additive with her Blacksmith class bonus**, capped at **2000** pieces total. (Matches her in-game 17.9% vs 10% evo threshold.) |
 | `Acorns: 24,157` | Squirrel | Loot. Token-improved, he finds acorns in dungeons; drop-bonus multiplier `Acorns^0.4 / 10` (%). |
-| `Honey: 765` | **Bee** | **Current honey held** (just an inventory count — *not* "consumed by Bear"). Feeds Bee's crafting-speed multiplier `1 + (honey^0.5)/100`, capped at **4×**. (Full crafting speed also needs his equipment + class. ⚠️ confirm whether Bee uses *held* or *lifetime* honey.) |
-| `Ants: 187,331` *(also)* | **Anteater** | If Blacksmith, crafting **speed + quality** rise by `(ants_found / 50,000)%` — **additive**, *not* multiplicative with other bonuses. The *additional* boost **halves after 1M** ants and is raised to **^0.28 after 100M**. (Sample: `187,331 / 50,000 = 3.75%`, matching the in-game tip.) ⚠️ The export's `Ants` is the **found** count (matches Anteater's tip); confirm it's the same quantity Ant Queen's "held" input wants. |
+| `Honey: 765` | **Bee** | **Current honey held** (just an inventory count — *not* "consumed by Bear"). Feeds Bee's crafting-speed multiplier `1 + (honey^0.5)/100`, capped at **4×**. We treat it as **held** honey (the safer assumption: honey given to Bear is assumed to stop counting for Bee — neither wiki page clarifies). Full crafting speed also needs his equipment + class. |
+| `Ants: 187,331` *(also)* | **Anteater** | If Blacksmith, crafting **speed + quality** rise by `(ants_found / 50,000)%` — **additive**, *not* multiplicative with other bonuses. The *additional* boost **halves after 1M** ants and is raised to **^0.28 after 100M**. (Sample: `187,331 / 50,000 = 3.75%`, matching the in-game tip.) The export's `Ants` is the **same value** Ant Queen's input uses (confirmed). |
 | `Vampire Blood Potions consumed: 0` | Vampire | Growth mechanic — see §4. |
 | `Chocobear hours: 4,734` | Chocobear | Drives his **campaign bonus** (hours-based) — see `campaign_bonus_design.md`. |
 | `Caterpillar materials upgraded: 2,835` | Caterpillar | **2nd evolution**: at **40,000** materials upgraded he evolves cocoon → butterfly. |
@@ -172,8 +172,13 @@ The `Challenges` section lists `completed / max` per challenge family. Relevant:
 
 ## 7. Suggested importer phasing
 
-1. Parse the campaign-input auto-fills (§1) + UPC + Afky power + Moai-from-Museum —
-   immediate value, all feed features that already exist or are next up.
+1. ✅ **Done** — `models::main_stats::parse_main_stats` + clipboard/paste/file
+   auto-detect (sniffs the `Idling to Rule the Gods` header) +
+   `AnalyzerState::apply_main_stats`. Fills the campaign inputs that have a home
+   today — pet stones, ants, Bear honey, challenge points, Goblin OC/UCC, the
+   Stone upgrade, Earth Eater planets — and the **Moai pair** when
+   `Base Growth per hour == 2`. UPC / Afky-power / Museum `Pet campaigns` are
+   parsed-ready but skipped until their consuming features exist.
 2. Surface the per-pet trackers (§3) and Museum `Pet campaigns` global add as the
    relevant pet features land.
 3. Make **evo-readiness multi-criteria** (§4), starting with **Valkyrie** (bosses

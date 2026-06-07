@@ -7,10 +7,12 @@ mod names;
 pub mod campaign_input;
 pub mod campaign_override;
 pub mod dungeon;
+pub mod main_stats;
 pub mod planner_config;
 
 pub use self::core::*;
 pub use campaign_input::*;
+pub use main_stats::*;
 pub use campaign_override::*;
 pub use wiki::*;
 pub use equipment::*;
