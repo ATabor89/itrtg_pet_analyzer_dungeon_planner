@@ -104,7 +104,10 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       formula coverage is now complete for every modellable pet.*
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
-      simulate growth/reward outcomes.
+      simulate growth/reward outcomes. **The reward formulas, the three-level /
+      stats model, the per-pet special mechanics (Bag, Pandora's Box, Llysnafedda,
+      Nightmare/Ant Queen/FSM), what's computable-now vs. blocked-on-stats, and a
+      staged roadmap are written up in [`campaign_simulation.md`](campaign_simulation.md).**
 
 ## Class & equipment bonuses (toggleable)
 
