@@ -370,8 +370,9 @@ impl MergedPet {
         // Base 2%/CL for any Adventurer, plus the pet's Adventurer evo bonus.
         let mut evo = adventurer_evo_bonus(&self.name) as f64;
         // Goblin's evo bonus is dynamic: its 0.1 base climbs with Overflow
-        // Challenges — the first 100 add 0.008 each, 101..=470 add 0.001622 each,
-        // reaching the full 1.5 at the 470 cap.
+        // Challenges — the first 100 add 0.008 each, 101..=470 add 0.001622 each
+        // (an empirical fit; it slightly overshoots, landing at ~1.50014),
+        // reaching the documented full 1.5 at the 470 cap.
         if self.name == "Goblin" {
             let oc = ctx.inputs.goblin_oc;
             evo += (oc.min(100) as f64) * 0.008
