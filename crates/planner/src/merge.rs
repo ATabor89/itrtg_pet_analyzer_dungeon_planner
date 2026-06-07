@@ -359,9 +359,9 @@ impl MergedPet {
     }
 
     /// The all-campaign bonus from an Adventurer's class, or `None` if the pet
-    /// isn't currently an Adventurer. Base is `2% · CL`. Per-pet Adventurer evo
-    /// bonuses (e.g. Hedgehog +0.58% · CL) will be added from a curated table in
-    /// a follow-up.
+    /// isn't currently an Adventurer. The rate is `(2 + evo)% · CL`, where `evo`
+    /// is the pet's Adventurer evo bonus from `ADVENTURER_EVO_BONUS` (0 for most
+    /// pets; e.g. Hedgehog +0.58 → 56.76% at CL22).
     fn class_campaign_bonus(&self) -> Option<f32> {
         let export = self.export.as_ref()?;
         if export.class != Some(Class::Adventurer) {
