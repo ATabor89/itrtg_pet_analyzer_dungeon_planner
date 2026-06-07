@@ -109,7 +109,7 @@ impl eframe::App for App {
             self.data.import_status = Some(if applied.is_empty() {
                 ("Main stats imported, but no fields to fill".to_string(), false)
             } else {
-                (format!("Main stats imported → {}", applied.join(", ")), false)
+                (format!("Main stats imported ⭢ {}", applied.join(", ")), false)
             });
         }
 
