@@ -1191,13 +1191,18 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
         });
         // Earth Eater's total accepts engineering/scientific notation (32.4e6),
         // so it's a parsed text field rather than a DragValue. Placed after the
-        // `ci` rows so its borrow of `state` doesn't overlap theirs.
-        // Invalid (non-empty, unparseable) text would silently read as 0, so flag
-        // it. Computed before the TextEdit borrows the string mutably.
+        // `ci` rows so its borrow of `state` doesn't overlap theirs (the lock flag
+        // is read/written via `state.campaign_inputs` directly, not the `ci`
+        // alias, which is dead by here).
         let ee_invalid = {
             let t = state.earth_eater_planets_text.trim();
             !t.is_empty() && parse_flexible_number(t).is_none()
         };
+        let ee_total = parse_flexible_number(&state.earth_eater_planets_text)
+            .unwrap_or(0.0)
+            .max(0.0);
+        // Inverted: stored `show_lifetime` false ⇒ "Lock at +82%" checked.
+        let mut ee_lock = !state.campaign_inputs.earth_eater_show_lifetime;
         ui.horizontal(|ui| {
             ui.label(RichText::new("Earth Eater planets (total):").color(style::TEXT_MUTED).size(12.0));
             let mut edit = egui::TextEdit::singleline(&mut state.earth_eater_planets_text)
@@ -1207,12 +1212,22 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
                 edit = edit.text_color(style::WARNING);
             }
             ui.add(edit);
+            ui.checkbox(&mut ee_lock, RichText::new("Lock at +82%").color(style::TEXT_MUTED).size(12.0));
             if ee_invalid {
                 ui.label(RichText::new("✗ can't parse").color(style::WARNING).size(10.0));
+            } else if !ee_lock && ee_total > 0.0 && ee_total < 32_400_000.0 {
+                // At 1 planet/sec, time left to reach the 32.4M permanent-lock cap.
+                let hours = (32_400_000.0 - ee_total) / 3600.0;
+                ui.label(
+                    RichText::new(format!("~{} to lock @1/s", format_duration(hours)))
+                        .color(style::TEXT_MUTED)
+                        .size(10.0),
+                );
             } else {
                 ui.label(RichText::new("→ Earth Eater (token-improved)").color(style::TEXT_MUTED).size(10.0));
             }
         });
+        state.campaign_inputs.earth_eater_show_lifetime = !ee_lock;
     });
 }
 

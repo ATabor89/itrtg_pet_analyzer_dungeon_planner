@@ -485,16 +485,19 @@ impl MergedPet {
                 *map.entry(CampaignType::Growth).or_insert(0.0) += round2(growth_bonus);
             }
             // Earth Eater: a flat all-campaign bonus that ramps -80% -> +82%.
-            // Each rebirth it's fed up to the +82% cap in ~1.35h, so before it's
-            // token-improved we assume the max (+82%). Once token-improved the
-            // bonus becomes *permanent*, scaling with the planets eaten across all
-            // rebirths: +1% per 200k, capped at +82% (32.4M total).
+            // Each rebirth it's fed up to the +82% cap in ~1.35h, and the token
+            // upgrade only *lowers* the per-rebirth starting penalty (eventually
+            // removing it, locking him at +82%) — so his realistic in-play value
+            // is +82%. We show that by default. Only when the player opts in
+            // (`show_lifetime`) on a token-improved pet with a total entered do we
+            // expose the lower permanent value: -80% + 1% per 200k, cap +82%.
             "Earth Eater" => {
-                let v = if self.export.as_ref().is_some_and(|e| e.improved) {
-                    round2(
-                        (-80.0 + ctx.inputs.earth_eater_total_planets as f64 / 200_000.0)
-                            .clamp(-80.0, 82.0),
-                    )
+                let total = ctx.inputs.earth_eater_total_planets;
+                let v = if ctx.inputs.earth_eater_show_lifetime
+                    && total > 0
+                    && self.export.as_ref().is_some_and(|e| e.improved)
+                {
+                    round2((-80.0 + total as f64 / 200_000.0).clamp(-80.0, 82.0))
                 } else {
                     82.0
                 };
@@ -1234,8 +1237,12 @@ mod tests {
     #[test]
     fn test_earth_eater_campaign_bonus() {
         let empty = CampaignOverrides::default();
-        let mk = |improved: bool, total: u64| {
-            let inputs = CampaignInputs { earth_eater_total_planets: total, ..Default::default() };
+        let mk = |improved: bool, total: u64, show_lifetime: bool| {
+            let inputs = CampaignInputs {
+                earth_eater_total_planets: total,
+                earth_eater_show_lifetime: show_lifetime,
+                ..Default::default()
+            };
             let mut e = make_export_pet("Earth Eater", Element::Earth, None);
             e.improved = improved;
             (inputs, MergedPet { name: "Earth Eater".into(), wiki: None, export: Some(e) })
@@ -1246,17 +1253,22 @@ mod tests {
             assert_eq!(pet.campaign_bonus_for(CampaignType::Growth, &ctx), Some(want));
             assert_eq!(pet.campaign_bonus_for(CampaignType::Item, &ctx), Some(want));
         };
-        // Not token-improved → assume max per-rebirth feeding (+82).
-        let (i, p) = mk(false, 0);
+        // Default (locked at +82) → always +82, regardless of token/total.
+        let (i, p) = mk(false, 0, false);
         check(&i, &p, 82.0);
-        // Token-improved → permanent, scaling with total eaten (+1% per 200k).
-        let (i, p) = mk(true, 0);
-        check(&i, &p, -80.0); // floor
-        let (i, p) = mk(true, 10_000_000);
+        let (i, p) = mk(true, 10_000_000, false);
+        check(&i, &p, 82.0); // locked beats the lower permanent value
+        // Opt into the lifetime view: only a token-improved pet with a total set
+        // shows the lower permanent value (+1% per 200k from -80%).
+        let (i, p) = mk(true, 0, true);
+        check(&i, &p, 82.0); // no total entered → still 82
+        let (i, p) = mk(false, 10_000_000, true);
+        check(&i, &p, 82.0); // not token-improved → still 82
+        let (i, p) = mk(true, 10_000_000, true);
         check(&i, &p, -30.0); // -80 + 50
-        let (i, p) = mk(true, 32_400_000);
+        let (i, p) = mk(true, 32_400_000, true);
         check(&i, &p, 82.0); // cap
-        let (i, p) = mk(true, 100_000_000);
+        let (i, p) = mk(true, 100_000_000, true);
         check(&i, &p, 82.0); // past cap, clamped
     }
 

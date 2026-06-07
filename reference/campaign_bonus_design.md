@@ -164,11 +164,14 @@ now modelled (`apply_campaign_formulas` + `class_campaign_bonus`, with new
   Challenges** (`goblin_oc`, cap 470): the first 100 add `0.008` each, 101..=470
   add `0.001622` each, reaching the full `1.5`/CL at the cap. Handled in
   `class_campaign_bonus` (the only pet whose evo bonus reads `ctx`).
-- **Earth Eater** — flat all-campaign bonus ramping `-80% → +82%`. Before it's
-  token-improved we **assume the max (+82%)**, since each rebirth feeds to the
-  cap in ~1.35h (not worth a precise input). Once **token-improved** the bonus is
-  *permanent*, scaling with planets eaten across all rebirths: `+1% per 200k`,
-  capped at `+82%` (32.4M total). The total is a user input
-  (`earth_eater_total_planets`) entered as flexible-notation text (`32.4e6`).
-  *If the assume-max-when-untokened model proves wrong, this is the one knob to
-  revisit.*
+- **Earth Eater** — flat all-campaign bonus ramping `-80% → +82%`. The token
+  upgrade does **not** stack a second bonus; it *lowers the per-rebirth starting
+  penalty* based on lifetime planets, eventually removing it entirely and locking
+  him at `+82%`. Since each rebirth is otherwise fed to the `+82%` cap in ~1.35h,
+  his realistic in-play value is **`+82%`**, shown by default (a checked
+  **"Lock at +82%"** box, stored inverted as `earth_eater_show_lifetime`).
+  Unchecking it — on a **token-improved** pet with a **total** entered — reveals
+  the lower *permanent* value (`-80% + 1% per 200k`, cap `+82%` at 32.4M), with a
+  "~time to lock @1/s" estimate. The total is a flexible-notation text input
+  (`earth_eater_total_planets`, `32.4e6`). Locked-at-82 is the planning default
+  because the permanent value is only ever a floor under what feeding achieves.
