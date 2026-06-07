@@ -1207,7 +1207,7 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
 }
 
 /// Editor for the player-entered values that drive formula-based campaign
-/// bonuses (Beachball, Unicorn, Bear, Ant Queen, Cupid couples, Aether).
+/// bonuses (Beachball, Unicorn, Bear, Ant Queen, Aether, Earth Eater, …).
 fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
     egui::CollapsingHeader::new(
         RichText::new("Campaign bonus inputs").color(style::TEXT_BRIGHT).size(13.0),
@@ -1235,7 +1235,6 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
         row!("Challenge points:", &mut ci.challenge_points, "⭢ Unicorn");
         row!("Honey given:", &mut ci.honey, "⭢ Bear");
         row!("Ants:", &mut ci.ants, "⭢ Ant Queen");
-        row!("Current couples:", &mut ci.couples, "⭢ Cupid (token-improved)");
         row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "⭢ Aether");
         row!("UCCs completed:", &mut ci.goblin_ucc, "⭢ Goblin (cap 75)");
         row!("Overflow Challenges:", &mut ci.goblin_oc, "⭢ Goblin evo (cap 470)");

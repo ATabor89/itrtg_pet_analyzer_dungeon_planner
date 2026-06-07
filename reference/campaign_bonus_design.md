@@ -51,10 +51,11 @@ Two homes, chosen by what each pet actually needs:
   - **Beachball / Unicorn / Bear** = `sqrt(stones^1.00001 − stones)·2` (cap 200),
     `sqrt(challenge points)/2` (cap 100), `honey/500` (cap 100) — from
     **user-input fields** persisted in `AppState`.
-  - **Cupid couples** = token-improved Cupid's per-couple bonus. The game only
-    reports "current couples" (a pet can be coupled with itself, so couples ≠
-    pets-in-couples). Compromise: a "current couples" user input, **+2% per
-    couple** to all campaigns, on top of the flat token bonus already curated.
+  - **Cupid couples** = token-improved Cupid's per-couple bonus. A pet can be
+    coupled with itself, so "couples" is ambiguous — but the export's
+    `has_partner` flag isn't: **+1% per partnered pet (= +2% per couple)** to all
+    campaigns, counted off the roster, on top of the flat token bonus already
+    curated. No user input needed.
   - **Aether** = a user-input for "Delirious Essence fights completed" drives
     both (a) the all-campaign penalty: `-99%` reduced by `10%` per fight, maxing
     at `+1%` after 10 fights; and (b) an *added* growth-campaign bonus:
@@ -98,9 +99,10 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       unevolved / Food evolved).
 - [x] **3b** — user-input formulas: a persisted `CampaignInputs` struct + a
       "Campaign bonus inputs" panel (held + Beachball-given stones / challenge
-      points / honey / ants / couples / Delirious-Essence fights), wired into
-      `CampaignContext`. Beachball, Unicorn, Bear, Ant Queen, Cupid's couples,
-      and **Aether** (the two-part penalty + growth formula). *Campaign-bonus
+      points / honey / ants / Delirious-Essence fights), wired into
+      `CampaignContext`. Beachball, Unicorn, Bear, Ant Queen, Cupid (now from the
+      roster's `has_partner`, not a couples input), and **Aether** (the two-part
+      penalty + growth formula). *Campaign-bonus
       formula coverage is now complete for every modellable pet.*
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,

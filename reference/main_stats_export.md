@@ -38,7 +38,8 @@ The separate bottom-of-list `Honey: 765` is **Bee's** crafting stat (§3) — do
 confuse them.
 
 **Not in this export (keep manual):** `beachball_given_stones` (Beachball
-mouseover only), `couples` (Cupid), `delirious_essence_fights` (Aether Ring).
+mouseover only), `delirious_essence_fights` (Aether Ring). *(Cupid's couple
+bonus now comes from the export's `has_partner`, so it's no longer an input.)*
 
 **Cap note:** Goblin's UCC bonus caps at 75 in our formula, but the challenge
 itself shows `/ 67` max here — reconcile when wiring (maybe more unlock later).
