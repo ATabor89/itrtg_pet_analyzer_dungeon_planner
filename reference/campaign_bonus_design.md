@@ -122,11 +122,12 @@ campaigns), gated by `CampaignContext` flags.
   Adventurer, PLUS a per-pet Adventurer **evo bonus** (e.g. Hedgehog +0.58%·CL →
   57% at CL22; most pets 0). Needs the evo-bonus % curated/parsed (the wiki
   infobox `evolve_bonus` is prose). Toggle `include_class`.
-- [ ] **Event equipment** — Candy Cane / Merry Mantle / Christmas Boots (and
-  others). No clean formula: Candy Cane is +101% at SSS+20, +104.76% at +21,
-  +150% at +30 (the cap; these go to +30 via pet stones), which doesn't fit the
-  stick curve. They start at S+10 (stones) or SSS+20 (currency). Deferred until
-  we can derive or curate per-item values.
+- [~] **Event equipment** — scanned across all 3 slots alongside sticks. No clean
+  formula (Candy Cane is +101% at SSS+20, +104.76% at +21, +150% at +30 — doesn't
+  fit the stick curve), so only the as-purchased **SSS+20** values are plugged in
+  (`event_equip_bonus`: Candy Cane 101, Merry Mantle 150, Christmas Boots 150);
+  other levels return None rather than guess. Extend with more items/levels as
+  values are known.
 
 ## Deferred odds and ends
 
@@ -142,3 +143,8 @@ campaigns), gated by `CampaignContext` flags.
   bonus (already +200 all), but the campaign **simulator** stretch will need it.
 - **Pumpkin** — no inherent campaign bonus; finds chocolate, so a simulator
   should still favor it for food campaigns.
+- **Earth Eater** — its all-campaign bonus comes from feeding EarthLike Planets
+  (`+1% per 30 fed`, base `-80% → +82%`, resets each rebirth), so it needs a
+  user-input "EarthLike Planets fed" and resets awkwardly. Becomes easier to
+  pin down once it's evolved + token-improved. Not yet modelled — left raw-only;
+  handle when we revisit the input-driven pets.

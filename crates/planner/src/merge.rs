@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use itrtg_models::{
-    CampaignInputs, CampaignOverrides, CampaignType, Class, Element, ExportPet,
-    MAGIC_EGG_GROWTH_MULT, RecommendedClass, WikiPet, resolve_wiki_name,
+    CampaignInputs, CampaignOverrides, CampaignType, Class, Element, Equipment, ExportPet,
+    MAGIC_EGG_GROWTH_MULT, Quality, RecommendedClass, WikiPet, resolve_wiki_name,
 };
 
 use crate::growth::GrowthRates;
@@ -45,6 +45,43 @@ fn round2(x: f64) -> f32 {
 /// Per the wiki source, this *includes* Aether itself.
 fn is_elemental(name: &str) -> bool {
     matches!(name, "Undine" | "Gnome" | "Salamander" | "Sylph" | "Elemental" | "Aether")
+}
+
+/// The all-campaign boost from one equipped item (a stick or a known event
+/// item), if it provides one.
+fn item_campaign_bonus(item: &Equipment) -> Option<f32> {
+    stick_bonus(item).or_else(|| event_equip_bonus(item))
+}
+
+/// A campaign stick's boost. The four sticks share
+/// `value = cap · (rank/9) · ((1+upgrade)/21)` (so an SSS+20 hits the cap
+/// exactly; the `.min(cap)` is a guard for malformed levels above +20).
+fn stick_bonus(item: &Equipment) -> Option<f32> {
+    let cap = match item.name.as_str() {
+        "Walking Stick" => 50.0 / 3.0,     // 16.67%
+        "Journeying Stick" => 100.0 / 3.0, // 33.33%
+        "Magic Stick" => 50.0,
+        "Legendary Stick" => 100.0,
+        _ => return None,
+    };
+    let rank = item.quality.campaign_rank() as f64;
+    let upgrade = item.upgrade_level.unwrap_or(0) as f64;
+    Some(round2((cap * (rank / 9.0) * ((1.0 + upgrade) / 21.0)).min(cap)))
+}
+
+/// Known SSS+20 campaign boosts for event equipment. These have no published
+/// formula, so only the as-purchased SSS+20 level is handled; other levels
+/// return `None` rather than guess.
+fn event_equip_bonus(item: &Equipment) -> Option<f32> {
+    if item.quality != Quality::SSS || item.upgrade_level != Some(20) {
+        return None;
+    }
+    match item.name.as_str() {
+        "Candy Cane" => Some(101.0),
+        "Merry Mantle" => Some(150.0),
+        "Christmas Boots" => Some(150.0),
+        _ => None,
+    }
 }
 
 /// A pet with wiki reference data merged with the player's actual game data.
@@ -227,33 +264,27 @@ impl MergedPet {
         ctx.overrides.apply(&self.name, &mut map, self.is_evolved(), improved);
         self.apply_campaign_formulas(&mut map, ctx);
 
-        // Optional equipment layer (sticks) — additive to all campaigns.
+        // Optional equipment layer — campaign-boost gear across all three slots,
+        // additive to all campaigns.
         if ctx.include_equipment
-            && let Some(bonus) = self.stick_campaign_bonus()
+            && let Some(export) = self.export.as_ref()
         {
-            for c in CampaignType::ALL {
-                *map.entry(c).or_insert(0.0) += bonus;
+            let total: f32 = [
+                &export.loadout.weapon,
+                &export.loadout.armor,
+                &export.loadout.accessory,
+            ]
+            .into_iter()
+            .flatten()
+            .filter_map(item_campaign_bonus)
+            .sum();
+            if total != 0.0 {
+                for c in CampaignType::ALL {
+                    *map.entry(c).or_insert(0.0) += total;
+                }
             }
         }
         map
-    }
-
-    /// The all-campaign boost from a campaign stick equipped in the weapon slot,
-    /// if any. The four sticks share `value = cap · (rank/9) · ((1+upgrade)/21)`
-    /// (so an SSS+20 hits the cap exactly); `cap` is the only per-stick number.
-    fn stick_campaign_bonus(&self) -> Option<f32> {
-        let weapon = self.export.as_ref()?.loadout.weapon.as_ref()?;
-        let cap = match weapon.name.as_str() {
-            "Walking Stick" => 50.0 / 3.0,    // 16.67%
-            "Journeying Stick" => 100.0 / 3.0, // 33.33%
-            "Magic Stick" => 50.0,
-            "Legendary Stick" => 100.0,
-            _ => return None,
-        };
-        let rank = weapon.quality.campaign_rank() as f64;
-        let upgrade = weapon.upgrade_level.unwrap_or(0) as f64;
-        let value = cap * (rank / 9.0) * ((1.0 + upgrade) / 21.0);
-        Some(round2(value.min(cap)))
     }
 
     /// Apply per-pet campaign formulas — bespoke math the parser can't express,
@@ -969,6 +1000,45 @@ mod tests {
         let g = pet.campaign_bonus_for(CampaignType::Growth, &on).unwrap();
         assert!((g - 36.19).abs() < 0.001, "got {g}");
         assert_eq!(pet.campaign_bonus_for(CampaignType::Food, &on), Some(26.19)); // stick only
+    }
+
+    #[test]
+    fn test_event_equip_campaign_bonus() {
+        let empty = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
+        let roster: Vec<MergedPet> = vec![];
+        let on = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: true };
+
+        let item = |name: &str, q: Quality, up: Option<u8>| Equipment {
+            name: name.into(),
+            upgrade_level: up,
+            quality: q,
+            enchant_level: None,
+            gem: None,
+            gem_level: None,
+        };
+        let pet_with = |weapon: Option<Equipment>, armor: Option<Equipment>| {
+            let mut e = make_export_pet("X", Element::Neutral, Some(Class::Mage));
+            e.loadout.weapon = weapon;
+            e.loadout.armor = armor;
+            MergedPet { name: "X".into(), wiki: None, export: Some(e) }
+        };
+
+        // Candy Cane SSS+20 (weapon) → +101 to all.
+        let p = pet_with(Some(item("Candy Cane", Quality::SSS, Some(20))), None);
+        assert_eq!(p.campaign_bonus_for(CampaignType::Growth, &on), Some(101.0));
+        // Merry Mantle SSS+20 in the *armor* slot → +150 (non-weapon slot works).
+        let p = pet_with(None, Some(item("Merry Mantle", Quality::SSS, Some(20))));
+        assert_eq!(p.campaign_bonus_for(CampaignType::Food, &on), Some(150.0));
+        // Unknown level (S+10) → no bonus (only SSS+20 is known).
+        let p = pet_with(Some(item("Candy Cane", Quality::S, Some(10))), None);
+        assert_eq!(p.campaign_bonus_for(CampaignType::Growth, &on), None);
+        // A stick + an event item across slots stack: 50 + 150 = 200.
+        let p = pet_with(
+            Some(item("Magic Stick", Quality::SSS, Some(20))),
+            Some(item("Merry Mantle", Quality::SSS, Some(20))),
+        );
+        assert_eq!(p.campaign_bonus_for(CampaignType::Item, &on), Some(200.0));
     }
 
     #[test]
