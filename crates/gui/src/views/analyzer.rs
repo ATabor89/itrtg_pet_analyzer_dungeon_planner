@@ -268,6 +268,9 @@ pub struct AnalyzerState {
     /// Player-entered values for formula-based campaign bonuses (pet stones,
     /// challenge points, honey, …). Persisted.
     pub campaign_inputs: CampaignInputs,
+    /// Include each pet's campaign-boost *equipment* (sticks) in its effective
+    /// bonus, on top of innate. Off by default. Persisted.
+    pub include_equipment_bonus: bool,
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -299,6 +302,7 @@ impl Default for AnalyzerState {
             evolve_sort_use_egg: false,
             time_sort_tiebreak: TimeSortTiebreak::default(),
             campaign_inputs: CampaignInputs::default(),
+            include_equipment_bonus: false,
             selected_pet: None,
             custom_target: String::new(),
         }
@@ -325,6 +329,7 @@ impl AnalyzerState {
         self.evolve_sort_use_egg = src.evolve_sort_use_egg;
         self.time_sort_tiebreak = src.time_sort_tiebreak;
         self.campaign_inputs = src.campaign_inputs.clone();
+        self.include_equipment_bonus = src.include_equipment_bonus;
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -431,6 +436,7 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
         overrides: &data.campaign_overrides,
         roster: &data.merged,
         inputs: &campaign_inputs,
+        include_equipment: state.include_equipment_bonus,
     };
 
     // Pet detail window (rendered before table so it floats above)
@@ -1459,11 +1465,15 @@ fn show_filters(ui: &mut Ui, state: &mut AnalyzerState) {
         // Rank the (filtered) pets by that campaign's bonus, once one is chosen.
         let has_campaign = state.filter_campaign.is_some();
         sort_toggle_button(ui, state, SortColumn::CampaignBonus, "Sort by bonus", has_campaign);
-        ui.label(
-            RichText::new("shows pets with a parsed boost to the campaign")
-                .color(style::TEXT_MUTED)
-                .italics()
-                .size(10.0),
+        ui.separator();
+        ui.checkbox(
+            &mut state.include_equipment_bonus,
+            RichText::new("+ equipment").size(12.0),
+        )
+        .on_hover_text(
+            "Add each pet's campaign-boost stick (Walking/Journeying/Magic/\
+             Legendary) to its effective bonus. Off by default — innate bonuses \
+             are more durable to plan around.",
         );
     });
 }

@@ -106,24 +106,27 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
       simulate growth/reward outcomes.
 
-## Future: class & equipment bonuses (toggleable)
+## Class & equipment bonuses (toggleable)
 
-Beyond the pet's *innate* campaign bonus, two more sources stack on top in-game:
+Beyond the pet's *innate* campaign bonus, two more sources stack on top in-game,
+surfaced as **toggles** (default off) so you can plan around durable innate
+bonuses. They layer in via the same `campaign_bonuses` seam (additive, all
+campaigns), gated by `CampaignContext` flags.
 
-- **Class (Adventurer):** Adventurers add a bonus to all campaigns, and pets with
-  an Adventurer **evo bonus** get extra. Computable from the export's class +
-  the wiki evo-bonus data. Interesting because a pet with a lower innate bonus
-  but a strong Adventurer evo bonus can overtake a higher-innate one.
-- **Equipment:** Walking / Journeying / Magic / Legendary sticks (and some
-  limited event gear) boost campaign gains — the boost depends on the item
-  tier/quality/upgrade *and* the pet (e.g. a Magic Stick SSS+10 gives Earth
-  Eater +50% but Otter +26.19%). The game exposes the formulas (to be provided).
-
-Design intent: surface these as **toggles**, defaulting off, because planning
-around a pet's durable innate bonus is usually better than around whatever stick
-it happens to hold now. They'd layer in via the same `campaign_bonuses` seam
-(class first, then equipment), gated by the toggles — so the filter/sort/card
-pick them up only when the user opts in. Not built yet; tracked here.
+- [x] **Equipment — sticks.** Walking / Journeying / Magic / Legendary, equipped
+  in the weapon slot. `value = cap · (rank/9) · ((1+upgrade)/21)` (so SSS+20 hits
+  the cap exactly; caps 16.67 / 33.33 / 50 / 100). `Quality::campaign_rank`
+  (F=1…SSS=9). The `include_equipment` flag + a "+ equipment" checkbox. Verified
+  vs in-game (Otter Magic SSS+10 = 26.19%).
+- [ ] **Class — Adventurer.** Base `2% · CL` to all campaigns when the pet is an
+  Adventurer, PLUS a per-pet Adventurer **evo bonus** (e.g. Hedgehog +0.58%·CL →
+  57% at CL22; most pets 0). Needs the evo-bonus % curated/parsed (the wiki
+  infobox `evolve_bonus` is prose). Toggle `include_class`.
+- [ ] **Event equipment** — Candy Cane / Merry Mantle / Christmas Boots (and
+  others). No clean formula: Candy Cane is +101% at SSS+20, +104.76% at +21,
+  +150% at +30 (the cap; these go to +30 via pet stones), which doesn't fit the
+  stick curve. They start at S+10 (stones) or SSS+20 (currency). Deferred until
+  we can derive or curate per-item values.
 
 ## Deferred odds and ends
 
