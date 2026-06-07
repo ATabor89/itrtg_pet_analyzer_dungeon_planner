@@ -191,6 +191,22 @@ auto-fill from the **Main stats** export — see `main_stats_export.md`):
   uniquely, that holds **even before evolving**. If not improved, use the formula.
   Input: "Highest Afky God Power" (a new `CampaignInputs` field), auto-filled from
   the export's `Highest Afky God Power: 1.600 E+9`; safe to assume max otherwise.
-- **Chocobear** — an hours-based all-campaign bonus driven by `Chocobear hours`
-  (export field, `4,734` in the sample). Formula TBD; logged so we remember it's
-  input-driven, not a static value.
+- **Chocobear** — three layers (we currently model *none* of these):
+  - **Innate, token-conditional:** **Food +100%** always; **Growth** and **Item**
+    **+33% → +50%** when **token-improved**. (In-game a token-improved Chocobear
+    shows innate 50% growth / 50% item / 100% food.)
+  - **Banked-hours boost to all campaigns *except food*:** **+50%** (not improved)
+    / **+75%** (improved), applied while he has banked hours. He **banks** hours by
+    eating chocolate (**+3 h** each) and by running **food** campaigns (**+1 h** per
+    hour); he **spends 1 banked hour per campaign-hour** in any non-food campaign,
+    getting the boost during it. Food campaigns are excluded (it would be a
+    feedback loop). `Chocobear hours` (export, `4,734`) is the current bank.
+  - **Worked example** (token-improved, *food* campaign): innate food 100 + class
+    49 + equip 20 = **169%**; the banked boost correctly doesn't show (food). In a
+    *growth* campaign instead it'd be `50 (innate) + 75 (banked) +` class/equip.
+  - For a **static** bonus display, assume banked hours are available (like Earth
+    Eater's +82 default); the **simulator** can deplete the bank per cycle.
+  - ⚠️ *My reading, to confirm:* the banked +50/75 stacks **on top of** the innate
+    growth/item values (so growth = innate 50 **+** banked 75 when improved), and
+    applies to the other four campaigns from a 0 innate base. The in-game food
+    number (169) is consistent but doesn't exercise a non-food campaign.
