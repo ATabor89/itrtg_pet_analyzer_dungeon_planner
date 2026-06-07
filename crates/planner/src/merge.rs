@@ -30,6 +30,9 @@ pub struct CampaignContext<'a> {
     pub overrides: &'a CampaignOverrides,
     pub roster: &'a [MergedPet],
     pub inputs: &'a CampaignInputs,
+    /// Add the pet's campaign-boost *equipment* (sticks) on top of its innate
+    /// bonus. Off by default — planning around innate bonuses is more durable.
+    pub include_equipment: bool,
 }
 
 /// Round a percentage to 2 decimal places. Dynamic campaign formulas produce
@@ -223,7 +226,34 @@ impl MergedPet {
         let improved = self.export.as_ref().is_some_and(|e| e.improved);
         ctx.overrides.apply(&self.name, &mut map, self.is_evolved(), improved);
         self.apply_campaign_formulas(&mut map, ctx);
+
+        // Optional equipment layer (sticks) — additive to all campaigns.
+        if ctx.include_equipment
+            && let Some(bonus) = self.stick_campaign_bonus()
+        {
+            for c in CampaignType::ALL {
+                *map.entry(c).or_insert(0.0) += bonus;
+            }
+        }
         map
+    }
+
+    /// The all-campaign boost from a campaign stick equipped in the weapon slot,
+    /// if any. The four sticks share `value = cap · (rank/9) · ((1+upgrade)/21)`
+    /// (so an SSS+20 hits the cap exactly); `cap` is the only per-stick number.
+    fn stick_campaign_bonus(&self) -> Option<f32> {
+        let weapon = self.export.as_ref()?.loadout.weapon.as_ref()?;
+        let cap = match weapon.name.as_str() {
+            "Walking Stick" => 50.0 / 3.0,    // 16.67%
+            "Journeying Stick" => 100.0 / 3.0, // 33.33%
+            "Magic Stick" => 50.0,
+            "Legendary Stick" => 100.0,
+            _ => return None,
+        };
+        let rank = weapon.quality.campaign_rank() as f64;
+        let upgrade = weapon.upgrade_level.unwrap_or(0) as f64;
+        let value = cap * (rank / 9.0) * ((1.0 + upgrade) / 21.0);
+        Some(round2(value.min(cap)))
     }
 
     /// Apply per-pet campaign formulas — bespoke math the parser can't express,
@@ -644,7 +674,7 @@ mod tests {
     fn test_campaign_bonuses_seam() {
         let empty = CampaignOverrides::default();
         let inputs = CampaignInputs::default();
-        let ctx = CampaignContext { overrides: &empty, roster: &[], inputs: &inputs };
+        let ctx = CampaignContext { overrides: &empty, roster: &[], inputs: &inputs, include_equipment: false };
 
         let mut wiki = make_wiki_pet("Dwarf", Element::Fire, RecommendedClass::Wildcard);
         wiki.campaign_bonus = Some(CampaignBonus {
@@ -673,7 +703,7 @@ mod tests {
         )
         .unwrap();
         let inputs = CampaignInputs::default();
-        let ctx = CampaignContext { overrides: &ov, roster: &[], inputs: &inputs };
+        let ctx = CampaignContext { overrides: &ov, roster: &[], inputs: &inputs, include_equipment: false };
 
         let mut wiki = make_wiki_pet("Hedgehog", Element::Earth, RecommendedClass::Wildcard);
         wiki.campaign_bonus = Some(CampaignBonus {
@@ -720,7 +750,7 @@ mod tests {
         // Bag: lowest *unlocked* growth (10000) ^ 0.4 → ~39.8 to Growth.
         let bag = MergedPet { name: "Bag".into(), wiki: None, export: None };
         let roster = pets(bag.clone());
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
         // 10000^0.4 = 39.8107… rounded to 2 decimals.
         assert_eq!(bag.campaign_bonus_for(CampaignType::Growth, &ctx), Some(39.81));
 
@@ -729,7 +759,7 @@ mod tests {
         mer_export.growth = 50_000;
         let mermaid = MergedPet { name: "Mermaid".into(), wiki: None, export: Some(mer_export) };
         let roster = pets(mermaid.clone());
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
         assert_eq!(mermaid.campaign_bonus_for(CampaignType::GodPower, &ctx), Some(-50.0));
 
         // Lizard: (unlocked + evolved)^0.5 * 10, capped 100, to Growth (unevolved).
@@ -740,7 +770,7 @@ mod tests {
             e
         }) };
         let roster = pets(lizard.clone());
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
         // unlocked: Frog, Bee, Lizard = 3; evolved: Bee = 1 → 4^0.5*10 = 20.
         assert_eq!(lizard.campaign_bonus_for(CampaignType::Growth, &ctx), Some(20.0));
         assert_eq!(lizard.campaign_bonus_for(CampaignType::Food, &ctx), None);
@@ -760,7 +790,7 @@ mod tests {
             MergedPet { name: "Frog".into(), wiki: None, export: Some(p) },
             bag.clone(),
         ];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
         assert_eq!(bag.campaign_bonus_for(CampaignType::Growth, &ctx), Some(100.0));
 
         // Mermaid clamps at -333 (1e6/1000 = 1000).
@@ -768,7 +798,7 @@ mod tests {
         e.growth = 1_000_000;
         let mermaid = MergedPet { name: "Mermaid".into(), wiki: None, export: Some(e) };
         let roster = vec![mermaid.clone()];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
         assert_eq!(mermaid.campaign_bonus_for(CampaignType::Growth, &ctx), Some(-333.0));
     }
 
@@ -784,7 +814,7 @@ mod tests {
             ..Default::default()
         };
         let roster: Vec<MergedPet> = vec![];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
 
         let pet = |name: &str, improved: bool| {
             let mut e = make_export_pet(name, Element::Neutral, None);
@@ -817,8 +847,8 @@ mod tests {
         let combined = CampaignInputs { pet_stones: 5_000, beachball_given_stones: 5_000, ..Default::default() };
         let held_only = CampaignInputs { pet_stones: 10_000, ..Default::default() };
         let roster: Vec<MergedPet> = vec![];
-        let c1 = CampaignContext { overrides: &empty, roster: &roster, inputs: &combined };
-        let c2 = CampaignContext { overrides: &empty, roster: &roster, inputs: &held_only };
+        let c1 = CampaignContext { overrides: &empty, roster: &roster, inputs: &combined, include_equipment: false };
+        let c2 = CampaignContext { overrides: &empty, roster: &roster, inputs: &held_only, include_equipment: false };
         let bb = pet("Beachball", false);
         assert_eq!(
             bb.campaign_bonus_for(CampaignType::Growth, &c1),
@@ -827,7 +857,7 @@ mod tests {
 
         // Beachball caps at 200% (1e9 stones would otherwise give ~900%).
         let huge = CampaignInputs { pet_stones: 1_000_000_000, ..Default::default() };
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &huge };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &huge, include_equipment: false };
         assert_eq!(bb.campaign_bonus_for(CampaignType::Growth, &ctx), Some(200.0));
     }
 
@@ -848,7 +878,7 @@ mod tests {
         // fights = 0 → full -99% penalty to all, no growth bonus.
         let inputs0 = CampaignInputs::default();
         let roster: Vec<MergedPet> = vec![];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs0 };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs0, include_equipment: false };
         let a = aether(1);
         assert_eq!(a.campaign_bonus_for(CampaignType::Food, &ctx), Some(-99.0));
         assert_eq!(a.campaign_bonus_for(CampaignType::Growth, &ctx), Some(-99.0));
@@ -863,7 +893,7 @@ mod tests {
             elemental("Sylph"),
             elemental("Elemental"),
         ];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs10 };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs10, include_equipment: false };
         let a = aether(1_000_000);
         assert_eq!(a.campaign_bonus_for(CampaignType::Food, &ctx), Some(1.0)); // penalty only
         let g = a.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
@@ -880,9 +910,44 @@ mod tests {
             aether_pet.clone(),
         ];
         let inputs28 = CampaignInputs { delirious_essence_fights: 28, ..Default::default() };
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs28 };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs28, include_equipment: false };
         let g = aether_pet.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
         assert!((g - 48.61).abs() < 0.1, "got {g}");
+    }
+
+    #[test]
+    fn test_stick_campaign_bonus() {
+        let empty = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
+        let roster: Vec<MergedPet> = vec![];
+
+        let stick_pet = |name: &str, quality: Quality, upgrade: u8| {
+            let mut e = make_export_pet("Otter", Element::Water, Some(Class::Mage));
+            e.loadout.weapon = Some(Equipment {
+                name: name.to_string(),
+                upgrade_level: Some(upgrade),
+                quality,
+                enchant_level: None,
+                gem: None,
+                gem_level: None,
+            });
+            MergedPet { name: "Otter".into(), wiki: None, export: Some(e) }
+        };
+        let on = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: true };
+        let off = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
+
+        // Magic Stick SSS+10 = 26.19% (the in-game value), added to all campaigns.
+        let pet = stick_pet("Magic Stick", Quality::SSS, 10);
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Growth, &on), Some(26.19));
+        // Toggle off → no equipment bonus (no innate here either → None).
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Growth, &off), None);
+
+        // SSS+20 hits each stick's cap.
+        assert_eq!(stick_pet("Magic Stick", Quality::SSS, 20).campaign_bonus_for(CampaignType::Food, &on), Some(50.0));
+        assert_eq!(stick_pet("Legendary Stick", Quality::SSS, 20).campaign_bonus_for(CampaignType::Food, &on), Some(100.0));
+
+        // A non-stick weapon contributes nothing.
+        assert_eq!(stick_pet("Flame Sword", Quality::SSS, 10).campaign_bonus_for(CampaignType::Food, &on), None);
     }
 
     #[test]
