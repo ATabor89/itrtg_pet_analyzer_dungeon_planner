@@ -178,3 +178,10 @@ Undine:
     set_all: -111
   - when: Evolved
     set_all: 111
+
+# --- Stone/Golem: flat +100% all campaigns once evolved ---
+# Unevolved it ramps with growth (-100% + 20% per 5000 growth, 0% at 25000) —
+# that growth formula is still raw-only; only the evolved flat value is curated.
+Stone/Golem:
+  - when: Evolved
+    set_all: 100

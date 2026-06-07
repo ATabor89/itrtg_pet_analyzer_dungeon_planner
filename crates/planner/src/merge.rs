@@ -50,6 +50,64 @@ fn is_elemental(name: &str) -> bool {
     matches!(name, "Undine" | "Gnome" | "Salamander" | "Sylph" | "Elemental" | "Aether")
 }
 
+/// Extra Adventurer campaign bonus per class level, for pets with an Adventurer
+/// evo bonus — added to the base 2%/CL. Keyed by canonical pet name. (The
+/// in-game "Adventurer pet" entry has no match in the data and is omitted.)
+const ADVENTURER_EVO_BONUS: &[(&str, f32)] = &[
+    ("Pandora's Box", 0.9),
+    ("Sphinx", 0.68),
+    ("Earth Eater", 1.32),
+    ("Meteor", 0.85),
+    ("Thunder Ball/Raiju", 1.3),
+    ("Hedgehog", 0.58),
+    ("Bag", 1.0),
+    ("Cupid", 0.5),
+    ("Otter", 0.8),
+    ("Anni Cake", 1.38),
+    ("Ant Queen", 2.0),
+    ("Aether", 1.5),
+    ("Decorator Crab", 1.75),
+    ("Nightmare", 0.9),
+    ("Unicorn", 1.2),
+    ("FSM", 0.85),
+    ("Skeleton", 0.83),
+    ("Chocobear", 0.56),
+    ("Llysnafedda", 0.65),
+    ("Hydra", 0.7),
+    ("UFO", 0.7),
+    ("Serow", 0.65),
+    ("Bug", 0.5),
+    ("Camel", 0.51),
+    ("God Power (Pet)", 0.53),
+    ("Eagle", 0.52),
+    ("Mole", 0.51),
+    ("Lizard/Zookeeper", 0.9),
+    ("Beachball", 0.68),
+    ("Portal", 1.0),
+    ("Afky Clone", 0.6),
+    ("Wolf", 1.0),
+    ("Oni", 2.0),
+    ("Big Burger", 2.0),
+    ("Flying Eyeball", 0.85),
+    ("Holy ITRTG Book", 0.4),
+    ("Tenko", 1.1),
+    ("Bear", 0.75),
+    ("Living Draw", 0.8),
+    ("Goblin", 0.1),
+    ("Sloth", 1.25),
+    ("Nugget", 0.3),
+    ("Dorgegebelle", 1.7),
+];
+
+/// The Adventurer evo bonus (% per CL) for a pet, or 0 if it has none.
+fn adventurer_evo_bonus(name: &str) -> f32 {
+    ADVENTURER_EVO_BONUS
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, b)| *b)
+        .unwrap_or(0.0)
+}
+
 /// The all-campaign boost from one equipped item (a stick or a known event
 /// item), if it provides one.
 fn item_campaign_bonus(item: &Equipment) -> Option<f32> {
@@ -308,7 +366,9 @@ impl MergedPet {
         if export.class != Some(Class::Adventurer) {
             return None;
         }
-        Some(round2(2.0 * export.class_level as f64))
+        // Base 2%/CL for any Adventurer, plus the pet's Adventurer evo bonus.
+        let per_level = 2.0 + adventurer_evo_bonus(&self.name) as f64;
+        Some(round2(per_level * export.class_level as f64))
     }
 
     /// Apply per-pet campaign formulas — bespoke math the parser can't express,
@@ -1087,6 +1147,29 @@ mod tests {
         assert_eq!(p.campaign_bonus_for(CampaignType::Growth, &off), None);
         // Non-Adventurer class contributes nothing even with the toggle on.
         assert_eq!(pet(Some(Class::Mage), 8).campaign_bonus_for(CampaignType::Growth, &on), None);
+
+        // A pet with an Adventurer evo bonus stacks it on the base:
+        // Hedgehog (+0.58/CL) at CL22 → (2 + 0.58) × 22 = 56.76% (game shows 57).
+        let mut e = make_export_pet("Hedgehog", Element::Neutral, Some(Class::Adventurer));
+        e.class_level = 22;
+        let hedgehog = MergedPet { name: "Hedgehog".into(), wiki: None, export: Some(e) };
+        let g = hedgehog.campaign_bonus_for(CampaignType::Growth, &on).unwrap();
+        assert!((g - 56.76).abs() < 0.001, "got {g}");
+    }
+
+    /// Every name in ADVENTURER_EVO_BONUS must match a real pet in the scraped
+    /// data — otherwise the bonus silently never applies.
+    #[test]
+    fn test_adventurer_evo_bonus_names_exist() {
+        let yaml = include_str!("../../../data/wiki_pets.yaml");
+        let pets: Vec<WikiPet> = serde_yaml::from_str(yaml).expect("parse wiki_pets.yaml");
+        let names: std::collections::HashSet<&str> = pets.iter().map(|p| p.name.as_str()).collect();
+        let missing: Vec<&str> = ADVENTURER_EVO_BONUS
+            .iter()
+            .map(|(n, _)| *n)
+            .filter(|n| !names.contains(n))
+            .collect();
+        assert!(missing.is_empty(), "unknown pet names: {missing:?}");
     }
 
     #[test]
