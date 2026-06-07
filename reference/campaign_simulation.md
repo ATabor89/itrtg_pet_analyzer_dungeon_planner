@@ -97,8 +97,14 @@ reward = Σ_pets [ base_term(pet) ] · UPC_multi · pet_campaign_multi(pet) · h
 
 with per-campaign twists. Shared inputs:
 
-- **`hours`** — the simulation window (or "per hour" with `hours = 1`).
-- **`UPC multi`** — a global multiplier. **User input** (not derivable).
+- **`hours`** — the campaign length. In-game this is an **integer 1–12** (1-hour
+  increments) unless something later relaxes it; the per-hour formulas scale
+  linearly with it.
+- **`UPC multi`** — the **Ultimate Pet Challenge** multiplier: each completed UPC
+  adds **+5%** to *all* pet-campaign rewards, capped at **+100%** (20 UPCs).
+  `UPC% = min(5 · ultimate_pet_challenges_completed, 100)`. **Derivable** from the
+  Main-stats export ("Ultimate Pet Challenges: 8 / 20" → +40%); allow a manual
+  override. As a multiplier this is `(1 + UPC%/100)`.
 - **`pet_campaign_multi`** — the per-pet, per-campaign multiplier we already
   compute (`campaign_bonuses[campaign]`). ⚠️ *Confirm the form:* our value is a
   percentage like `+82`. As a multiplier that's presumably `(1 + bonus/100)`
@@ -229,12 +235,21 @@ tier: base 3%, rising with "tiered linearity" up to 12% at 100m stats.
 > per 5k**. Plus **+0.1% per feeding**, up to **+2% additional** (resets on
 > rebirth or when hunger reaches 0).
 
+The feeding bonus **adds to the per-5k rate** (it is *not* a separate flat term):
+
+```
+rate   = (growth < 100k ? 3 : 4) + min(feedings · 0.1, 2)      // % per 5k
+bonus% = min(growth, 100_000) / 5_000 · rate
+```
+
 - **Applied on top of the total** campaign result (compute the campaign sum, then
-  add Pandora's %). Affects **every** campaign it joins.
-- **Worked example:** 8 feedings, **57,114** growth → **+43.41%**.
-  > ⚠️ Doesn't reconcile with a naive reading: `(57,114 / 5,000)·3% = 34.27%`,
-  > `+ 8·0.1% = 35.07%` — not 43.41%. The per-5k rate that fits is ≈ 3.8%, or the
-  > growth figure feeding the formula differs. **Pin down before implementing.**
+  add `bonus%`). Affects **every** campaign it joins.
+- **Worked example (confirmed):** 8 feedings, **57,114** growth →
+  `(57,114 / 5,000) · (3 + 8·0.1) = 11.4228 · 3.8 =` **43.41%**. ✔
+- Past **100k growth** the growth term caps (`100k/5k = 20`) and the base rate
+  steps **3 → 4**, so the cap is `20 · (4 + feed·0.1)` = **80%** at 0 feedings,
+  up to `20 · 6 =` **120%** fully fed. (Reasonable reading of "reaching the cap"
+  — confirm the 100k flip in-game when someone's there.)
 
 ### Nightmare / Ant Queen — God Power uncap
 - **Nightmare:** **always** uncaps the GP campaign (pets can find >1 GP).
@@ -262,7 +277,77 @@ tier: base 3%, rising with "tiered linearity" up to 12% at 100m stats.
 
 ---
 
-## 7. Proposed implementation roadmap
+## 7. Growth-chamber simulation (a planned headline feature)
+
+A **growth chamber** is the practice of locking the same ~10 pets into the
+**Growth campaign** and running it over and over. Because the campaign dumps all
+the contributors' growth into the **single weakest pet**, the chamber **rotates**:
+
+1. The weakest pet is the **recipient**; it receives the summed growth of the
+   other nine and **leaps up the roster**.
+2. The **next-weakest** pet is now the recipient on the following run.
+3. Repeat — every pet cycles upward, and the chamber's floor steadily rises, so
+   each run is a little stronger than the last.
+
+This is essentially a **"time-to-evolve / time-to-target", but driven by an
+iterated Growth-campaign simulation** instead of pendant+Moai growth alone. It
+serves two jobs:
+
+- **Grow the resident chamber pets** toward their evolve thresholds (or any
+  target). *Real example:* the player's Earth Eater and Thunder Ball are in the
+  chamber now, a few rotations short of evolving with the egg. We want to project
+  **how many cycles** each needs and give a **before/after breakdown** of the
+  whole chamber.
+- **Rush a brand-new pet.** Swap out the weakest resident and slot in a new,
+  much-lower-growth pet. It's then the **perpetual recipient** every cycle and
+  climbs fast to whatever threshold you care about.
+
+### Per-cycle model
+
+For each simulated campaign run (length `hours`, the integer 1–12):
+
+1. **Recipient** = the chamber pet with the lowest growth (it does **not**
+   contribute its own term).
+2. **Campaign growth** = `Σ (over the other pets) (log15(growth) − 1.75) · UPC ·
+   pet_growth_multi · hours`.
+3. Apply the **special-pet layers** if those pets are present:
+   - **Pandora's Box** — multiply the run's total by its `1 + bonus%` (§5).
+   - **Bag** — pre-token steals 10% of the total to the lowest-growth pet (so the
+     recipient effectively loses that 10%); post-token gives an *extra* 5% to the
+     weakest on top, free (§5). In a chamber, Bag's recipient and the campaign's
+     recipient are the same pet (both "lowest growth").
+4. **Add** the resulting growth to the recipient; if **pendant + Moai** apply,
+   add that passive growth accrued over the `hours` window too (to the
+   pendant-bearer / all pets as appropriate — passive growth runs concurrently
+   with the campaign's wall-clock).
+5. **Re-sort** the chamber and repeat until each tracked pet hits its target.
+
+### Inputs / configuration
+
+- Chamber membership (≤10 pets; new-pet swap-in).
+- **Campaign length** (integer 1–12 h) — configurable; the player usually runs 12.
+- Per-pet **pendant + Moai** assignment (e.g. pendant on the pet being rushed).
+- **Target** per tracked pet: evolve threshold (with/without the egg's `/1.3`
+  discount, reusing the existing evo logic) or an arbitrary growth value.
+- `UPC` and each pet's `pet_growth_multi` (from `campaign_bonuses`).
+
+### Outputs
+
+- **Cycles to target** per tracked pet, and total wall-clock (`cycles · hours`).
+- A **per-cycle growth trace** and a **before/after** roster snapshot.
+
+### Open modelling questions
+
+- Confirm the recipient gets the **full summed** contribution (vs. any per-pet
+  cap or diminishing return).
+- How pendant/Moai growth interleaves with a multi-hour campaign run (assume it
+  accrues over the same wall-clock — verify).
+- Whether a rushed new pet's own (tiny) contribution is simply ignored while it's
+  the recipient (it is, since the recipient never contributes).
+
+---
+
+## 8. Proposed implementation roadmap
 
 Staged so the stat-blocked work is cleanly isolated behind a black box.
 
@@ -279,14 +364,17 @@ Staged so the stat-blocked work is cleanly isolated behind a black box.
    regression target*. Then light up Divinity, Item, Level (stats term),
    Multiplier (pet part), God Power — with the **Nightmare/Ant Queen uncap** and
    **FSM double** layers.
-4. **Simulator extras** (longer horizon): Llysnafedda-accelerated levelling,
+4. **Growth-chamber simulator** (§7) — iterate the Growth campaign with rotation
+   + pendant/Moai, the headline use of the stat-independent work.
+5. **Simulator extras** (longer horizon): Llysnafedda-accelerated levelling,
    Nightmare's team malus (already noted in `campaign_bonus_design.md`), and
    multi-campaign allocation/prioritisation.
 
-## 8. Open questions to resolve
+## 9. Open questions to resolve
 
-- **Stats ramp** vs the Gnome example (≈10× gap) — §2.
-- **Pandora's Box** % vs its example (34% vs 43.41%) — §5.
+- **Stats ramp** vs the Gnome example (≈10× gap) — §2. *(still open)*
 - **`pet_campaign_multi` form** — is it `(1 + bonus/100)` or the raw `bonus`? — §3.
 - **Per-pet food tiers** (mighty/strong/puny) — data source / curation.
 - **Tier "tiered linearity"** for GP (exact interpolation 3%→12% to 100m) — §4.
+- **Resolved:** Pandora's Box (feeding adds to the per-5k *rate* — §5); UPC multi
+  (`5% · Ultimate Pet Challenges`, derivable from the Main-stats export — §3).

@@ -149,6 +149,7 @@ campaigns), gated by `CampaignContext` flags.
   bonus (already +200 all), but the campaign **simulator** stretch will need it.
 - **Pumpkin** — no inherent campaign bonus; finds chocolate, so a simulator
   should still favor it for food campaigns.
+
 ## Input-driven special cases (done)
 
 These three needed bespoke handling beyond the override/formula norm; all are
@@ -178,3 +179,18 @@ now modelled (`apply_campaign_formulas` + `class_campaign_bonus`, with new
   "~time to lock @1/s" estimate. The total is a flexible-notation text input
   (`earth_eater_total_planets`, `32.4e6`). Locked-at-82 is the planning default
   because the permanent value is only ever a floor under what feeding achieves.
+
+## Identified but not yet built (input-driven)
+
+Two more per-pet campaign bonuses are understood and just need wiring (both will
+auto-fill from the **Main stats** export — see `main_stats_export.md`):
+
+- **Afky Clone** — base **+20% Food / −30% all other campaigns**, raised by
+  `log2(highest_afky_god_power)%` toward a max of **+100% Food / +50% all other**.
+  *Conditional:* if **token-improved**, just grant the **max** (+100/+50) — and
+  uniquely, that holds **even before evolving**. If not improved, use the formula.
+  Input: "Highest Afky God Power" (a new `CampaignInputs` field), auto-filled from
+  the export's `Highest Afky God Power: 1.600 E+9`; safe to assume max otherwise.
+- **Chocobear** — an hours-based all-campaign bonus driven by `Chocobear hours`
+  (export field, `4,734` in the sample). Formula TBD; logged so we remember it's
+  input-driven, not a static value.
