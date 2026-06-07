@@ -71,6 +71,7 @@ const ADVENTURER_EVO_BONUS: &[(&str, f32)] = &[
     ("Unicorn", 1.2),
     ("FSM", 0.85),
     ("Skeleton", 0.83),
+    ("Seed/Yggdrasil", 1.7),
     ("Chocobear", 0.56),
     ("Llysnafedda", 0.65),
     ("Hydra", 0.7),

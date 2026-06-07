@@ -122,10 +122,9 @@ campaigns), gated by `CampaignContext` flags.
   Adventurer (`class_campaign_bonus`, `include_class` flag + "+ class" checkbox;
   Robot CL8 → 16%), **plus** the per-pet Adventurer **evo bonus** added to the
   base: `(2 + evo) · CL` (e.g. Hedgehog +0.58 → 56.76% at CL22; game shows 57).
-  The 43 evo-bonus values are a curated `ADVENTURER_EVO_BONUS` table in
+  The 44 evo-bonus values are a curated `ADVENTURER_EVO_BONUS` table in
   `merge.rs`, guarded by `test_adventurer_evo_bonus_names_exist` (every key must
-  resolve to a real pet). The in-game "Adventurer pet" (+1.7) has no match in the
-  scraped data, so it's omitted.
+  resolve to a real pet).
 - [~] **Event equipment** — scanned across all 3 slots alongside sticks. No clean
   formula (Candy Cane is +101% at SSS+20, +104.76% at +21, +150% at +30 — doesn't
   fit the stick curve), so only the as-purchased **SSS+20** values are plugged in
