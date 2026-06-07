@@ -16,6 +16,23 @@ pub enum Quality {
     SSS,
 }
 
+impl Quality {
+    /// Rank used by campaign-boost equipment formulas: F = 1 … SSS = 9.
+    pub fn campaign_rank(self) -> u8 {
+        match self {
+            Quality::F => 1,
+            Quality::E => 2,
+            Quality::D => 3,
+            Quality::C => 4,
+            Quality::B => 5,
+            Quality::A => 6,
+            Quality::S => 7,
+            Quality::SS => 8,
+            Quality::SSS => 9,
+        }
+    }
+}
+
 /// Which slot a piece of equipment occupies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EquipmentSlot {
