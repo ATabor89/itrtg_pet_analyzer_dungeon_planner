@@ -535,11 +535,20 @@ impl MergedPet {
                     }
                 }
             }
-            // Cupid: token-improved adds +2% per current couple to all campaigns,
-            // on top of the curated flat token bonus already applied.
+            // Cupid: token-improved adds +2% per couple to all campaigns, on top
+            // of the curated flat token bonus. A couple is two pets, and a pet can
+            // be coupled with itself, so counting "pets with a partner" (the
+            // export's `has_partner`) sidesteps the self-couple ambiguity:
+            // +1% per partnered pet = +2% per couple. Read straight off the
+            // roster — no user input.
             "Cupid" => {
                 if self.export.as_ref().is_some_and(|e| e.improved) {
-                    let bonus = round2((ctx.inputs.couples as f64) * 2.0);
+                    let partnered = ctx
+                        .roster
+                        .iter()
+                        .filter(|p| p.export.as_ref().is_some_and(|e| e.has_partner))
+                        .count();
+                    let bonus = round2(partnered as f64);
                     if bonus != 0.0 {
                         for c in CampaignType::ALL {
                             *map.entry(c).or_insert(0.0) += bonus;
@@ -986,7 +995,6 @@ mod tests {
             challenge_points: 10_000, // sqrt(10000)/2 = 50
             honey: 25_000,            // 25000/500 = 50
             ants: 10_000,
-            couples: 10,              // *2 = 20
             pet_stones: 10_000,
             ..Default::default()
         };
@@ -1013,9 +1021,17 @@ mod tests {
         assert_eq!(d, a.campaign_bonus_for(CampaignType::GodPower, &ctx));
         assert!(d.unwrap() > 0.0);
 
-        // Cupid couples only count when token-improved (+2 each → +20 for 10).
-        assert_eq!(pet("Cupid", true).campaign_bonus_for(CampaignType::Growth, &ctx), Some(20.0));
-        assert_eq!(pet("Cupid", false).campaign_bonus_for(CampaignType::Growth, &ctx), None);
+        // Cupid: +1% per partnered pet (from the roster's `has_partner`), only
+        // when token-improved. Two partnered pets here → +2% to all campaigns.
+        let partnered = |name: &str, has: bool| {
+            let mut e = make_export_pet(name, Element::Neutral, None);
+            e.has_partner = has;
+            MergedPet { name: name.into(), wiki: None, export: Some(e) }
+        };
+        let cupid_roster = vec![partnered("X", true), partnered("Y", true), partnered("Z", false)];
+        let cupid_ctx = CampaignContext { overrides: &empty, roster: &cupid_roster, inputs: &inputs, include_equipment: false, include_class: false };
+        assert_eq!(pet("Cupid", true).campaign_bonus_for(CampaignType::Growth, &cupid_ctx), Some(2.0));
+        assert_eq!(pet("Cupid", false).campaign_bonus_for(CampaignType::Growth, &cupid_ctx), None);
 
         // Beachball → a positive all-campaign bonus from stones.
         assert!(pet("Beachball", false).campaign_bonus_for(CampaignType::Growth, &ctx).unwrap() > 0.0);

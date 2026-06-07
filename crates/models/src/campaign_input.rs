@@ -1,7 +1,8 @@
 //! Player-entered values that the pet export doesn't expose, used by the
-//! formula-based campaign bonuses (Beachball, Unicorn, Bear, Ant Queen, Cupid's
-//! couples, Aether, Earth Eater, Goblin, and Stone/Golem). Persisted in the app
-//! state and passed to the planner via `CampaignContext`.
+//! formula-based campaign bonuses (Beachball, Unicorn, Bear, Ant Queen, Aether,
+//! Earth Eater, Goblin, and Stone/Golem). Persisted in the app state and passed
+//! to the planner via `CampaignContext`. (Cupid's couple bonus is derived from
+//! the export's `has_partner`, so it needs no input here.)
 
 use serde::{Deserialize, Serialize};
 
@@ -22,8 +23,6 @@ pub struct CampaignInputs {
     pub honey: u64,
     /// Ants held — Ant Queen.
     pub ants: u64,
-    /// Cupid's "current couples" count (token-improved Cupid only).
-    pub couples: u32,
     /// Delirious Essence of the Forgotten fights completed — Aether.
     pub delirious_essence_fights: u32,
     /// Earthlike Planets fed to Earth Eater across *all* rebirths — drives its
