@@ -1192,14 +1192,26 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
         // Earth Eater's total accepts engineering/scientific notation (32.4e6),
         // so it's a parsed text field rather than a DragValue. Placed after the
         // `ci` rows so its borrow of `state` doesn't overlap theirs.
+        // Invalid (non-empty, unparseable) text would silently read as 0, so flag
+        // it. Computed before the TextEdit borrows the string mutably.
+        let ee_invalid = {
+            let t = state.earth_eater_planets_text.trim();
+            !t.is_empty() && parse_flexible_number(t).is_none()
+        };
         ui.horizontal(|ui| {
             ui.label(RichText::new("Earth Eater planets (total):").color(style::TEXT_MUTED).size(12.0));
-            ui.add(
-                egui::TextEdit::singleline(&mut state.earth_eater_planets_text)
-                    .desired_width(80.0)
-                    .hint_text("e.g. 32.4e6"),
-            );
-            ui.label(RichText::new("→ Earth Eater (token-improved)").color(style::TEXT_MUTED).size(10.0));
+            let mut edit = egui::TextEdit::singleline(&mut state.earth_eater_planets_text)
+                .desired_width(80.0)
+                .hint_text("e.g. 32.4e6");
+            if ee_invalid {
+                edit = edit.text_color(style::WARNING);
+            }
+            ui.add(edit);
+            if ee_invalid {
+                ui.label(RichText::new("✗ can't parse").color(style::WARNING).size(10.0));
+            } else {
+                ui.label(RichText::new("→ Earth Eater (token-improved)").color(style::TEXT_MUTED).size(10.0));
+            }
         });
     });
 }
