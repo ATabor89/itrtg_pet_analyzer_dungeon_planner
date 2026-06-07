@@ -34,6 +34,12 @@ pub struct CampaignPet {
     /// This pet's bonus to *this* campaign, as a percent (e.g. `+82.0`); applied
     /// as the multiplier `(1 + pct/100)`.
     pub campaign_bonus_pct: f32,
+    /// Pendant + Moai growth **per hour** for this pet (0 if none). It accrues
+    /// *during* the run, and the game computes the campaign from growth **at
+    /// completion** — so for the Growth campaign this can flip which pet is the
+    /// (lowest-growth) recipient. Moai are equal for everyone and don't change
+    /// the order; a pendant on the lowest pet can.
+    pub passive_per_hour: f64,
 }
 
 /// Campaign-agnostic parameters shared by every formula.
@@ -105,15 +111,30 @@ fn all_have_stats(team: &[CampaignPet]) -> bool {
 
 /// Growth: each pet *except the weakest* contributes `(log15(growth) − 1.75)`,
 /// and the sum raises the weakest pet's growth.
+///
+/// Growth is measured **at completion**: pendant + Moai (`passive_per_hour`)
+/// accrue over the run first, then the lowest-growth pet is the recipient and
+/// the rest contribute from their end-of-run growth. A pendant on the
+/// start-of-run lowest pet can lift it past a neighbour, making *it* a
+/// contributor and the neighbour the recipient — a real edge case when rushing a
+/// new pet up toward the chamber. This returns `{total, recipient}` only; the
+/// caller is responsible for depositing `total` into the recipient and applying
+/// each pet's passive growth (the chamber does both).
 fn growth_campaign(team: &[CampaignPet], p: &CampaignParams) -> CampaignOutcome {
+    let hours = p.hours.clamp(1, 12) as f64;
+    let end_growth = |pet: &CampaignPet| pet.growth as f64 + pet.passive_per_hour * hours;
     let recipient = (0..team.len())
-        .min_by_key(|&i| team[i].growth)
+        .min_by(|&a, &b| {
+            end_growth(&team[a])
+                .partial_cmp(&end_growth(&team[b]))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .expect("non-empty team");
     let total: f64 = team
         .iter()
         .enumerate()
         .filter(|(i, _)| *i != recipient)
-        .map(|(_, pet)| (log_base(pet.growth as f64, 15.0) - 1.75).max(0.0) * pet_factor(pet, p))
+        .map(|(_, pet)| (log_base(end_growth(pet), 15.0) - 1.75).max(0.0) * pet_factor(pet, p))
         .sum();
     CampaignOutcome::Growth { total, recipient }
 }
@@ -279,20 +300,25 @@ pub fn simulate_growth_chamber(
                 growth: p.growth as u64,
                 stats: None,
                 campaign_bonus_pct: p.campaign_bonus_pct,
+                passive_per_hour: p.passive_per_hour,
             })
             .collect();
         let params = CampaignParams { upc_pct, hours, unlocked_pets: pets.len(), div_per_sec: None };
 
+        // `simulate` picks the recipient + contributions from end-of-run growth
+        // (it factors in `passive_per_hour`); we then realise those growth
+        // changes: passive into every pet, plus the campaign total into the
+        // recipient. Recipient ends at start + passive·hours + total — consistent
+        // with the end-of-run growth `simulate` used to choose it.
         let (total, recipient) = match simulate(CampaignType::Growth, &team, &params) {
             CampaignOutcome::Growth { total, recipient } => (total, recipient),
             _ => unreachable!("Growth campaign always yields a Growth outcome"),
         };
 
-        pets[recipient].growth += total;
-        // Pendant + Moai tick once per campaign-hour, for every pet that has them.
         for pet in pets.iter_mut() {
             pet.growth += pet.passive_per_hour * hours as f64;
         }
+        pets[recipient].growth += total;
         trace.push(ChamberCycle { recipient, campaign_growth: total });
 
         // Record any targeted pet that crossed its target this cycle (by index).
@@ -328,7 +354,7 @@ mod tests {
     use super::*;
 
     fn pet(name: &str, growth: u64, bonus: f32) -> CampaignPet {
-        CampaignPet { name: name.into(), growth, stats: None, campaign_bonus_pct: bonus }
+        CampaignPet { name: name.into(), growth, stats: None, campaign_bonus_pct: bonus, passive_per_hour: 0.0 }
     }
 
     fn params(hours: u32) -> CampaignParams {
@@ -347,6 +373,25 @@ mod tests {
         // Only A and C contribute: (log15(g) - 1.75) each, hours=1, no bonuses.
         let expected = (log_base(100_000.0, 15.0) - 1.75) + (log_base(200_000.0, 15.0) - 1.75);
         assert!((total - expected).abs() < 1e-9, "got {total}, want {expected}");
+    }
+
+    #[test]
+    fn growth_recipient_uses_end_of_run_growth_so_a_pendant_can_flip_it() {
+        // A starts lowest (1000) but carries a pendant (+200/hr); over 12h it
+        // reaches 1000 + 2400 = 3400, overtaking B (1100). So B becomes the
+        // recipient and A contributes — the edge case from rushing a new pet.
+        let mut a = pet("A", 1_000, 0.0);
+        a.passive_per_hour = 200.0;
+        let b = pet("B", 1_100, 0.0); // no pendant
+        let p = params(12);
+        let CampaignOutcome::Growth { total, recipient } = simulate(CampaignType::Growth, &[a, b], &p)
+        else {
+            panic!("expected Growth outcome");
+        };
+        assert_eq!(recipient, 1, "B should be the recipient at completion");
+        // A contributes from its end-of-run growth (3400), not its start (1000).
+        let expected = (log_base(3_400.0, 15.0) - 1.75) * 12.0;
+        assert!((total - expected).abs() < 1e-6, "got {total}, want {expected}");
     }
 
     #[test]
