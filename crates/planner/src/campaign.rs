@@ -81,9 +81,9 @@ pub fn simulate(kind: CampaignType, team: &[CampaignPet], params: &CampaignParam
         CampaignType::Multiplier => CampaignOutcome::Reward(rebirth_multiplier(team, params)),
         CampaignType::Divinity => divinity_campaign(team, params),
         CampaignType::Item => stat_term_sum(team, params, |_g, s| item_tier(s)),
-        CampaignType::Level => {
-            stat_term_sum(team, params, |g, s| log_base(g, 10.0).powi(3) * 1.9 + s.powf(0.22) * 3.0)
-        }
+        CampaignType::Level => stat_term_sum(team, params, |g, s| {
+            (log_base(g, 10.0).powi(3) * 1.9 + s.powf(0.22) * 3.0).max(0.0)
+        }),
         CampaignType::GodPower => god_power_campaign(team, params),
     }
 }
@@ -263,10 +263,15 @@ pub fn simulate_growth_chamber(
     let hours = hours.clamp(1, 12);
     let targeted = pets.iter().filter(|p| p.target.is_some()).count();
     let mut reached: Vec<(String, u32)> = Vec::new();
+    // Per-pet "already reached" flags, keyed by index (not name — pets can share
+    // a name, which would otherwise break the stop condition).
+    let mut done = vec![false; pets.len()];
     let mut trace: Vec<ChamberCycle> = Vec::new();
 
     for cycle in 0..max_cycles {
-        // Reuse the Growth campaign on the chamber's current state.
+        // Reuse the Growth campaign on the chamber's current state. Growth is an
+        // integer in-game, so the f64 chamber value truncates to u64 here for the
+        // log term — lossy by design, negligible at real growth magnitudes.
         let team: Vec<CampaignPet> = pets
             .iter()
             .map(|p| CampaignPet {
@@ -290,13 +295,14 @@ pub fn simulate_growth_chamber(
         }
         trace.push(ChamberCycle { recipient, campaign_growth: total });
 
-        // Record any targeted pet that crossed its target this cycle.
-        for pet in pets.iter() {
-            if let Some(t) = pet.target
-                && pet.growth >= t
-                && !reached.iter().any(|(n, _)| *n == pet.name)
+        // Record any targeted pet that crossed its target this cycle (by index).
+        for i in 0..pets.len() {
+            if !done[i]
+                && let Some(t) = pets[i].target
+                && pets[i].growth >= t
             {
-                reached.push((pet.name.clone(), cycle + 1));
+                done[i] = true;
+                reached.push((pets[i].name.clone(), cycle + 1));
             }
         }
         if targeted > 0 && reached.len() == targeted {
@@ -462,6 +468,20 @@ mod tests {
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4);
         let recipients: Vec<usize> = result.trace.iter().map(|c| c.recipient).collect();
         assert_eq!(recipients, vec![0, 1, 0, 1]); // alternating
+    }
+
+    #[test]
+    fn chamber_handles_duplicate_targeted_names() {
+        // Two targeted pets that share a name must both be recorded (dedup is by
+        // index, not name) so the stop condition can fire.
+        let mut pets = vec![
+            ChamberPet { name: "Feeder".into(), growth: 500_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None },
+            ChamberPet { name: "Dup".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, target: Some(2_000.0) },
+            ChamberPet { name: "Dup".into(), growth: 1_500.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, target: Some(2_000.0) },
+        ];
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000);
+        assert_eq!(result.reached.len(), 2); // both, despite the shared name
+        assert!(result.cycles < 1000); // stopped early, didn't spin to the cap
     }
 
     #[test]
