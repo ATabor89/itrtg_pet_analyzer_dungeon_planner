@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use eframe::egui::{self, Color32, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::{
-    parse_flexible_number, CampaignInputs, CampaignType, Class, Dungeon, Element,
+    parse_flexible_number, CampaignInputs, CampaignType, Class, Dungeon, Element, MainStats,
     MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass, UnlockCondition, VillageJob,
 };
 use itrtg_planner::growth::{format_duration, CapRelation, GrowthRates};
@@ -341,11 +341,66 @@ impl AnalyzerState {
         self.campaign_inputs = src.campaign_inputs.clone();
         self.include_equipment_bonus = src.include_equipment_bonus;
         self.include_class_bonus = src.include_class_bonus;
+        self.earth_eater_planets_text = src.earth_eater_planets_text.clone();
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
     pub fn write_into(&self, state: &mut AppState) {
         state.analyzer = self.clone();
+    }
+
+    /// Auto-fill campaign inputs (and the Moai statues) from a parsed Main-stats
+    /// export. Returns short labels for the fields that were filled (for a status
+    /// message). Only values present in the export are applied; the rest are left
+    /// untouched, so importing never clears a field the export didn't carry.
+    pub fn apply_main_stats(&mut self, ms: &MainStats) -> Vec<&'static str> {
+        let ci = &mut self.campaign_inputs;
+        let mut applied = Vec::new();
+        if let Some(v) = ms.pet_stones {
+            ci.pet_stones = v;
+            applied.push("pet stones");
+        }
+        if let Some(v) = ms.ants {
+            ci.ants = v;
+            applied.push("ants");
+        }
+        if let Some(v) = ms.honey_consumed_by_bear {
+            ci.honey = v;
+            applied.push("Bear honey");
+        }
+        if let Some(v) = ms.challenge_points {
+            ci.challenge_points = v;
+            applied.push("challenge points");
+        }
+        if let Some(v) = ms.goblin_ucc {
+            ci.goblin_ucc = v;
+            applied.push("Goblin UCC");
+        }
+        if let Some(v) = ms.goblin_oc {
+            ci.goblin_oc = v;
+            applied.push("Goblin OC");
+        }
+        if let Some(v) = ms.stone_campaign_upgrade {
+            ci.stone_campaign_upgrade = v;
+            applied.push("Stone upgrade");
+        }
+        // Only adopt the raw string if it actually parses, so a malformed export
+        // can't overwrite the field with something that reads back as 0.
+        if let Some(text) = &ms.earth_eater_planets_text
+            && parse_flexible_number(text).is_some()
+        {
+            self.earth_eater_planets_text = text.clone();
+            applied.push("Earth Eater planets");
+        }
+        // Base growth/hour of exactly 2 ⇒ both Moai owned at level 20 (unambiguous).
+        if ms.base_growth_per_hour == Some(2) {
+            self.moai = [
+                MoaiStatue { owned: true, level: 20 },
+                MoaiStatue { owned: true, level: 20 },
+            ];
+            applied.push("Moai (both, L20)");
+        }
+        applied
     }
 }
 
@@ -1175,19 +1230,19 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
                 });
             };
         }
-        row!("Pet stones (held):", &mut ci.pet_stones, "→ Beachball");
-        row!("Stones given to Beachball:", &mut ci.beachball_given_stones, "→ Beachball");
-        row!("Challenge points:", &mut ci.challenge_points, "→ Unicorn");
-        row!("Honey given:", &mut ci.honey, "→ Bear");
-        row!("Ants:", &mut ci.ants, "→ Ant Queen");
-        row!("Current couples:", &mut ci.couples, "→ Cupid (token-improved)");
-        row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "→ Aether");
-        row!("UCCs completed:", &mut ci.goblin_ucc, "→ Goblin (cap 75)");
-        row!("Overflow Challenges:", &mut ci.goblin_oc, "→ Goblin evo (cap 470)");
+        row!("Pet stones (held):", &mut ci.pet_stones, "⭢ Beachball");
+        row!("Stones given to Beachball:", &mut ci.beachball_given_stones, "⭢ Beachball");
+        row!("Challenge points:", &mut ci.challenge_points, "⭢ Unicorn");
+        row!("Honey given:", &mut ci.honey, "⭢ Bear");
+        row!("Ants:", &mut ci.ants, "⭢ Ant Queen");
+        row!("Current couples:", &mut ci.couples, "⭢ Cupid (token-improved)");
+        row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "⭢ Aether");
+        row!("UCCs completed:", &mut ci.goblin_ucc, "⭢ Goblin (cap 75)");
+        row!("Overflow Challenges:", &mut ci.goblin_oc, "⭢ Goblin evo (cap 470)");
         ui.horizontal(|ui| {
             ui.checkbox(&mut ci.stone_campaign_upgrade, "");
             ui.label(RichText::new("Stone +100% campaign upgrade bought").color(style::TEXT_MUTED).size(12.0));
-            ui.label(RichText::new("→ Stone/Golem").color(style::TEXT_MUTED).size(10.0));
+            ui.label(RichText::new("⭢ Stone/Golem").color(style::TEXT_MUTED).size(10.0));
         });
         // Earth Eater's total accepts engineering/scientific notation (32.4e6),
         // so it's a parsed text field rather than a DragValue. Placed after the
@@ -1224,7 +1279,7 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
                         .size(10.0),
                 );
             } else {
-                ui.label(RichText::new("→ Earth Eater (token-improved)").color(style::TEXT_MUTED).size(10.0));
+                ui.label(RichText::new("⭢ Earth Eater (token-improved)").color(style::TEXT_MUTED).size(10.0));
             }
         });
         state.campaign_inputs.earth_eater_show_lifetime = !ee_lock;
@@ -2183,4 +2238,56 @@ fn format_number(n: u64) -> String {
         result.push(ch);
     }
     result.chars().rev().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_main_stats_fills_present_fields_only() {
+        let mut st = AnalyzerState::default();
+        st.campaign_inputs.pet_stones = 999; // should be overwritten
+        let ms = MainStats {
+            pet_stones: Some(250_882),
+            ants: Some(187_331),
+            honey_consumed_by_bear: Some(5),
+            challenge_points: Some(721),
+            goblin_ucc: Some(3),
+            goblin_oc: Some(4),
+            stone_campaign_upgrade: Some(true),
+            earth_eater_planets_text: Some("7.142 E+6".to_string()),
+            base_growth_per_hour: Some(2),
+        };
+        let applied = st.apply_main_stats(&ms);
+        assert_eq!(applied.len(), 9);
+        assert_eq!(st.campaign_inputs.pet_stones, 250_882);
+        assert_eq!(st.campaign_inputs.ants, 187_331);
+        assert_eq!(st.campaign_inputs.honey, 5);
+        assert_eq!(st.campaign_inputs.challenge_points, 721);
+        assert_eq!(st.campaign_inputs.goblin_ucc, 3);
+        assert_eq!(st.campaign_inputs.goblin_oc, 4);
+        assert!(st.campaign_inputs.stone_campaign_upgrade);
+        assert_eq!(st.earth_eater_planets_text, "7.142 E+6");
+        assert!(st.moai.iter().all(|m| m.owned && m.level == 20));
+    }
+
+    #[test]
+    fn apply_main_stats_leaves_absent_fields_untouched() {
+        let mut st = AnalyzerState::default();
+        st.campaign_inputs.ants = 42;
+        let applied = st.apply_main_stats(&MainStats::default());
+        assert!(applied.is_empty());
+        assert_eq!(st.campaign_inputs.ants, 42); // not clobbered
+        assert!(st.moai.iter().all(|m| !m.owned)); // default Moai untouched
+    }
+
+    #[test]
+    fn moai_only_inferred_when_base_growth_is_exactly_two() {
+        let mut st = AnalyzerState::default();
+        st.apply_main_stats(&MainStats { base_growth_per_hour: Some(1), ..Default::default() });
+        assert!(st.moai.iter().all(|m| !m.owned)); // 1 ≠ 2 → leave Moai alone
+        st.apply_main_stats(&MainStats { base_growth_per_hour: Some(2), ..Default::default() });
+        assert!(st.moai.iter().all(|m| m.owned && m.level == 20));
+    }
 }
