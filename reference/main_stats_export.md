@@ -31,14 +31,14 @@ These map straight onto existing `CampaignInputs` fields:
 | `Earth Eater Earthlike planets eaten: 7.142 E+6` | `earth_eater_total_planets` | Earth Eater |
 | `Overflow Challenges: 0 / 9,999` | `goblin_oc` | Goblin (evo) |
 | `Ultimate Challenge Challenges: 0 / 67` | `goblin_ucc` | Goblin (campaign) |
+| `Chp Stone Pet improvement: False` | `stone_campaign_upgrade` (bool) | Stone/Golem |
 
 ⚠️ **Two different "honeys."** `Honey consumed by Bear` is the **Bear** input.
 The separate bottom-of-list `Honey: 765` is **Bee's** crafting stat (§3) — do not
 confuse them.
 
 **Not in this export (keep manual):** `beachball_given_stones` (Beachball
-mouseover only), `couples` (Cupid), `delirious_essence_fights` (Aether Ring),
-`stone_campaign_upgrade` (a Challenge-Point purchase, not surfaced as such here).
+mouseover only), `couples` (Cupid), `delirious_essence_fights` (Aether Ring).
 
 **Cap note:** Goblin's UCC bonus caps at 75 in our formula, but the challenge
 itself shows `/ 67` max here — reconcile when wiring (maybe more unlock later).
@@ -84,7 +84,8 @@ beyond campaigns. Logged so the importer knows what's here.
 | `Crystals for Dwarf: 0` | Dwarf | 3rd evo req (100× lvl-13 crystals — the game's most expensive req, usually token-skipped). Also feeds his crafting bonus. |
 | `T3/T4/T5 gear bonus for Elf: 133/23/0 (max 2000 count)` | Elf | Crafting **speed + quality**: `0.1%/0.2%/0.3%` per T3/T4/T5 item, **additive with her Blacksmith class bonus**, capped at **2000** pieces total. (Matches her in-game 17.9% vs 10% evo threshold.) |
 | `Acorns: 24,157` | Squirrel | Loot. Token-improved, he finds acorns in dungeons; drop-bonus multiplier `Acorns^0.4 / 10` (%). |
-| `Honey: 765` | **Bee** | Crafting-speed multiplier `1 + (total_honey^0.5)/100`, capped at **4×**. (Full crafting speed also needs his equipment + class.) |
+| `Honey: 765` | **Bee** | **Current honey held** (just an inventory count — *not* "consumed by Bear"). Feeds Bee's crafting-speed multiplier `1 + (honey^0.5)/100`, capped at **4×**. (Full crafting speed also needs his equipment + class. ⚠️ confirm whether Bee uses *held* or *lifetime* honey.) |
+| `Ants: 187,331` *(also)* | **Anteater** | If Blacksmith, crafting **speed + quality** rise by `(ants_found / 50,000)%` — **additive**, *not* multiplicative with other bonuses. The *additional* boost **halves after 1M** ants and is raised to **^0.28 after 100M**. (Sample: `187,331 / 50,000 = 3.75%`, matching the in-game tip.) ⚠️ The export's `Ants` is the **found** count (matches Anteater's tip); confirm it's the same quantity Ant Queen's "held" input wants. |
 | `Vampire Blood Potions consumed: 0` | Vampire | Growth mechanic — see §4. |
 | `Chocobear hours: 4,734` | Chocobear | Drives his **campaign bonus** (hours-based) — see `campaign_bonus_design.md`. |
 | `Caterpillar materials upgraded: 2,835` | Caterpillar | **2nd evolution**: at **40,000** materials upgraded he evolves cocoon → butterfly. |
@@ -104,6 +105,11 @@ multi-criteria:
 - **Caterpillar** — 2nd evo at **40,000** `Caterpillar materials upgraded`.
 - **Dwarf** — 3rd req is **100 lvl-13 crystals** (`Crystals for Dwarf`); brutal,
   usually token-skipped.
+- **Anteater** — has an **ant-count** evolution requirement (`Ants`, the found
+  count).
+- **Pandora's Box** — 3rd req: **defeat P. Baal v66 in a Day Baal Challenge**, and
+  it **cannot be token-skipped**. ⚠️ **Not extractable** — there's no "highest god
+  in Day Baal Challenge" line in this export, so this stays a **user-only input**.
 - **Vampire** — needs **1,000 Monster Blood**, earned by landing the **killing
   blow** in dungeons. ⚠️ **Monster Blood is *not* in this export** — only
   `Vampire Blood Potions consumed` is, which is a *different* thing (§ below).
@@ -135,7 +141,11 @@ The `Challenges` section lists `completed / max` per challenge family. Relevant:
 - `Ultimate Challenge Challenges: 0 / 67` → **Goblin** campaign (`goblin_ucc`).
 - Many others (Monument Multi, Pet Level, Double Rebirth, …) may matter for future
   pet mechanics or global multipliers; not needed yet.
-- `Day Pet Challenge highest multi: 3.664 E+9` — meaning TBD.
+- `Day Pet Challenge highest multi: 3.664 E+9` — a multiplier to **how much
+  growth food gives your pets**. We don't model growth-from-food, so it's not
+  critical — but if the growth-chamber sim ever tracks **feedings** (for Pandora's
+  Box's bonus and Chocobear's hour-bank), this is where the food-growth payoff
+  would factor in. Park it.
 
 ---
 
@@ -153,9 +163,8 @@ The `Challenges` section lists `completed / max` per challenge family. Relevant:
   input (or awaits the save parse).
 - **Dojo** is all `0%` here and gated behind CL 50 (player's top CL ≈ 28–29), so
   it's a non-factor now; revisit when relevant.
-- `Chp Stone Pet improvement: False` is a visible Challenge-perk flag — noted, but
-  its exact effect / mapping is unconfirmed (it is **not** the Stone/Golem 1500-CP
-  campaign upgrade).
+- `Chp Stone Pet improvement: False` **is** the **Stone/Golem** 1500-CP campaign
+  upgrade (≈confirmed) — auto-fill `stone_campaign_upgrade` from it (§1).
 - **Still blocked:** pet **normal level / stats** — not in this export. Full
   **save-file** parse remains the path for the stat-dependent campaigns.
 

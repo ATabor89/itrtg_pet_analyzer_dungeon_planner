@@ -316,34 +316,50 @@ For each simulated campaign run (length `hours`, the integer 1–12):
      recipient effectively loses that 10%); post-token gives an *extra* 5% to the
      weakest on top, free (§5). In a chamber, Bag's recipient and the campaign's
      recipient are the same pet (both "lowest growth").
-4. **Add** the resulting growth to the recipient; if **pendant + Moai** apply,
-   add that passive growth accrued over the `hours` window too (to the
-   pendant-bearer / all pets as appropriate — passive growth runs concurrently
-   with the campaign's wall-clock).
+   - **Catch:** Pandora's Box's bonus and Bag's steal/gift **still fire even when
+     Pandora/Bag is itself the recipient** that cycle. (They don't contribute a
+     growth *term* as the recipient — but their special mechanic always applies.)
+4. **Add** the resulting growth to the recipient. **Pendant + Moai tick once per
+   hour**: a pet gets exactly one tick for each campaign-hour, regardless of when
+   in the hour it lands (0h50m, 1h50m, …, so a 12 h run = **12 ticks**). Add that
+   passive growth to whichever pets carry a pendant / benefit from Moai (e.g. a
+   pendant on the pet being rushed).
 5. **Re-sort** the chamber and repeat until each tracked pet hits its target.
 
 ### Inputs / configuration
 
-- Chamber membership (≤10 pets; new-pet swap-in).
+- **Chamber membership (≤10 pets), saved** like the dungeon force/forbid pet
+  constraints — add/remove pets; persist the roster. (UI shape TBD.)
 - **Campaign length** (integer 1–12 h) — configurable; the player usually runs 12.
 - Per-pet **pendant + Moai** assignment (e.g. pendant on the pet being rushed).
 - **Target** per tracked pet: evolve threshold (with/without the egg's `/1.3`
   discount, reusing the existing evo logic) or an arbitrary growth value.
 - `UPC` and each pet's `pet_growth_multi` (from `campaign_bonuses`).
 
+### "Who do I swap out?" — ranked recommendation
+
+When the player wants to rush a new pet, suggest which resident to drop. **Raw
+lowest-growth is a poor proxy:** in a settled chamber every member sits within
+~one-run's-growth of the others, so the bigger differentiator is the pet's
+**bonus**. Rank by **effective contribution** — combine growth *and*
+`pet_growth_multi` — so a pet with slightly lower growth but a larger innate bonus
+ranks as *stronger* (keep it) than a higher-growth pet with a weak bonus. Present
+a ranked list, not just the single minimum.
+
 ### Outputs
 
 - **Cycles to target** per tracked pet, and total wall-clock (`cycles · hours`).
 - A **per-cycle growth trace** and a **before/after** roster snapshot.
 
-### Open modelling questions
+### Resolved / confirmed (was "open questions")
 
-- Confirm the recipient gets the **full summed** contribution (vs. any per-pet
-  cap or diminishing return).
-- How pendant/Moai growth interleaves with a multi-hour campaign run (assume it
-  accrues over the same wall-clock — verify).
-- Whether a rushed new pet's own (tiny) contribution is simply ignored while it's
-  the recipient (it is, since the recipient never contributes).
+- ✔ The recipient gets the **full summed** contribution (plus Pandora's % etc.) —
+  no per-pet cap or diminishing return. Only Bag's steal removes from it.
+- ✔ **Pendant/Moai = one tick per campaign-hour** (model above); no need to model
+  sub-hour timing.
+- ✔ A rushed new pet contributes **nothing** while it's the recipient (the
+  recipient never contributes) — exactly the point.
+- ✔ Pandora's Box / Bag special mechanics fire **even as the recipient** (step 3).
 
 ---
 
