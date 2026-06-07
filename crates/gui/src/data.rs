@@ -5,7 +5,7 @@ use itrtg_models::dungeon::{
     DungeonRecommendations, DungeonRecommendationsFile, EquipmentCatalog,
 };
 use itrtg_models::planner_config::{PetSpecialInfo, PlannerConfig, PlannerConfigFile};
-use itrtg_models::{CampaignOverrides, ExportPet, WikiPet};
+use itrtg_models::{parse_main_stats, CampaignOverrides, ExportPet, MainStats, WikiPet};
 use itrtg_planner::merge::{self, MergedPet};
 
 use crate::platform;
@@ -35,6 +35,11 @@ pub struct DataStore {
     /// Status message for imports.
     pub import_status: Option<(String, bool)>, // (message, is_error)
 
+    /// A parsed Main-stats export awaiting application. The app applies it to the
+    /// `AnalyzerState` (which `DataStore` doesn't own) on the next frame, then
+    /// clears it. Set by `import_main_stats`.
+    pub pending_main_stats: Option<MainStats>,
+
     /// Incremented every time merged data changes. Used by views to detect stale data.
     pub data_version: u64,
 }
@@ -53,6 +58,7 @@ impl DataStore {
             wiki_error: None,
             clipboard_rx: None,
             import_status: None,
+            pending_main_stats: None,
             data_version: 0,
         }
     }
@@ -157,6 +163,34 @@ impl DataStore {
         }
     }
 
+    /// Dispatch an arbitrary pasted/dropped export to the right importer by
+    /// sniffing its header: the pet export starts with `Name;`, the Main-stats
+    /// export with `Idling to Rule the Gods`.
+    pub fn import_any(&mut self, source: &str) {
+        let head = source.trim_start();
+        if head.starts_with("Name;") {
+            self.import_export(source);
+        } else if head.starts_with("Idling to Rule the Gods") {
+            self.import_main_stats(source);
+        } else {
+            self.import_status = Some((
+                "Unrecognized export (a pet export starts with \"Name;\"; a main-stats \
+                 export starts with \"Idling to Rule the Gods\")"
+                    .to_string(),
+                true,
+            ));
+        }
+    }
+
+    /// Parse a Main-stats export and stash it for the app to apply to the
+    /// analyzer state next frame (this store doesn't own that state).
+    pub fn import_main_stats(&mut self, source: &str) {
+        match parse_main_stats(source) {
+            Ok(ms) => self.pending_main_stats = Some(ms),
+            Err(e) => self.import_status = Some((format!("Main-stats import error: {e}"), true)),
+        }
+    }
+
     /// Import pet export data from a string (clipboard or file contents).
     pub fn import_export(&mut self, source: &str) {
         match pet_importer::parser::parse_export(source) {
@@ -181,17 +215,7 @@ impl DataStore {
         {
             match arboard::Clipboard::new() {
                 Ok(mut clipboard) => match clipboard.get_text() {
-                    Ok(text) => {
-                        if text.starts_with("Name;") {
-                            self.import_export(&text);
-                        } else {
-                            self.import_status = Some((
-                                "Clipboard doesn't contain a pet export (expected \"Name;\" header)"
-                                    .to_string(),
-                                true,
-                            ));
-                        }
-                    }
+                    Ok(text) => self.import_any(&text),
                     Err(e) => {
                         self.import_status =
                             Some((format!("Clipboard read error: {e}"), true));
@@ -238,17 +262,7 @@ impl DataStore {
         {
             self.clipboard_rx = None;
             match result {
-                Ok(text) => {
-                    if text.starts_with("Name;") {
-                        self.import_export(&text);
-                    } else {
-                        self.import_status = Some((
-                            "Clipboard doesn't contain a pet export (expected \"Name;\" header)"
-                                .to_string(),
-                            true,
-                        ));
-                    }
-                }
+                Ok(text) => self.import_any(&text),
                 Err(e) => {
                     self.import_status = Some((format!("Clipboard error: {e}"), true));
                 }

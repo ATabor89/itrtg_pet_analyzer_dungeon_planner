@@ -652,7 +652,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 None => "Any",
                 Some(d) => dungeon_label(d),
             };
-            ui.label(RichText::new("→").color(style::TEXT_MUTED).size(11.0));
+            ui.label(RichText::new("⭢").color(style::TEXT_MUTED).size(11.0));
             egui::ComboBox::from_id_salt("constraint_dungeon")
                 .selected_text(force_label)
                 .width(110.0)
@@ -738,7 +738,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                             None => "Any",
                         };
                         let btn = egui::Button::new(
-                            RichText::new(format!("{name} → {target} ×")).color(c).size(11.0),
+                            RichText::new(format!("{name} ⭢ {target} ×")).color(c).size(11.0),
                         )
                         .fill(Color32::from_rgba_premultiplied(0x15, 0x30, 0x15, pill_alpha));
                         if ui.add(btn).clicked() {
@@ -1694,7 +1694,7 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
                 ui.label(RichText::new("|").color(style::TEXT_MUTED).size(12.0));
             }
             ui.label(
-                RichText::new(format!("D{depth} → {max_diff}"))
+                RichText::new(format!("D{depth} ⭢ {max_diff}"))
                     .color(diff_color)
                     .size(12.0),
             );
@@ -1913,7 +1913,7 @@ fn show_shopping_list(ui: &mut Ui, plans: &[DungeonPlan], data: &DataStore) {
         );
         for (name, class) in &pets_to_evolve {
             ui.label(
-                RichText::new(format!("  • {name} → {class}"))
+                RichText::new(format!("  • {name} ⭢ {class}"))
                     .color(style::TEXT_NORMAL)
                     .size(11.0),
             );

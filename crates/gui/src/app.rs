@@ -101,6 +101,18 @@ impl eframe::App for App {
         self.data.poll_wiki();
         self.data.poll_clipboard();
 
+        // Apply a freshly-imported Main-stats export to the analyzer state (the
+        // data store can't reach it). Done here so it covers both the synchronous
+        // (native) and async (WASM) clipboard paths uniformly.
+        if let Some(ms) = self.data.pending_main_stats.take() {
+            let applied = self.analyzer_state.apply_main_stats(&ms);
+            self.data.import_status = Some(if applied.is_empty() {
+                ("Main stats imported, but no fields to fill".to_string(), false)
+            } else {
+                (format!("Main stats imported ⭢ {}", applied.join(", ")), false)
+            });
+        }
+
         // Persist any user-visible state changes from the previous frame.
         self.auto_save_app_state();
 
@@ -145,6 +157,8 @@ impl eframe::App for App {
                         self.tab = Tab::DungeonLog;
                     } else if text.starts_with("Name;") {
                         self.data.import_export(&text);
+                    } else if text.starts_with("Idling to Rule the Gods") {
+                        self.data.import_main_stats(&text);
                     } else if text.contains("{| class=\"wikitable") || text.contains("[[Mouse]]") {
                         match wiki_extractor::parser::parse_pets(&text) {
                             Ok(pets) => {
@@ -259,6 +273,7 @@ impl eframe::App for App {
 
                     if ui
                         .button(RichText::new("\u{1F4CB} Import Clipboard").size(12.0))
+                        .on_hover_text("Auto-detects a pet export or a Main-stats export")
                         .clicked()
                     {
                         self.data.import_from_clipboard();
@@ -286,14 +301,15 @@ impl eframe::App for App {
 
         // Import dialog window
         if self.show_import_dialog {
-            egui::Window::new("Import Pet Export")
+            egui::Window::new("Import Export")
                 .collapsible(false)
                 .resizable(true)
                 .default_size([500.0, 300.0])
                 .show(ctx, |ui| {
                     ui.label(
                         RichText::new(
-                            "Paste your pet stats export below (semicolon-delimited):",
+                            "Paste a pet export (semicolon-delimited) or a Main-stats export \
+                             below — the format is auto-detected:",
                         )
                         .color(style::TEXT_MUTED),
                     );
@@ -309,7 +325,7 @@ impl eframe::App for App {
                         });
                     ui.horizontal(|ui| {
                         if ui.button("Import").clicked() && !self.import_text.is_empty() {
-                            self.data.import_export(&self.import_text);
+                            self.data.import_any(&self.import_text);
                             self.import_text.clear();
                             self.show_import_dialog = false;
                         }
