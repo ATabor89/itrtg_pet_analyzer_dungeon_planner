@@ -384,7 +384,11 @@ impl AnalyzerState {
             ci.stone_campaign_upgrade = v;
             applied.push("Stone upgrade");
         }
-        if let Some(text) = &ms.earth_eater_planets_text {
+        // Only adopt the raw string if it actually parses, so a malformed export
+        // can't overwrite the field with something that reads back as 0.
+        if let Some(text) = &ms.earth_eater_planets_text
+            && parse_flexible_number(text).is_some()
+        {
             self.earth_eater_planets_text = text.clone();
             applied.push("Earth Eater planets");
         }
