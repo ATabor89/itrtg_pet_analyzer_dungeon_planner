@@ -349,7 +349,7 @@ impl MergedPet {
 
         // Optional class layer — Adventurer's campaign bonus, additive to all.
         if ctx.include_class
-            && let Some(bonus) = self.class_campaign_bonus()
+            && let Some(bonus) = self.class_campaign_bonus(ctx)
         {
             for c in CampaignType::ALL {
                 *map.entry(c).or_insert(0.0) += bonus;
@@ -362,13 +362,23 @@ impl MergedPet {
     /// isn't currently an Adventurer. The rate is `(2 + evo)% · CL`, where `evo`
     /// is the pet's Adventurer evo bonus from `ADVENTURER_EVO_BONUS` (0 for most
     /// pets; e.g. Hedgehog +0.58 → 56.76% at CL22).
-    fn class_campaign_bonus(&self) -> Option<f32> {
+    fn class_campaign_bonus(&self, ctx: &CampaignContext) -> Option<f32> {
         let export = self.export.as_ref()?;
         if export.class != Some(Class::Adventurer) {
             return None;
         }
         // Base 2%/CL for any Adventurer, plus the pet's Adventurer evo bonus.
-        let per_level = 2.0 + adventurer_evo_bonus(&self.name) as f64;
+        let mut evo = adventurer_evo_bonus(&self.name) as f64;
+        // Goblin's evo bonus is dynamic: its 0.1 base climbs with Overflow
+        // Challenges — the first 100 add 0.008 each, 101..=470 add 0.001622 each
+        // (an empirical fit; it slightly overshoots, landing at ~1.50014),
+        // reaching the documented full 1.5 at the 470 cap.
+        if self.name == "Goblin" {
+            let oc = ctx.inputs.goblin_oc;
+            evo += (oc.min(100) as f64) * 0.008
+                + (oc.saturating_sub(100).min(370) as f64) * 0.001622;
+        }
+        let per_level = 2.0 + evo;
         Some(round2(per_level * export.class_level as f64))
     }
 
@@ -473,6 +483,57 @@ impl MergedPet {
                     * fights
                     * (1.0 + 0.57 * growth.ln() / 1000_f64.ln());
                 *map.entry(CampaignType::Growth).or_insert(0.0) += round2(growth_bonus);
+            }
+            // Earth Eater: a flat all-campaign bonus that ramps -80% -> +82%.
+            // Each rebirth it's fed up to the +82% cap in ~1.35h, and the token
+            // upgrade only *lowers* the per-rebirth starting penalty (eventually
+            // removing it, locking him at +82%) — so his realistic in-play value
+            // is +82%. We show that by default. Only when the player opts in
+            // (`show_lifetime`) on a token-improved pet with a total entered do we
+            // expose the lower permanent value: -80% + 1% per 200k, cap +82%.
+            "Earth Eater" => {
+                let total = ctx.inputs.earth_eater_total_planets;
+                let v = if ctx.inputs.earth_eater_show_lifetime
+                    && total > 0
+                    && self.export.as_ref().is_some_and(|e| e.improved)
+                {
+                    round2((-80.0 + total as f64 / 200_000.0).clamp(-80.0, 82.0))
+                } else {
+                    82.0
+                };
+                for c in CampaignType::ALL {
+                    map.insert(c, v);
+                }
+            }
+            // Goblin: +1% to every campaign per UCC completed (capped at 75),
+            // stacked on her curated base (-100 growth/item, +150 divinity, +50
+            // others). At the cap that base becomes -25 / +225 / +125. Her
+            // OC-driven evo bonus is handled in `class_campaign_bonus`.
+            "Goblin" => {
+                let ucc = ctx.inputs.goblin_ucc.min(75) as f32;
+                if ucc != 0.0 {
+                    for c in CampaignType::ALL {
+                        *map.entry(c).or_insert(0.0) += ucc;
+                    }
+                }
+            }
+            // Stone/Golem: evolved it's a flat +100% (from the curated override).
+            // Unevolved it ramps with growth: -100% + 20% per 5000 growth, capped
+            // at 0% (25000 growth). The 1500-CP upgrade adds +100% to all
+            // campaigns on top of either state.
+            "Stone/Golem" => {
+                if !self.is_evolved() {
+                    let g = self.export.as_ref().map(|e| e.growth).unwrap_or(0) as f64;
+                    let v = round2((-100.0 + g / 5000.0 * 20.0).clamp(-100.0, 0.0));
+                    for c in CampaignType::ALL {
+                        map.insert(c, v);
+                    }
+                }
+                if ctx.inputs.stone_campaign_upgrade {
+                    for c in CampaignType::ALL {
+                        *map.entry(c).or_insert(0.0) += 100.0;
+                    }
+                }
             }
             // Cupid: token-improved adds +2% per current couple to all campaigns,
             // on top of the curated flat token bonus already applied.
@@ -1171,6 +1232,130 @@ mod tests {
             .filter(|n| !names.contains(n))
             .collect();
         assert!(missing.is_empty(), "unknown pet names: {missing:?}");
+    }
+
+    #[test]
+    fn test_earth_eater_campaign_bonus() {
+        let empty = CampaignOverrides::default();
+        let mk = |improved: bool, total: u64, show_lifetime: bool| {
+            let inputs = CampaignInputs {
+                earth_eater_total_planets: total,
+                earth_eater_show_lifetime: show_lifetime,
+                ..Default::default()
+            };
+            let mut e = make_export_pet("Earth Eater", Element::Earth, None);
+            e.improved = improved;
+            (inputs, MergedPet { name: "Earth Eater".into(), wiki: None, export: Some(e) })
+        };
+        let check = |inputs: &CampaignInputs, pet: &MergedPet, want: f32| {
+            let ctx = CampaignContext { overrides: &empty, roster: &[], inputs, include_equipment: false, include_class: false };
+            // Flat bonus → all campaigns share the value.
+            assert_eq!(pet.campaign_bonus_for(CampaignType::Growth, &ctx), Some(want));
+            assert_eq!(pet.campaign_bonus_for(CampaignType::Item, &ctx), Some(want));
+        };
+        // Default (locked at +82) → always +82, regardless of token/total.
+        let (i, p) = mk(false, 0, false);
+        check(&i, &p, 82.0);
+        let (i, p) = mk(true, 10_000_000, false);
+        check(&i, &p, 82.0); // locked beats the lower permanent value
+        // Opt into the lifetime view: only a token-improved pet with a total set
+        // shows the lower permanent value (+1% per 200k from -80%).
+        let (i, p) = mk(true, 0, true);
+        check(&i, &p, 82.0); // no total entered → still 82
+        let (i, p) = mk(false, 10_000_000, true);
+        check(&i, &p, 82.0); // not token-improved → still 82
+        let (i, p) = mk(true, 100_000, true);
+        check(&i, &p, -79.5); // near the -80 floor (-80 + 0.5)
+        let (i, p) = mk(true, 10_000_000, true);
+        check(&i, &p, -30.0); // -80 + 50
+        let (i, p) = mk(true, 32_400_000, true);
+        check(&i, &p, 82.0); // cap
+        let (i, p) = mk(true, 100_000_000, true);
+        check(&i, &p, 82.0); // past cap, clamped
+    }
+
+    #[test]
+    fn test_goblin_campaign_bonus() {
+        let empty = CampaignOverrides::default();
+        let mut wiki = make_wiki_pet("Goblin", Element::Neutral, RecommendedClass::Wildcard);
+        wiki.campaign_bonus = Some(CampaignBonus {
+            raw: "-100 growth/item, +150 divinity, +50 others".into(),
+            per_campaign: [
+                (CampaignType::Growth, -100.0),
+                (CampaignType::Item, -100.0),
+                (CampaignType::Divinity, 150.0),
+                (CampaignType::Food, 50.0),
+                (CampaignType::Level, 50.0),
+                (CampaignType::Multiplier, 50.0),
+                (CampaignType::GodPower, 50.0),
+            ]
+            .into_iter()
+            .collect(),
+        });
+
+        // UCC adds +1% to every campaign, capped at 75 → base shifts to the
+        // documented -25 / +225 / +125.
+        let inputs = CampaignInputs { goblin_ucc: 200, ..Default::default() };
+        let pet = MergedPet {
+            name: "Goblin".into(),
+            wiki: Some(wiki.clone()),
+            export: Some(make_export_pet("Goblin", Element::Neutral, None)),
+        };
+        let ctx = CampaignContext { overrides: &empty, roster: &[], inputs: &inputs, include_equipment: false, include_class: false };
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Growth, &ctx), Some(-25.0));
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Divinity, &ctx), Some(225.0));
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Food, &ctx), Some(125.0));
+
+        // OC-driven Adventurer evo bonus (class layer). Isolate it with no wiki
+        // base and no UCC: Growth = (2 + evo) · CL only.
+        let evo_pet = |cl: u32| {
+            let mut e = make_export_pet("Goblin", Element::Neutral, Some(Class::Adventurer));
+            e.class_level = cl;
+            MergedPet { name: "Goblin".into(), wiki: None, export: Some(e) }
+        };
+        let class_bonus = |oc: u32, cl: u32| {
+            let inp = CampaignInputs { goblin_oc: oc, ..Default::default() };
+            let ctx = CampaignContext { overrides: &empty, roster: &[], inputs: &inp, include_equipment: false, include_class: true };
+            evo_pet(cl).campaign_bonus_for(CampaignType::Growth, &ctx).unwrap()
+        };
+        assert_eq!(class_bonus(0, 10), 21.0); // (2 + 0.1) · 10
+        assert_eq!(class_bonus(100, 10), 29.0); // 0.1 + 0.8 → 2.9 · 10
+        // 470+ → full evo bonus 1.5 → (3.5) · 10 = 35 (within rounding).
+        let capped = class_bonus(470, 10);
+        assert!((capped - 35.0).abs() < 0.02, "got {capped}");
+    }
+
+    #[test]
+    fn test_stone_campaign_bonus() {
+        let empty = CampaignOverrides::default();
+        let ov: CampaignOverrides =
+            serde_yaml::from_str("Stone/Golem:\n  - when: Evolved\n    set_all: 100\n").unwrap();
+        let mk = |growth: u64, evolved: bool, upgrade: bool| {
+            let inputs = CampaignInputs { stone_campaign_upgrade: upgrade, ..Default::default() };
+            let class = if evolved { Some(Class::Defender) } else { None };
+            let mut e = make_export_pet("Stone/Golem", Element::Earth, class);
+            e.growth = growth;
+            (inputs, MergedPet { name: "Stone/Golem".into(), wiki: None, export: Some(e) })
+        };
+        let g = |inputs: &CampaignInputs, pet: &MergedPet, ov: &CampaignOverrides| {
+            let ctx = CampaignContext { overrides: ov, roster: &[], inputs, include_equipment: false, include_class: false };
+            pet.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap()
+        };
+        // Unevolved ramp: -100 + 20 per 5000 growth, capped at 0.
+        let (i, p) = mk(10_000, false, false);
+        assert_eq!(g(&i, &p, &empty), -60.0);
+        let (i, p) = mk(25_000, false, false);
+        assert_eq!(g(&i, &p, &empty), 0.0);
+        let (i, p) = mk(50_000, false, false);
+        assert_eq!(g(&i, &p, &empty), 0.0); // clamped
+        // The +100% upgrade stacks on the ramp.
+        let (i, p) = mk(10_000, false, true);
+        assert_eq!(g(&i, &p, &empty), 40.0);
+        // Evolved: +100 from the curated override, +100 from the upgrade = 200.
+        let (i, p) = mk(99_999, true, true);
+        assert_eq!(g(&i, &p, &ov), 200.0);
+        let (i, p) = mk(99_999, true, false);
+        assert_eq!(g(&i, &p, &ov), 100.0);
     }
 
     #[test]
