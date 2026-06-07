@@ -33,6 +33,9 @@ pub struct CampaignContext<'a> {
     /// Add the pet's campaign-boost *equipment* (sticks) on top of its innate
     /// bonus. Off by default — planning around innate bonuses is more durable.
     pub include_equipment: bool,
+    /// Add the pet's *class* campaign bonus (Adventurer's 2% · CL, plus any
+    /// Adventurer evo bonus) on top of its innate bonus. Off by default.
+    pub include_class: bool,
 }
 
 /// Round a percentage to 2 decimal places. Dynamic campaign formulas produce
@@ -284,7 +287,28 @@ impl MergedPet {
                 }
             }
         }
+
+        // Optional class layer — Adventurer's campaign bonus, additive to all.
+        if ctx.include_class
+            && let Some(bonus) = self.class_campaign_bonus()
+        {
+            for c in CampaignType::ALL {
+                *map.entry(c).or_insert(0.0) += bonus;
+            }
+        }
         map
+    }
+
+    /// The all-campaign bonus from an Adventurer's class, or `None` if the pet
+    /// isn't currently an Adventurer. Base is `2% · CL`. Per-pet Adventurer evo
+    /// bonuses (e.g. Hedgehog +0.58% · CL) will be added from a curated table in
+    /// a follow-up.
+    fn class_campaign_bonus(&self) -> Option<f32> {
+        let export = self.export.as_ref()?;
+        if export.class != Some(Class::Adventurer) {
+            return None;
+        }
+        Some(round2(2.0 * export.class_level as f64))
     }
 
     /// Apply per-pet campaign formulas — bespoke math the parser can't express,
@@ -705,7 +729,7 @@ mod tests {
     fn test_campaign_bonuses_seam() {
         let empty = CampaignOverrides::default();
         let inputs = CampaignInputs::default();
-        let ctx = CampaignContext { overrides: &empty, roster: &[], inputs: &inputs, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &[], inputs: &inputs, include_equipment: false, include_class: false };
 
         let mut wiki = make_wiki_pet("Dwarf", Element::Fire, RecommendedClass::Wildcard);
         wiki.campaign_bonus = Some(CampaignBonus {
@@ -734,7 +758,7 @@ mod tests {
         )
         .unwrap();
         let inputs = CampaignInputs::default();
-        let ctx = CampaignContext { overrides: &ov, roster: &[], inputs: &inputs, include_equipment: false };
+        let ctx = CampaignContext { overrides: &ov, roster: &[], inputs: &inputs, include_equipment: false, include_class: false };
 
         let mut wiki = make_wiki_pet("Hedgehog", Element::Earth, RecommendedClass::Wildcard);
         wiki.campaign_bonus = Some(CampaignBonus {
@@ -781,7 +805,7 @@ mod tests {
         // Bag: lowest *unlocked* growth (10000) ^ 0.4 → ~39.8 to Growth.
         let bag = MergedPet { name: "Bag".into(), wiki: None, export: None };
         let roster = pets(bag.clone());
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false, include_class: false };
         // 10000^0.4 = 39.8107… rounded to 2 decimals.
         assert_eq!(bag.campaign_bonus_for(CampaignType::Growth, &ctx), Some(39.81));
 
@@ -790,7 +814,7 @@ mod tests {
         mer_export.growth = 50_000;
         let mermaid = MergedPet { name: "Mermaid".into(), wiki: None, export: Some(mer_export) };
         let roster = pets(mermaid.clone());
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false, include_class: false };
         assert_eq!(mermaid.campaign_bonus_for(CampaignType::GodPower, &ctx), Some(-50.0));
 
         // Lizard: (unlocked + evolved)^0.5 * 10, capped 100, to Growth (unevolved).
@@ -801,7 +825,7 @@ mod tests {
             e
         }) };
         let roster = pets(lizard.clone());
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false, include_class: false };
         // unlocked: Frog, Bee, Lizard = 3; evolved: Bee = 1 → 4^0.5*10 = 20.
         assert_eq!(lizard.campaign_bonus_for(CampaignType::Growth, &ctx), Some(20.0));
         assert_eq!(lizard.campaign_bonus_for(CampaignType::Food, &ctx), None);
@@ -821,7 +845,7 @@ mod tests {
             MergedPet { name: "Frog".into(), wiki: None, export: Some(p) },
             bag.clone(),
         ];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false, include_class: false };
         assert_eq!(bag.campaign_bonus_for(CampaignType::Growth, &ctx), Some(100.0));
 
         // Mermaid clamps at -333 (1e6/1000 = 1000).
@@ -829,7 +853,7 @@ mod tests {
         e.growth = 1_000_000;
         let mermaid = MergedPet { name: "Mermaid".into(), wiki: None, export: Some(e) };
         let roster = vec![mermaid.clone()];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false, include_class: false };
         assert_eq!(mermaid.campaign_bonus_for(CampaignType::Growth, &ctx), Some(-333.0));
     }
 
@@ -845,7 +869,7 @@ mod tests {
             ..Default::default()
         };
         let roster: Vec<MergedPet> = vec![];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false, include_class: false };
 
         let pet = |name: &str, improved: bool| {
             let mut e = make_export_pet(name, Element::Neutral, None);
@@ -878,8 +902,8 @@ mod tests {
         let combined = CampaignInputs { pet_stones: 5_000, beachball_given_stones: 5_000, ..Default::default() };
         let held_only = CampaignInputs { pet_stones: 10_000, ..Default::default() };
         let roster: Vec<MergedPet> = vec![];
-        let c1 = CampaignContext { overrides: &empty, roster: &roster, inputs: &combined, include_equipment: false };
-        let c2 = CampaignContext { overrides: &empty, roster: &roster, inputs: &held_only, include_equipment: false };
+        let c1 = CampaignContext { overrides: &empty, roster: &roster, inputs: &combined, include_equipment: false, include_class: false };
+        let c2 = CampaignContext { overrides: &empty, roster: &roster, inputs: &held_only, include_equipment: false, include_class: false };
         let bb = pet("Beachball", false);
         assert_eq!(
             bb.campaign_bonus_for(CampaignType::Growth, &c1),
@@ -888,7 +912,7 @@ mod tests {
 
         // Beachball caps at 200% (1e9 stones would otherwise give ~900%).
         let huge = CampaignInputs { pet_stones: 1_000_000_000, ..Default::default() };
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &huge, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &huge, include_equipment: false, include_class: false };
         assert_eq!(bb.campaign_bonus_for(CampaignType::Growth, &ctx), Some(200.0));
     }
 
@@ -909,7 +933,7 @@ mod tests {
         // fights = 0 → full -99% penalty to all, no growth bonus.
         let inputs0 = CampaignInputs::default();
         let roster: Vec<MergedPet> = vec![];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs0, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs0, include_equipment: false, include_class: false };
         let a = aether(1);
         assert_eq!(a.campaign_bonus_for(CampaignType::Food, &ctx), Some(-99.0));
         assert_eq!(a.campaign_bonus_for(CampaignType::Growth, &ctx), Some(-99.0));
@@ -924,7 +948,7 @@ mod tests {
             elemental("Sylph"),
             elemental("Elemental"),
         ];
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs10, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs10, include_equipment: false, include_class: false };
         let a = aether(1_000_000);
         assert_eq!(a.campaign_bonus_for(CampaignType::Food, &ctx), Some(1.0)); // penalty only
         let g = a.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
@@ -941,7 +965,7 @@ mod tests {
             aether_pet.clone(),
         ];
         let inputs28 = CampaignInputs { delirious_essence_fights: 28, ..Default::default() };
-        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs28, include_equipment: false };
+        let ctx = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs28, include_equipment: false, include_class: false };
         let g = aether_pet.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
         assert!((g - 48.61).abs() < 0.1, "got {g}");
     }
@@ -964,8 +988,8 @@ mod tests {
             });
             MergedPet { name: "Otter".into(), wiki: None, export: Some(e) }
         };
-        let on = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: true };
-        let off = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false };
+        let on = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: true, include_class: false };
+        let off = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false, include_class: false };
 
         // Magic Stick SSS+10 = 26.19% (the in-game value), added to all campaigns.
         let pet = stick_pet("Magic Stick", Quality::SSS, 10);
@@ -1007,7 +1031,7 @@ mod tests {
         let empty = CampaignOverrides::default();
         let inputs = CampaignInputs::default();
         let roster: Vec<MergedPet> = vec![];
-        let on = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: true };
+        let on = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: true, include_class: false };
 
         let item = |name: &str, q: Quality, up: Option<u8>| Equipment {
             name: name.into(),
@@ -1039,6 +1063,30 @@ mod tests {
             Some(item("Merry Mantle", Quality::SSS, Some(20))),
         );
         assert_eq!(p.campaign_bonus_for(CampaignType::Item, &on), Some(200.0));
+    }
+
+    #[test]
+    fn test_class_campaign_bonus() {
+        let empty = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
+        let roster: Vec<MergedPet> = vec![];
+        let on = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false, include_class: true };
+        let off = CampaignContext { overrides: &empty, roster: &roster, inputs: &inputs, include_equipment: false, include_class: false };
+
+        let pet = |class: Option<Class>, cl: u32| {
+            let mut e = make_export_pet("Robot", Element::Neutral, class);
+            e.class_level = cl;
+            MergedPet { name: "Robot".into(), wiki: None, export: Some(e) }
+        };
+
+        // Adventurer CL8 → 2% × 8 = 16% to all campaigns.
+        let p = pet(Some(Class::Adventurer), 8);
+        assert_eq!(p.campaign_bonus_for(CampaignType::Growth, &on), Some(16.0));
+        assert_eq!(p.campaign_bonus_for(CampaignType::Food, &on), Some(16.0));
+        // Toggle off → no class bonus.
+        assert_eq!(p.campaign_bonus_for(CampaignType::Growth, &off), None);
+        // Non-Adventurer class contributes nothing even with the toggle on.
+        assert_eq!(pet(Some(Class::Mage), 8).campaign_bonus_for(CampaignType::Growth, &on), None);
     }
 
     #[test]

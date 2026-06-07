@@ -118,10 +118,11 @@ campaigns), gated by `CampaignContext` flags.
   the cap exactly; caps 16.67 / 33.33 / 50 / 100). `Quality::campaign_rank`
   (F=1…SSS=9). The `include_equipment` flag + a "+ equipment" checkbox. Verified
   vs in-game (Otter Magic SSS+10 = 26.19%).
-- [ ] **Class — Adventurer.** Base `2% · CL` to all campaigns when the pet is an
-  Adventurer, PLUS a per-pet Adventurer **evo bonus** (e.g. Hedgehog +0.58%·CL →
-  57% at CL22; most pets 0). Needs the evo-bonus % curated/parsed (the wiki
-  infobox `evolve_bonus` is prose). Toggle `include_class`.
+- [~] **Class — Adventurer.** Base `2% · CL` to all campaigns when the pet is an
+  Adventurer is done (`class_campaign_bonus`, `include_class` flag + "+ class"
+  checkbox; Robot CL8 → 16%). Still to add: the per-pet Adventurer **evo bonus**
+  (e.g. Hedgehog +0.58%·CL → 57% at CL22; most pets 0), which needs the evo-bonus
+  % curated or parsed from the infobox `evolve_bonus` prose.
 - [~] **Event equipment** — scanned across all 3 slots alongside sticks. No clean
   formula (Candy Cane is +101% at SSS+20, +104.76% at +21, +150% at +30 — doesn't
   fit the stick curve), so only the as-purchased **SSS+20** values are plugged in
