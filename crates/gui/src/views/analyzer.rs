@@ -271,6 +271,9 @@ pub struct AnalyzerState {
     /// Include each pet's campaign-boost *equipment* (sticks) in its effective
     /// bonus, on top of innate. Off by default. Persisted.
     pub include_equipment_bonus: bool,
+    /// Include each pet's *class* campaign bonus (Adventurer 2%·CL) in its
+    /// effective bonus. Off by default. Persisted.
+    pub include_class_bonus: bool,
     /// Name of the currently selected pet for the detail card —
     /// not persisted; a detail window reopening on launch feels stale.
     #[serde(skip)]
@@ -303,6 +306,7 @@ impl Default for AnalyzerState {
             time_sort_tiebreak: TimeSortTiebreak::default(),
             campaign_inputs: CampaignInputs::default(),
             include_equipment_bonus: false,
+            include_class_bonus: false,
             selected_pet: None,
             custom_target: String::new(),
         }
@@ -330,6 +334,7 @@ impl AnalyzerState {
         self.time_sort_tiebreak = src.time_sort_tiebreak;
         self.campaign_inputs = src.campaign_inputs.clone();
         self.include_equipment_bonus = src.include_equipment_bonus;
+        self.include_class_bonus = src.include_class_bonus;
     }
 
     /// Copy persistable analyzer state into the unified `AppState`.
@@ -437,6 +442,7 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
         roster: &data.merged,
         inputs: &campaign_inputs,
         include_equipment: state.include_equipment_bonus,
+        include_class: state.include_class_bonus,
     };
 
     // Pet detail window (rendered before table so it floats above)
@@ -1471,9 +1477,17 @@ fn show_filters(ui: &mut Ui, state: &mut AnalyzerState) {
             RichText::new("+ equipment").size(12.0),
         )
         .on_hover_text(
-            "Add each pet's campaign-boost stick (Walking/Journeying/Magic/\
-             Legendary) to its effective bonus. Off by default — innate bonuses \
-             are more durable to plan around.",
+            "Add each pet's campaign-boost gear (sticks; the event items at SSS+20) \
+             to its effective bonus. Off by default — innate bonuses are more \
+             durable to plan around.",
+        );
+        ui.checkbox(
+            &mut state.include_class_bonus,
+            RichText::new("+ class").size(12.0),
+        )
+        .on_hover_text(
+            "Add an Adventurer pet's class campaign bonus (2% × class level) to \
+             its effective bonus. Per-pet Adventurer evo bonuses come later.",
         );
     });
 }
