@@ -104,7 +104,10 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       formula coverage is now complete for every modellable pet.*
 - [ ] **stretch** — campaign planner: allocate pets to prioritized campaigns,
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
-      simulate growth/reward outcomes.
+      simulate growth/reward outcomes. **The reward formulas, the three-level /
+      stats model, the per-pet special mechanics (Bag, Pandora's Box, Llysnafedda,
+      Nightmare/Ant Queen/FSM), what's computable-now vs. blocked-on-stats, and a
+      staged roadmap are written up in [`campaign_simulation.md`](campaign_simulation.md).**
 
 ## Class & equipment bonuses (toggleable)
 
@@ -146,6 +149,7 @@ campaigns), gated by `CampaignContext` flags.
   bonus (already +200 all), but the campaign **simulator** stretch will need it.
 - **Pumpkin** — no inherent campaign bonus; finds chocolate, so a simulator
   should still favor it for food campaigns.
+
 ## Input-driven special cases (done)
 
 These three needed bespoke handling beyond the override/formula norm; all are
@@ -175,3 +179,34 @@ now modelled (`apply_campaign_formulas` + `class_campaign_bonus`, with new
   "~time to lock @1/s" estimate. The total is a flexible-notation text input
   (`earth_eater_total_planets`, `32.4e6`). Locked-at-82 is the planning default
   because the permanent value is only ever a floor under what feeding achieves.
+
+## Identified but not yet built (input-driven)
+
+Two more per-pet campaign bonuses are understood and just need wiring (both will
+auto-fill from the **Main stats** export — see `main_stats_export.md`):
+
+- **Afky Clone** — base **+20% Food / −30% all other campaigns**, raised by
+  `log2(highest_afky_god_power)%` toward a max of **+100% Food / +50% all other**.
+  *Conditional:* if **token-improved**, just grant the **max** (+100/+50) — and
+  uniquely, that holds **even before evolving**. If not improved, use the formula.
+  Input: "Highest Afky God Power" (a new `CampaignInputs` field), auto-filled from
+  the export's `Highest Afky God Power: 1.600 E+9`; safe to assume max otherwise.
+- **Chocobear** — three layers (we currently model *none* of these):
+  - **Innate, token-conditional:** **Food +100%** always; **Growth** and **Item**
+    **+33% → +50%** when **token-improved**. (In-game a token-improved Chocobear
+    shows innate 50% growth / 50% item / 100% food.)
+  - **Banked-hours boost to all campaigns *except food*:** **+50%** (not improved)
+    / **+75%** (improved), applied while he has banked hours. He **banks** hours by
+    eating chocolate (**+3 h** each) and by running **food** campaigns (**+1 h** per
+    hour); he **spends 1 banked hour per campaign-hour** in any non-food campaign,
+    getting the boost during it. Food campaigns are excluded (it would be a
+    feedback loop). `Chocobear hours` (export, `4,734`) is the current bank.
+  - **Worked example** (token-improved, *food* campaign): innate food 100 + class
+    49 + equip 20 = **169%**; the banked boost correctly doesn't show (food). In a
+    *growth* campaign instead it'd be `50 (innate) + 75 (banked) +` class/equip.
+  - For a **static** bonus display, assume banked hours are available (like Earth
+    Eater's +82 default); the **simulator** can deplete the bank per cycle.
+  - ⚠️ *My reading, to confirm:* the banked +50/75 stacks **on top of** the innate
+    growth/item values (so growth = innate 50 **+** banked 75 when improved), and
+    applies to the other four campaigns from a 0 innate base. The in-game food
+    number (169) is consistent but doesn't exercise a non-food campaign.
