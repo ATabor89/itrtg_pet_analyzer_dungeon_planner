@@ -1235,6 +1235,7 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
         row!("Challenge points:", &mut ci.challenge_points, "⭢ Unicorn");
         row!("Honey given:", &mut ci.honey, "⭢ Bear");
         row!("Ants:", &mut ci.ants, "⭢ Ant Queen");
+        row!("Meteor campaign hours:", &mut ci.meteor_campaign_hours, "⭢ Meteor (25 + hrs^0.42)");
         row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "⭢ Aether");
         row!("UCCs completed:", &mut ci.goblin_ucc, "⭢ Goblin (cap 75)");
         row!("Overflow Challenges:", &mut ci.goblin_oc, "⭢ Goblin evo (cap 470)");
