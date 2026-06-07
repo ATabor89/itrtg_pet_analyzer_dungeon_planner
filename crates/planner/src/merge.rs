@@ -948,6 +948,25 @@ mod tests {
 
         // A non-stick weapon contributes nothing.
         assert_eq!(stick_pet("Flame Sword", Quality::SSS, 10).campaign_bonus_for(CampaignType::Food, &on), None);
+
+        // The stick STACKS on an innate bonus (Growth +10) rather than clobbering.
+        let mut e = make_export_pet("Whale", Element::Water, Some(Class::Mage));
+        e.loadout.weapon = Some(Equipment {
+            name: "Magic Stick".to_string(),
+            upgrade_level: Some(10),
+            quality: Quality::SSS,
+            enchant_level: None,
+            gem: None,
+            gem_level: None,
+        });
+        let mut wiki = make_wiki_pet("Whale", Element::Water, RecommendedClass::Wildcard);
+        wiki.campaign_bonus = Some(CampaignBonus {
+            raw: "+10% growth".into(),
+            per_campaign: [(CampaignType::Growth, 10.0)].into_iter().collect(),
+        });
+        let pet = MergedPet { name: "Whale".into(), wiki: Some(wiki), export: Some(e) };
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Growth, &on), Some(36.19)); // 10 + 26.19
+        assert_eq!(pet.campaign_bonus_for(CampaignType::Food, &on), Some(26.19)); // stick only
     }
 
     #[test]
