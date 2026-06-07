@@ -118,11 +118,14 @@ campaigns), gated by `CampaignContext` flags.
   the cap exactly; caps 16.67 / 33.33 / 50 / 100). `Quality::campaign_rank`
   (F=1…SSS=9). The `include_equipment` flag + a "+ equipment" checkbox. Verified
   vs in-game (Otter Magic SSS+10 = 26.19%).
-- [~] **Class — Adventurer.** Base `2% · CL` to all campaigns when the pet is an
-  Adventurer is done (`class_campaign_bonus`, `include_class` flag + "+ class"
-  checkbox; Robot CL8 → 16%). Still to add: the per-pet Adventurer **evo bonus**
-  (e.g. Hedgehog +0.58%·CL → 57% at CL22; most pets 0), which needs the evo-bonus
-  % curated or parsed from the infobox `evolve_bonus` prose.
+- [x] **Class — Adventurer.** Base `2% · CL` to all campaigns when the pet is an
+  Adventurer (`class_campaign_bonus`, `include_class` flag + "+ class" checkbox;
+  Robot CL8 → 16%), **plus** the per-pet Adventurer **evo bonus** added to the
+  base: `(2 + evo) · CL` (e.g. Hedgehog +0.58 → 56.76% at CL22; game shows 57).
+  The 43 evo-bonus values are a curated `ADVENTURER_EVO_BONUS` table in
+  `merge.rs`, guarded by `test_adventurer_evo_bonus_names_exist` (every key must
+  resolve to a real pet). The in-game "Adventurer pet" (+1.7) has no match in the
+  scraped data, so it's omitted.
 - [~] **Event equipment** — scanned across all 3 slots alongside sticks. No clean
   formula (Candy Cane is +101% at SSS+20, +104.76% at +21, +150% at +30 — doesn't
   fit the stick curve), so only the as-purchased **SSS+20** values are plugged in
@@ -144,6 +147,14 @@ campaigns), gated by `CampaignContext` flags.
   bonus (already +200 all), but the campaign **simulator** stretch will need it.
 - **Pumpkin** — no inherent campaign bonus; finds chocolate, so a simulator
   should still favor it for food campaigns.
+- **Stone/Golem** — evolved flat **+100% all campaigns** is now curated
+  (`campaign_overrides.yaml`, `when: Evolved set_all: 100`). Its **unevolved**
+  state still ramps with growth (`-100% + 20% per 5000 growth, 0% at 25000`) and
+  stays raw-only — a small growth-driven code formula like Aether's penalty, not
+  yet written.
+- **Goblin** — beyond its curated innate bonus, it gains *more* campaign bonus
+  from **Overflow Challenges** (maxed at 470) and **UCCs** (maxed at 75). Needs
+  two user-input counts + the (unknown) per-unit formula; not yet modelled.
 - **Earth Eater** — its all-campaign bonus comes from feeding EarthLike Planets
   (`+1% per 30 fed`, base `-80% → +82%`, resets each rebirth), so it needs a
   user-input "EarthLike Planets fed" and resets awkwardly. Becomes easier to
