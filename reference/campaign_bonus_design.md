@@ -106,24 +106,31 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
       excluding dungeon-allocated pets, optionally suggesting unlockables; later,
       simulate growth/reward outcomes.
 
-## Future: class & equipment bonuses (toggleable)
+## Class & equipment bonuses (toggleable)
 
-Beyond the pet's *innate* campaign bonus, two more sources stack on top in-game:
+Beyond the pet's *innate* campaign bonus, two more sources stack on top in-game,
+surfaced as **toggles** (default off) so you can plan around durable innate
+bonuses. They layer in via the same `campaign_bonuses` seam (additive, all
+campaigns), gated by `CampaignContext` flags.
 
-- **Class (Adventurer):** Adventurers add a bonus to all campaigns, and pets with
-  an Adventurer **evo bonus** get extra. Computable from the export's class +
-  the wiki evo-bonus data. Interesting because a pet with a lower innate bonus
-  but a strong Adventurer evo bonus can overtake a higher-innate one.
-- **Equipment:** Walking / Journeying / Magic / Legendary sticks (and some
-  limited event gear) boost campaign gains — the boost depends on the item
-  tier/quality/upgrade *and* the pet (e.g. a Magic Stick SSS+10 gives Earth
-  Eater +50% but Otter +26.19%). The game exposes the formulas (to be provided).
-
-Design intent: surface these as **toggles**, defaulting off, because planning
-around a pet's durable innate bonus is usually better than around whatever stick
-it happens to hold now. They'd layer in via the same `campaign_bonuses` seam
-(class first, then equipment), gated by the toggles — so the filter/sort/card
-pick them up only when the user opts in. Not built yet; tracked here.
+- [x] **Equipment — sticks.** Walking / Journeying / Magic / Legendary, equipped
+  in the weapon slot. `value = cap · (rank/9) · ((1+upgrade)/21)` (so SSS+20 hits
+  the cap exactly; caps 16.67 / 33.33 / 50 / 100). `Quality::campaign_rank`
+  (F=1…SSS=9). The `include_equipment` flag + a "+ equipment" checkbox. Verified
+  vs in-game (Otter Magic SSS+10 = 26.19%).
+- [x] **Class — Adventurer.** Base `2% · CL` to all campaigns when the pet is an
+  Adventurer (`class_campaign_bonus`, `include_class` flag + "+ class" checkbox;
+  Robot CL8 → 16%), **plus** the per-pet Adventurer **evo bonus** added to the
+  base: `(2 + evo) · CL` (e.g. Hedgehog +0.58 → 56.76% at CL22; game shows 57).
+  The 44 evo-bonus values are a curated `ADVENTURER_EVO_BONUS` table in
+  `merge.rs`, guarded by `test_adventurer_evo_bonus_names_exist` (every key must
+  resolve to a real pet).
+- [~] **Event equipment** — scanned across all 3 slots alongside sticks. No clean
+  formula (Candy Cane is +101% at SSS+20, +104.76% at +21, +150% at +30 — doesn't
+  fit the stick curve), so only the as-purchased **SSS+20** values are plugged in
+  (`event_equip_bonus`: Candy Cane 101, Merry Mantle 150, Christmas Boots 150);
+  other levels return None rather than guess. Extend with more items/levels as
+  values are known.
 
 ## Deferred odds and ends
 
@@ -139,3 +146,16 @@ pick them up only when the user opts in. Not built yet; tracked here.
   bonus (already +200 all), but the campaign **simulator** stretch will need it.
 - **Pumpkin** — no inherent campaign bonus; finds chocolate, so a simulator
   should still favor it for food campaigns.
+- **Stone/Golem** — evolved flat **+100% all campaigns** is now curated
+  (`campaign_overrides.yaml`, `when: Evolved set_all: 100`). Its **unevolved**
+  state still ramps with growth (`-100% + 20% per 5000 growth, 0% at 25000`) and
+  stays raw-only — a small growth-driven code formula like Aether's penalty, not
+  yet written.
+- **Goblin** — beyond its curated innate bonus, it gains *more* campaign bonus
+  from **Overflow Challenges** (maxed at 470) and **UCCs** (maxed at 75). Needs
+  two user-input counts + the (unknown) per-unit formula; not yet modelled.
+- **Earth Eater** — its all-campaign bonus comes from feeding EarthLike Planets
+  (`+1% per 30 fed`, base `-80% → +82%`, resets each rebirth), so it needs a
+  user-input "EarthLike Planets fed" and resets awkwardly. Becomes easier to
+  pin down once it's evolved + token-improved. Not yet modelled — left raw-only;
+  handle when we revisit the input-driven pets.
