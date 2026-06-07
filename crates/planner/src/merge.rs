@@ -965,7 +965,9 @@ mod tests {
             per_campaign: [(CampaignType::Growth, 10.0)].into_iter().collect(),
         });
         let pet = MergedPet { name: "Whale".into(), wiki: Some(wiki), export: Some(e) };
-        assert_eq!(pet.campaign_bonus_for(CampaignType::Growth, &on), Some(36.19)); // 10 + 26.19
+        // 10 + 26.19 = 36.19 (tolerance for f32 summation jitter).
+        let g = pet.campaign_bonus_for(CampaignType::Growth, &on).unwrap();
+        assert!((g - 36.19).abs() < 0.001, "got {g}");
         assert_eq!(pet.campaign_bonus_for(CampaignType::Food, &on), Some(26.19)); // stick only
     }
 
