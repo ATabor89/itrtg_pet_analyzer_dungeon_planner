@@ -1230,19 +1230,19 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
                 });
             };
         }
-        row!("Pet stones (held):", &mut ci.pet_stones, "→ Beachball");
-        row!("Stones given to Beachball:", &mut ci.beachball_given_stones, "→ Beachball");
-        row!("Challenge points:", &mut ci.challenge_points, "→ Unicorn");
-        row!("Honey given:", &mut ci.honey, "→ Bear");
-        row!("Ants:", &mut ci.ants, "→ Ant Queen");
-        row!("Current couples:", &mut ci.couples, "→ Cupid (token-improved)");
-        row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "→ Aether");
-        row!("UCCs completed:", &mut ci.goblin_ucc, "→ Goblin (cap 75)");
-        row!("Overflow Challenges:", &mut ci.goblin_oc, "→ Goblin evo (cap 470)");
+        row!("Pet stones (held):", &mut ci.pet_stones, "⭢ Beachball");
+        row!("Stones given to Beachball:", &mut ci.beachball_given_stones, "⭢ Beachball");
+        row!("Challenge points:", &mut ci.challenge_points, "⭢ Unicorn");
+        row!("Honey given:", &mut ci.honey, "⭢ Bear");
+        row!("Ants:", &mut ci.ants, "⭢ Ant Queen");
+        row!("Current couples:", &mut ci.couples, "⭢ Cupid (token-improved)");
+        row!("Delirious Essence fights:", &mut ci.delirious_essence_fights, "⭢ Aether");
+        row!("UCCs completed:", &mut ci.goblin_ucc, "⭢ Goblin (cap 75)");
+        row!("Overflow Challenges:", &mut ci.goblin_oc, "⭢ Goblin evo (cap 470)");
         ui.horizontal(|ui| {
             ui.checkbox(&mut ci.stone_campaign_upgrade, "");
             ui.label(RichText::new("Stone +100% campaign upgrade bought").color(style::TEXT_MUTED).size(12.0));
-            ui.label(RichText::new("→ Stone/Golem").color(style::TEXT_MUTED).size(10.0));
+            ui.label(RichText::new("⭢ Stone/Golem").color(style::TEXT_MUTED).size(10.0));
         });
         // Earth Eater's total accepts engineering/scientific notation (32.4e6),
         // so it's a parsed text field rather than a DragValue. Placed after the
@@ -1279,7 +1279,7 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
                         .size(10.0),
                 );
             } else {
-                ui.label(RichText::new("→ Earth Eater (token-improved)").color(style::TEXT_MUTED).size(10.0));
+                ui.label(RichText::new("⭢ Earth Eater (token-improved)").color(style::TEXT_MUTED).size(10.0));
             }
         });
         state.campaign_inputs.earth_eater_show_lifetime = !ee_lock;
