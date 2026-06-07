@@ -1264,6 +1264,8 @@ mod tests {
         check(&i, &p, 82.0); // no total entered → still 82
         let (i, p) = mk(false, 10_000_000, true);
         check(&i, &p, 82.0); // not token-improved → still 82
+        let (i, p) = mk(true, 100_000, true);
+        check(&i, &p, -79.5); // near the -80 floor (-80 + 0.5)
         let (i, p) = mk(true, 10_000_000, true);
         check(&i, &p, -30.0); // -80 + 50
         let (i, p) = mk(true, 32_400_000, true);
