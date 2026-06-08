@@ -373,11 +373,17 @@ pub fn show(
     });
 
     ui.add_space(4.0);
-    show_results(ui, state);
-    ui.separator();
-    show_pet_cards(ui, state, data, ctx, rates);
-    ui.separator();
-    show_pet_picker(ui, state, data, ctx);
+    // The run controls above stay pinned; everything below (results, the pet
+    // cards — which get tall once equipment editors and overrides are in play —
+    // and the picker list) scrolls, so the picker stays reachable at any window
+    // size. One scroll region only: the picker no longer scrolls on its own.
+    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        show_results(ui, state);
+        ui.separator();
+        show_pet_cards(ui, state, data, ctx, rates);
+        ui.separator();
+        show_pet_picker(ui, state, data, ctx);
+    });
 }
 
 /// Cards for the selected chamber pets — their computed stats, read-only
@@ -901,52 +907,51 @@ fn show_pet_picker(
     });
     let needle = state.search.to_lowercase();
 
-    egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
-        let mut pets: Vec<(&MergedPet, f32)> = data
-            .merged
-            .iter()
-            .filter(|p| p.is_unlocked() && p.export.is_some())
-            .filter(|p| needle.is_empty() || p.name.to_lowercase().contains(&needle))
-            .map(|p| (p, p.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0)))
-            .collect();
-        // Highest Growth bonus first — what you'd want in a mature chamber.
-        pets.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(
-                    b.0.export
-                        .as_ref()
-                        .map(|e| e.effective_growth())
-                        .cmp(&a.0.export.as_ref().map(|e| e.effective_growth())),
-                )
-        });
-
-        for (pet, bonus) in pets {
-            let name = pet.name.clone();
-            let growth = pet.export.as_ref().map(|e| e.effective_growth()).unwrap_or(0);
-            ui.horizontal(|ui| {
-                let mut in_chamber = state.chamber.iter().any(|n| n == &name);
-                let was = in_chamber;
-                // Enforce the 10-pet cap: can't tick an 11th.
-                let toggled = ui
-                    .add_enabled(was || state.chamber.len() < 10, egui::Checkbox::new(&mut in_chamber, ""))
-                    .changed();
-                if toggled {
-                    if in_chamber {
-                        state.chamber.push(name.clone());
-                    } else {
-                        state.chamber.retain(|n| n != &name);
-                    }
-                }
-                ui.label(RichText::new(&name).color(style::TEXT_NORMAL).size(12.0));
-                ui.label(
-                    RichText::new(format!("+{bonus:.0}%  ({growth})"))
-                        .color(style::TEXT_MUTED)
-                        .size(10.0),
-                );
-            });
-        }
+    // No inner scroll — the whole view scrolls as one region (see `show`).
+    let mut pets: Vec<(&MergedPet, f32)> = data
+        .merged
+        .iter()
+        .filter(|p| p.is_unlocked() && p.export.is_some())
+        .filter(|p| needle.is_empty() || p.name.to_lowercase().contains(&needle))
+        .map(|p| (p, p.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0)))
+        .collect();
+    // Highest Growth bonus first — what you'd want in a mature chamber.
+    pets.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(
+                b.0.export
+                    .as_ref()
+                    .map(|e| e.effective_growth())
+                    .cmp(&a.0.export.as_ref().map(|e| e.effective_growth())),
+            )
     });
+
+    for (pet, bonus) in pets {
+        let name = pet.name.clone();
+        let growth = pet.export.as_ref().map(|e| e.effective_growth()).unwrap_or(0);
+        ui.horizontal(|ui| {
+            let mut in_chamber = state.chamber.iter().any(|n| n == &name);
+            let was = in_chamber;
+            // Enforce the 10-pet cap: can't tick an 11th.
+            let toggled = ui
+                .add_enabled(was || state.chamber.len() < 10, egui::Checkbox::new(&mut in_chamber, ""))
+                .changed();
+            if toggled {
+                if in_chamber {
+                    state.chamber.push(name.clone());
+                } else {
+                    state.chamber.retain(|n| n != &name);
+                }
+            }
+            ui.label(RichText::new(&name).color(style::TEXT_NORMAL).size(12.0));
+            ui.label(
+                RichText::new(format!("+{bonus:.0}%  ({growth})"))
+                    .color(style::TEXT_MUTED)
+                    .size(10.0),
+            );
+        });
+    }
 }
 
 #[cfg(test)]
