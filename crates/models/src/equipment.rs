@@ -64,7 +64,7 @@ pub struct Equipment {
 }
 
 /// The full loadout for a pet (all three equipment slots).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Loadout {
     pub weapon: Option<Equipment>,
     pub armor: Option<Equipment>,
