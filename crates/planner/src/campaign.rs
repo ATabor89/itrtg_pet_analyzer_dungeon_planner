@@ -788,13 +788,15 @@ mod tests {
             special: None,
         };
         let mut pets = vec![pet("Low", 1_000.0), pet("High", 100_000.0)];
+        pets[1].campaign_bonus_pct = 50.0; // exercise the bonus factor
         let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false);
         let c = &r.trace[0].contributions;
         assert_eq!(c.len(), 2);
-        // Low is the recipient (contributes 0); High contributes the base total.
+        // Low is the recipient (contributes 0); High contributes the base total,
+        // scaled by its bonus: factor = (1+0) · (1+0.5) · 12 = 18.
         assert_eq!(c.iter().find(|(i, _)| *i == 0).unwrap().1, 0.0);
         let high = c.iter().find(|(i, _)| *i == 1).unwrap().1;
-        let expected = (100_000_f64.ln() / 15_f64.ln() - 1.75) * 12.0;
+        let expected = (100_000_f64.ln() / 15_f64.ln() - 1.75) * 1.5 * 12.0;
         assert!((high - expected).abs() < 0.01, "got {high}");
     }
 
