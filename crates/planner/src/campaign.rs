@@ -383,14 +383,17 @@ pub fn simulate_growth_chamber(
                     passive_per_hour: pets[i].passive_per_hour,
                 })
                 .collect();
-            let params = CampaignParams { upc_pct, hours, unlocked_pets: pets.len(), div_per_sec: None };
+            let params =
+                CampaignParams { upc_pct, hours, unlocked_pets: chamber_idx.len(), div_per_sec: None };
             let (base, recipient_sub) = match simulate(CampaignType::Growth, &team, &params) {
                 CampaignOutcome::Growth { total, recipient } => (total, recipient),
                 _ => unreachable!("Growth campaign always yields a Growth outcome"),
             };
             let recipient = chamber_idx[recipient_sub];
 
-            // Special-pet parameters, read from the in-chamber pets.
+            // Special-pet parameters, read from the in-chamber pets. Assumes at
+            // most one Pandora and one Bag (the game has one of each); with
+            // duplicates the last in roster order wins.
             let mut pandora = 0.0;
             let mut bag_fraction = 0.0;
             let mut bag_steals = false;
