@@ -4,7 +4,9 @@ use crate::data::DataStore;
 use crate::platform;
 use crate::state::{self, AppState};
 use crate::style;
-use crate::views::{analyzer, dungeon, log_viewer};
+use crate::views::{analyzer, chamber, dungeon, log_viewer};
+use itrtg_planner::growth::GrowthRates;
+use itrtg_planner::merge::CampaignContext;
 
 // =============================================================================
 // App
@@ -15,6 +17,7 @@ enum Tab {
     Analyzer,
     DungeonPlanner,
     DungeonLog,
+    Chamber,
 }
 
 pub struct App {
@@ -22,6 +25,7 @@ pub struct App {
     data: DataStore,
     analyzer_state: analyzer::AnalyzerState,
     dungeon_state: dungeon::DungeonState,
+    chamber_state: chamber::ChamberState,
     log_viewer_state: log_viewer::LogViewerState,
     show_import_dialog: bool,
     import_text: String,
@@ -66,12 +70,15 @@ impl App {
         dungeon_state.apply_app_state(&app_state);
         let mut analyzer_state = analyzer::AnalyzerState::default();
         analyzer_state.apply_app_state(&app_state);
+        let mut chamber_state = chamber::ChamberState::default();
+        chamber_state.apply_app_state(&app_state);
 
         Self {
             tab: Tab::Analyzer,
             data,
             analyzer_state,
             dungeon_state,
+            chamber_state,
             log_viewer_state: log_viewer::LogViewerState::default(),
             show_import_dialog: false,
             import_text: String::new(),
@@ -88,6 +95,7 @@ impl App {
         };
         self.dungeon_state.write_into(&mut snapshot);
         self.analyzer_state.write_into(&mut snapshot);
+        self.chamber_state.write_into(&mut snapshot);
         let yaml = state::serialize(&snapshot);
         if yaml != self.last_saved_yaml && platform::save_app_state(&yaml).is_ok() {
             self.last_saved_yaml = yaml;
@@ -227,6 +235,15 @@ impl eframe::App for App {
                 {
                     self.tab = Tab::DungeonLog;
                 }
+                if ui
+                    .selectable_label(
+                        self.tab == Tab::Chamber,
+                        RichText::new("Growth Chamber").size(14.0),
+                    )
+                    .clicked()
+                {
+                    self.tab = Tab::Chamber;
+                }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Open dungeon log file (native only — WASM uses drag-and-drop)
@@ -347,6 +364,33 @@ impl eframe::App for App {
                 }
                 Tab::DungeonLog => {
                     log_viewer::show(ui, &mut self.log_viewer_state);
+                }
+                Tab::Chamber => {
+                    // Build the campaign context (equipment + class included, to
+                    // match the in-game "total reward") and growth rates from the
+                    // analyzer's Moai + campaign inputs.
+                    let moai_levels: Vec<u8> = self
+                        .analyzer_state
+                        .moai
+                        .iter()
+                        .filter(|m| m.owned)
+                        .map(|m| m.level)
+                        .collect();
+                    let rates = GrowthRates::compute(&self.data.merged, &moai_levels);
+                    let mut inputs = self.analyzer_state.campaign_inputs.clone();
+                    inputs.earth_eater_total_planets = itrtg_models::parse_flexible_number(
+                        &self.analyzer_state.earth_eater_planets_text,
+                    )
+                    .unwrap_or(0.0)
+                    .max(0.0) as u64;
+                    let ctx = CampaignContext {
+                        overrides: &self.data.campaign_overrides,
+                        roster: &self.data.merged,
+                        inputs: &inputs,
+                        include_equipment: true,
+                        include_class: true,
+                    };
+                    chamber::show(ui, &mut self.chamber_state, &self.data, &ctx, &rates);
                 }
             }
         });
