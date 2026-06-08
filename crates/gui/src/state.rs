@@ -12,6 +12,7 @@ use itrtg_models::{Dungeon, Quality};
 
 use crate::platform;
 use crate::views::analyzer::AnalyzerState;
+use crate::views::chamber::ChamberState;
 
 /// Bump when the on-disk schema changes in a non-backwards-compatible way.
 pub const CURRENT_VERSION: u32 = 1;
@@ -30,6 +31,7 @@ pub struct AppState {
     /// disabled, normal events to enabled), so the file stays minimal.
     pub event_overrides: Vec<EventOverride>,
     pub analyzer: AnalyzerState,
+    pub chamber: ChamberState,
 }
 
 /// A user's explicit enable/disable choice for one dungeon event, identified
