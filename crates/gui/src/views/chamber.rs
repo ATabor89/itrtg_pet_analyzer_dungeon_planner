@@ -12,7 +12,9 @@
 use std::collections::BTreeMap;
 
 use eframe::egui::{self, RichText};
-use itrtg_models::{CampaignType, ExportPet, Loadout, MAGIC_EGG_GROWTH_MULT};
+use itrtg_models::{
+    CampaignType, Equipment, ExportPet, Loadout, Quality, MAGIC_EGG_GROWTH_MULT,
+};
 use itrtg_planner::campaign::{
     simulate_growth_chamber, ChamberPet, ChamberResult, SpecialPet,
 };
@@ -529,18 +531,11 @@ fn show_pet_card(
                         }
                     }
                 });
-                // Read-only equipment (W / A / Ac) — editors arrive in phase 2b.
+                // Editable equipment (W / A / Ac).
                 if let Some(e) = export {
-                    ui.label(
-                        RichText::new(format!(
-                            "W: {}\nA: {}\nAc: {}",
-                            equip_label(e.loadout.weapon.as_ref()),
-                            equip_label(e.loadout.armor.as_ref()),
-                            equip_label(e.loadout.accessory.as_ref()),
-                        ))
-                        .color(style::TEXT_MUTED)
-                        .size(10.0),
-                    );
+                    weapon_editor(ui, state, name, e);
+                    armor_editor(ui, state, name, e);
+                    accessory_editor(ui, state, name, e);
                 }
                 // Override status + refresh (only when this pet has been edited).
                 if state.overrides.contains_key(name) {
@@ -577,29 +572,204 @@ fn show_pet_card(
         .inner
 }
 
-/// Set a pet's effective class level via its override, seeding the override from
-/// the given (effective) export the first time so it carries the pet's full
-/// loadout — later gear edits then mutate the same entry.
-fn set_class_level(state: &mut ChamberState, name: &str, eff: &ExportPet, cl: u32) {
-    state
-        .overrides
-        .entry(name.to_string())
-        .or_insert_with(|| PetOverride {
-            loadout: eff.loadout.clone(),
-            class_level: eff.class_level,
-        })
-        .class_level = cl;
+/// Get (seeding if absent) the mutable override for a pet. Seeded from the given
+/// (effective) export so a fresh override carries the pet's full loadout + CL;
+/// every card editor funnels through here so the first edit of any field
+/// captures the rest of the export unchanged.
+fn override_mut<'a>(
+    state: &'a mut ChamberState,
+    name: &str,
+    eff: &ExportPet,
+) -> &'a mut PetOverride {
+    state.overrides.entry(name.to_string()).or_insert_with(|| PetOverride {
+        loadout: eff.loadout.clone(),
+        class_level: eff.class_level,
+    })
 }
 
-/// Compact label for an equipment slot: name plus quality/upgrade for gear that
-/// carries an upgrade level (e.g. `Magic Stick SSS+10`); `—` when empty.
-fn equip_label(item: Option<&itrtg_models::Equipment>) -> String {
+/// Set a pet's effective class level via its override.
+fn set_class_level(state: &mut ChamberState, name: &str, eff: &ExportPet, cl: u32) {
+    override_mut(state, name, eff).class_level = cl;
+}
+
+/// The four campaign sticks, weakest→strongest (the order their caps imply).
+const STICKS: [&str; 4] =
+    ["Walking Stick", "Journeying Stick", "Magic Stick", "Legendary Stick"];
+
+/// Quality grades, weakest→strongest, for the stick quality picker.
+const QUALITIES: [Quality; 9] = [
+    Quality::F,
+    Quality::E,
+    Quality::D,
+    Quality::C,
+    Quality::B,
+    Quality::A,
+    Quality::S,
+    Quality::SS,
+    Quality::SSS,
+];
+
+/// Build a piece of equipment with just the fields the growth sim cares about
+/// (name + quality + upgrade); enchant/gem are irrelevant to campaign bonuses.
+fn equip(name: &str, quality: Quality, upgrade: Option<u8>) -> Equipment {
+    Equipment {
+        name: name.to_string(),
+        upgrade_level: upgrade,
+        quality,
+        enchant_level: None,
+        gem: None,
+        gem_level: None,
+    }
+}
+
+/// Is this equipment one of the four campaign sticks?
+fn is_stick(item: &Equipment) -> bool {
+    STICKS.contains(&item.name.as_str())
+}
+
+/// The weapon a slot should hold when the user picks `name` from the weapon
+/// menu, given what's currently equipped. Switching *between* sticks preserves
+/// the current quality/upgrade; everything else gets its effective level (event
+/// gear only does anything at SSS+20; the Magic Egg's level is irrelevant).
+/// `name == "none"` clears the slot.
+fn weapon_for(name: &str, current: Option<&Equipment>) -> Option<Equipment> {
+    match name {
+        "none" => None,
+        "Magic Egg" => Some(equip("Magic Egg", Quality::SSS, None)),
+        "Candy Cane" => Some(equip("Candy Cane", Quality::SSS, Some(20))),
+        s if STICKS.contains(&s) => {
+            // Carry quality/upgrade across stick swaps; otherwise default to a
+            // maxed SSS+20 (the common event-stick state and the natural ceiling).
+            let (q, u) = current
+                .filter(|c| is_stick(c))
+                .map(|c| (c.quality, c.upgrade_level.unwrap_or(20)))
+                .unwrap_or((Quality::SSS, 20));
+            Some(equip(s, q, Some(u)))
+        }
+        _ => current.cloned(),
+    }
+}
+
+/// The label shown for a weapon in the picker header: the known kind, the raw
+/// name for anything unrecognized, or `none`.
+fn weapon_kind_label(item: Option<&Equipment>) -> String {
     match item {
-        None => "—".to_string(),
-        Some(e) => match e.upgrade_level {
-            Some(u) => format!("{} {:?}+{u}", e.name, e.quality),
-            None => e.name.clone(),
-        },
+        None => "none".to_string(),
+        Some(e) => e.name.clone(),
+    }
+}
+
+/// Apply a weapon-menu pick to a pet's override.
+fn set_weapon(state: &mut ChamberState, name: &str, eff: &ExportPet, choice: &str) {
+    let new = weapon_for(choice, eff.loadout.weapon.as_ref());
+    override_mut(state, name, eff).loadout.weapon = new;
+}
+
+/// A small `<label> <picker>` row. The picker's `clicked` value, if any, is the
+/// option the user just chose this frame.
+fn slot_picker(
+    ui: &mut egui::Ui,
+    id: (&str, &str),
+    label: &str,
+    selected_text: &str,
+    options: &[(&str, bool)],
+) -> Option<usize> {
+    let mut chosen = None;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(label).color(style::TEXT_MUTED).size(10.0).monospace());
+        egui::ComboBox::from_id_salt(id)
+            .width(150.0)
+            .selected_text(RichText::new(selected_text).size(10.0))
+            .show_ui(ui, |ui| {
+                for (i, (opt, selected)) in options.iter().enumerate() {
+                    if ui.selectable_label(*selected, RichText::new(*opt).size(10.0)).clicked() {
+                        chosen = Some(i);
+                    }
+                }
+            });
+    });
+    chosen
+}
+
+/// Weapon slot editor: the four sticks (with quality/upgrade), Candy Cane, Magic
+/// Egg, or none. Writes the chosen weapon into the pet's override.
+fn weapon_editor(ui: &mut egui::Ui, state: &mut ChamberState, name: &str, eff: &ExportPet) {
+    let cur = eff.loadout.weapon.as_ref();
+    let cur_name = cur.map(|e| e.name.as_str());
+    // none, the four sticks, Candy Cane, Magic Egg.
+    let opts: Vec<(&str, bool)> = std::iter::once(("none", cur_name.is_none()))
+        .chain(STICKS.iter().map(|&s| (s, cur_name == Some(s))))
+        .chain([("Candy Cane", cur_name == Some("Candy Cane"))])
+        .chain([("Magic Egg", cur_name == Some("Magic Egg"))])
+        .collect();
+    let header = weapon_kind_label(cur);
+    if let Some(i) = slot_picker(ui, (name, "weapon"), "W", &header, &opts) {
+        set_weapon(state, name, eff, opts[i].0);
+    }
+
+    // Quality + upgrade, only for a stick.
+    if let Some(w) = eff.loadout.weapon.as_ref().filter(|w| is_stick(w)) {
+        ui.horizontal(|ui| {
+            ui.add_space(14.0);
+            egui::ComboBox::from_id_salt((name, "wq"))
+                .width(48.0)
+                .selected_text(RichText::new(format!("{:?}", w.quality)).size(10.0))
+                .show_ui(ui, |ui| {
+                    for q in QUALITIES {
+                        if ui
+                            .selectable_label(w.quality == q, RichText::new(format!("{q:?}")).size(10.0))
+                            .clicked()
+                            && let Some(e) = override_mut(state, name, eff).loadout.weapon.as_mut()
+                        {
+                            e.quality = q;
+                        }
+                    }
+                });
+            ui.label(RichText::new("+").color(style::TEXT_MUTED).size(10.0));
+            let mut up = w.upgrade_level.unwrap_or(0);
+            if ui.add(egui::DragValue::new(&mut up).range(0..=20).speed(1.0)).changed()
+                && let Some(e) = override_mut(state, name, eff).loadout.weapon.as_mut()
+            {
+                e.upgrade_level = Some(up);
+            }
+        });
+    }
+}
+
+/// Armor slot editor: Merry Mantle (SSS+20) or none.
+fn armor_editor(ui: &mut egui::Ui, state: &mut ChamberState, name: &str, eff: &ExportPet) {
+    let cur_name = eff.loadout.armor.as_ref().map(|e| e.name.as_str());
+    let opts = [
+        ("none", cur_name.is_none()),
+        ("Merry Mantle", cur_name == Some("Merry Mantle")),
+    ];
+    let header = eff.loadout.armor.as_ref().map_or("none", |e| e.name.as_str());
+    if let Some(i) = slot_picker(ui, (name, "armor"), "A", header, &opts) {
+        override_mut(state, name, eff).loadout.armor = match opts[i].0 {
+            "Merry Mantle" => Some(equip("Merry Mantle", Quality::SSS, Some(20))),
+            _ => None,
+        };
+    }
+}
+
+/// Accessory slot editor: Growing Love Pendant (passive growth), Christmas Boots
+/// (SSS+20 campaign boost), or none.
+fn accessory_editor(ui: &mut egui::Ui, state: &mut ChamberState, name: &str, eff: &ExportPet) {
+    let cur_name = eff.loadout.accessory.as_ref().map(|e| e.name.as_str());
+    let opts = [
+        ("none", cur_name.is_none()),
+        ("Growing Love Pendant", cur_name == Some("Growing Love Pendant")),
+        ("Christmas Boots", cur_name == Some("Christmas Boots")),
+    ];
+    let header = eff.loadout.accessory.as_ref().map_or("none", |e| e.name.as_str());
+    if let Some(i) = slot_picker(ui, (name, "acc"), "Ac", header, &opts) {
+        override_mut(state, name, eff).loadout.accessory = match opts[i].0 {
+            // The pendant gives passive growth, not a campaign boost — its level
+            // is irrelevant, so a plain SSS is fine.
+            "Growing Love Pendant" => Some(equip("Growing Love Pendant", Quality::SSS, None)),
+            "Christmas Boots" => Some(equip("Christmas Boots", Quality::SSS, Some(20))),
+            _ => None,
+        };
     }
 }
 
@@ -906,5 +1076,89 @@ mod tests {
             (after - before - 34.0).abs() < 0.5,
             "2%/CL over a 17-level bump ≈ +34% ({before} → {after})"
         );
+    }
+
+    #[test]
+    fn weapon_for_builds_the_right_equipment() {
+        // none clears the slot.
+        assert!(weapon_for("none", None).is_none());
+
+        // Magic Egg: name only (level irrelevant to the +30% multiplier).
+        let egg = weapon_for("Magic Egg", None).unwrap();
+        assert_eq!(egg.name, "Magic Egg");
+        assert_eq!(egg.upgrade_level, None);
+
+        // Candy Cane: pinned to SSS+20 (its only level with a bonus).
+        let cane = weapon_for("Candy Cane", None).unwrap();
+        assert_eq!((cane.quality, cane.upgrade_level), (Quality::SSS, Some(20)));
+
+        // A fresh stick defaults to SSS+20.
+        let stick = weapon_for("Magic Stick", None).unwrap();
+        assert_eq!((stick.name.as_str(), stick.quality, stick.upgrade_level), ("Magic Stick", Quality::SSS, Some(20)));
+
+        // Switching between sticks preserves quality/upgrade.
+        let cur = equip("Walking Stick", Quality::B, Some(7));
+        let swapped = weapon_for("Legendary Stick", Some(&cur)).unwrap();
+        assert_eq!((swapped.name.as_str(), swapped.quality, swapped.upgrade_level), ("Legendary Stick", Quality::B, Some(7)));
+
+        // Switching from a non-stick (egg) to a stick does NOT carry levels — it
+        // defaults fresh.
+        let from_egg = weapon_for("Magic Stick", Some(&equip("Magic Egg", Quality::SSS, None))).unwrap();
+        assert_eq!(from_egg.upgrade_level, Some(20));
+    }
+
+    #[test]
+    fn equipping_a_stick_raises_the_growth_bonus() {
+        use itrtg_models::{CampaignInputs, CampaignOverrides};
+
+        // A generic pet (no wiki innate, not Adventurer) has a 0% Growth bonus;
+        // a Legendary Stick SSS+20 is the cap, +100%.
+        let pet = merged("Foo", export_with(1000, 5));
+        let roster = vec![pet.clone()];
+        let overrides = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
+        let ctx = CampaignContext {
+            overrides: &overrides,
+            roster: &roster,
+            inputs: &inputs,
+            include_equipment: true,
+            include_class: true,
+        };
+        let rates = GrowthRates { evolved_pets: 0, moai_per_hour: 0.0, pendant_cap: 0 };
+        let base = pet.export.clone().unwrap();
+
+        let mut state = ChamberState::default();
+        assert_eq!(chamber_pet(&pet, &ctx, &rates, &state).unwrap().campaign_bonus_pct, 0.0);
+
+        set_weapon(&mut state, "Foo", &base, "Legendary Stick");
+        let bonus = chamber_pet(&pet, &ctx, &rates, &state).unwrap().campaign_bonus_pct;
+        assert!((bonus - 100.0).abs() < 0.01, "Legendary SSS+20 caps at +100% (got {bonus})");
+    }
+
+    #[test]
+    fn equipping_the_pendant_adds_passive_growth() {
+        use itrtg_models::{CampaignInputs, CampaignOverrides};
+
+        let pet = merged("Foo", export_with(1000, 5));
+        let roster = vec![pet.clone()];
+        let overrides = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
+        let ctx = CampaignContext {
+            overrides: &overrides,
+            roster: &roster,
+            inputs: &inputs,
+            include_equipment: true,
+            include_class: true,
+        };
+        // evolved_pets drives pendant_per_hour; cap high enough to apply.
+        let rates = GrowthRates { evolved_pets: 10, moai_per_hour: 1.0, pendant_cap: u64::MAX };
+        let base = pet.export.clone().unwrap();
+
+        let mut state = ChamberState::default();
+        let without = chamber_pet(&pet, &ctx, &rates, &state).unwrap().passive_per_hour;
+        override_mut(&mut state, "Foo", &base).loadout.accessory =
+            Some(equip("Growing Love Pendant", Quality::SSS, None));
+        let with = chamber_pet(&pet, &ctx, &rates, &state).unwrap().passive_per_hour;
+        assert!(with > without, "pendant should add passive growth ({without} → {with})");
     }
 }
