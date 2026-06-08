@@ -231,6 +231,43 @@ fn gp_tier(stats: f64) -> f64 {
 }
 
 // =============================================================================
+// Growth special-pet layer (Pandora's Box + Bag)
+// =============================================================================
+
+/// The growth a Growth-campaign run actually deposits, once the two special pets
+/// are applied. Validated against a real chamber run (see
+/// `reference/chamber_validation.md`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GrowthSpecials {
+    /// What the campaign **recipient** gains: the base total boosted by Pandora.
+    pub recipient_gain: f64,
+    /// What **Bag** gifts to the *global* lowest-growth pet (0 if Bag absent).
+    pub bag_gift: f64,
+}
+
+/// Apply the Growth special-pet layer to a base campaign total (`Σ`
+/// contributions, recipient excluded):
+///
+/// 1. **Pandora's Box** scales the base and the result goes to the recipient:
+///    `recipient_gain = base · (1 + pandora_pct/100)`.
+/// 2. **Bag** gifts a fraction of that *Pandora-boosted* recipient gain to the
+///    **global** lowest-growth pet: `bag_gift = bag_fraction · recipient_gain`
+///    (0.05 token-improved / 0.10 pre-token; 0 if Bag absent).
+///
+/// The caller decides `pandora_pct` (from Pandora's growth + feedings),
+/// `bag_fraction` (from Bag's presence + token state), and *which* pet receives
+/// each (recipient = chamber min; Bag's target = global min). For **pre-token**
+/// Bag the gift is *stolen* — subtract `bag_gift` from `recipient_gain` too;
+/// token-improved it's free (this fn returns the gross figures either way).
+///
+/// Verified: base 1,062.29, Pandora +43.42% → recipient_gain 1,523.5 (game
+/// 1,523.6); Bag 5% → 76.18 (exact).
+pub fn apply_growth_specials(base_total: f64, pandora_pct: f64, bag_fraction: f64) -> GrowthSpecials {
+    let recipient_gain = base_total * (1.0 + pandora_pct / 100.0);
+    GrowthSpecials { recipient_gain, bag_gift: bag_fraction * recipient_gain }
+}
+
+// =============================================================================
 // Growth chamber
 // =============================================================================
 
@@ -543,5 +580,51 @@ mod tests {
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 2);
         assert_eq!(result.cycles, 2);
         assert!((result.final_growth[0].1 - 2.0 * 100.0 * 12.0).abs() < 1e-9);
+    }
+
+    /// End-to-end against a real finished 12 h chamber run (UPC +40%). See
+    /// `reference/chamber_validation.md`. (growth, bonus%) per pet; Otter is the
+    /// recipient and contributes nothing.
+    #[test]
+    fn real_chamber_run_matches_the_finish_screen() {
+        // (name, growth, growth-campaign bonus %). Bonuses = in-game "total
+        // reward" − 100. Otter (the recipient) is first.
+        let chamber = [
+            ("Otter", 55_266, 154.0),       // recipient — excluded from the sum
+            ("Cupid", 55_338, 184.0),
+            ("Bag", 55_468, 115.51),
+            ("Hedgehog", 55_565, 222.76),
+            ("Thunder Ball", 55_661, 481.0),
+            ("Meteor", 55_856, 139.61),
+            ("Earth Eater", 55_943, 132.0),
+            ("Sphinx", 56_177, 119.97),
+            ("Pandora's Box", 57_138, 0.0),
+            ("Vampire", 57_310, 470.0),
+        ];
+        let team: Vec<CampaignPet> = chamber
+            .iter()
+            .map(|&(name, growth, bonus)| CampaignPet {
+                name: name.into(),
+                growth,
+                stats: None,
+                campaign_bonus_pct: bonus,
+                passive_per_hour: 0.0, // Moai already baked into these growths
+            })
+            .collect();
+        let params = CampaignParams { upc_pct: 40.0, hours: 12, unlocked_pets: 10, div_per_sec: None };
+
+        let CampaignOutcome::Growth { total, recipient } = simulate(CampaignType::Growth, &team, &params)
+        else {
+            panic!("expected Growth outcome");
+        };
+        assert_eq!(recipient, 0, "Otter is the lowest-growth chamber pet");
+        // Base total of the nine contributors — finish screen summed to 1,062.29.
+        assert!((total - 1_062.29).abs() < 6.0, "base total {total}, want ≈1062.29");
+
+        // Special-pet layer against the in-game base: Pandora +43.42% to Otter,
+        // Bag 5% (token-improved) to Wolf (the global lowest, benched).
+        let s = apply_growth_specials(1_062.29, 43.42, 0.05);
+        assert!((s.recipient_gain - 1_523.6).abs() < 0.5, "Otter gain {}", s.recipient_gain);
+        assert!((s.bag_gift - 76.18).abs() < 0.1, "Bag gift {}", s.bag_gift);
     }
 }
