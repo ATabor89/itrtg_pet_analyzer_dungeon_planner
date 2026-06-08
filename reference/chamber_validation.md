@@ -76,23 +76,45 @@ A lot of the model lands **exactly** against live in-game numbers:
   recipient Otter** — part of the still-pending special-pet layer. Its gift raises
   the same pet its `^0.4` bonus reads, so it compounds its own bonus.)
 
-## To complete when the run finishes
+## Results — validated end-to-end ✅
 
-The finish screen gives the exact per-pet contribution breakdown. Capture:
-1. **Final growth** of every pet right before completion (squeeze the last Moai ticks).
-2. **Per-pet contribution** to the campaign (validates `(log15(end_growth) − 1.75)·factor` with `factor = 1.40 (UPC) · (1 + bonus/100) · 12`).
-3. **Recipient (Otter) total gain** = campaign total × **Pandora's +43.42%**.
-4. **Bag's +5% gift** — and *which pet got it* (should be the global lowest, Wolf,
-   not Otter). Also note whether the 5% is of the base total or the
-   Pandora-boosted total (an open question — see below).
+The finished run (UPC +40%, 12 h) confirms the whole model. Recipient **Otter**
+(lowest in chamber); **Wolf** was the global lowest (benched).
 
-These feed the **special-pet layer** (Pandora flat bonus, Bag gift) — currently
-not in the simulator — and let us turn this into a hard end-to-end test
-(`planner::campaign`) of one real chamber cycle.
+**Per-pet contribution** = `(log15(growth) − 1.75) · 1.40 (UPC) · (1 + bonus/100)
+· 12`. Ours vs the finish screen (all within ~0.05%):
 
-### Open questions for the special-pet layer (resolve with the breakdown)
-- Is **Bag's** 5% gift computed from the **base** campaign total or the
-  **Pandora-boosted** total?
-- If the global lowest pet *is* the campaign recipient, do they get **both** the
-  campaign total and Bag's gift (presumably yes — distinct mechanics)?
-- Confirm Bag's gift is **free** (post-token) — recipient keeps the full total.
+| Pet | in-game | model |
+|-----|---------|-------|
+| Cupid | 108.91 | 108.92 |
+| Bag | 82.65 | 82.68 |
+| Hedgehog | 123.8 | 123.87 |
+| Thunder Ball | 222.98 | 223.04 |
+| Meteor | 92 | 92.03 |
+| Earth Eater | 89.11 | 89.13 |
+| Sphinx | 84.51 | 84.72 |
+| Pandora's Box | 38.54 | 38.55 |
+| Vampire | 219.79 | 219.85 |
+
+- **Base total** (Σ contributions) = **1,062.29**.
+- **Pandora's special** = `43.42% × 1,062.29` = **+461.2** → finish screen **461**. ✅
+  Pandora applies to the **base** total and is given to the recipient.
+- **Otter's gain** = `1,062.29 × 1.4342` = **1,523.5** → finish screen **1,523.6**. ✅
+- **Bag's gift** = `5% × 1,523.5` = **+76.18** → finish screen **76.18**, landing on
+  **Wolf** (the global lowest), free. So Bag's 5% is of the **Pandora-boosted**
+  total, and Wolf 10,956 + 76.18 = 11,032, matching.
+- **Meteor start-vs-end:** indistinguishable here — start (4501 h → 59.23) gives
+  92.03, end (4513 h → 59.27) gives 92.04; both round to the screen's "92".
+
+### Resolved open questions
+- **Bag's 5% is of the *post-Pandora* total** (the recipient's full gain), not the base.
+- **Pandora applies to the base total**, given to the recipient.
+- **Bag's gift is free** (recipient keeps the full amount) and goes to the **global
+  lowest** pet (Wolf), not the campaign recipient.
+
+### Order of operations (for the special-pet layer)
+1. `base = Σ contributions` (recipient excluded, from end-of-run growth).
+2. `recipientGain = base · (1 + pandora%/100)` → deposit into the recipient.
+3. `bagGift = bagFraction · recipientGain` (0.05 token / 0.10 pre-token steal) →
+   the **global lowest** pet. Token: free (extra). Pre-token: subtract from the
+   recipient's deposit.
