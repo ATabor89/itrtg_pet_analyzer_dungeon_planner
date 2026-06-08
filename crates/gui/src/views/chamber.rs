@@ -380,22 +380,44 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                 (b.2 - b.1).partial_cmp(&(a.2 - a.1)).unwrap_or(std::cmp::Ordering::Equal)
             });
 
-            // Summary stat: average growth gained per pet per cycle.
+            // Per-pet total campaign contribution over the run (by name; trace
+            // contributions are keyed by roster index, matching `final_growth`).
+            let mut contrib: BTreeMap<&str, f64> = BTreeMap::new();
+            for cyc in &result.trace {
+                for &(idx, amount) in &cyc.contributions {
+                    if let Some((n, _)) = result.final_growth.get(idx) {
+                        *contrib.entry(n.as_str()).or_insert(0.0) += amount;
+                    }
+                }
+            }
+            let cycle_base = |c: &itrtg_planner::campaign::ChamberCycle| -> f64 {
+                c.contributions.iter().map(|(_, a)| a).sum()
+            };
+
+            // Summary stats: average growth/pet/cycle and the reward trend.
             if !rows.is_empty() && result.cycles > 0 {
                 let total_gain: f64 = rows.iter().map(|(_, s, f)| f - s).sum();
-                ui.label(
-                    RichText::new(format!(
-                        "  avg +{:.1}/pet/cycle  (chamber total +{:.0})",
-                        total_gain / rows.len() as f64 / result.cycles as f64,
-                        total_gain
-                    ))
-                    .color(style::TEXT_MUTED)
-                    .size(11.0),
+                let mut summary = format!(
+                    "  avg +{:.1}/pet/cycle  (chamber total +{:.0})",
+                    total_gain / rows.len() as f64 / result.cycles as f64,
+                    total_gain
                 );
+                if result.cycles > 1
+                    && let (Some(first), Some(last)) = (result.trace.first(), result.trace.last())
+                {
+                    summary += &format!(
+                        "  ·  reward/cycle {:.0} \u{2B62} {:.0}",
+                        cycle_base(first),
+                        cycle_base(last)
+                    );
+                }
+                ui.label(RichText::new(summary).color(style::TEXT_MUTED).size(11.0));
             }
 
             for (name, start, final_g) in rows {
                 let delta = final_g - start;
+                let avg_contrib =
+                    contrib.get(name.as_str()).copied().unwrap_or(0.0) / result.cycles.max(1) as f64;
                 let reached = result.reached.iter().find(|(n, _)| n == name);
                 let (status, color) = match (reached, state.targets.get(name)) {
                     (Some((_, cycle)), _) => (format!("\u{2713} target at cycle {cycle}"), style::SUCCESS),
@@ -404,7 +426,7 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                 };
                 ui.label(
                     RichText::new(format!(
-                        "  {name}: {start:.0} \u{2B62} {final_g:.0}  (+{delta:.0}){}{status}",
+                        "  {name}: {start:.0} \u{2B62} {final_g:.0}  (+{delta:.0})  contrib ~{avg_contrib:.0}/cyc{}{status}",
                         if status.is_empty() { "" } else { "  " }
                     ))
                     .color(color)
