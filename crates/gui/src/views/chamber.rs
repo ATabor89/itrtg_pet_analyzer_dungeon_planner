@@ -1136,6 +1136,37 @@ mod tests {
     }
 
     #[test]
+    fn merry_mantle_adds_then_removing_it_clears_the_bonus() {
+        use itrtg_models::{CampaignInputs, CampaignOverrides};
+
+        let pet = merged("Foo", export_with(1000, 5));
+        let roster = vec![pet.clone()];
+        let overrides = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
+        let ctx = CampaignContext {
+            overrides: &overrides,
+            roster: &roster,
+            inputs: &inputs,
+            include_equipment: true,
+            include_class: true,
+        };
+        let rates = GrowthRates { evolved_pets: 0, moai_per_hour: 0.0, pendant_cap: 0 };
+        let base = pet.export.clone().unwrap();
+
+        let mut state = ChamberState::default();
+        // Merry Mantle SSS+20 → +150%.
+        override_mut(&mut state, "Foo", &base).loadout.armor =
+            Some(equip("Merry Mantle", Quality::SSS, Some(20)));
+        let bonus = chamber_pet(&pet, &ctx, &rates, &state).unwrap().campaign_bonus_pct;
+        assert!((bonus - 150.0).abs() < 0.01, "Merry Mantle SSS+20 is +150% (got {bonus})");
+
+        // Clearing the slot drops the bonus back to 0.
+        override_mut(&mut state, "Foo", &base).loadout.armor = None;
+        let cleared = chamber_pet(&pet, &ctx, &rates, &state).unwrap().campaign_bonus_pct;
+        assert_eq!(cleared, 0.0, "removing the armor clears its contribution");
+    }
+
+    #[test]
     fn equipping_the_pendant_adds_passive_growth() {
         use itrtg_models::{CampaignInputs, CampaignOverrides};
 
