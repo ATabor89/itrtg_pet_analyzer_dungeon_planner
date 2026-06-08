@@ -68,6 +68,11 @@ pub struct ChamberState {
     /// before→after report.
     #[serde(skip)]
     pub last_starts: BTreeMap<String, f64>,
+    /// Last frame's natural card-content height per card-row — ephemeral. Used to
+    /// pad shorter cards up to the tallest in their row so a row stays flush even
+    /// when one card grows (e.g. an "edited" card gains the Refresh control).
+    #[serde(skip)]
+    pub row_heights: Vec<f32>,
 }
 
 /// A per-pet what-if override of the sim inputs the user can tweak on a card.
@@ -104,6 +109,7 @@ impl Default for ChamberState {
             search: String::new(),
             result: None,
             last_starts: BTreeMap::new(),
+            row_heights: Vec::new(),
         }
     }
 }
@@ -406,13 +412,23 @@ fn show_pet_cards(
     let rows = n.div_ceil(max_cols);
     let cols = n.div_ceil(rows.max(1)).max(1);
 
-    for chunk in names.chunks(cols) {
+    // Equalize card heights within each row: pad every card up to the tallest
+    // card's *natural* content height in that row. We pad to last frame's measured
+    // max (`prev_heights`) and record this frame's measured max for next frame —
+    // a one-frame lag that's imperceptible, and we request a repaint while the
+    // measurements are still settling so it converges immediately.
+    let prev_heights = state.row_heights.clone();
+    let mut new_heights: Vec<f32> = Vec::with_capacity(prev_heights.len());
+
+    for (row_idx, chunk) in names.chunks(cols).enumerate() {
         // Center the row: pad the left by half the unused width so the row's
         // midpoint sits at the available width's midpoint (odd ⭢ middle card
         // centered, even ⭢ centered on the seam between the two middle cards).
         let k = chunk.len() as f32;
         let row_w = k * footprint + (k - 1.0).max(0.0) * gap;
         let pad = ((avail - row_w) * 0.5).max(0.0);
+        let pad_to = prev_heights.get(row_idx).copied().unwrap_or(0.0);
+        let mut row_max = 0.0_f32;
         ui.horizontal(|ui| {
             if pad > 0.0 {
                 ui.add_space(pad);
@@ -423,23 +439,43 @@ fn show_pet_cards(
                 // The card shows (and edits) the *effective* export: the live
                 // export with any per-pet override applied.
                 let eff = effective_export(pet, state);
-                show_pet_card(ui, state, name, &cp, eff.as_ref());
+                let natural = show_pet_card(ui, state, name, &cp, eff.as_ref(), pad_to);
+                row_max = row_max.max(natural);
             }
         });
+        new_heights.push(row_max);
     }
+
+    // Repaint until the per-row heights stop changing (within ~half a pixel), so a
+    // card growing/shrinking settles its row-mates without waiting for the next
+    // interaction.
+    let settled = prev_heights.len() == new_heights.len()
+        && prev_heights
+            .iter()
+            .zip(&new_heights)
+            .all(|(a, b)| (a - b).abs() < 0.5);
+    if !settled {
+        ui.ctx().request_repaint();
+    }
+    state.row_heights = new_heights;
 }
 
 /// Inner content width of a chamber pet card (excludes the frame's margin/stroke).
 const CARD_WIDTH: f32 = 232.0;
 
 /// One chamber pet card (~240px). Reuses `ChamberPet` (`cp`) for the numbers.
+///
+/// `pad_to` is the row's tallest natural content height (from last frame); the
+/// card pads itself up to it so its row stays flush. Returns this card's own
+/// natural content height (pre-padding) so the caller can track the row max.
 fn show_pet_card(
     ui: &mut egui::Ui,
     state: &mut ChamberState,
     name: &str,
     cp: &ChamberPet,
     export: Option<&itrtg_models::ExportPet>,
-) {
+    pad_to: f32,
+) -> f32 {
     egui::Frame::new()
         .fill(style::BG_SURFACE)
         .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(0x33, 0x33, 0x44)))
@@ -447,6 +483,8 @@ fn show_pet_card(
         .inner_margin(8.0)
         .show(ui, |ui| {
             ui.set_width(CARD_WIDTH);
+            // Top of the content area — measure the card's natural height against it.
+            let content_top = ui.min_rect().bottom();
             ui.vertical(|ui| {
                 // Name + special tag.
                 ui.horizontal(|ui| {
@@ -529,7 +567,14 @@ fn show_pet_card(
                     }
                 });
             });
-        });
+            // The natural content height, then pad up to the row's tallest.
+            let natural = ui.min_rect().bottom() - content_top;
+            if pad_to > natural {
+                ui.add_space(pad_to - natural);
+            }
+            natural
+        })
+        .inner
 }
 
 /// Set a pet's effective class level via its override, seeding the override from
