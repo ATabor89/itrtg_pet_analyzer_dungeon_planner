@@ -371,14 +371,9 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
             let mut rows: Vec<(&String, f64, f64)> = state
                 .last_starts
                 .iter()
-                .map(|(name, &start)| {
-                    let final_g = result
-                        .final_growth
-                        .iter()
-                        .find(|(n, _)| n == name)
-                        .map(|(_, g)| *g)
-                        .unwrap_or(start);
-                    (name, start, final_g)
+                .filter_map(|(name, &start)| {
+                    let final_g = result.final_growth.iter().find(|(n, _)| n == name)?.1;
+                    Some((name, start, final_g))
                 })
                 .collect();
             rows.sort_by(|a, b| {
