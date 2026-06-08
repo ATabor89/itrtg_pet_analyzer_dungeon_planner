@@ -121,6 +121,14 @@ fn all_have_stats(team: &[CampaignPet]) -> bool {
 /// caller is responsible for depositing `total` into the recipient and applying
 /// each pet's passive growth (the chamber does both).
 fn growth_campaign(team: &[CampaignPet], p: &CampaignParams) -> CampaignOutcome {
+    let (total, recipient, _) = growth_campaign_detailed(team, p);
+    CampaignOutcome::Growth { total, recipient }
+}
+
+/// The Growth campaign with each pet's contribution exposed (0 for the recipient),
+/// for the chamber's per-cycle breakdown. `contributions.iter().sum()` is the
+/// base total. Team must be non-empty.
+pub fn growth_campaign_detailed(team: &[CampaignPet], p: &CampaignParams) -> (f64, usize, Vec<f64>) {
     let hours = p.hours.clamp(1, 12) as f64;
     let end_growth = |pet: &CampaignPet| pet.growth as f64 + pet.passive_per_hour * hours;
     let recipient = (0..team.len())
@@ -130,13 +138,19 @@ fn growth_campaign(team: &[CampaignPet], p: &CampaignParams) -> CampaignOutcome 
                 .unwrap_or(std::cmp::Ordering::Equal)
         })
         .expect("non-empty team");
-    let total: f64 = team
+    let contributions: Vec<f64> = team
         .iter()
         .enumerate()
-        .filter(|(i, _)| *i != recipient)
-        .map(|(_, pet)| (log_base(end_growth(pet), 15.0) - 1.75).max(0.0) * pet_factor(pet, p))
-        .sum();
-    CampaignOutcome::Growth { total, recipient }
+        .map(|(i, pet)| {
+            if i == recipient {
+                0.0
+            } else {
+                (log_base(end_growth(pet), 15.0) - 1.75).max(0.0) * pet_factor(pet, p)
+            }
+        })
+        .collect();
+    let total = contributions.iter().sum();
+    (total, recipient, contributions)
 }
 
 /// Divinity: `f(stats) · div_per_sec`, summed. Blocked on stats and on the
@@ -334,6 +348,9 @@ pub struct ChamberCycle {
     pub recipient_gain: f64,
     /// Bag's gift `(global-lowest index, amount)`, if a Bag is in the chamber.
     pub bag_gift: Option<(usize, f64)>,
+    /// Each in-chamber pet's growth contribution this cycle `(roster index,
+    /// contribution)` — 0 for the recipient. Their sum is the base campaign total.
+    pub contributions: Vec<(usize, f64)>,
 }
 
 /// Outcome of a chamber simulation.
@@ -389,7 +406,8 @@ pub fn simulate_growth_chamber(
         // Indices of the campaign participants, in roster order.
         let chamber_idx: Vec<usize> = (0..pets.len()).filter(|&i| pets[i].in_chamber).collect();
 
-        let mut cycle_record = ChamberCycle { recipient: 0, recipient_gain: 0.0, bag_gift: None };
+        let mut cycle_record =
+            ChamberCycle { recipient: 0, recipient_gain: 0.0, bag_gift: None, contributions: Vec::new() };
 
         if !chamber_idx.is_empty() {
             // Base total + recipient from the Growth campaign over the chamber. The
@@ -410,10 +428,10 @@ pub fn simulate_growth_chamber(
                 .collect();
             let params =
                 CampaignParams { upc_pct, hours, unlocked_pets: chamber_idx.len(), div_per_sec: None };
-            let (base, recipient_sub) = match simulate(CampaignType::Growth, &team, &params) {
-                CampaignOutcome::Growth { total, recipient } => (total, recipient),
-                _ => unreachable!("Growth campaign always yields a Growth outcome"),
-            };
+            let (base, recipient_sub, contribs) = growth_campaign_detailed(&team, &params);
+            // Map the sub-team contributions back to roster indices.
+            cycle_record.contributions =
+                chamber_idx.iter().zip(contribs).map(|(&i, c)| (i, c)).collect();
             let recipient = chamber_idx[recipient_sub];
 
             // Special-pet parameters, read from the in-chamber pets. Assumes at
@@ -754,6 +772,32 @@ mod tests {
         let expected = (1_000.0 + reward) * 1.3;
         assert!((b_total - expected).abs() < 0.01, "B total {b_total}, want {expected}");
         assert!(b_total > 1_000.0 + reward, "egg should amplify the total");
+    }
+
+    #[test]
+    fn chamber_records_per_cycle_contributions() {
+        let pet = |name: &str, g: f64| ChamberPet {
+            name: name.into(),
+            growth: g,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+        };
+        let mut pets = vec![pet("Low", 1_000.0), pet("High", 100_000.0)];
+        pets[1].campaign_bonus_pct = 50.0; // exercise the bonus factor
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false);
+        let c = &r.trace[0].contributions;
+        assert_eq!(c.len(), 2);
+        // Low is the recipient (contributes 0); High contributes the base total,
+        // scaled by its bonus: factor = (1+0) · (1+0.5) · 12 = 18.
+        assert_eq!(c.iter().find(|(i, _)| *i == 0).unwrap().1, 0.0);
+        let high = c.iter().find(|(i, _)| *i == 1).unwrap().1;
+        let expected = (100_000_f64.ln() / 15_f64.ln() - 1.75) * 1.5 * 12.0;
+        assert!((high - expected).abs() < 0.01, "got {high}");
     }
 
     /// End-to-end against a real finished 12 h chamber run (UPC +40%). See
