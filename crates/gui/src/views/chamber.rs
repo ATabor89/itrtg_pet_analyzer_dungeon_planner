@@ -32,8 +32,6 @@ pub struct ChamberState {
     /// Per-pet target growth (canonical name → target). A pet with a target is
     /// "tracked" — the sim reports the cycle it reaches it.
     pub targets: BTreeMap<String, u64>,
-    /// Canonical names of pets wearing a Growing Love Pendant.
-    pub pendant: Vec<String>,
     /// Campaign length, 1–12 h.
     pub hours: u32,
     /// Maximum cycles to simulate before giving up.
@@ -76,7 +74,6 @@ impl Default for ChamberState {
         Self {
             chamber: Vec::new(),
             targets: BTreeMap::new(),
-            pendant: Vec::new(),
             hours: 12,
             max_cycles: 5_000,
             pandora_feedings: 0,
@@ -97,7 +94,6 @@ impl ChamberState {
         let src = &state.chamber;
         self.chamber = src.chamber.clone();
         self.targets = src.targets.clone();
-        self.pendant = src.pendant.clone();
         self.hours = src.hours;
         self.max_cycles = src.max_cycles;
         self.pandora_feedings = src.pandora_feedings;
@@ -113,7 +109,6 @@ impl ChamberState {
         state.chamber = ChamberState {
             chamber: self.chamber.clone(),
             targets: self.targets.clone(),
-            pendant: self.pendant.clone(),
             hours: self.hours,
             max_cycles: self.max_cycles,
             pandora_feedings: self.pandora_feedings,
@@ -177,7 +172,8 @@ fn chamber_pet(
     let growth_multiplier = if export.has_magic_egg() { MAGIC_EGG_GROWTH_MULT } else { 1.0 };
     let bonus = pet.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0);
     let mut passive = rates.moai_per_hour;
-    if state.pendant.iter().any(|n| n == &pet.name) {
+    // The pendant is just the equipped accessory — no separate toggle.
+    if export.loadout.accessory.as_ref().is_some_and(|a| a.name == "Growing Love Pendant") {
         passive += rates.pendant_per_hour();
     }
     let special = match pet.name.as_str() {
@@ -322,7 +318,128 @@ pub fn show(
     ui.add_space(4.0);
     show_results(ui, state);
     ui.separator();
+    show_pet_cards(ui, state, data, ctx, rates);
+    ui.separator();
     show_pet_picker(ui, state, data, ctx);
+}
+
+/// Cards for the selected chamber pets — their computed stats, read-only
+/// equipment/CL, and the editable growth target.
+fn show_pet_cards(
+    ui: &mut egui::Ui,
+    state: &mut ChamberState,
+    data: &DataStore,
+    ctx: &CampaignContext,
+    rates: &GrowthRates,
+) {
+    if state.chamber.is_empty() {
+        ui.label(
+            RichText::new("No pets in the chamber yet — add some below.")
+                .color(style::TEXT_MUTED)
+                .size(11.0),
+        );
+        return;
+    }
+    ui.label(RichText::new("Chamber").color(style::TEXT_BRIGHT).size(12.0));
+    ui.horizontal_wrapped(|ui| {
+        // Render in the chamber's order; clone names so we can mutate `state`.
+        let names: Vec<String> = state.chamber.clone();
+        for name in &names {
+            let Some(pet) = data.merged.iter().find(|p| &p.name == name) else { continue };
+            let Some(cp) = chamber_pet(pet, ctx, rates, state) else { continue };
+            let export = pet.export.as_ref();
+            show_pet_card(ui, state, name, &cp, export);
+        }
+    });
+}
+
+/// One chamber pet card (~240px). Reuses `ChamberPet` (`cp`) for the numbers.
+fn show_pet_card(
+    ui: &mut egui::Ui,
+    state: &mut ChamberState,
+    name: &str,
+    cp: &ChamberPet,
+    export: Option<&itrtg_models::ExportPet>,
+) {
+    egui::Frame::new()
+        .fill(style::BG_SURFACE)
+        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(0x33, 0x33, 0x44)))
+        .corner_radius(egui::CornerRadius::same(6))
+        .inner_margin(8.0)
+        .show(ui, |ui| {
+            ui.set_width(232.0);
+            ui.vertical(|ui| {
+                // Name + special tag.
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(name).color(style::TEXT_BRIGHT).size(13.0).strong());
+                    let tag = match cp.special {
+                        Some(SpecialPet::Pandora { .. }) => Some("Pandora"),
+                        Some(SpecialPet::Bag { .. }) => Some("Bag"),
+                        None => None,
+                    };
+                    if let Some(tag) = tag {
+                        ui.label(RichText::new(tag).color(style::ACCENT).size(10.0));
+                    }
+                });
+                // Total growth + Growth bonus.
+                ui.label(
+                    RichText::new(format!(
+                        "total {:.0}   +{:.0}% growth",
+                        cp.growth * cp.growth_multiplier,
+                        cp.campaign_bonus_pct
+                    ))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0),
+                );
+                // Passive/hr + CL.
+                ui.label(
+                    RichText::new(format!(
+                        "passive {:.1}/hr   ·   CL {}",
+                        cp.passive_per_hour,
+                        export.map_or(0, |e| e.class_level)
+                    ))
+                    .color(style::TEXT_MUTED)
+                    .size(10.0),
+                );
+                // Read-only equipment (W / A / Ac).
+                if let Some(e) = export {
+                    ui.label(
+                        RichText::new(format!(
+                            "W: {}\nA: {}\nAc: {}",
+                            equip_label(e.loadout.weapon.as_ref()),
+                            equip_label(e.loadout.armor.as_ref()),
+                            equip_label(e.loadout.accessory.as_ref()),
+                        ))
+                        .color(style::TEXT_MUTED)
+                        .size(10.0),
+                    );
+                }
+                // Editable target.
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("target:").color(style::TEXT_MUTED).size(10.0));
+                    let mut target = state.targets.get(name).copied().unwrap_or(0);
+                    if ui.add(egui::DragValue::new(&mut target).speed(100.0)).changed() {
+                        if target == 0 {
+                            state.targets.remove(name);
+                        } else {
+                            state.targets.insert(name.to_string(), target);
+                        }
+                    }
+                });
+            });
+        });
+}
+
+/// Compact label for an equipment slot: name plus quality/upgrade for gear that
+/// carries an upgrade level (e.g. `Magic Stick SSS+10`); `—` when empty.
+fn equip_label(item: Option<&itrtg_models::Equipment>) -> String {
+    match item {
+        None => "—".to_string(),
+        Some(e) => match e.upgrade_level {
+            Some(u) => format!("{} {:?}+{u}", e.name, e.quality),
+            None => e.name.clone(),
+        },
+    }
 }
 
 /// Fill the chamber with the top 10 unlocked pets by Growth-campaign bonus,
@@ -496,33 +613,6 @@ fn show_pet_picker(
                         .color(style::TEXT_MUTED)
                         .size(10.0),
                 );
-
-                let mut pendant = state.pendant.iter().any(|n| n == &name);
-                let had_pendant = pendant;
-                // At most two pendants exist in-game.
-                if ui
-                    .add_enabled(
-                        had_pendant || state.pendant.len() < 2,
-                        egui::Checkbox::new(&mut pendant, RichText::new("pendant").size(10.0)),
-                    )
-                    .changed()
-                {
-                    if pendant {
-                        state.pendant.push(name.clone());
-                    } else {
-                        state.pendant.retain(|n| n != &name);
-                    }
-                }
-
-                ui.label(RichText::new("target:").color(style::TEXT_MUTED).size(10.0));
-                let mut target = state.targets.get(&name).copied().unwrap_or(0);
-                if ui.add(egui::DragValue::new(&mut target).speed(100.0)).changed() {
-                    if target == 0 {
-                        state.targets.remove(&name);
-                    } else {
-                        state.targets.insert(name.clone(), target);
-                    }
-                }
             });
         }
     });
