@@ -505,6 +505,16 @@ impl MergedPet {
                     map.insert(c, v);
                 }
             }
+            // Meteor: an all-campaign bonus that grows with time spent running
+            // campaigns — `25 + hours^0.42`%. Replaces the curated static +25.
+            // (e.g. 4501 hours → 25 + 34.23 ≈ 59.23.)
+            "Meteor" => {
+                let hours = ctx.inputs.meteor_campaign_hours as f64;
+                let v = round2(25.0 + hours.powf(0.42));
+                for c in CampaignType::ALL {
+                    map.insert(c, v);
+                }
+            }
             // Goblin: +1% to every campaign per UCC completed (capped at 75),
             // stacked on her curated base (-100 growth/item, +150 divinity, +50
             // others). At the cap that base becomes -25 / +225 / +125. Her
@@ -1372,6 +1382,26 @@ mod tests {
         assert_eq!(g(&i, &p, &ov), 200.0);
         let (i, p) = mk(99_999, true, false);
         assert_eq!(g(&i, &p, &ov), 100.0);
+    }
+
+    #[test]
+    fn test_meteor_campaign_bonus() {
+        let empty = CampaignOverrides::default();
+        let meteor = MergedPet {
+            name: "Meteor".into(),
+            wiki: None,
+            export: Some(make_export_pet("Meteor", Element::Neutral, None)),
+        };
+        // 25 + 4501^0.42 ≈ 59.23, applied to every campaign.
+        let inputs = CampaignInputs { meteor_campaign_hours: 4501, ..Default::default() };
+        let ctx = CampaignContext { overrides: &empty, roster: &[], inputs: &inputs, include_equipment: false, include_class: false };
+        let g = meteor.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap();
+        assert!((g - 59.23).abs() < 0.01, "got {g}");
+        assert_eq!(meteor.campaign_bonus_for(CampaignType::Food, &ctx), Some(g));
+        // Zero hours → just the +25 base.
+        let zero = CampaignInputs::default();
+        let ctx0 = CampaignContext { overrides: &empty, roster: &[], inputs: &zero, include_equipment: false, include_class: false };
+        assert_eq!(meteor.campaign_bonus_for(CampaignType::Growth, &ctx0), Some(25.0));
     }
 
     #[test]

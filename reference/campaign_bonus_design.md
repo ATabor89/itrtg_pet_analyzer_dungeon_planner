@@ -181,6 +181,10 @@ now modelled (`apply_campaign_formulas` + `class_campaign_bonus`, with new
   "~time to lock @1/s" estimate. The total is a flexible-notation text input
   (`earth_eater_total_planets`, `32.4e6`). Locked-at-82 is the planning default
   because the permanent value is only ever a floor under what feeding achieves.
+- **Meteor** — an all-campaign bonus that grows with time run in campaigns:
+  **`25 + hours^0.42`%** (replacing the curated static +25). `hours` is a per-pet
+  mouseover stat (`meteor_campaign_hours` input — not in any export). Confirmed
+  in-game: 4,501 hours → 59.23%.
 
 ## Identified but not yet built (input-driven)
 
