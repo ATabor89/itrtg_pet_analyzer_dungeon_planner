@@ -71,9 +71,6 @@ pub struct ChamberState {
 /// Food types, lowest→highest growth. Index matches [`ChamberState::food_values`].
 pub const FOODS: [&str; 5] = ["Free", "Puny", "Strong", "Mighty", "Chocolate"];
 
-/// Safety cap when running "until all targets reached".
-const UNTIL_TARGETS_CAP: u32 = 100_000;
-
 impl Default for ChamberState {
     fn default() -> Self {
         Self {
@@ -269,33 +266,21 @@ pub fn show(
 
     // --- Run mode + actions ---
     ui.horizontal(|ui| {
+        ui.label(RichText::new("Max cycles:").color(style::TEXT_MUTED).size(12.0));
+        ui.add(egui::DragValue::new(&mut state.max_cycles).range(1..=1_000_000).speed(50.0));
+        ui.separator();
         ui.checkbox(
             &mut state.run_until_targets,
-            RichText::new("Run until all targets reached").size(12.0),
-        );
-        if !state.run_until_targets {
-            ui.separator();
-            ui.label(RichText::new("Max cycles:").color(style::TEXT_MUTED).size(12.0));
-            ui.add(egui::DragValue::new(&mut state.max_cycles).range(1..=1_000_000).speed(50.0));
-        }
+            RichText::new("Stop early when all targets reached").size(12.0),
+        )
+        .on_hover_text("Off: always run the full max cycles. On: stop as soon as every target is hit (max cycles still caps it).");
     });
 
     ui.horizontal(|ui| {
         let n = state.chamber.len();
         let over = n > 10;
-        // "Run until targets" needs at least one target, else it would silently
-        // fall back to the (now-hidden) max-cycles value.
-        let no_target = state.run_until_targets && state.targets.is_empty();
         let run = ui
-            .add_enabled(
-                !over && !no_target,
-                egui::Button::new(RichText::new("\u{25B6} Run").size(13.0)),
-            )
-            .on_hover_text(if no_target {
-                "Set a target on at least one pet, or switch off \"run until targets\"."
-            } else {
-                "Run the chamber simulation."
-            })
+            .add_enabled(!over, egui::Button::new(RichText::new("\u{25B6} Run").size(13.0)))
             .clicked();
         if ui
             .button(RichText::new("Recommend chamber").size(12.0))
@@ -311,21 +296,22 @@ pub fn show(
         );
 
         if run {
-            // Capture the in-chamber pets' starting growth for the report.
+            // Lock in the in-chamber pets' starting growth (the report reads this,
+            // so it won't shift when the selection changes before the next run).
             state.last_starts = data
                 .merged
                 .iter()
                 .filter(|p| state.chamber.iter().any(|c| c == &p.name))
                 .filter_map(|p| p.export.as_ref().map(|e| (p.name.clone(), e.growth as f64)))
                 .collect();
-            let max = if state.run_until_targets && !state.targets.is_empty() {
-                UNTIL_TARGETS_CAP
-            } else {
-                state.max_cycles
-            };
             let mut roster = build_roster(data, ctx, rates, state);
-            state.result =
-                Some(simulate_growth_chamber(&mut roster, state.hours, state.upc_pct, max));
+            state.result = Some(simulate_growth_chamber(
+                &mut roster,
+                state.hours,
+                state.upc_pct,
+                state.max_cycles,
+                state.run_until_targets,
+            ));
         }
     });
 
@@ -366,7 +352,7 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
         .show(ui, |ui| {
             ui.label(
                 RichText::new(format!(
-                    "Ran {} cycles (~{:.0} h) — {} target(s) reached.",
+                    "Ran {} cycles (~{:.0} h) — {} target(s) reached.  (by growth gained)",
                     result.cycles,
                     result.cycles as f64 * state.hours as f64,
                     result.reached.len()
@@ -375,29 +361,37 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                 .size(12.0),
             );
 
-            // Full report: every in-chamber pet, lowest final growth first.
+            // Report the pets that were in the chamber *for this run* (captured in
+            // `last_starts`), so it doesn't shift if the selection changes before
+            // the next run. Sorted by growth gained, most first.
             let mut rows: Vec<(&String, f64, f64)> = state
-                .chamber
+                .last_starts
                 .iter()
-                .filter_map(|name| {
-                    let final_g = result.final_growth.iter().find(|(n, _)| n == name)?.1;
-                    let start = state.last_starts.get(name).copied().unwrap_or(final_g);
-                    Some((name, start, final_g))
+                .map(|(name, &start)| {
+                    let final_g = result
+                        .final_growth
+                        .iter()
+                        .find(|(n, _)| n == name)
+                        .map(|(_, g)| *g)
+                        .unwrap_or(start);
+                    (name, start, final_g)
                 })
                 .collect();
-            rows.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+            rows.sort_by(|a, b| {
+                (b.2 - b.1).partial_cmp(&(a.2 - a.1)).unwrap_or(std::cmp::Ordering::Equal)
+            });
 
             for (name, start, final_g) in rows {
                 let delta = final_g - start;
                 let reached = result.reached.iter().find(|(n, _)| n == name);
                 let (status, color) = match (reached, state.targets.get(name)) {
-                    (Some((_, cycle)), _) => (format!("✓ target at cycle {cycle}"), style::SUCCESS),
+                    (Some((_, cycle)), _) => (format!("\u{2713} target at cycle {cycle}"), style::SUCCESS),
                     (None, Some(t)) => (format!("{final_g:.0}/{t} (not reached)"), style::WARNING),
                     (None, None) => (String::new(), style::TEXT_MUTED),
                 };
                 ui.label(
                     RichText::new(format!(
-                        "  {name}: {start:.0} → {final_g:.0}  (+{delta:.0}){}{status}",
+                        "  {name}: {start:.0} \u{2B62} {final_g:.0}  (+{delta:.0}){}{status}",
                         if status.is_empty() { "" } else { "  " }
                     ))
                     .color(color)
