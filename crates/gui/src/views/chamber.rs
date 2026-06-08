@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use eframe::egui::{self, RichText};
-use itrtg_models::CampaignType;
+use itrtg_models::{CampaignType, MAGIC_EGG_GROWTH_MULT};
 use itrtg_planner::campaign::{
     simulate_growth_chamber, ChamberPet, ChamberResult, SpecialPet,
 };
@@ -169,7 +169,12 @@ fn chamber_pet(
     rates: &GrowthRates,
     state: &ChamberState,
 ) -> Option<ChamberPet> {
-    let growth = pet.export.as_ref()?.growth as f64;
+    let export = pet.export.as_ref()?;
+    // Base growth is the accumulator; the Magic Egg (+30%) makes total growth that
+    // the campaign reads. (Patreon-God-Challenge would multiply here too once we
+    // track it — the player has none yet.)
+    let growth = export.growth as f64;
+    let growth_multiplier = if export.has_magic_egg() { MAGIC_EGG_GROWTH_MULT } else { 1.0 };
     let bonus = pet.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0);
     let mut passive = rates.moai_per_hour;
     if state.pendant.iter().any(|n| n == &pet.name) {
@@ -177,14 +182,13 @@ fn chamber_pet(
     }
     let special = match pet.name.as_str() {
         "Pandora's Box" => Some(SpecialPet::Pandora { feedings: state.pandora_feedings }),
-        "Bag" => Some(SpecialPet::Bag {
-            token_improved: pet.export.as_ref().is_some_and(|e| e.improved),
-        }),
+        "Bag" => Some(SpecialPet::Bag { token_improved: export.improved }),
         _ => None,
     };
     Some(ChamberPet {
         name: pet.name.clone(),
         growth,
+        growth_multiplier,
         campaign_bonus_pct: bonus,
         passive_per_hour: passive,
         food_per_feeding: state.per_feeding_growth(),
@@ -302,7 +306,7 @@ pub fn show(
                 .merged
                 .iter()
                 .filter(|p| state.chamber.iter().any(|c| c == &p.name))
-                .filter_map(|p| p.export.as_ref().map(|e| (p.name.clone(), e.growth as f64)))
+                .filter_map(|p| p.export.as_ref().map(|e| (p.name.clone(), e.effective_growth() as f64)))
                 .collect();
             let mut roster = build_roster(data, ctx, rates, state);
             state.result = Some(simulate_growth_chamber(
@@ -332,7 +336,7 @@ fn recommend_chamber(state: &mut ChamberState, data: &DataStore, ctx: &CampaignC
             (
                 p.name.as_str(),
                 p.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0),
-                p.export.as_ref().map(|e| e.growth).unwrap_or(0),
+                p.export.as_ref().map(|e| e.effective_growth()).unwrap_or(0),
             )
         })
         .collect();
@@ -381,6 +385,20 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                 (b.2 - b.1).partial_cmp(&(a.2 - a.1)).unwrap_or(std::cmp::Ordering::Equal)
             });
 
+            // Summary stat: average growth gained per pet per cycle.
+            if !rows.is_empty() && result.cycles > 0 {
+                let total_gain: f64 = rows.iter().map(|(_, s, f)| f - s).sum();
+                ui.label(
+                    RichText::new(format!(
+                        "  avg +{:.1}/pet/cycle  (chamber total +{:.0})",
+                        total_gain / rows.len() as f64 / result.cycles as f64,
+                        total_gain
+                    ))
+                    .color(style::TEXT_MUTED)
+                    .size(11.0),
+                );
+            }
+
             for (name, start, final_g) in rows {
                 let delta = final_g - start;
                 let reached = result.reached.iter().find(|(n, _)| n == name);
@@ -428,14 +446,14 @@ fn show_pet_picker(
                 .then(
                     b.0.export
                         .as_ref()
-                        .map(|e| e.growth)
-                        .cmp(&a.0.export.as_ref().map(|e| e.growth)),
+                        .map(|e| e.effective_growth())
+                        .cmp(&a.0.export.as_ref().map(|e| e.effective_growth())),
                 )
         });
 
         for (pet, bonus) in pets {
             let name = pet.name.clone();
-            let growth = pet.export.as_ref().map(|e| e.growth).unwrap_or(0);
+            let growth = pet.export.as_ref().map(|e| e.effective_growth()).unwrap_or(0);
             ui.horizontal(|ui| {
                 let mut in_chamber = state.chamber.iter().any(|n| n == &name);
                 let was = in_chamber;
