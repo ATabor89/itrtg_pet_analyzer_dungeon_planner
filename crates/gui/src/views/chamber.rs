@@ -74,7 +74,8 @@ pub struct ChamberState {
 /// Seeded from the pet's export on first edit, so an override always carries the
 /// pet's full effective loadout + CL; "Refresh from export" removes it entirely
 /// (reverting to the live export). Persisted so a tuned chamber survives reloads.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PetOverride {
     /// Effective equipment (overrides the export's loadout). Phase 2a leaves this
     /// equal to the export; the gear editors that mutate it arrive in phase 2b.
@@ -819,5 +820,46 @@ mod tests {
         // "Refresh from export" is just dropping the entry.
         state.overrides.remove("Foo");
         assert_eq!(effective_export(&pet, &state).unwrap().class_level, 5);
+    }
+
+    #[test]
+    fn cl_override_raises_adventurer_growth_bonus() {
+        use itrtg_models::{CampaignInputs, CampaignOverrides, Class};
+
+        // An Adventurer's all-campaign bonus is (2 + evo)%·CL; a generic pet has
+        // evo 0, so 2%/CL. The override must flow CL through campaign_bonus_for.
+        let mut adv = export_with(1000, 5);
+        adv.class = Some(Class::Adventurer);
+        let pet = merged("Advy", adv);
+
+        let roster = vec![pet.clone()];
+        let overrides = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
+        let ctx = CampaignContext {
+            overrides: &overrides,
+            roster: &roster,
+            inputs: &inputs,
+            include_equipment: true,
+            include_class: true,
+        };
+        let rates = GrowthRates { evolved_pets: 0, moai_per_hour: 0.0, pendant_cap: 0 };
+
+        let mut state = ChamberState::default();
+        let base = pet.export.clone().unwrap();
+
+        // No override (fast path): 2%·5 = 10%.
+        let before = chamber_pet(&pet, &ctx, &rates, &state).unwrap().campaign_bonus_pct;
+        // CL 5 → 22 (synthetic path): 2%·22 = 44%.
+        set_class_level(&mut state, "Advy", &base, 22);
+        let after = chamber_pet(&pet, &ctx, &rates, &state).unwrap().campaign_bonus_pct;
+
+        assert!(
+            after > before,
+            "raising CL should raise the Adventurer Growth bonus ({before} → {after})"
+        );
+        assert!(
+            (after - before - 34.0).abs() < 0.5,
+            "2%/CL over a 17-level bump ≈ +34% ({before} → {after})"
+        );
     }
 }
