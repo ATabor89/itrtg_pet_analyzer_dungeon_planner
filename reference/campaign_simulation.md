@@ -135,6 +135,14 @@ growth gain (per contributing pet) = (log15(growth) - 1.75) · UPC · pet_growth
   contribute** its own term.
 - No stats. Needs only growth (have it), `UPC` (input), `pet_growth_multi`, hours.
 - See **Bag** and **Pandora's Box** in §5 for modifiers.
+- ⚠️ **Total vs base growth.** Every `growth` above is **total** growth
+  (`base · MagicEgg(1.3) · PatreonGodChallenge`), and the recipient / Bag's target /
+  Pandora's threshold all use total. But the reward is added to the recipient's
+  **base** growth — so an egg-carrying recipient's *total* jumps by `reward · 1.3`
+  (a real reason to keep the egg on Pandora until its base passes the 100k cap).
+  The chamber engine tracks base + a per-pet `growth_multiplier` and reads total
+  for the formula; passive/feeding/reward all land on base. (PGC is a *global*
+  multiplier — the player has none yet; the Magic Egg is per-pet from the export.)
 
 ### Food ✅ (needs per-pet food-tier data)
 Stats don't matter; **more unlocked pets ⇒ more food**.
