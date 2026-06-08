@@ -46,8 +46,11 @@ Building blocks our model uses:
 | **Sphinx** | 37.5 | 26.19 | 56.28 `(2.68·21)` | **119.97** | 120 | ✅ (rounds) |
 | **Cupid** | 30 (token) + **104 partners** | — | 50 `(2.5·20)` | **184** | 184 | ✅ exact |
 | **Otter** | 75 | 26.19 | 53.2 `(2.8·19)` | **154.39** | 154 | ✅ (rounds) |
-| **Bag** | `lowestUnlocked^0.4` | 26.19 | 48 `(3.0·16)` | **see note** | 115 | ◐ consistent |
-| **Meteor** | 25 | 26.19 | 54.15 `(2.85·19)` | **105.34** | 140 | ⚠️ **mismatch (~35)** |
+| **Bag** | 41.27 (`10,950^0.4`, Wolf) | 26.19 | 48 `(3.0·16)` | **115.46** | 115 | ✅ (rounds) |
+| **Meteor** | 59.23 (`25 + 4501^0.42`) | 26.19 | 54.15 `(2.85·19)` | **139.57** | 140 | ✅ (rounds) |
+
+**All 10 pets now confirm the model.** Every evolved chamber pet is an Adventurer
+(confirmed), so the class layer applies to each.
 
 ### What this confirms
 A lot of the model lands **exactly** against live in-game numbers:
@@ -57,21 +60,20 @@ A lot of the model lands **exactly** against live in-game numbers:
 - **Pandora's Box** special: `(57,127/5,000)·(3 + 8·0.1)` = **43.42%** total-campaign bonus, exactly.
 - **Hedgehog** token-improved growth boost (+141 → 166).
 - **Cupid's partner bonus** — the whole point of the recent change: **+104** (104 partnered pets) is required to hit 184. ✅
-- **Adventurer class** `(2+evo)·CL` with the curated evo bonuses (Cupid 0.5, Sphinx 0.68, Hedgehog 0.58, Otter 0.8).
+- **Adventurer class** `(2+evo)·CL` with the curated evo bonuses (Cupid 0.5, Sphinx 0.68, Hedgehog 0.58, Otter 0.8, Meteor 0.85).
+- **Meteor's** `25 + hours^0.42` time-in-campaigns formula (new).
 
-### Flagged
-- **Meteor — mismatch.** Model gives **105.34**, game shows **140** (~35 short). Its
-  wiki innate is "+25% all campaigns"; equip + Adventurer-class only reach ~80 on
-  top. To reach 140 its innate would need to be ~60, *or* there's an untracked
-  source (a token improvement? extra equipment? a stale wiki value?). **Investigate
-  with the final breakdown** — capture Meteor's exact contribution and double-check
-  its in-game equipment/token state.
-- **Bag — consistent but not independently verifiable.** Its growth bonus is
-  `lowestUnlockedPet.growth^0.4` (cap 100), which depends on the player's *global*
-  lowest unlocked pet (not in this snapshot). Working back: `115 − 26.19 (stick) −
-  48 (Adv CL16) = 40.81` innate ⇒ lowest unlocked ≈ **10.6k growth**. Plausible;
-  confirm against the final breakdown (Bag also applies its token-improved **+5%
-  free gift** to the recipient).
+### Resolved (were flagged)
+- **Meteor — was a missing formula, now modelled.** Its bonus isn't the wiki's
+  static +25; the tooltip gives **`25 + hours_in_campaign^0.42`** (all campaigns).
+  At 4,501 hours → 59.23, so 59.23 + 26.19 + 54.15 = 139.57 ≈ 140. ✅ Implemented
+  (`meteor_campaign_hours` input). Its evo-bonus line also confirms our Adventurer
+  math: "extra 16.15% (0.85 · class level)" = `0.85 · 19`.
+- **Bag — confirmed.** Its growth bonus is `lowestUnlockedPet.growth^0.4` (cap
+  100); the player's lowest unlocked pet is **Wolf ≈ 10,950 growth** →
+  `10,950^0.4 = 41.27`, so 41.27 + 26.19 + 48 = 115.46 ≈ 115. ✅ (Bag also applies
+  its token-improved **+5% free gift** to the recipient — part of the still-pending
+  special-pet layer.)
 
 ## To complete when the run finishes
 
@@ -81,7 +83,6 @@ The finish screen gives the exact per-pet contribution breakdown. Capture:
 3. **Recipient (Otter) total gain**, including:
    - **Pandora's Box** +43.42% applied to the campaign total.
    - **Bag's** token-improved **+5%** free gift to the recipient.
-4. Resolve **Meteor**.
 
 These feed the **special-pet layer** (Pandora flat bonus, Bag gift) — currently
 not in the simulator — and let us turn this into a hard end-to-end test
