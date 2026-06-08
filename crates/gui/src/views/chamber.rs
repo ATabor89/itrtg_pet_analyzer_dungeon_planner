@@ -483,9 +483,12 @@ fn show_pet_card(
         .inner_margin(8.0)
         .show(ui, |ui| {
             ui.set_width(CARD_WIDTH);
-            // Top of the content area — measure the card's natural height against it.
-            let content_top = ui.min_rect().bottom();
-            ui.vertical(|ui| {
+            // Force the card up to the row's tallest natural height (measured last
+            // frame) so its row stays flush even when a sibling grows taller.
+            if pad_to > 0.0 {
+                ui.set_min_height(pad_to);
+            }
+            let inner = ui.vertical(|ui| {
                 // Name + special tag.
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(name).color(style::TEXT_BRIGHT).size(13.0).strong());
@@ -567,12 +570,9 @@ fn show_pet_card(
                     }
                 });
             });
-            // The natural content height, then pad up to the row's tallest.
-            let natural = ui.min_rect().bottom() - content_top;
-            if pad_to > natural {
-                ui.add_space(pad_to - natural);
-            }
-            natural
+            // Report the *natural* content height (independent of the min above),
+            // so the row max tracks the real tallest card and shrinks when it does.
+            inner.response.rect.height()
         })
         .inner
 }
