@@ -296,7 +296,15 @@ fn pandora_pct(growth: f64, feedings: u32) -> f64 {
 #[derive(Debug, Clone)]
 pub struct ChamberPet {
     pub name: String,
+    /// **Base** growth — the accumulator. All gains (campaign reward, passive,
+    /// feeding) are added here; the Growth campaign reads **total** growth
+    /// (`growth · growth_multiplier`).
     pub growth: f64,
+    /// Total-growth multiplier (Magic Egg ×1.3, Patreon-God-Challenge, …). The
+    /// campaign formula, recipient, Bag, Pandora and targets all use total growth,
+    /// while rewards land on base — so an egg-carrying recipient's total jumps by
+    /// `reward · multiplier`.
+    pub growth_multiplier: f64,
     pub campaign_bonus_pct: f32,
     /// Pendant + Moai growth per hour for this pet (0 if none). One tick per
     /// campaign-hour (see `campaign_simulation.md` §7).
@@ -369,12 +377,13 @@ pub fn simulate_growth_chamber(
     let mut trace: Vec<ChamberCycle> = Vec::new();
     // Feedings per pet per round — one every 3 hours (`food_and_feedings.md`).
     let feedings = (hours / 3) as f64;
-    // End-of-run growth — the basis the campaign picks the recipient / global
-    // lowest from. Only **passive** (pendant + Moai) accrues *during* the campaign.
-    // **Feeding happens between rounds** (you can't feed pets mid-campaign), so it
-    // is applied after each round's deposits — NOT here — and compounds into the
-    // next round.
-    let end_growth = |p: &ChamberPet| p.growth + p.passive_per_hour * hours as f64;
+    // End-of-run **total** growth — the basis the campaign picks the recipient /
+    // global lowest from, and what targets compare against. Total = base ·
+    // multiplier (Magic Egg etc.). Only **passive** (pendant + Moai) accrues
+    // *during* the campaign; **feeding happens between rounds** (you can't feed
+    // mid-campaign), so it's applied after each round's deposits — NOT here — and
+    // compounds into the next round.
+    let end_total = |p: &ChamberPet| (p.growth + p.passive_per_hour * hours as f64) * p.growth_multiplier;
 
     for cycle in 0..max_cycles {
         // Indices of the campaign participants, in roster order.
@@ -390,10 +399,13 @@ pub fn simulate_growth_chamber(
                 .iter()
                 .map(|&i| CampaignPet {
                     name: pets[i].name.clone(),
-                    growth: pets[i].growth as u64,
+                    // Total growth drives the formula/recipient; passive is scaled
+                    // to total too, so `simulate`'s end-of-run growth matches
+                    // `end_total`.
+                    growth: (pets[i].growth * pets[i].growth_multiplier) as u64,
                     stats: None,
                     campaign_bonus_pct: pets[i].campaign_bonus_pct,
-                    passive_per_hour: pets[i].passive_per_hour,
+                    passive_per_hour: pets[i].passive_per_hour * pets[i].growth_multiplier,
                 })
                 .collect();
             let params =
@@ -413,7 +425,7 @@ pub fn simulate_growth_chamber(
             for &i in &chamber_idx {
                 match pets[i].special {
                     Some(SpecialPet::Pandora { feedings }) => {
-                        pandora = pandora_pct(end_growth(&pets[i]), feedings);
+                        pandora = pandora_pct(end_total(&pets[i]), feedings);
                     }
                     Some(SpecialPet::Bag { token_improved }) => {
                         bag_fraction = if token_improved { 0.05 } else { 0.10 };
@@ -435,8 +447,8 @@ pub fn simulate_growth_chamber(
             // the whole roster — usually a benched pet, possibly the recipient.
             let global_lowest = (0..pets.len())
                 .min_by(|&a, &b| {
-                    end_growth(&pets[a])
-                        .partial_cmp(&end_growth(&pets[b]))
+                    end_total(&pets[a])
+                        .partial_cmp(&end_total(&pets[b]))
                         .unwrap_or(std::cmp::Ordering::Equal)
                 })
                 .expect("non-empty roster");
@@ -464,7 +476,7 @@ pub fn simulate_growth_chamber(
         for i in 0..pets.len() {
             if !done[i]
                 && let Some(t) = pets[i].target
-                && pets[i].growth >= t
+                && pets[i].growth * pets[i].growth_multiplier >= t
             {
                 done[i] = true;
                 reached.push((pets[i].name.clone(), cycle + 1));
@@ -475,7 +487,7 @@ pub fn simulate_growth_chamber(
                 cycles: cycle + 1,
                 reached,
                 trace,
-                final_growth: pets.iter().map(|p| (p.name.clone(), p.growth)).collect(),
+                final_growth: pets.iter().map(|p| (p.name.clone(), p.growth * p.growth_multiplier)).collect(),
             };
         }
     }
@@ -484,7 +496,7 @@ pub fn simulate_growth_chamber(
         cycles: max_cycles,
         reached,
         trace,
-        final_growth: pets.iter().map(|p| (p.name.clone(), p.growth)).collect(),
+        final_growth: pets.iter().map(|p| (p.name.clone(), p.growth * p.growth_multiplier)).collect(),
     }
 }
 
@@ -627,9 +639,12 @@ mod tests {
     fn chamber_rushes_a_new_pet_to_its_target() {
         // A new low-growth pet stays the recipient while two residents feed it.
         let mut pets = vec![
-            ChamberPet { name: "Resident1".into(), growth: 200_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "Resident2".into(), growth: 210_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "NewPet".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
+            ChamberPet { name: "Resident1".into(), growth: 200_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "Resident2".into(), growth: 210_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "NewPet".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true);
         // Reached its target in a finite number of cycles; the loop stopped there.
@@ -646,8 +661,10 @@ mod tests {
         // Two near-equal pets: whoever is fed leaps ahead, so the recipient flips
         // each cycle — the rotation that cycles a settled chamber.
         let mut pets = vec![
-            ChamberPet { name: "A".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "B".into(), growth: 1_001.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "A".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "B".into(), growth: 1_001.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4, true);
         let recipients: Vec<usize> = result.trace.iter().map(|c| c.recipient).collect();
@@ -659,9 +676,12 @@ mod tests {
         // Two targeted pets that share a name must both be recorded (dedup is by
         // index, not name) so the stop condition can fire.
         let mut pets = vec![
-            ChamberPet { name: "Feeder".into(), growth: 500_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "Dup".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
-            ChamberPet { name: "Dup".into(), growth: 1_500.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
+            ChamberPet { name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "Dup".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
+            ChamberPet { name: "Dup".into(), growth: 1_500.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true);
         assert_eq!(result.reached.len(), 2); // both, despite the shared name
@@ -675,6 +695,7 @@ mod tests {
         let mut pets = vec![ChamberPet {
             name: "Solo".into(),
             growth: 0.0,
+            growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0,
             passive_per_hour: 100.0,
             food_per_feeding: 0.0,
@@ -692,6 +713,7 @@ mod tests {
         let solo = |food: f64| ChamberPet {
             name: "Solo".into(),
             growth: 0.0,
+            growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0,
             passive_per_hour: 0.0,
             food_per_feeding: food,
@@ -707,6 +729,31 @@ mod tests {
         let mut pets2 = vec![solo(10.0)];
         let r2 = simulate_growth_chamber(&mut pets2, 2, 0.0, 1, true);
         assert_eq!(r2.final_growth[0].1, 0.0);
+    }
+
+    #[test]
+    fn chamber_egg_recipient_total_jumps_by_reward_times_multiplier() {
+        let pet = |name: &str, base: f64, mult: f64| ChamberPet {
+            name: name.into(),
+            growth: base,
+            growth_multiplier: mult,
+            campaign_bonus_pct: 0.0,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+        };
+        // A is a high-total contributor; B is the low-total recipient, egg ×1.3.
+        let mut pets = vec![pet("A", 100_000.0, 1.0), pet("B", 1_000.0, 1.3)];
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false);
+        // Reward = A's contribution = (log15(100000) − 1.75) · 12. The reward lands
+        // on B's *base*, so its *total* rises by reward · 1.3.
+        let reward = (100_000_f64.ln() / 15_f64.ln() - 1.75) * 12.0;
+        let b_total = r.final_growth.iter().find(|(n, _)| n == "B").unwrap().1;
+        let expected = (1_000.0 + reward) * 1.3;
+        assert!((b_total - expected).abs() < 0.01, "B total {b_total}, want {expected}");
+        assert!(b_total > 1_000.0 + reward, "egg should amplify the total");
     }
 
     /// End-to-end against a real finished 12 h chamber run (UPC +40%). See
@@ -779,6 +826,7 @@ mod tests {
             .map(|&(name, growth, bonus, in_chamber, special)| ChamberPet {
                 name: name.into(),
                 growth,
+                growth_multiplier: 1.0,
                 campaign_bonus_pct: bonus,
                 passive_per_hour: 0.0,
                 food_per_feeding: 0.0,
