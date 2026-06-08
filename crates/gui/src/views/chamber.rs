@@ -402,14 +402,19 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                     total_gain / rows.len() as f64 / result.cycles as f64,
                     total_gain
                 );
-                if result.cycles > 1
-                    && let (Some(first), Some(last)) = (result.trace.first(), result.trace.last())
-                {
-                    summary += &format!(
-                        "  ·  reward/cycle {:.0} \u{2B62} {:.0}",
-                        cycle_base(first),
-                        cycle_base(last)
-                    );
+                // Reward trend: average the first/last `window` cycles rather than
+                // single cycles, so the recipient rotation (a big contributor being
+                // the recipient that cycle → 0 contribution) doesn't skew it. The
+                // window is ≈ one rotation (the chamber size), capped at half the
+                // cycles so the two windows don't overlap.
+                let n = result.trace.len();
+                if n >= 2 {
+                    let window = rows.len().max(1).min(n / 2);
+                    let first: f64 =
+                        result.trace[..window].iter().map(&cycle_base).sum::<f64>() / window as f64;
+                    let last: f64 =
+                        result.trace[n - window..].iter().map(&cycle_base).sum::<f64>() / window as f64;
+                    summary += &format!("  ·  reward/cycle {first:.0} \u{2B62} {last:.0}");
                 }
                 ui.label(RichText::new(summary).color(style::TEXT_MUTED).size(11.0));
             }
