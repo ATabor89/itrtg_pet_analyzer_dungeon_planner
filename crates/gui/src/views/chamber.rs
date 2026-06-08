@@ -43,6 +43,14 @@ pub struct ChamberState {
     pub pandora_feedings: u32,
     /// UPC bonus % (`5 · Ultimate Pet Challenges`). Manual for now.
     pub upc_pct: f64,
+    /// Which food is fed to every pet — index into [`FOODS`]. Drives per-feeding
+    /// growth (every pet is fed `floor(hours/3)` times per cycle).
+    pub food_choice: usize,
+    /// Effective growth-per-feeding for each food type (DPC + fishing baked in;
+    /// see `food_and_feedings.md`). Editable until we auto-derive them.
+    pub food_values: [f64; 5],
+    /// Run until every tracked pet hits its target (vs a fixed cycle count).
+    pub run_until_targets: bool,
 
     /// Pet-picker search filter — ephemeral.
     #[serde(skip)]
@@ -50,7 +58,17 @@ pub struct ChamberState {
     /// Last simulation result — ephemeral.
     #[serde(skip)]
     pub result: Option<ChamberResult>,
+    /// In-chamber pets' growth at the last run's start — ephemeral, for the
+    /// before→after report.
+    #[serde(skip)]
+    pub last_starts: BTreeMap<String, f64>,
 }
+
+/// Food types, lowest→highest growth. Index matches [`ChamberState::food_values`].
+pub const FOODS: [&str; 5] = ["Free", "Puny", "Strong", "Mighty", "Chocolate"];
+
+/// Safety cap when running "until all targets reached".
+const UNTIL_TARGETS_CAP: u32 = 100_000;
 
 impl Default for ChamberState {
     fn default() -> Self {
@@ -62,8 +80,12 @@ impl Default for ChamberState {
             max_cycles: 5_000,
             pandora_feedings: 0,
             upc_pct: 0.0,
+            food_choice: 4, // Chocolate
+            food_values: [1.3, 2.6, 5.19, 7.79, 10.38],
+            run_until_targets: false,
             search: String::new(),
             result: None,
+            last_starts: BTreeMap::new(),
         }
     }
 }
@@ -78,10 +100,13 @@ impl ChamberState {
         self.max_cycles = src.max_cycles;
         self.pandora_feedings = src.pandora_feedings;
         self.upc_pct = src.upc_pct;
+        self.food_choice = src.food_choice.min(FOODS.len() - 1);
+        self.food_values = src.food_values;
+        self.run_until_targets = src.run_until_targets;
     }
 
     pub fn write_into(&self, state: &mut crate::state::AppState) {
-        // Clone only the persisted fields (drop the ephemeral search/result).
+        // Persisted fields only (drop the ephemeral search/result/last_starts).
         state.chamber = ChamberState {
             chamber: self.chamber.clone(),
             targets: self.targets.clone(),
@@ -90,9 +115,16 @@ impl ChamberState {
             max_cycles: self.max_cycles,
             pandora_feedings: self.pandora_feedings,
             upc_pct: self.upc_pct,
-            search: String::new(),
-            result: None,
+            food_choice: self.food_choice,
+            food_values: self.food_values,
+            run_until_targets: self.run_until_targets,
+            ..Default::default()
         };
+    }
+
+    /// Effective growth per feeding for the chosen food.
+    fn food_growth(&self) -> f64 {
+        self.food_values.get(self.food_choice).copied().unwrap_or(0.0)
     }
 }
 
@@ -137,6 +169,7 @@ fn chamber_pet(
         growth,
         campaign_bonus_pct: bonus,
         passive_per_hour: passive,
+        food_per_feeding: state.food_growth(),
         target: state.targets.get(&pet.name).map(|&t| t as f64),
         in_chamber: state.chamber.iter().any(|n| n == &pet.name),
         special,
@@ -166,9 +199,6 @@ pub fn show(
         ui.label(RichText::new("Hours:").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::DragValue::new(&mut state.hours).range(1..=12));
         ui.separator();
-        ui.label(RichText::new("Max cycles:").color(style::TEXT_MUTED).size(12.0));
-        ui.add(egui::DragValue::new(&mut state.max_cycles).range(1..=1_000_000).speed(50.0));
-        ui.separator();
         ui.label(RichText::new("UPC %:").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::DragValue::new(&mut state.upc_pct).range(0.0..=100.0).speed(1.0));
         ui.separator();
@@ -176,24 +206,74 @@ pub fn show(
         ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20));
     });
 
+    // --- Food (per-feeding growth, fed to every pet) ---
     ui.horizontal(|ui| {
-        let in_chamber = state.chamber.len();
+        ui.label(RichText::new("Food:").color(style::TEXT_MUTED).size(12.0));
+        for (i, label) in FOODS.iter().enumerate() {
+            if ui.selectable_label(state.food_choice == i, *label).clicked() {
+                state.food_choice = i;
+            }
+        }
+        ui.separator();
+        ui.label(RichText::new("growth/feeding:").color(style::TEXT_MUTED).size(11.0));
+        let choice = state.food_choice.min(FOODS.len() - 1);
+        ui.add(egui::DragValue::new(&mut state.food_values[choice]).speed(0.1));
+        ui.label(
+            RichText::new(format!("({} feedings/cycle)", state.hours / 3))
+                .color(style::TEXT_MUTED)
+                .size(10.0),
+        );
+    });
+
+    // --- Run mode + actions ---
+    ui.horizontal(|ui| {
+        ui.checkbox(
+            &mut state.run_until_targets,
+            RichText::new("Run until all targets reached").size(12.0),
+        );
+        if !state.run_until_targets {
+            ui.separator();
+            ui.label(RichText::new("Max cycles:").color(style::TEXT_MUTED).size(12.0));
+            ui.add(egui::DragValue::new(&mut state.max_cycles).range(1..=1_000_000).speed(50.0));
+        }
+    });
+
+    ui.horizontal(|ui| {
+        let n = state.chamber.len();
+        let over = n > 10;
+        let run = ui
+            .add_enabled(!over, egui::Button::new(RichText::new("\u{25B6} Run").size(13.0)))
+            .clicked();
         if ui
-            .button(RichText::new("\u{25B6} Run simulation").size(13.0))
+            .button(RichText::new("Recommend chamber").size(12.0))
+            .on_hover_text("Fill the chamber with the top 10 by Growth bonus (tiebreak: growth)")
             .clicked()
         {
-            let mut roster = build_roster(data, ctx, rates, state);
-            state.result =
-                Some(simulate_growth_chamber(&mut roster, state.hours, state.upc_pct, state.max_cycles));
+            recommend_chamber(state, data, ctx);
         }
         ui.label(
-            RichText::new(format!(
-                "{in_chamber}/10 in chamber{}",
-                if in_chamber > 10 { " (over the 10-pet cap!)" } else { "" }
-            ))
-            .color(if in_chamber > 10 { style::WARNING } else { style::TEXT_MUTED })
-            .size(11.0),
+            RichText::new(format!("{n}/10 in chamber{}", if over { " — too many!" } else { "" }))
+                .color(if over { style::WARNING } else { style::TEXT_MUTED })
+                .size(11.0),
         );
+
+        if run {
+            // Capture the in-chamber pets' starting growth for the report.
+            state.last_starts = data
+                .merged
+                .iter()
+                .filter(|p| state.chamber.iter().any(|c| c == &p.name))
+                .filter_map(|p| p.export.as_ref().map(|e| (p.name.clone(), e.growth as f64)))
+                .collect();
+            let max = if state.run_until_targets && !state.targets.is_empty() {
+                UNTIL_TARGETS_CAP
+            } else {
+                state.max_cycles
+            };
+            let mut roster = build_roster(data, ctx, rates, state);
+            state.result =
+                Some(simulate_growth_chamber(&mut roster, state.hours, state.upc_pct, max));
+        }
     });
 
     ui.add_space(4.0);
@@ -202,54 +282,74 @@ pub fn show(
     show_pet_picker(ui, state, data, ctx);
 }
 
+/// Fill the chamber with the top 10 unlocked pets by Growth-campaign bonus,
+/// breaking ties by raw growth (both highest-first).
+fn recommend_chamber(state: &mut ChamberState, data: &DataStore, ctx: &CampaignContext) {
+    let mut ranked: Vec<(&str, f32, u64)> = data
+        .merged
+        .iter()
+        .filter(|p| p.is_unlocked() && p.export.is_some())
+        .map(|p| {
+            (
+                p.name.as_str(),
+                p.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0),
+                p.export.as_ref().map(|e| e.growth).unwrap_or(0),
+            )
+        })
+        .collect();
+    ranked.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(b.2.cmp(&a.2))
+    });
+    state.chamber = ranked.iter().take(10).map(|(n, _, _)| n.to_string()).collect();
+}
+
 fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
     let Some(result) = &state.result else { return };
     egui::Frame::new()
         .fill(style::BG_SURFACE)
         .inner_margin(6.0)
         .show(ui, |ui| {
-            let hit = result.reached.len();
             ui.label(
-                RichText::new(format!("Ran {} cycles — {hit} target(s) reached.", result.cycles))
-                    .color(style::TEXT_BRIGHT)
-                    .size(12.0),
+                RichText::new(format!(
+                    "Ran {} cycles (~{:.0} h) — {} target(s) reached.",
+                    result.cycles,
+                    result.cycles as f64 * state.hours as f64,
+                    result.reached.len()
+                ))
+                .color(style::TEXT_BRIGHT)
+                .size(12.0),
             );
-            for (name, cycle) in &result.reached {
-                let wall = *cycle as f64 * state.hours as f64;
-                let final_growth = result
-                    .final_growth
-                    .iter()
-                    .find(|(n, _)| n == name)
-                    .map(|(_, g)| *g)
-                    .unwrap_or(0.0);
+
+            // Full report: every in-chamber pet, lowest final growth first.
+            let mut rows: Vec<(&String, f64, f64)> = state
+                .chamber
+                .iter()
+                .filter_map(|name| {
+                    let final_g = result.final_growth.iter().find(|(n, _)| n == name)?.1;
+                    let start = state.last_starts.get(name).copied().unwrap_or(final_g);
+                    Some((name, start, final_g))
+                })
+                .collect();
+            rows.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+
+            for (name, start, final_g) in rows {
+                let delta = final_g - start;
+                let reached = result.reached.iter().find(|(n, _)| n == name);
+                let (status, color) = match (reached, state.targets.get(name)) {
+                    (Some((_, cycle)), _) => (format!("✓ target at cycle {cycle}"), style::SUCCESS),
+                    (None, Some(t)) => (format!("{final_g:.0}/{t} (not reached)"), style::WARNING),
+                    (None, None) => (String::new(), style::TEXT_MUTED),
+                };
                 ui.label(
                     RichText::new(format!(
-                        "  {name}: reached at cycle {cycle} (~{:.0} h), final growth {final_growth:.0}",
-                        wall
+                        "  {name}: {start:.0} → {final_g:.0}  (+{delta:.0}){}{status}",
+                        if status.is_empty() { "" } else { "  " }
                     ))
-                    .color(style::SUCCESS)
+                    .color(color)
                     .size(11.0),
                 );
-            }
-            // Tracked-but-unreached pets.
-            for (name, target) in &state.targets {
-                if !result.reached.iter().any(|(n, _)| n == name) {
-                    let final_growth = result
-                        .final_growth
-                        .iter()
-                        .find(|(n, _)| n == name)
-                        .map(|(_, g)| *g);
-                    if let Some(g) = final_growth {
-                        ui.label(
-                            RichText::new(format!(
-                                "  {name}: not reached — {g:.0} / {target} after {} cycles",
-                                result.cycles
-                            ))
-                            .color(style::WARNING)
-                            .size(11.0),
-                        );
-                    }
-                }
             }
         });
 }
@@ -261,28 +361,42 @@ fn show_pet_picker(
     ctx: &CampaignContext,
 ) {
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Pets:").color(style::TEXT_MUTED).size(12.0));
+        ui.label(RichText::new("Pets (by Growth bonus):").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::TextEdit::singleline(&mut state.search).hint_text("filter…").desired_width(140.0));
     });
     let needle = state.search.to_lowercase();
 
-    egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
-        let mut pets: Vec<&MergedPet> = data
+    egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
+        let mut pets: Vec<(&MergedPet, f32)> = data
             .merged
             .iter()
             .filter(|p| p.is_unlocked() && p.export.is_some())
             .filter(|p| needle.is_empty() || p.name.to_lowercase().contains(&needle))
+            .map(|p| (p, p.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0)))
             .collect();
-        // Lowest growth first — the recipients and rush candidates.
-        pets.sort_by_key(|p| p.export.as_ref().map(|e| e.growth).unwrap_or(0));
+        // Highest Growth bonus first — what you'd want in a mature chamber.
+        pets.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(
+                    b.0.export
+                        .as_ref()
+                        .map(|e| e.growth)
+                        .cmp(&a.0.export.as_ref().map(|e| e.growth)),
+                )
+        });
 
-        for pet in pets {
+        for (pet, bonus) in pets {
             let name = pet.name.clone();
             let growth = pet.export.as_ref().map(|e| e.growth).unwrap_or(0);
-            let bonus = pet.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0);
             ui.horizontal(|ui| {
                 let mut in_chamber = state.chamber.iter().any(|n| n == &name);
-                if ui.checkbox(&mut in_chamber, "").changed() {
+                let was = in_chamber;
+                // Enforce the 10-pet cap: can't tick an 11th.
+                let toggled = ui
+                    .add_enabled(was || state.chamber.len() < 10, egui::Checkbox::new(&mut in_chamber, ""))
+                    .changed();
+                if toggled {
                     if in_chamber {
                         state.chamber.push(name.clone());
                     } else {
@@ -291,13 +405,21 @@ fn show_pet_picker(
                 }
                 ui.label(RichText::new(&name).color(style::TEXT_NORMAL).size(12.0));
                 ui.label(
-                    RichText::new(format!("{growth} (+{bonus:.0}%)"))
+                    RichText::new(format!("+{bonus:.0}%  ({growth})"))
                         .color(style::TEXT_MUTED)
                         .size(10.0),
                 );
 
                 let mut pendant = state.pendant.iter().any(|n| n == &name);
-                if ui.checkbox(&mut pendant, RichText::new("pendant").size(10.0)).changed() {
+                let had_pendant = pendant;
+                // At most two pendants exist in-game.
+                if ui
+                    .add_enabled(
+                        had_pendant || state.pendant.len() < 2,
+                        egui::Checkbox::new(&mut pendant, RichText::new("pendant").size(10.0)),
+                    )
+                    .changed()
+                {
                     if pendant {
                         state.pendant.push(name.clone());
                     } else {
