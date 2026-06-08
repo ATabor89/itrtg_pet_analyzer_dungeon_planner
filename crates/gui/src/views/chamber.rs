@@ -341,17 +341,35 @@ fn show_pet_cards(
         return;
     }
     ui.label(RichText::new("Chamber").color(style::TEXT_BRIGHT).size(12.0));
-    ui.horizontal_wrapped(|ui| {
-        // Render in the chamber's order; clone names so we can mutate `state`.
-        let names: Vec<String> = state.chamber.clone();
-        for name in &names {
-            let Some(pet) = data.merged.iter().find(|p| &p.name == name) else { continue };
-            let Some(cp) = chamber_pet(pet, ctx, rates, state) else { continue };
-            let export = pet.export.as_ref();
-            show_pet_card(ui, state, name, &cp, export);
-        }
-    });
+
+    // Render in the chamber's order; clone names so we can mutate `state`.
+    let names: Vec<String> = state.chamber.clone();
+
+    // Lay the cards out in a *balanced* grid: pick the most columns that fit the
+    // available width, then even the rows so the last one isn't a lonely single
+    // card (e.g. 10 ⭢ 5+5, 9 ⭢ 5+4, 7 ⭢ 4+3 — never 9+1).
+    let gap = ui.spacing().item_spacing.x;
+    // One card's footprint: 232 inner + 8·2 inner_margin + ~2 stroke.
+    let footprint = CARD_WIDTH + 18.0;
+    let max_cols = (((ui.available_width() + gap) / (footprint + gap)).floor() as usize).max(1);
+    let n = names.len();
+    let rows = n.div_ceil(max_cols);
+    let cols = n.div_ceil(rows.max(1)).max(1);
+
+    for chunk in names.chunks(cols) {
+        ui.horizontal(|ui| {
+            for name in chunk {
+                let Some(pet) = data.merged.iter().find(|p| &p.name == name) else { continue };
+                let Some(cp) = chamber_pet(pet, ctx, rates, state) else { continue };
+                let export = pet.export.as_ref();
+                show_pet_card(ui, state, name, &cp, export);
+            }
+        });
+    }
 }
+
+/// Inner content width of a chamber pet card (excludes the frame's margin/stroke).
+const CARD_WIDTH: f32 = 232.0;
 
 /// One chamber pet card (~240px). Reuses `ChamberPet` (`cp`) for the numbers.
 fn show_pet_card(
@@ -367,7 +385,7 @@ fn show_pet_card(
         .corner_radius(egui::CornerRadius::same(6))
         .inner_margin(8.0)
         .show(ui, |ui| {
-            ui.set_width(232.0);
+            ui.set_width(CARD_WIDTH);
             ui.vertical(|ui| {
                 // Name + special tag.
                 ui.horizontal(|ui| {
