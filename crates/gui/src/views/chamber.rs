@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use eframe::egui::{self, RichText};
-use itrtg_models::{CampaignType, MAGIC_EGG_GROWTH_MULT};
+use itrtg_models::{CampaignType, ExportPet, Loadout, MAGIC_EGG_GROWTH_MULT};
 use itrtg_planner::campaign::{
     simulate_growth_chamber, ChamberPet, ChamberResult, SpecialPet,
 };
@@ -53,6 +53,10 @@ pub struct ChamberState {
     pub gold_dragon_food: Option<usize>,
     /// Run until every tracked pet hits its target (vs a fixed cycle count).
     pub run_until_targets: bool,
+    /// Per-pet what-if overrides (canonical name → tweaked loadout + CL). Absent
+    /// means "use the live export as-is". Seeded from the export on first edit;
+    /// the card's "Refresh from export" button drops the entry to revert.
+    pub overrides: BTreeMap<String, PetOverride>,
 
     /// Pet-picker search filter — ephemeral.
     #[serde(skip)]
@@ -64,6 +68,19 @@ pub struct ChamberState {
     /// before→after report.
     #[serde(skip)]
     pub last_starts: BTreeMap<String, f64>,
+}
+
+/// A per-pet what-if override of the sim inputs the user can tweak on a card.
+/// Seeded from the pet's export on first edit, so an override always carries the
+/// pet's full effective loadout + CL; "Refresh from export" removes it entirely
+/// (reverting to the live export). Persisted so a tuned chamber survives reloads.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PetOverride {
+    /// Effective equipment (overrides the export's loadout). Phase 2a leaves this
+    /// equal to the export; the gear editors that mutate it arrive in phase 2b.
+    pub loadout: Loadout,
+    /// Effective class level (overrides the export's CL).
+    pub class_level: u32,
 }
 
 /// Food types, lowest→highest growth. Index matches [`ChamberState::food_values`].
@@ -82,6 +99,7 @@ impl Default for ChamberState {
             food_values: [1.3, 2.6, 5.19, 7.79, 10.38],
             gold_dragon_food: None,
             run_until_targets: false,
+            overrides: BTreeMap::new(),
             search: String::new(),
             result: None,
             last_starts: BTreeMap::new(),
@@ -102,6 +120,7 @@ impl ChamberState {
         self.food_values = src.food_values;
         self.gold_dragon_food = src.gold_dragon_food.filter(|&i| i < FOODS.len());
         self.run_until_targets = src.run_until_targets;
+        self.overrides = src.overrides.clone();
     }
 
     pub fn write_into(&self, state: &mut crate::state::AppState) {
@@ -117,6 +136,7 @@ impl ChamberState {
             food_values: self.food_values,
             gold_dragon_food: self.gold_dragon_food,
             run_until_targets: self.run_until_targets,
+            overrides: self.overrides.clone(),
             ..Default::default()
         };
     }
@@ -158,19 +178,47 @@ fn build_roster(
         .collect()
 }
 
+/// The pet's *effective* export for the sim: the real export with any per-pet
+/// override (loadout + CL) applied. `None` if the pet has no export data.
+///
+/// The override is what powers the card's what-if editing — swapping the loadout
+/// and CL here means every downstream read (Magic Egg multiplier, pendant
+/// passive, and the recomputed Growth bonus) reflects the edits, with no engine
+/// change: the bonus is recomputed by feeding this synthetic export back through
+/// the existing [`MergedPet::campaign_bonus_for`] seam.
+fn effective_export(pet: &MergedPet, state: &ChamberState) -> Option<ExportPet> {
+    let base = pet.export.as_ref()?;
+    let mut eff = base.clone();
+    if let Some(ov) = state.overrides.get(&pet.name) {
+        eff.loadout = ov.loadout.clone();
+        eff.class_level = ov.class_level;
+    }
+    Some(eff)
+}
+
 fn chamber_pet(
     pet: &MergedPet,
     ctx: &CampaignContext,
     rates: &GrowthRates,
     state: &ChamberState,
 ) -> Option<ChamberPet> {
-    let export = pet.export.as_ref()?;
+    let export = effective_export(pet, state)?;
     // Base growth is the accumulator; the Magic Egg (+30%) makes total growth that
     // the campaign reads. (Patreon-God-Challenge would multiply here too once we
     // track it — the player has none yet.)
     let growth = export.growth as f64;
     let growth_multiplier = if export.has_magic_egg() { MAGIC_EGG_GROWTH_MULT } else { 1.0 };
-    let bonus = pet.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0);
+    // Recompute the Growth bonus from the *effective* export so loadout/CL edits
+    // show live. With no override this is the unedited export, so the result
+    // matches `pet.campaign_bonus_for` exactly; only build the synthetic pet (and
+    // clone the wiki) when an override is actually in play.
+    let bonus = if state.overrides.contains_key(&pet.name) {
+        let synth =
+            MergedPet { name: pet.name.clone(), wiki: pet.wiki.clone(), export: Some(export.clone()) };
+        synth.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0)
+    } else {
+        pet.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0)
+    };
     let mut passive = rates.moai_per_hour;
     // The pendant is just the equipped accessory — no separate toggle.
     if export.loadout.accessory.as_ref().is_some_and(|a| a.name == "Growing Love Pendant") {
@@ -371,8 +419,10 @@ fn show_pet_cards(
             for name in chunk {
                 let Some(pet) = data.merged.iter().find(|p| &p.name == name) else { continue };
                 let Some(cp) = chamber_pet(pet, ctx, rates, state) else { continue };
-                let export = pet.export.as_ref();
-                show_pet_card(ui, state, name, &cp, export);
+                // The card shows (and edits) the *effective* export: the live
+                // export with any per-pet override applied.
+                let eff = effective_export(pet, state);
+                show_pet_card(ui, state, name, &cp, eff.as_ref());
             }
         });
     }
@@ -419,17 +469,25 @@ fn show_pet_card(
                     .color(style::TEXT_NORMAL)
                     .size(11.0),
                 );
-                // Passive/hr + CL.
-                ui.label(
-                    RichText::new(format!(
-                        "passive {:.1}/hr   ·   CL {}",
-                        cp.passive_per_hour,
-                        export.map_or(0, |e| e.class_level)
-                    ))
-                    .color(style::TEXT_MUTED)
-                    .size(10.0),
-                );
-                // Read-only equipment (W / A / Ac).
+                // Passive/hr (read-only) + editable CL.
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(format!("passive {:.1}/hr   ·   CL", cp.passive_per_hour))
+                            .color(style::TEXT_MUTED)
+                            .size(10.0),
+                    );
+                    if let Some(e) = export {
+                        let mut cl = e.class_level;
+                        if ui
+                            .add(egui::DragValue::new(&mut cl).range(0..=200).speed(1.0))
+                            .on_hover_text("Class level — drives the Adventurer campaign bonus")
+                            .changed()
+                        {
+                            set_class_level(state, name, e, cl);
+                        }
+                    }
+                });
+                // Read-only equipment (W / A / Ac) — editors arrive in phase 2b.
                 if let Some(e) = export {
                     ui.label(
                         RichText::new(format!(
@@ -441,6 +499,21 @@ fn show_pet_card(
                         .color(style::TEXT_MUTED)
                         .size(10.0),
                     );
+                }
+                // Override status + refresh (only when this pet has been edited).
+                if state.overrides.contains_key(name) {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("edited").color(style::WARNING).size(10.0));
+                        if ui
+                            .small_button("Refresh from export")
+                            .on_hover_text(
+                                "Discard edits — reset equipment + CL to the current export",
+                            )
+                            .clicked()
+                        {
+                            state.overrides.remove(name);
+                        }
+                    });
                 }
                 // Editable target.
                 ui.horizontal(|ui| {
@@ -456,6 +529,20 @@ fn show_pet_card(
                 });
             });
         });
+}
+
+/// Set a pet's effective class level via its override, seeding the override from
+/// the given (effective) export the first time so it carries the pet's full
+/// loadout — later gear edits then mutate the same entry.
+fn set_class_level(state: &mut ChamberState, name: &str, eff: &ExportPet, cl: u32) {
+    state
+        .overrides
+        .entry(name.to_string())
+        .or_insert_with(|| PetOverride {
+            loadout: eff.loadout.clone(),
+            class_level: eff.class_level,
+        })
+        .class_level = cl;
 }
 
 /// Compact label for an equipment slot: name plus quality/upgrade for gear that
@@ -644,4 +731,93 @@ fn show_pet_picker(
             });
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use itrtg_models::{
+        CombatStats, Element, ElementalAffinities, Equipment, PetAction, Quality,
+    };
+
+    fn export_with(growth: u64, cl: u32) -> ExportPet {
+        ExportPet {
+            export_name: "Test".into(),
+            element: Element::Fire,
+            growth,
+            dungeon_level: 1,
+            class: None,
+            class_level: cl,
+            combat_stats: CombatStats { hp: 1, attack: 1, defense: 1, speed: 1 },
+            elemental_affinities: ElementalAffinities {
+                water: 0,
+                fire: 0,
+                wind: 0,
+                earth: 0,
+                dark: 0,
+                light: 0,
+            },
+            loadout: Loadout { weapon: None, armor: None, accessory: None },
+            action: PetAction::Idle,
+            unlocked: true,
+            improved: false,
+            other: None,
+            has_partner: false,
+        }
+    }
+
+    fn merged(name: &str, export: ExportPet) -> MergedPet {
+        MergedPet { name: name.into(), wiki: None, export: Some(export) }
+    }
+
+    #[test]
+    fn effective_export_without_override_matches_the_export() {
+        let pet = merged("Foo", export_with(1000, 5));
+        let state = ChamberState::default();
+        let eff = effective_export(&pet, &state).unwrap();
+        assert_eq!(eff.class_level, 5);
+        assert!(eff.loadout.weapon.is_none());
+    }
+
+    #[test]
+    fn override_swaps_cl_and_loadout() {
+        let pet = merged("Foo", export_with(1000, 5));
+        let mut state = ChamberState::default();
+        let base = pet.export.clone().unwrap();
+
+        // CL override flows through.
+        set_class_level(&mut state, "Foo", &base, 22);
+        assert_eq!(effective_export(&pet, &state).unwrap().class_level, 22);
+
+        // A loadout override flows through too (the phase-2b edit path).
+        state.overrides.get_mut("Foo").unwrap().loadout.weapon = Some(Equipment {
+            name: "Magic Egg".into(),
+            upgrade_level: None,
+            quality: Quality::SSS,
+            enchant_level: None,
+            gem: None,
+            gem_level: None,
+        });
+        let eff = effective_export(&pet, &state).unwrap();
+        assert!(eff.has_magic_egg());
+        assert_eq!(eff.class_level, 22, "CL override survives a later loadout edit");
+    }
+
+    #[test]
+    fn set_class_level_seeds_then_updates_in_place() {
+        let pet = merged("Foo", export_with(1000, 5));
+        let mut state = ChamberState::default();
+        let base = pet.export.clone().unwrap();
+
+        set_class_level(&mut state, "Foo", &base, 10);
+        assert_eq!(state.overrides["Foo"].class_level, 10);
+        // A second edit mutates the same entry rather than adding another.
+        set_class_level(&mut state, "Foo", &base, 30);
+        assert_eq!(state.overrides["Foo"].class_level, 30);
+        assert_eq!(state.overrides.len(), 1);
+
+        // "Refresh from export" is just dropping the entry.
+        state.overrides.remove("Foo");
+        assert_eq!(effective_export(&pet, &state).unwrap().class_level, 5);
+    }
 }
