@@ -349,15 +349,25 @@ fn show_pet_cards(
     // available width, then even the rows so the last one isn't a lonely single
     // card (e.g. 10 ⭢ 5+5, 9 ⭢ 5+4, 7 ⭢ 4+3 — never 9+1).
     let gap = ui.spacing().item_spacing.x;
+    let avail = ui.available_width();
     // One card's footprint: 232 inner + 8·2 inner_margin + ~2 stroke.
     let footprint = CARD_WIDTH + 18.0;
-    let max_cols = (((ui.available_width() + gap) / (footprint + gap)).floor() as usize).max(1);
+    let max_cols = (((avail + gap) / (footprint + gap)).floor() as usize).max(1);
     let n = names.len();
     let rows = n.div_ceil(max_cols);
     let cols = n.div_ceil(rows.max(1)).max(1);
 
     for chunk in names.chunks(cols) {
+        // Center the row: pad the left by half the unused width so the row's
+        // midpoint sits at the available width's midpoint (odd ⭢ middle card
+        // centered, even ⭢ centered on the seam between the two middle cards).
+        let k = chunk.len() as f32;
+        let row_w = k * footprint + (k - 1.0).max(0.0) * gap;
+        let pad = ((avail - row_w) * 0.5).max(0.0);
         ui.horizontal(|ui| {
+            if pad > 0.0 {
+                ui.add_space(pad);
+            }
             for name in chunk {
                 let Some(pet) = data.merged.iter().find(|p| &p.name == name) else { continue };
                 let Some(cp) = chamber_pet(pet, ctx, rates, state) else { continue };
