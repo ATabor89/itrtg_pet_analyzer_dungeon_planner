@@ -49,6 +49,10 @@ pub struct ChamberState {
     /// Effective growth-per-feeding for each food type (DPC + fishing baked in;
     /// see `food_and_feedings.md`). Editable until we auto-derive them.
     pub food_values: [f64; 5],
+    /// Food fed to **Gold Dragon** (index into [`FOODS`]); `None` = not fed / not
+    /// owned. Feeding him gives **every** pet 25% of the growth he gains — a big,
+    /// campaign-independent source. Best fed chocolate.
+    pub gold_dragon_food: Option<usize>,
     /// Run until every tracked pet hits its target (vs a fixed cycle count).
     pub run_until_targets: bool,
 
@@ -82,6 +86,7 @@ impl Default for ChamberState {
             upc_pct: 0.0,
             food_choice: 4, // Chocolate
             food_values: [1.3, 2.6, 5.19, 7.79, 10.38],
+            gold_dragon_food: None,
             run_until_targets: false,
             search: String::new(),
             result: None,
@@ -102,6 +107,7 @@ impl ChamberState {
         self.upc_pct = src.upc_pct;
         self.food_choice = src.food_choice.min(FOODS.len() - 1);
         self.food_values = src.food_values;
+        self.gold_dragon_food = src.gold_dragon_food.filter(|&i| i < FOODS.len());
         self.run_until_targets = src.run_until_targets;
     }
 
@@ -117,6 +123,7 @@ impl ChamberState {
             upc_pct: self.upc_pct,
             food_choice: self.food_choice,
             food_values: self.food_values,
+            gold_dragon_food: self.gold_dragon_food,
             run_until_targets: self.run_until_targets,
             ..Default::default()
         };
@@ -125,6 +132,20 @@ impl ChamberState {
     /// Effective growth per feeding for the chosen food.
     fn food_growth(&self) -> f64 {
         self.food_values.get(self.food_choice).copied().unwrap_or(0.0)
+    }
+
+    /// Per-feeding growth every pet gets from a Gold Dragon feeding (25% of his
+    /// food's growth). 0 if Gold Dragon isn't being fed.
+    fn gold_dragon_broadcast(&self) -> f64 {
+        self.gold_dragon_food
+            .and_then(|i| self.food_values.get(i))
+            .map_or(0.0, |&v| 0.25 * v)
+    }
+
+    /// Total growth each pet gains per feeding: its own food plus Gold Dragon's
+    /// 25% broadcast.
+    fn per_feeding_growth(&self) -> f64 {
+        self.food_growth() + self.gold_dragon_broadcast()
     }
 }
 
@@ -169,7 +190,7 @@ fn chamber_pet(
         growth,
         campaign_bonus_pct: bonus,
         passive_per_hour: passive,
-        food_per_feeding: state.food_growth(),
+        food_per_feeding: state.per_feeding_growth(),
         target: state.targets.get(&pet.name).map(|&t| t as f64),
         in_chamber: state.chamber.iter().any(|n| n == &pet.name),
         special,
@@ -223,6 +244,27 @@ pub fn show(
                 .color(style::TEXT_MUTED)
                 .size(10.0),
         );
+    });
+
+    // --- Gold Dragon (25% of his food growth goes to every pet) ---
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Gold Dragon food:").color(style::TEXT_MUTED).size(12.0))
+            .on_hover_text("Feeding Gold Dragon gives every pet 25% of the growth he gains.");
+        if ui.selectable_label(state.gold_dragon_food.is_none(), "None").clicked() {
+            state.gold_dragon_food = None;
+        }
+        for (i, label) in FOODS.iter().enumerate() {
+            if ui.selectable_label(state.gold_dragon_food == Some(i), *label).clicked() {
+                state.gold_dragon_food = Some(i);
+            }
+        }
+        if state.gold_dragon_food.is_some() {
+            ui.label(
+                RichText::new(format!("(+{:.2}/feeding to all)", state.gold_dragon_broadcast()))
+                    .color(style::TEXT_MUTED)
+                    .size(10.0),
+            );
+        }
     });
 
     // --- Run mode + actions ---

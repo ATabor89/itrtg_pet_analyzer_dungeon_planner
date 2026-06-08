@@ -363,13 +363,14 @@ pub fn simulate_growth_chamber(
     // a name, which would otherwise break the stop condition).
     let mut done = vec![false; pets.len()];
     let mut trace: Vec<ChamberCycle> = Vec::new();
-    // Feedings per pet per cycle — one every 3 hours (`food_and_feedings.md`).
+    // Feedings per pet per round — one every 3 hours (`food_and_feedings.md`).
     let feedings = (hours / 3) as f64;
-    // Growth each pet accrues over a cycle outside the campaign: passive (pendant
-    // + Moai, per hour) plus feeding growth (every pet is fed each cycle).
-    let cycle_passive = |p: &ChamberPet| p.passive_per_hour * hours as f64 + feedings * p.food_per_feeding;
-    // End-of-run growth — the basis the game computes the campaign from.
-    let end_growth = |p: &ChamberPet| p.growth + cycle_passive(p);
+    // End-of-run growth — the basis the campaign picks the recipient / global
+    // lowest from. Only **passive** (pendant + Moai) accrues *during* the campaign.
+    // **Feeding happens between rounds** (you can't feed pets mid-campaign), so it
+    // is applied after each round's deposits — NOT here — and compounds into the
+    // next round.
+    let end_growth = |p: &ChamberPet| p.growth + p.passive_per_hour * hours as f64;
 
     for cycle in 0..max_cycles {
         // Indices of the campaign participants, in roster order.
