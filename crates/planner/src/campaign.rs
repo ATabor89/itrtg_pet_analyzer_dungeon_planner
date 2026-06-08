@@ -267,11 +267,32 @@ pub fn apply_growth_specials(base_total: f64, pandora_pct: f64, bag_fraction: f6
     GrowthSpecials { recipient_gain, bag_gift: bag_fraction * recipient_gain }
 }
 
+/// A chamber pet's special-pet behaviour in the Growth campaign.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecialPet {
+    /// Pandora's Box — scales the campaign total by its growth/feeding bonus,
+    /// boosting what the recipient gains.
+    Pandora { feedings: u32 },
+    /// Bag — gifts to the **global** lowest-growth pet. Token-improved gives a
+    /// free 5%; pre-token steals 10% from the campaign.
+    Bag { token_improved: bool },
+}
+
+/// Pandora's Box campaign bonus %: `min(growth, 100k)/5000 · rate`, where the
+/// per-5k rate is 3 below 100k growth (4 at/above) plus 0.1 per feeding (cap +2).
+/// (e.g. growth 57,138, 8 feedings → 43.42.)
+fn pandora_pct(growth: f64, feedings: u32) -> f64 {
+    let rate = (if growth < 100_000.0 { 3.0 } else { 4.0 }) + (feedings as f64 * 0.1).min(2.0);
+    growth.min(100_000.0) / 5_000.0 * rate
+}
+
 // =============================================================================
 // Growth chamber
 // =============================================================================
 
-/// A pet locked into a growth chamber.
+/// A pet in the simulation's roster. The roster is the player's **full** set of
+/// relevant pets — both the campaign participants and the bench — because some
+/// effects (Bag's gift) target the global lowest pet, which may be benched.
 #[derive(Debug, Clone)]
 pub struct ChamberPet {
     pub name: String,
@@ -283,13 +304,24 @@ pub struct ChamberPet {
     /// Stop tracking this pet once its growth reaches this target (e.g. an evolve
     /// threshold). `None` = an untracked resident.
     pub target: Option<f64>,
+    /// Whether this pet is in the campaign (a contributor / the recipient). Bench
+    /// pets (`false`) still accrue passive growth and can receive Bag's gift, but
+    /// don't run the campaign.
+    pub in_chamber: bool,
+    /// Special-pet behaviour, if any (Pandora's Box / Bag).
+    pub special: Option<SpecialPet>,
 }
 
 /// Per-cycle record for the chamber trace.
 #[derive(Debug, Clone)]
 pub struct ChamberCycle {
+    /// The campaign recipient (the lowest-growth *in-chamber* pet).
     pub recipient: usize,
-    pub campaign_growth: f64,
+    /// Growth deposited into the recipient (base total, Pandora-boosted, minus any
+    /// pre-token Bag steal).
+    pub recipient_gain: f64,
+    /// Bag's gift `(global-lowest index, amount)`, if a Bag is in the chamber.
+    pub bag_gift: Option<(usize, f64)>,
 }
 
 /// Outcome of a chamber simulation.
@@ -304,14 +336,16 @@ pub struct ChamberResult {
     pub final_growth: Vec<(String, f64)>,
 }
 
-/// Simulate a growth chamber: repeatedly run the Growth campaign on the same
-/// pets, depositing each run's total into the weakest pet (the recipient) and
-/// ticking passive pendant/Moai growth into every pet, until all *targeted* pets
-/// reach their target or `max_cycles` is hit.
+/// Simulate a growth chamber: repeatedly run the Growth campaign over the
+/// **in-chamber** pets, then realise growth across the **whole roster** —
+/// depositing the (Pandora-boosted) total into the recipient, ticking passive
+/// pendant/Moai growth into every pet, and applying Bag's gift to the global
+/// lowest pet — until all *targeted* pets reach their target or `max_cycles` hits.
 ///
-/// This is the "pack the campaign into a loop" idea — it reuses [`simulate`] with
-/// [`CampaignType::Growth`] so the chamber and the one-off campaign share a single
-/// formula. (The Pandora's Box / Bag special-pet layer is a documented follow-up.)
+/// `pets` is the full roster (chamber + bench, flagged by `in_chamber`). It reuses
+/// [`simulate`] with [`CampaignType::Growth`] for the base total so the chamber and
+/// the one-off campaign share one formula, then layers Pandora/Bag on top
+/// ([`apply_growth_specials`]).
 pub fn simulate_growth_chamber(
     pets: &mut [ChamberPet],
     hours: u32,
@@ -325,38 +359,93 @@ pub fn simulate_growth_chamber(
     // a name, which would otherwise break the stop condition).
     let mut done = vec![false; pets.len()];
     let mut trace: Vec<ChamberCycle> = Vec::new();
+    // End-of-run growth (start + passive accrued over the run) — the basis the
+    // game computes everything from.
+    let end_growth = |p: &ChamberPet| p.growth + p.passive_per_hour * hours as f64;
 
     for cycle in 0..max_cycles {
-        // Reuse the Growth campaign on the chamber's current state. Growth is an
-        // integer in-game, so the f64 chamber value truncates to u64 here for the
-        // log term — lossy by design, negligible at real growth magnitudes.
-        let team: Vec<CampaignPet> = pets
-            .iter()
-            .map(|p| CampaignPet {
-                name: p.name.clone(),
-                growth: p.growth as u64,
-                stats: None,
-                campaign_bonus_pct: p.campaign_bonus_pct,
-                passive_per_hour: p.passive_per_hour,
-            })
-            .collect();
-        let params = CampaignParams { upc_pct, hours, unlocked_pets: pets.len(), div_per_sec: None };
+        // Indices of the campaign participants, in roster order.
+        let chamber_idx: Vec<usize> = (0..pets.len()).filter(|&i| pets[i].in_chamber).collect();
 
-        // `simulate` picks the recipient + contributions from end-of-run growth
-        // (it factors in `passive_per_hour`); we then realise those growth
-        // changes: passive into every pet, plus the campaign total into the
-        // recipient. Recipient ends at start + passive·hours + total — consistent
-        // with the end-of-run growth `simulate` used to choose it.
-        let (total, recipient) = match simulate(CampaignType::Growth, &team, &params) {
-            CampaignOutcome::Growth { total, recipient } => (total, recipient),
-            _ => unreachable!("Growth campaign always yields a Growth outcome"),
-        };
+        let mut cycle_record = ChamberCycle { recipient: 0, recipient_gain: 0.0, bag_gift: None };
 
-        for pet in pets.iter_mut() {
-            pet.growth += pet.passive_per_hour * hours as f64;
+        if !chamber_idx.is_empty() {
+            // Base total + recipient from the Growth campaign over the chamber. The
+            // f64 growth truncates to u64 for the log term — lossy by design,
+            // negligible at real magnitudes.
+            let team: Vec<CampaignPet> = chamber_idx
+                .iter()
+                .map(|&i| CampaignPet {
+                    name: pets[i].name.clone(),
+                    growth: pets[i].growth as u64,
+                    stats: None,
+                    campaign_bonus_pct: pets[i].campaign_bonus_pct,
+                    passive_per_hour: pets[i].passive_per_hour,
+                })
+                .collect();
+            let params =
+                CampaignParams { upc_pct, hours, unlocked_pets: chamber_idx.len(), div_per_sec: None };
+            let (base, recipient_sub) = match simulate(CampaignType::Growth, &team, &params) {
+                CampaignOutcome::Growth { total, recipient } => (total, recipient),
+                _ => unreachable!("Growth campaign always yields a Growth outcome"),
+            };
+            let recipient = chamber_idx[recipient_sub];
+
+            // Special-pet parameters, read from the in-chamber pets. Assumes at
+            // most one Pandora and one Bag (the game has one of each); with
+            // duplicates the last in roster order wins.
+            let mut pandora = 0.0;
+            let mut bag_fraction = 0.0;
+            let mut bag_steals = false;
+            for &i in &chamber_idx {
+                match pets[i].special {
+                    Some(SpecialPet::Pandora { feedings }) => {
+                        pandora = pandora_pct(end_growth(&pets[i]), feedings);
+                    }
+                    Some(SpecialPet::Bag { token_improved }) => {
+                        bag_fraction = if token_improved { 0.05 } else { 0.10 };
+                        bag_steals = !token_improved;
+                    }
+                    None => {}
+                }
+            }
+            let specials = apply_growth_specials(base, pandora, bag_fraction);
+            // Token-improved Bag's gift is free; pre-token it's stolen from the
+            // recipient's deposit.
+            let recipient_deposit = if bag_steals {
+                specials.recipient_gain - specials.bag_gift
+            } else {
+                specials.recipient_gain
+            };
+
+            // Bag's gift goes to the global lowest pet (end-of-run growth), across
+            // the whole roster — usually a benched pet, possibly the recipient.
+            let global_lowest = (0..pets.len())
+                .min_by(|&a, &b| {
+                    end_growth(&pets[a])
+                        .partial_cmp(&end_growth(&pets[b]))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .expect("non-empty roster");
+
+            // Realise growth: passive into all, then the deposits.
+            for pet in pets.iter_mut() {
+                pet.growth += pet.passive_per_hour * hours as f64;
+            }
+            pets[recipient].growth += recipient_deposit;
+            if bag_fraction > 0.0 {
+                pets[global_lowest].growth += specials.bag_gift;
+                cycle_record.bag_gift = Some((global_lowest, specials.bag_gift));
+            }
+            cycle_record.recipient = recipient;
+            cycle_record.recipient_gain = recipient_deposit;
+        } else {
+            // No campaign this cycle — only passive growth ticks.
+            for pet in pets.iter_mut() {
+                pet.growth += pet.passive_per_hour * hours as f64;
+            }
         }
-        pets[recipient].growth += total;
-        trace.push(ChamberCycle { recipient, campaign_growth: total });
+        trace.push(cycle_record);
 
         // Record any targeted pet that crossed its target this cycle (by index).
         for i in 0..pets.len() {
@@ -525,9 +614,9 @@ mod tests {
     fn chamber_rushes_a_new_pet_to_its_target() {
         // A new low-growth pet stays the recipient while two residents feed it.
         let mut pets = vec![
-            ChamberPet { name: "Resident1".into(), growth: 200_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None },
-            ChamberPet { name: "Resident2".into(), growth: 210_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None },
-            ChamberPet { name: "NewPet".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: Some(2_000.0) },
+            ChamberPet { name: "Resident1".into(), growth: 200_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "Resident2".into(), growth: 210_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "NewPet".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000);
         // Reached its target in a finite number of cycles; the loop stopped there.
@@ -544,8 +633,8 @@ mod tests {
         // Two near-equal pets: whoever is fed leaps ahead, so the recipient flips
         // each cycle — the rotation that cycles a settled chamber.
         let mut pets = vec![
-            ChamberPet { name: "A".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None },
-            ChamberPet { name: "B".into(), growth: 1_001.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None },
+            ChamberPet { name: "A".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "B".into(), growth: 1_001.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None, in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4);
         let recipients: Vec<usize> = result.trace.iter().map(|c| c.recipient).collect();
@@ -557,9 +646,9 @@ mod tests {
         // Two targeted pets that share a name must both be recorded (dedup is by
         // index, not name) so the stop condition can fire.
         let mut pets = vec![
-            ChamberPet { name: "Feeder".into(), growth: 500_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None },
-            ChamberPet { name: "Dup".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, target: Some(2_000.0) },
-            ChamberPet { name: "Dup".into(), growth: 1_500.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, target: Some(2_000.0) },
+            ChamberPet { name: "Feeder".into(), growth: 500_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "Dup".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, target: Some(2_000.0), in_chamber: true, special: None },
+            ChamberPet { name: "Dup".into(), growth: 1_500.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000);
         assert_eq!(result.reached.len(), 2); // both, despite the shared name
@@ -576,6 +665,8 @@ mod tests {
             campaign_bonus_pct: 0.0,
             passive_per_hour: 100.0,
             target: None,
+            in_chamber: true,
+            special: None,
         }];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 2);
         assert_eq!(result.cycles, 2);
@@ -626,5 +717,56 @@ mod tests {
         let s = apply_growth_specials(1_062.29, 43.42, 0.05);
         assert!((s.recipient_gain - 1_523.6).abs() < 0.5, "Otter gain {}", s.recipient_gain);
         assert!((s.bag_gift - 76.18).abs() < 0.1, "Bag gift {}", s.bag_gift);
+    }
+
+    /// The same real run through the *chamber* — one cycle over the 10 chamber
+    /// pets plus benched Wolf — exercising the full integration: Pandora boosts
+    /// the recipient's deposit, and Bag's gift lands on the global lowest (Wolf).
+    #[test]
+    fn chamber_cycle_applies_pandora_to_recipient_and_bag_to_global_lowest() {
+        // (name, growth, bonus%, in_chamber, special)
+        let data: [(&str, f64, f32, bool, Option<SpecialPet>); 11] = [
+            ("Otter", 55_266.0, 154.0, true, None), // recipient (chamber min)
+            ("Cupid", 55_338.0, 184.0, true, None),
+            ("Bag", 55_468.0, 115.51, true, Some(SpecialPet::Bag { token_improved: true })),
+            ("Hedgehog", 55_565.0, 222.76, true, None),
+            ("Thunder Ball", 55_661.0, 481.0, true, None),
+            ("Meteor", 55_856.0, 139.61, true, None),
+            ("Earth Eater", 55_943.0, 132.0, true, None),
+            ("Sphinx", 56_177.0, 119.97, true, None),
+            ("Pandora's Box", 57_138.0, 0.0, true, Some(SpecialPet::Pandora { feedings: 8 })),
+            ("Vampire", 57_310.0, 470.0, true, None),
+            ("Wolf", 10_956.0, 0.0, false, None), // benched — the global lowest
+        ];
+        let mut pets: Vec<ChamberPet> = data
+            .iter()
+            .map(|&(name, growth, bonus, in_chamber, special)| ChamberPet {
+                name: name.into(),
+                growth,
+                campaign_bonus_pct: bonus,
+                passive_per_hour: 0.0,
+                target: None,
+                in_chamber,
+                special,
+            })
+            .collect();
+
+        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1);
+        assert_eq!(result.cycles, 1);
+
+        // Otter (index 0) is the recipient and gains base × Pandora's 1.4342
+        // ≈ 1,523.6 → final ≈ 56,790 (the in-game after-value).
+        let otter = result.final_growth[0].1;
+        assert!((otter - 56_790.0).abs() < 2.0, "Otter final {otter}, want ≈56,790");
+        // Wolf (index 10, benched) is the global lowest and gets Bag's gift
+        // (≈76.18) → 10,956 + 76.18 ≈ 11,032.
+        let wolf = result.final_growth[10].1;
+        assert!((wolf - 11_032.0).abs() < 1.0, "Wolf final {wolf}, want ≈11,032");
+
+        // The trace names the right recipient and Bag target.
+        assert_eq!(result.trace[0].recipient, 0);
+        let (bag_target, bag_amount) = result.trace[0].bag_gift.expect("Bag gift recorded");
+        assert_eq!(bag_target, 10, "Bag's gift goes to Wolf, not the recipient");
+        assert!((bag_amount - 76.18).abs() < 0.2, "Bag gift {bag_amount}");
     }
 }
