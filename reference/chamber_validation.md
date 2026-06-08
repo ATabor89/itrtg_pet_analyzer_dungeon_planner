@@ -69,21 +69,30 @@ A lot of the model lands **exactly** against live in-game numbers:
   At 4,501 hours → 59.23, so 59.23 + 26.19 + 54.15 = 139.57 ≈ 140. ✅ Implemented
   (`meteor_campaign_hours` input). Its evo-bonus line also confirms our Adventurer
   math: "extra 16.15% (0.85 · class level)" = `0.85 · 19`.
-- **Bag — confirmed.** Its growth bonus is `lowestUnlockedPet.growth^0.4` (cap
-  100); the player's lowest unlocked pet is **Wolf ≈ 10,950 growth** →
-  `10,950^0.4 = 41.27`, so 41.27 + 26.19 + 48 = 115.46 ≈ 115. ✅ (Bag also applies
-  its token-improved **+5% free gift** to the recipient — part of the still-pending
-  special-pet layer.)
+- **Bag — confirmed.** Its growth bonus is `globalLowestPet.growth^0.4` (cap 100);
+  the player's global lowest pet is **Wolf ≈ 10,950 growth** → `10,950^0.4 = 41.27`,
+  so 41.27 + 26.19 + 48 = 115.46 ≈ 115. ✅ (Bag also applies its token-improved
+  **+5% free gift to the *global* lowest pet — here Wolf, not the campaign
+  recipient Otter** — part of the still-pending special-pet layer. Its gift raises
+  the same pet its `^0.4` bonus reads, so it compounds its own bonus.)
 
 ## To complete when the run finishes
 
 The finish screen gives the exact per-pet contribution breakdown. Capture:
 1. **Final growth** of every pet right before completion (squeeze the last Moai ticks).
 2. **Per-pet contribution** to the campaign (validates `(log15(end_growth) − 1.75)·factor` with `factor = 1.40 (UPC) · (1 + bonus/100) · 12`).
-3. **Recipient (Otter) total gain**, including:
-   - **Pandora's Box** +43.42% applied to the campaign total.
-   - **Bag's** token-improved **+5%** free gift to the recipient.
+3. **Recipient (Otter) total gain** = campaign total × **Pandora's +43.42%**.
+4. **Bag's +5% gift** — and *which pet got it* (should be the global lowest, Wolf,
+   not Otter). Also note whether the 5% is of the base total or the
+   Pandora-boosted total (an open question — see below).
 
 These feed the **special-pet layer** (Pandora flat bonus, Bag gift) — currently
 not in the simulator — and let us turn this into a hard end-to-end test
 (`planner::campaign`) of one real chamber cycle.
+
+### Open questions for the special-pet layer (resolve with the breakdown)
+- Is **Bag's** 5% gift computed from the **base** campaign total or the
+  **Pandora-boosted** total?
+- If the global lowest pet *is* the campaign recipient, do they get **both** the
+  campaign total and Bag's gift (presumably yes — distinct mechanics)?
+- Confirm Bag's gift is **free** (post-token) — recipient keeps the full total.
