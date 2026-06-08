@@ -9,9 +9,15 @@ of chambers it adds up a lot. This captures the mechanics and the open numbers.
 - Each food raises a pet's **hunger bar by 12.5%** (= **3 hours**); the bar caps
   at **24 h** (8 feedings from empty) and **empties full→empty in 24 h**.
 - You can feed a pet when its bar is **below 87.5%** — i.e. **once every 3 hours**.
-- So over a campaign of `hours`, you do **`floor(hours / 3)` feedings per pet**
+- ⚠️ **Feeding only happens when a pet is *not* in a campaign/dungeon.** So over a
+  back-to-back chamber, the bar depletes during each `hours`-long campaign and you
+  refill it **between rounds**: **`floor(hours / 3)` feedings per pet per round**
   (12 h → 4). You feed **every** pet, so this growth applies to the whole roster
   (chamber *and* bench), like Moai.
+- **Modelling consequence:** feeding growth is applied **between rounds — after**
+  each campaign's deposits, **not** folded into the end-of-run growth the campaign
+  picks its recipient/contributions from. It compounds into the *next* round's
+  campaign. (The engine does exactly this; `end_growth` is passive-only.)
 - **Pandora's Box** also counts feedings for its *campaign-total* bonus (separate
   from the growth each feeding gives) — see `campaign_simulation.md` §5.
 
@@ -71,6 +77,21 @@ run. This is realistic and a real lever:
 - **Long rebirths** (e.g. 7 days) → fishing decays away, but Pandora's feeding
   bonus maxes out.
 
+## Gold Dragon — feeding broadcasts 25% to everyone
+
+Feeding **Gold Dragon** gives **every** pet **25% of the growth he gains** from
+that feeding — campaign-independent, and it adds up a lot (the Main-stats export
+tracks it as `Growth from Golden Dragon`, sample `181,144`). So per round each pet
+gets an extra `floor(hours/3) · 0.25 · goldDragonFoodGrowth`, on top of its own
+feeding. He's best fed **chocolate**, and he has his **own food selector**.
+
+- Modelled by folding `0.25 · gdFoodGrowth` into every pet's per-feeding growth
+  (`per_feeding_growth = ownFood + 0.25·gdFood`), applied between rounds like any
+  feeding.
+- Minor approximation (per-pet food is deferred): Gold Dragon himself is fed the
+  *general* food in the sim rather than his own — negligible (one pet), and the
+  big effect is the broadcast to all.
+
 ## Related multipliers (for evolutions, not campaigns)
 
 - **PGC (Pet Growth Challenge)** — all completed gives a **1.5× growth**
@@ -82,8 +103,11 @@ run. This is realistic and a real lever:
 ## Implementation status
 
 - [x] **Feeding growth in the chamber engine** — each pet gains
-  `floor(hours/3) · effectiveFoodGrowth` per cycle, applied to the whole roster.
-  The effective per-food value is a (user-set) input for now.
+  `floor(hours/3) · effectiveFoodGrowth` per round, applied to the whole roster
+  **between rounds** (after the campaign, excluded from `end_growth`). The
+  effective per-food value is a (user-set) input for now.
+- [x] **Gold Dragon broadcast** — `+0.25 · gdFoodGrowth` per feeding to every
+  pet, via its own food selector.
 - [ ] **Auto-derive** the effective values from base × DPC × fishing (needs the
   composition pinned down + the SpaceDim factor).
 - [ ] **Rebirth-relative decay** (fishing over 30 h, Pandora accumulation) driven
