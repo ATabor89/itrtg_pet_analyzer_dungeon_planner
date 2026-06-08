@@ -241,8 +241,19 @@ pub fn show(
     ui.horizontal(|ui| {
         let n = state.chamber.len();
         let over = n > 10;
+        // "Run until targets" needs at least one target, else it would silently
+        // fall back to the (now-hidden) max-cycles value.
+        let no_target = state.run_until_targets && state.targets.is_empty();
         let run = ui
-            .add_enabled(!over, egui::Button::new(RichText::new("\u{25B6} Run").size(13.0)))
+            .add_enabled(
+                !over && !no_target,
+                egui::Button::new(RichText::new("\u{25B6} Run").size(13.0)),
+            )
+            .on_hover_text(if no_target {
+                "Set a target on at least one pet, or switch off \"run until targets\"."
+            } else {
+                "Run the chamber simulation."
+            })
             .clicked();
         if ui
             .button(RichText::new("Recommend chamber").size(12.0))
