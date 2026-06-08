@@ -222,12 +222,21 @@ tier: base 3%, rising with "tiered linearity" up to 12% at 100m stats.
   system — relevant once we model levelling/stats, not a direct campaign term.
 
 ### Bag — Growth campaign only
+The gift goes to the **global lowest-growth pet** (across *all* owned pets, in or
+out of the chamber) — **not** the campaign's recipient. They're often different:
+e.g. with the campaign recipient being the chamber's lowest (Otter) while the
+global lowest is a benched pet (Wolf), Bag's gift goes to **Wolf**.
+
 - **Pre-token-improve:** takes **10% of the total** campaign growth and gives it
-  to the lowest-growth pet. This 10% is **stolen from the campaign** — the normal
-  recipient does **not** receive it.
-- **Post-token-improve:** reduced to **5%**, but **not stolen** — the normal
-  recipient keeps the full amount **and** the weakest pet gets the extra 5% as
-  free/bonus growth.
+  to the global lowest-growth pet. This 10% is **stolen from the campaign** — the
+  campaign recipient does **not** receive it.
+- **Post-token-improve:** reduced to **5%**, but **not stolen** — the campaign
+  recipient keeps the full amount **and** the global lowest pet gets the extra 5%
+  as free/bonus growth.
+
+**Feedback loop:** Bag's *own* bonus is `globalLowest.growth^0.4` (§5 has it as a
+formula). Since its gift raises that same global-lowest pet, Bag's gift directly
+grows Bag's own campaign bonus over time.
 
 ### Pandora's Box — flat % bonus on the whole campaign total
 > Increases all campaign rewards for campaigns it participates in by **3% per
@@ -306,25 +315,48 @@ serves two jobs:
 
 For each simulated campaign run (length `hours`, the integer 1–12):
 
-1. **Recipient** = the chamber pet with the lowest growth (it does **not**
-   contribute its own term).
-2. **Campaign growth** = `Σ (over the other pets) (log15(growth) − 1.75) · UPC ·
-   pet_growth_multi · hours`.
+1. **Campaign recipient** = the **chamber** pet with the lowest *end-of-run*
+   growth (it does **not** contribute its own term). "End-of-run" because pendant
+   + Moai accrue during the run and the game computes at completion (§ below).
+2. **Campaign growth** = `Σ (over the other chamber pets) (log15(growth) − 1.75) ·
+   UPC · pet_growth_multi · hours`.
 3. Apply the **special-pet layers** if those pets are present:
    - **Pandora's Box** — multiply the run's total by its `1 + bonus%` (§5).
-   - **Bag** — pre-token steals 10% of the total to the lowest-growth pet (so the
-     recipient effectively loses that 10%); post-token gives an *extra* 5% to the
-     weakest on top, free (§5). In a chamber, Bag's recipient and the campaign's
-     recipient are the same pet (both "lowest growth").
-   - **Catch:** Pandora's Box's bonus and Bag's steal/gift **still fire even when
-     Pandora/Bag is itself the recipient** that cycle. (They don't contribute a
-     growth *term* as the recipient — but their special mechanic always applies.)
-4. **Add** the resulting growth to the recipient. **Pendant + Moai tick once per
-   hour**: a pet gets exactly one tick for each campaign-hour, regardless of when
-   in the hour it lands (0h50m, 1h50m, …, so a 12 h run = **12 ticks**). Add that
-   passive growth to whichever pets carry a pendant / benefit from Moai (e.g. a
-   pendant on the pet being rushed).
-5. **Re-sort** the chamber and repeat until each tracked pet hits its target.
+   - **Bag** — pre-token steals 10% of the campaign total; post-token gives an
+     *extra* 5% free (§5). **Both go to the *global* lowest-growth pet — across
+     all owned pets, not just the chamber.** That pet is usually a **benched** pet
+     (e.g. Wolf), distinct from the campaign recipient. Only when the global
+     lowest *is* a chamber pet do the two coincide.
+   - **Catch:** Pandora's bonus and Bag's steal/gift **still fire even when
+     Pandora/Bag is itself the campaign recipient** that cycle.
+4. **Realise growth changes:** add the campaign total to the campaign recipient;
+   add Bag's gift to the global lowest; and tick **pendant + Moai once per hour**
+   for every pet that has them (one tick per campaign-hour, regardless of when in
+   the hour — a 12 h run = **12 ticks**).
+5. **Re-rank** and repeat until each tracked pet hits its target.
+
+### Global tracking — needed for Bag
+
+Because Bag's gift targets the **global** lowest pet, the chamber sim can't model
+only the 10 participants — it needs **all owned pets** (chamber + bench), so it
+can find the global lowest each cycle and apply Bag's gift there. Consequences:
+
+- **The "pet being rushed" may also be the global lowest** *and* the campaign
+  recipient. *Example:* unlocking **Undine** (elementals start at huge negative
+  growth, ≈ −33,333). Slotted into the chamber she's the campaign recipient (gets
+  the pooled growth) **and** the global lowest (gets Bag's gift) for a long time.
+- **Oscillation / leapfrog:** as the sim iterates over days, the global lowest can
+  swap between a chamber pet and a benched pet, and the campaign recipient can
+  swap as a pendant pet pulls ahead. So we must track each pet's growth across
+  cycles and re-determine *both* the campaign recipient (chamber min) and the
+  global lowest (overall min) every cycle. (True leapfrogging should be uncommon —
+  the chamber pushes its recipient faster than Bag's gift pushes a benched pet —
+  but a **pendant on a benched pet** could trigger it.)
+
+This is the global-roster model: `simulate_growth_chamber` should take the full
+roster with a per-pet "in the chamber" flag (campaign participant), not just the
+chamber list. The campaign recipient is the in-chamber min; Bag's gift target is
+the overall min.
 
 ### Inputs / configuration
 
