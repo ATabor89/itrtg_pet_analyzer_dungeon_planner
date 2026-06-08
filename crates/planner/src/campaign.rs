@@ -344,7 +344,10 @@ pub struct ChamberResult {
 /// **in-chamber** pets, then realise growth across the **whole roster** —
 /// depositing the (Pandora-boosted) total into the recipient, ticking passive
 /// pendant/Moai growth into every pet, and applying Bag's gift to the global
-/// lowest pet — until all *targeted* pets reach their target or `max_cycles` hits.
+/// lowest pet — for `max_cycles` rounds. If `stop_at_targets` is set, it returns
+/// early once every *targeted* pet has reached its target (with `max_cycles` as
+/// the safety cap); otherwise it always runs the full `max_cycles` (still
+/// recording the cycle each target was first hit).
 ///
 /// `pets` is the full roster (chamber + bench, flagged by `in_chamber`). It reuses
 /// [`simulate`] with [`CampaignType::Growth`] for the base total so the chamber and
@@ -355,6 +358,7 @@ pub fn simulate_growth_chamber(
     hours: u32,
     upc_pct: f64,
     max_cycles: u32,
+    stop_at_targets: bool,
 ) -> ChamberResult {
     let hours = hours.clamp(1, 12);
     let targeted = pets.iter().filter(|p| p.target.is_some()).count();
@@ -466,7 +470,7 @@ pub fn simulate_growth_chamber(
                 reached.push((pets[i].name.clone(), cycle + 1));
             }
         }
-        if targeted > 0 && reached.len() == targeted {
+        if stop_at_targets && targeted > 0 && reached.len() == targeted {
             return ChamberResult {
                 cycles: cycle + 1,
                 reached,
@@ -627,7 +631,7 @@ mod tests {
             ChamberPet { name: "Resident2".into(), growth: 210_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
             ChamberPet { name: "NewPet".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true);
         // Reached its target in a finite number of cycles; the loop stopped there.
         assert!(result.reached.iter().any(|(n, _)| n == "NewPet"));
         assert!(result.cycles >= 1 && result.cycles < 1000);
@@ -645,7 +649,7 @@ mod tests {
             ChamberPet { name: "A".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
             ChamberPet { name: "B".into(), growth: 1_001.0, campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4, true);
         let recipients: Vec<usize> = result.trace.iter().map(|c| c.recipient).collect();
         assert_eq!(recipients, vec![0, 1, 0, 1]); // alternating
     }
@@ -659,7 +663,7 @@ mod tests {
             ChamberPet { name: "Dup".into(), growth: 1_000.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
             ChamberPet { name: "Dup".into(), growth: 1_500.0, campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true);
         assert_eq!(result.reached.len(), 2); // both, despite the shared name
         assert!(result.cycles < 1000); // stopped early, didn't spin to the cap
     }
@@ -678,7 +682,7 @@ mod tests {
             in_chamber: true,
             special: None,
         }];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 2);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true);
         assert_eq!(result.cycles, 2);
         assert!((result.final_growth[0].1 - 2.0 * 100.0 * 12.0).abs() < 1e-9);
     }
@@ -697,11 +701,11 @@ mod tests {
         };
         // 12 h → floor(12/3) = 4 feedings × 10/feeding = +40/cycle × 2 cycles = 80.
         let mut pets = vec![solo(10.0)];
-        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 2);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true);
         assert!((r.final_growth[0].1 - 80.0).abs() < 1e-9, "got {}", r.final_growth[0].1);
         // A sub-3h campaign yields no feedings (floor(2/3) = 0).
         let mut pets2 = vec![solo(10.0)];
-        let r2 = simulate_growth_chamber(&mut pets2, 2, 0.0, 1);
+        let r2 = simulate_growth_chamber(&mut pets2, 2, 0.0, 1, true);
         assert_eq!(r2.final_growth[0].1, 0.0);
     }
 
@@ -784,7 +788,7 @@ mod tests {
             })
             .collect();
 
-        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1);
+        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, true);
         assert_eq!(result.cycles, 1);
 
         // Otter (index 0) is the recipient and gains base × Pandora's 1.4342
