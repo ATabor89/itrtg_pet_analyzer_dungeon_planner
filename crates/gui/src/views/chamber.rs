@@ -1092,11 +1092,14 @@ fn recent_rate_per_cycle(result: &ChamberResult, name: &str) -> Option<f64> {
     let breakdown = &result.breakdown.get(idx)?.1;
 
     // Window: two recipient rotations (the chamber size), so it spans at least
-    // one full deposit cadence even as the recipient leapfrogs around — capped
-    // at half the run so "recent" stays distinct from the whole-run average.
+    // one full deposit cadence even as the recipient leapfrogs around. If that
+    // window doesn't fit in half the run (so "recent" would neither span a
+    // rotation nor be distinct from the whole-run average), bail to the
+    // fallback — a truncated window could miss a pet's deposits entirely and
+    // report a misleading campaign-free rate.
     let chamber_size = result.trace.first().map_or(0, |c| c.contributions.len());
-    let window = (2 * chamber_size).max(1).min(n / 2);
-    if window == 0 {
+    let window = (2 * chamber_size).max(1);
+    if window > n / 2 {
         return None;
     }
 
@@ -1455,6 +1458,15 @@ mod tests {
             ChamberResult { cycles: 1, trace: vec![cycle(10.0)], ..result.clone() };
         assert!(recent_rate_per_cycle(&short, "A").is_none());
         assert!(recent_rate_per_cycle(&result, "B").is_none());
+
+        // A window that can't fit (2 rotations > half the run) falls back too,
+        // rather than truncating and possibly missing a pet's deposits: the
+        // same 4 cycles with a 2-pet chamber would want a window of 4 > 2.
+        let mut wide = result.clone();
+        for c in &mut wide.trace {
+            c.contributions.push((1, 0.0));
+        }
+        assert!(recent_rate_per_cycle(&wide, "A").is_none());
     }
 
     #[test]
