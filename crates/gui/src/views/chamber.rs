@@ -62,8 +62,9 @@ pub struct ChamberState {
     /// Model rebirths — shorten each rebirth's last cycle so a campaign never
     /// spans a rebirth. Off ⭢ uniform cycles.
     pub rebirth_enabled: bool,
-    /// Average rebirth length, in [`REBIRTH_UNITS`] of `rebirth_unit`.
-    pub rebirth_value: u32,
+    /// Average rebirth length, in [`REBIRTH_UNITS`] of `rebirth_unit` (decimal —
+    /// e.g. 7.5 days).
+    pub rebirth_value: f64,
     /// Index into [`REBIRTH_UNITS`] (Hours / Days / Weeks).
     pub rebirth_unit: usize,
     /// Per-pet what-if overrides (canonical name → tweaked loadout + CL). Absent
@@ -123,7 +124,7 @@ impl Default for ChamberState {
             run_until_targets: false,
             exported_after_campaign: false,
             rebirth_enabled: false,
-            rebirth_value: 24,
+            rebirth_value: 24.0,
             rebirth_unit: 0, // Hours
             overrides: BTreeMap::new(),
             search: String::new(),
@@ -181,10 +182,10 @@ impl ChamberState {
         self.food_values.get(self.food_choice).copied().unwrap_or(0.0)
     }
 
-    /// Average rebirth length in hours (the entered value × its unit).
+    /// Average rebirth length in hours (the entered value × its unit, rounded).
     fn rebirth_total_hours(&self) -> u32 {
-        let factor = REBIRTH_UNITS.get(self.rebirth_unit).map_or(1, |&(_, h)| h);
-        self.rebirth_value.saturating_mul(factor).max(1)
+        let factor = REBIRTH_UNITS.get(self.rebirth_unit).map_or(1, |&(_, h)| h) as f64;
+        ((self.rebirth_value * factor).round() as i64).clamp(1, u32::MAX as i64) as u32
     }
 
     /// Per-feeding growth every pet gets from a Gold Dragon feeding (25% of his
@@ -358,7 +359,12 @@ pub fn show(
             );
         ui.add_enabled_ui(state.rebirth_enabled, |ui| {
             ui.label(RichText::new("every").color(style::TEXT_MUTED).size(12.0));
-            ui.add(egui::DragValue::new(&mut state.rebirth_value).range(1..=1000).speed(1.0));
+            ui.add(
+                egui::DragValue::new(&mut state.rebirth_value)
+                    .range(0.1..=100_000.0)
+                    .speed(0.25)
+                    .max_decimals(2),
+            );
             let unit = REBIRTH_UNITS.get(state.rebirth_unit).map_or("Hours", |&(l, _)| l);
             egui::ComboBox::from_id_salt("rebirth_unit").selected_text(unit).show_ui(ui, |ui| {
                 for (i, (label, _)) in REBIRTH_UNITS.iter().enumerate() {
@@ -367,12 +373,19 @@ pub fn show(
             });
         });
         if state.rebirth_enabled {
+            let cycle = state.hours.clamp(1, 12);
             let rb = state.rebirth_total_hours();
-            let sched = itrtg_planner::campaign::rebirth_schedule(state.hours.clamp(1, 12), rb);
-            // Show the cycle pattern (e.g. "12 h + 8 h"); warn if the rebirth is
-            // shorter than a full cycle (the cycle gets clamped to the rebirth).
-            let pattern = sched.iter().map(|h| format!("{h} h")).collect::<Vec<_>>().join(" + ");
-            let (text, color) = if rb < state.hours.clamp(1, 12) {
+            // Compact schedule: collapse the full cycles into a count and only show
+            // the remainder when there is one (e.g. "14 × 12 h + 1 h").
+            let full = cycle.min(rb);
+            let n_full = rb / full;
+            let rem = rb % full;
+            let mut pattern =
+                if n_full <= 1 { format!("{full} h") } else { format!("{n_full} × {full} h") };
+            if rem > 0 {
+                pattern += &format!(" + {rem} h");
+            }
+            let (text, color) = if rb < cycle {
                 (format!("⚠ rebirth ({rb} h) < cycle — cycles clamped to {pattern}"), style::WARNING)
             } else {
                 (format!("⭢ {pattern} per rebirth"), style::TEXT_MUTED)
@@ -970,14 +983,24 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                 c.contributions.iter().map(|(_, a)| a).sum()
             };
 
-            // Summary stats: average growth/pet/cycle and the reward trend.
+            // Summary stats: average growth/pet (per hour always; per cycle too when
+            // every cycle is the same length) and the reward trend.
             if !rows.is_empty() && result.cycles > 0 {
                 let total_gain: f64 = rows.iter().map(|(_, s, f)| f - s).sum();
-                let mut summary = format!(
-                    "  avg +{:.1}/pet/cycle  (chamber total +{:.0})",
-                    total_gain / rows.len() as f64 / result.cycles as f64,
-                    total_gain
-                );
+                let per_pet = total_gain / rows.len() as f64;
+                let per_hour = per_pet / total_hours.max(1) as f64;
+                // Cycles are uniform unless a rebirth's remainder shortened some.
+                let uniform = result.trace.windows(2).all(|w| w[0].hours == w[1].hours);
+                let avg = if uniform {
+                    format!(
+                        "avg +{:.1}/pet/cycle  ·  +{:.2}/pet/hr",
+                        per_pet / result.cycles as f64,
+                        per_hour
+                    )
+                } else {
+                    format!("avg +{per_hour:.2}/pet/hr")
+                };
+                let mut summary = format!("  {avg}  (chamber total +{total_gain:.0})");
                 // Reward trend: average the first/last `window` cycles rather than
                 // single cycles, so the recipient rotation (a big contributor being
                 // the recipient that cycle → 0 contribution) doesn't skew it. The
