@@ -1074,6 +1074,55 @@ fn fmt_hours(h: u32) -> String {
     }
 }
 
+/// A pet's estimated growth per cycle over the run's **recent** cycles, in
+/// total terms. The whole-run average lags the true rate — campaign rewards
+/// grow as the roster grows — so extrapolating from it lands the ETA late
+/// (~3 cycles over a long run, per validation). `None` when the run is too
+/// short to have a meaningfully "recent" window (caller falls back to the
+/// whole-run average).
+///
+/// Recent rate = the pet's campaign income (recipient deposits + Bag gifts)
+/// over the last `window` cycles, plus its per-cycle non-campaign income
+/// (passive/feeding/Gold Dragon — near-uniform across cycles). The trace
+/// records campaign income in *base* terms; the run-wide campaign breakdown
+/// (total terms) rescales it exactly, since the pet's multiplier is constant.
+fn recent_rate_per_cycle(result: &ChamberResult, name: &str) -> Option<f64> {
+    let n = result.trace.len();
+    let idx = result.final_growth.iter().position(|(p, _)| p == name)?;
+    let breakdown = &result.breakdown.get(idx)?.1;
+
+    // Window: two recipient rotations (the chamber size), so it spans at least
+    // one full deposit cadence even as the recipient leapfrogs around. If that
+    // window doesn't fit in half the run (so "recent" would neither span a
+    // rotation nor be distinct from the whole-run average), bail to the
+    // fallback — a truncated window could miss a pet's deposits entirely and
+    // report a misleading campaign-free rate.
+    let chamber_size = result.trace.first().map_or(0, |c| c.contributions.len());
+    let window = (2 * chamber_size).max(1);
+    if window > n / 2 {
+        return None;
+    }
+
+    // Campaign income to this pet in one cycle, in base terms.
+    let base_income = |c: &itrtg_planner::campaign::ChamberCycle| -> f64 {
+        let deposit = if c.recipient == idx { c.recipient_gain } else { 0.0 };
+        let gift = match c.bag_gift {
+            Some((to, amt)) if to == idx => amt,
+            _ => 0.0,
+        };
+        deposit + gift
+    };
+    let run_base: f64 = result.trace.iter().map(base_income).sum();
+    let recent_base: f64 = result.trace[n - window..].iter().map(base_income).sum();
+    let campaign = if run_base > 0.0 {
+        breakdown.campaign * (recent_base / run_base) / window as f64
+    } else {
+        0.0
+    };
+    let non_campaign = (breakdown.passive + breakdown.feeding + breakdown.gold_dragon) / n as f64;
+    Some(campaign + non_campaign)
+}
+
 fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
     let Some(result) = &state.result else { return };
     egui::Frame::new()
@@ -1191,10 +1240,12 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                         (format!("\u{2713} target at cycle {cycle} ({})", fmt_hours(h)), style::SUCCESS)
                     }
                     (None, Some(t)) => {
-                        // Linear-extrapolate from this pet's average growth/cycle to
+                        // Linear-extrapolate from this pet's *recent* growth/cycle
+                        // (rewards trend up, so the whole-run average lands late) to
                         // estimate when it would reach the target (total from the run
                         // start, so it lines up with the reached pets above).
-                        let per_cycle = delta / result.cycles.max(1) as f64;
+                        let per_cycle = recent_rate_per_cycle(result, name)
+                            .unwrap_or(delta / result.cycles.max(1) as f64);
                         let remaining = *t as f64 - final_g;
                         if per_cycle > 0.0 && remaining > 0.0 {
                             let more = (remaining / per_cycle).ceil();
@@ -1371,6 +1422,51 @@ mod tests {
         assert!(state.pgc_complete);
         state.apply_main_stats(&MainStats { patreon_god_challenges: Some((0, 25)), ..Default::default() });
         assert!(!state.pgc_complete);
+    }
+
+    #[test]
+    fn recent_rate_tracks_the_rising_reward_curve() {
+        use itrtg_planner::campaign::{ChamberCycle, GrowthBreakdown};
+
+        // Solo chamber, 4 cycles, deposits rising 10 → 40 (base terms, mult 1).
+        let cycle = |gain: f64| ChamberCycle {
+            recipient: 0,
+            recipient_gain: gain,
+            bag_gift: None,
+            contributions: vec![(0, 0.0)],
+            hours: 12,
+        };
+        let result = ChamberResult {
+            cycles: 4,
+            reached: vec![],
+            trace: vec![cycle(10.0), cycle(20.0), cycle(30.0), cycle(40.0)],
+            final_growth: vec![("A".into(), 1108.0)],
+            breakdown: vec![(
+                "A".into(),
+                GrowthBreakdown { campaign: 100.0, passive: 8.0, feeding: 0.0, gold_dragon: 0.0 },
+            )],
+        };
+        // Window = min(2 × chamber size, n/2) = 2: campaign (30+40)/2 = 35,
+        // plus passive 8/4 = 2 → 37/cycle. The whole-run average is only
+        // 108/4 = 27/cycle — the lag this estimator fixes.
+        let rate = recent_rate_per_cycle(&result, "A").unwrap();
+        assert!((rate - 37.0).abs() < 1e-9, "got {rate}");
+
+        // Too short for a distinct recent window → None (caller falls back to
+        // the whole-run average), and an unknown pet is None too.
+        let short =
+            ChamberResult { cycles: 1, trace: vec![cycle(10.0)], ..result.clone() };
+        assert!(recent_rate_per_cycle(&short, "A").is_none());
+        assert!(recent_rate_per_cycle(&result, "B").is_none());
+
+        // A window that can't fit (2 rotations > half the run) falls back too,
+        // rather than truncating and possibly missing a pet's deposits: the
+        // same 4 cycles with a 2-pet chamber would want a window of 4 > 2.
+        let mut wide = result.clone();
+        for c in &mut wide.trace {
+            c.contributions.push((1, 0.0));
+        }
+        assert!(recent_rate_per_cycle(&wide, "A").is_none());
     }
 
     #[test]

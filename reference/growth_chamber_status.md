@@ -52,7 +52,11 @@ The chamber lives in two files plus supporting data:
   egg: 1.5 × 1.3 = 1.95×) via the `pgc_complete` toggle, auto-filled from the
   Main-stats `Patreon Gods Challenges` line (complete when done == max).
 - **Report** — elapsed time (h → days → years), per-pet time-to-target, and a
-  linear-extrapolation **ETA** for pets that miss their target.
+  linear-extrapolation **ETA** for pets that miss their target. The ETA rate is
+  the pet's **recent** growth/cycle (`recent_rate_per_cycle`: last two
+  recipient rotations, campaign income from the trace + uniform
+  passive/feeding), since the whole-run average lags the rising reward curve
+  and landed ~3 cycles late.
 - **`exported_after_campaign` toggle** — suppresses the first cycle's passive (see
   the Moai-boundary note).
 
@@ -114,27 +118,24 @@ Roughly highest-leverage first. Each has enough context to start cold.
    stores arbitrary `Equipment` levels — so the work is (a) replace
    `event_equip_bonus` with real level formulas once known, (b) un-gate the
    quality/upgrade sub-row (currently `is_stick(w)`-only) for event gear.
-3. **Recent-rate ETA.** The not-reached ETA extrapolates from the *whole-run*
-   average; rewards trend up over cycles, so it overshoots (~3 cycles late seen in
-   testing). Switch to a recent window (e.g. the last rebirth's cycles).
-4. **Per-cycle click-through pop-out** (the "fun" one). Step through each cycle
+3. **Per-cycle click-through pop-out** (the "fun" one). Step through each cycle
    individually. The sim already records `ChamberResult.trace` (per-cycle
    recipient, recipient_gain, bag_gift, contributions, hours).
-5. **Nightmare validation + God-Power uncap.** The malus is from the wiki text, not
+4. **Nightmare validation + God-Power uncap.** The malus is from the wiki text, not
    a live capture — confirm the **ordering** vs Pandora/Bag with a real
    Growth-campaign-with-Nightmare export (he's CL 17, parked in God Power for now).
    Separately, the **GP uncap** (Nightmare always; Ant Queen after evolving) is
    unmodelled — only relevant if the God Power campaign is ever simulated.
-6. **SpaceDim factor.** The reference flags SpaceDim as affecting food growth (TBD).
+5. **SpaceDim factor.** The reference flags SpaceDim as affecting food growth (TBD).
    Currently `base × DPC × fishing` matches in-game exactly, so it's either baked
    into the pet multiplier/DPC or negligible for the player. Revisit if food
    values diverge.
-7. **Per-pet food override.** One global food type today (Gold Dragon already has
+6. **Per-pet food override.** One global food type today (Gold Dragon already has
    its own selector). Could allow per-pet food.
-8. **Limited-item caps (phase 3).** At most ~2 of Magic Egg / Growing Love Pendant
+7. **Limited-item caps (phase 3).** At most ~2 of Magic Egg / Growing Love Pendant
    / each event piece across chambers (generalize the old `pendant < 2` gate).
    Spec is fuzzy — "how many you own" isn't cleanly in the export. Low priority.
-9. **Fresh-rebirth validation of fishing/Pandora.** Both modelled from tooltips;
+8. **Fresh-rebirth validation of fishing/Pandora.** Both modelled from tooltips;
    a real fresh-rebirth capture (fishing is dormant for the player now — rebirth
    too old) would confirm them.
 
