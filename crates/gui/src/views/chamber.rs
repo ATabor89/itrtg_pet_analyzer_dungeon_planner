@@ -67,6 +67,11 @@ pub struct ChamberState {
     pub rebirth_value: f64,
     /// Index into [`REBIRTH_UNITS`] (Hours / Days / Weeks).
     pub rebirth_unit: usize,
+    /// Fish Power — drives the food boost that decays over a rebirth's first 30 h.
+    /// 0 = no fishing boost.
+    pub fish_power: f64,
+    /// Fishing level — adds the +10% milestones (at 15 and 27) to the boost.
+    pub fishing_level: u32,
     /// Per-pet what-if overrides (canonical name → tweaked loadout + CL). Absent
     /// means "use the live export as-is". Seeded from the export on first edit;
     /// the card's "Refresh from export" button drops the entry to revert.
@@ -126,6 +131,8 @@ impl Default for ChamberState {
             rebirth_enabled: false,
             rebirth_value: 24.0,
             rebirth_unit: 0, // Hours
+            fish_power: 0.0,
+            fishing_level: 0,
             overrides: BTreeMap::new(),
             search: String::new(),
             result: None,
@@ -152,6 +159,8 @@ impl ChamberState {
         self.rebirth_enabled = src.rebirth_enabled;
         self.rebirth_value = src.rebirth_value;
         self.rebirth_unit = src.rebirth_unit.min(REBIRTH_UNITS.len() - 1);
+        self.fish_power = src.fish_power;
+        self.fishing_level = src.fishing_level;
         self.overrides = src.overrides.clone();
     }
 
@@ -172,6 +181,8 @@ impl ChamberState {
             rebirth_enabled: self.rebirth_enabled,
             rebirth_value: self.rebirth_value,
             rebirth_unit: self.rebirth_unit,
+            fish_power: self.fish_power,
+            fishing_level: self.fishing_level,
             overrides: self.overrides.clone(),
             ..Default::default()
         };
@@ -196,6 +207,11 @@ impl ChamberState {
     fn rebirth_total_hours(&self) -> u32 {
         let factor = REBIRTH_UNITS.get(self.rebirth_unit).map_or(1, |&(_, h)| h) as f64;
         ((self.rebirth_value * factor).floor() as i64).clamp(1, u32::MAX as i64) as u32
+    }
+
+    /// The Fish Power food boost % at a rebirth's start (0 if no Fish Power).
+    fn fishing_boost(&self) -> f64 {
+        itrtg_planner::campaign::fishing_boost_pct(self.fish_power, self.fishing_level)
     }
 
     /// Per-feeding growth every pet gets from a Gold Dragon feeding (25% of his
@@ -319,7 +335,8 @@ pub fn show(
             .on_hover_text("5 × Ultimate Pet Challenges completed. Auto-filled when you import a Main-stats export.");
         ui.separator();
         ui.label(RichText::new("Pandora feedings:").color(style::TEXT_MUTED).size(12.0));
-        ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20));
+        ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20))
+            .on_hover_text("Pandora's starting feeding count. It climbs as she's fed each cycle (bonus caps at 20) and resets at the start of each rebirth.");
     });
 
     // --- Food (per-feeding growth, fed to every pet) ---
@@ -414,6 +431,30 @@ pub fn show(
         }
     });
 
+    // --- Fishing (Fish Power food boost, decays over a rebirth's first 30 h) ---
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Fish Power:").color(style::TEXT_MUTED).size(12.0))
+            .on_hover_text("Boosts all food growth by FishPower^0.25 × milestone, decaying to 0 over the first 30 h of each rebirth. 0 = off.");
+        ui.add(
+            egui::DragValue::new(&mut state.fish_power)
+                .range(0.0..=1e15)
+                .speed(1000.0)
+                .max_decimals(0),
+        );
+        ui.label(RichText::new("Fishing level:").color(style::TEXT_MUTED).size(12.0))
+            .on_hover_text("Milestones: +10% at level 15, another +10% at 27.");
+        ui.add(egui::DragValue::new(&mut state.fishing_level).range(0..=100));
+        let boost = state.fishing_boost();
+        if boost > 0.0 {
+            let (text, color) = if state.rebirth_enabled {
+                (format!("⭢ +{boost:.1}% food at rebirth start, fading over 30 h"), style::TEXT_MUTED)
+            } else {
+                ("needs rebirth modeling to apply".to_string(), style::WARNING)
+            };
+            ui.label(RichText::new(text).color(color).size(10.0));
+        }
+    });
+
     // --- Run mode + actions ---
     ui.horizontal(|ui| {
         ui.label(RichText::new("Max cycles:").color(style::TEXT_MUTED).size(12.0));
@@ -471,6 +512,7 @@ pub fn show(
                 state.run_until_targets,
                 state.exported_after_campaign,
                 state.rebirth_enabled.then(|| state.rebirth_total_hours()),
+                state.fishing_boost(),
             ));
         }
     });

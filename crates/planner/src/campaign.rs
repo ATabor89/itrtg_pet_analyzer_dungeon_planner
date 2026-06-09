@@ -302,6 +302,26 @@ pub fn nightmare_malus(class_level: u32) -> f64 {
     (20.0 - 0.25 * class_level as f64).max(1.0)
 }
 
+/// Fish Power's food boost **at a rebirth's start**, as a percent:
+/// `FishPower^0.25 · milestoneMult`, capped at 200%. Milestones are additive:
+/// +0.1× at fishing level 15, another +0.1× at 27 (so 1.0 / 1.1 / 1.2). The boost
+/// decays linearly to 0 over the first 30 h of a rebirth (applied by the sim).
+/// Returns 0 with no Fish Power. (e.g. 1e6 FP, level 14 → 31.62%.)
+pub fn fishing_boost_pct(fish_power: f64, fishing_level: u32) -> f64 {
+    if fish_power <= 0.0 {
+        return 0.0;
+    }
+    let milestone =
+        1.0 + 0.1 * (fishing_level >= 15) as u8 as f64 + 0.1 * (fishing_level >= 27) as u8 as f64;
+    (fish_power.powf(0.25) * milestone).min(200.0)
+}
+
+/// Fraction of the fishing boost still active at `hours` into a rebirth — linear
+/// from 1.0 at the start to 0.0 at 30 h, then 0.
+fn fishing_decay(hours_into_rebirth: f64) -> f64 {
+    (1.0 - hours_into_rebirth / 30.0).max(0.0)
+}
+
 /// The per-cycle hours over **one rebirth**: `floor(rebirth/cycle)` full cycles
 /// of `cycle_hours`, then a shorter cycle for the leftover (a campaign can't span
 /// a rebirth). If the rebirth is shorter than a cycle, the cycle is clamped to
@@ -437,12 +457,15 @@ fn tick_passive_and_feeding(
     breakdown: &mut [GrowthBreakdown],
     passive_hours: f64,
     feedings: f64,
+    // Multiplier on *food* growth this cycle (the Fish Power boost; 1.0 = none).
+    // Passive isn't food, so it's unaffected.
+    fishing_mult: f64,
 ) {
     for (i, pet) in pets.iter_mut().enumerate() {
         let mult = pet.growth_multiplier;
         let passive = pet.passive_per_hour * passive_hours;
-        let feed = feedings * pet.food_per_feeding;
-        let gd = feedings * pet.gold_dragon_per_feeding;
+        let feed = feedings * pet.food_per_feeding * fishing_mult;
+        let gd = feedings * pet.gold_dragon_per_feeding * fishing_mult;
         pet.growth += passive + feed + gd;
         breakdown[i].passive += passive * mult;
         breakdown[i].feeding += feed * mult;
@@ -463,6 +486,9 @@ fn tick_passive_and_feeding(
 /// [`simulate`] with [`CampaignType::Growth`] for the base total so the chamber and
 /// the one-off campaign share one formula, then layers Pandora/Bag on top
 /// ([`apply_growth_specials`]).
+// The run parameters have outgrown a clean positional list; a `ChamberRun` config
+// struct is the right next refactor (tracked separately).
+#[allow(clippy::too_many_arguments)]
 pub fn simulate_growth_chamber(
     pets: &mut [ChamberPet],
     hours: u32,
@@ -477,6 +503,10 @@ pub fn simulate_growth_chamber(
     // shorter (the remainder) so a campaign never spans a rebirth — e.g. a 20 h
     // rebirth with 12 h cycles runs `12, 8, 12, 8, …`. `None` runs uniform cycles.
     rebirth_hours: Option<u32>,
+    // Fish Power food boost % at a rebirth's start (`fishing_boost_pct`); decays
+    // linearly to 0 over the first 30 h of each rebirth. 0 = none. Only applies
+    // when rebirths are modelled (it's a rebirth-relative effect).
+    fishing_boost_pct: f64,
 ) -> ChamberResult {
     let base_hours = hours.clamp(1, 12);
     // Per-cycle hours, repeating over a rebirth (`None` ⭢ uniform). Each entry is
@@ -494,11 +524,41 @@ pub fn simulate_growth_chamber(
     // Growth gained per pet, split by source (total terms). Parallel to `pets`.
     let mut breakdown = vec![GrowthBreakdown::default(); pets.len()];
 
+    // Pandora's running feeding count: seeds from her entered value, climbs as she
+    // is fed each cycle (the bonus caps at 20 feedings), and resets each rebirth.
+    let mut pandora_feedings: u32 = pets
+        .iter()
+        .find_map(|p| match p.special {
+            Some(SpecialPet::Pandora { feedings }) => Some(feedings),
+            _ => None,
+        })
+        .unwrap_or(0);
+    // Hours elapsed into the current rebirth (drives the fishing-boost decay);
+    // reset at each rebirth boundary alongside Pandora's feedings.
+    let mut rebirth_elapsed = 0.0_f64;
+
     for cycle in 0..max_cycles {
         // This cycle's length — the rebirth schedule may shorten the last cycle.
         let cycle_hours = schedule[cycle as usize % schedule.len()];
         // Feedings per pet this round — one every 3 hours (`food_and_feedings.md`).
-        let feedings = (cycle_hours / 3) as f64;
+        let cycle_feedings = cycle_hours / 3;
+        let feedings = cycle_feedings as f64;
+
+        // Reset rebirth-relative state (Pandora's feedings, the fishing clock) at
+        // the start of each rebirth — only when rebirths are modelled (otherwise
+        // `schedule.len() == 1` and every cycle would falsely look like a boundary).
+        if rebirth_hours.is_some() && cycle > 0 && (cycle as usize).is_multiple_of(schedule.len()) {
+            pandora_feedings = 0;
+            rebirth_elapsed = 0.0;
+        }
+        // Fish Power boosts food, decaying over the rebirth's first 30 h. Evaluate
+        // at the cycle's midpoint; only applies when rebirths are modelled.
+        let fishing_mult = if rebirth_hours.is_some() && fishing_boost_pct > 0.0 {
+            let midpoint = rebirth_elapsed + cycle_hours as f64 / 2.0;
+            1.0 + fishing_boost_pct / 100.0 * fishing_decay(midpoint)
+        } else {
+            1.0
+        };
         // End-of-run **total** growth — the basis the campaign picks the recipient
         // / global lowest from, and what targets compare against. Total = base ·
         // multiplier (Magic Egg etc.). Only **passive** (pendant + Moai) accrues
@@ -568,8 +628,9 @@ pub fn simulate_growth_chamber(
             let mut bag_steals = false;
             for &i in &chamber_idx {
                 match pets[i].special {
-                    Some(SpecialPet::Pandora { feedings }) => {
-                        pandora = pandora_pct(end_total(&pets[i]), feedings);
+                    Some(SpecialPet::Pandora { .. }) => {
+                        // Use the running feeding count, not the static seed.
+                        pandora = pandora_pct(end_total(&pets[i]), pandora_feedings);
                     }
                     Some(SpecialPet::Bag { token_improved }) => {
                         bag_fraction = if token_improved { 0.05 } else { 0.10 };
@@ -599,7 +660,7 @@ pub fn simulate_growth_chamber(
                 .expect("non-empty roster");
 
             // Realise growth: passive + feeding into all, then the deposits.
-            tick_passive_and_feeding(pets, &mut breakdown, passive_hours, feedings);
+            tick_passive_and_feeding(pets, &mut breakdown, passive_hours, feedings, fishing_mult);
             pets[recipient].growth += recipient_deposit;
             breakdown[recipient].campaign += recipient_deposit * pets[recipient].growth_multiplier;
             if bag_fraction > 0.0 {
@@ -612,8 +673,12 @@ pub fn simulate_growth_chamber(
             cycle_record.recipient_gain = recipient_deposit;
         } else {
             // No campaign this cycle — only passive + feeding growth ticks.
-            tick_passive_and_feeding(pets, &mut breakdown, passive_hours, feedings);
+            tick_passive_and_feeding(pets, &mut breakdown, passive_hours, feedings, fishing_mult);
         }
+        // This cycle's feedings raise Pandora's count toward the 20-feeding cap.
+        pandora_feedings = (pandora_feedings + cycle_feedings).min(20);
+        // Advance the rebirth clock (drives the fishing-boost decay).
+        rebirth_elapsed += cycle_hours as f64;
         trace.push(cycle_record);
 
         // Record any targeted pet that crossed its target this cycle (by index).
@@ -792,7 +857,7 @@ mod tests {
             ChamberPet { name: "NewPet".into(), growth: 1_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true, false, None);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true, false, None, 0.0);
         // Reached its target in a finite number of cycles; the loop stopped there.
         assert!(result.reached.iter().any(|(n, _)| n == "NewPet"));
         assert!(result.cycles >= 1 && result.cycles < 1000);
@@ -812,7 +877,7 @@ mod tests {
             ChamberPet { name: "B".into(), growth: 1_001.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4, true, false, None);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4, true, false, None, 0.0);
         let recipients: Vec<usize> = result.trace.iter().map(|c| c.recipient).collect();
         assert_eq!(recipients, vec![0, 1, 0, 1]); // alternating
     }
@@ -829,7 +894,7 @@ mod tests {
             ChamberPet { name: "Dup".into(), growth: 1_500.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true, false, None);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true, false, None, 0.0);
         assert_eq!(result.reached.len(), 2); // both, despite the shared name
         assert!(result.cycles < 1000); // stopped early, didn't spin to the cap
     }
@@ -850,7 +915,7 @@ mod tests {
             in_chamber: true,
             special: None,
         }];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true, false, None);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true, false, None, 0.0);
         assert_eq!(result.cycles, 2);
         assert!((result.final_growth[0].1 - 2.0 * 100.0 * 12.0).abs() < 1e-9);
     }
@@ -871,11 +936,11 @@ mod tests {
         };
         // 12 h → floor(12/3) = 4 feedings × 10/feeding = +40/cycle × 2 cycles = 80.
         let mut pets = vec![solo(10.0)];
-        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true, false, None);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true, false, None, 0.0);
         assert!((r.final_growth[0].1 - 80.0).abs() < 1e-9, "got {}", r.final_growth[0].1);
         // A sub-3h campaign yields no feedings (floor(2/3) = 0).
         let mut pets2 = vec![solo(10.0)];
-        let r2 = simulate_growth_chamber(&mut pets2, 2, 0.0, 1, true, false, None);
+        let r2 = simulate_growth_chamber(&mut pets2, 2, 0.0, 1, true, false, None, 0.0);
         assert_eq!(r2.final_growth[0].1, 0.0);
     }
 
@@ -895,7 +960,7 @@ mod tests {
         };
         // A is a high-total contributor; B is the low-total recipient, egg ×1.3.
         let mut pets = vec![pet("A", 100_000.0, 1.0), pet("B", 1_000.0, 1.3)];
-        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false, false, None);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false, false, None, 0.0);
         // Reward = A's contribution = (log15(100000) − 1.75) · 12. The reward lands
         // on B's *base*, so its *total* rises by reward · 1.3.
         let reward = (100_000_f64.ln() / 15_f64.ln() - 1.75) * 12.0;
@@ -921,7 +986,7 @@ mod tests {
         };
         let mut pets = vec![pet("Low", 1_000.0), pet("High", 100_000.0)];
         pets[1].campaign_bonus_pct = 50.0; // exercise the bonus factor
-        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false, false, None);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false, false, None, 0.0);
         let c = &r.trace[0].contributions;
         assert_eq!(c.len(), 2);
         // Low is the recipient (contributes 0); High contributes the base total,
@@ -1013,7 +1078,7 @@ mod tests {
             })
             .collect();
 
-        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, true, false, None);
+        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, true, false, None, 0.0);
         assert_eq!(result.cycles, 1);
 
         // Otter (index 0) is the recipient and gains base × Pandora's 1.4342
@@ -1085,7 +1150,7 @@ mod tests {
             mk("Pandora's Box", 57_410.0, 0.0, 1.3, Some(SpecialPet::Pandora { feedings: 16 })),
             mk("Vampire", 57_499.0, 469.86, 1.0, None),
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, false, false, None);
+        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, false, false, None, 0.0);
         let cyc = &result.trace[0];
         assert_eq!(cyc.recipient, 0, "Bag is the lowest-growth chamber pet");
 
@@ -1125,7 +1190,7 @@ mod tests {
             special: None,
         };
         let mut pets = vec![mk("Low", 1_000.0), mk("High", 5_000.0)];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 3, false, false, None);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 3, false, false, None, 0.0);
 
         let get = |name: &str| result.breakdown.iter().find(|(n, _)| n == name).unwrap().1.clone();
         let (low, high) = (get("Low"), get("High"));
@@ -1173,8 +1238,8 @@ mod tests {
         // 2 cycles, 12 h, passive 3/h → 36/cycle.
         let mut normal = vec![mk()];
         let mut skipped = vec![mk()];
-        let r_normal = simulate_growth_chamber(&mut normal, 12, 0.0, 2, false, false, None);
-        let r_skip = simulate_growth_chamber(&mut skipped, 12, 0.0, 2, false, true, None);
+        let r_normal = simulate_growth_chamber(&mut normal, 12, 0.0, 2, false, false, None, 0.0);
+        let r_skip = simulate_growth_chamber(&mut skipped, 12, 0.0, 2, false, true, None, 0.0);
 
         assert!((r_normal.breakdown[0].1.passive - 72.0).abs() < 1e-6);
         // First cycle's 36 is suppressed; only the second cycle's passive remains.
@@ -1204,7 +1269,7 @@ mod tests {
             mk("C", 5_000.0, 100.0, None), // contributor — bonus docked by the malus
             mk("N", 6_000.0, 299.0, Some(SpecialPet::Nightmare { class_level: 17 })),
         ];
-        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false, false, None);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false, false, None, 0.0);
         let cyc = &r.trace[0];
         assert_eq!(cyc.recipient, 0);
         let contrib = |idx: usize| cyc.contributions.iter().find(|(i, _)| *i == idx).unwrap().1;
@@ -1256,10 +1321,107 @@ mod tests {
         // 20 h rebirth, 12 h cycles → schedule [12, 8] repeating. 4 cycles = two
         // rebirths: 12 + 8 + 12 + 8 = 40 h total.
         let mut pets = vec![mk()];
-        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 4, false, false, Some(20));
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 4, false, false, Some(20), 0.0);
         let cycle_hours: Vec<u32> = r.trace.iter().map(|c| c.hours).collect();
         assert_eq!(cycle_hours, vec![12, 8, 12, 8]);
         // Passive = 1/h over 40 h.
         assert!((r.breakdown[0].1.passive - 40.0).abs() < 1e-6, "{}", r.breakdown[0].1.passive);
+    }
+
+    // Recipient + Pandora, both with no passive/feeding *growth* so Pandora's
+    // growth (and thus the per-5k term) stays fixed — isolating the feeding count.
+    // The implied Pandora % each cycle is `recipient_gain / base − 1`.
+    fn pandora_accumulation_pets(start: u32) -> Vec<ChamberPet> {
+        let mk = |name: &str, growth: f64, special: Option<SpecialPet>| ChamberPet {
+            name: name.into(),
+            growth,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special,
+        };
+        vec![
+            mk("R", 1_000.0, None), // recipient (lowest) — contributes 0
+            mk("P", 50_000.0, Some(SpecialPet::Pandora { feedings: start })),
+        ]
+    }
+
+    #[test]
+    fn pandora_feedings_accumulate_toward_the_cap() {
+        let mut pets = pandora_accumulation_pets(0);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 3, false, false, None, 0.0);
+        // 12 h → 4 feedings/cycle; the count used each cycle is 0, then 4, then 8.
+        for (cyc, fed) in [(0usize, 0u32), (1, 4), (2, 8)] {
+            let c = &r.trace[cyc];
+            let base: f64 = c.contributions.iter().map(|(_, a)| a).sum();
+            let implied = (c.recipient_gain / base - 1.0) * 100.0;
+            let expected = pandora_pct(50_000.0, fed);
+            assert!((implied - expected).abs() < 0.01, "cycle {cyc}: {implied} vs {expected}");
+        }
+    }
+
+    #[test]
+    fn pandora_feedings_reset_each_rebirth() {
+        // 20 h rebirth, 12 h cycles → schedule [12, 8] (len 2): cycle 2 starts a new
+        // rebirth, so its feeding count resets to 0 (matching cycle 0).
+        let mut pets = pandora_accumulation_pets(0);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 3, false, false, Some(20), 0.0);
+        let implied = |c: &ChamberCycle| {
+            let base: f64 = c.contributions.iter().map(|(_, a)| a).sum();
+            (c.recipient_gain / base - 1.0) * 100.0
+        };
+        assert!((implied(&r.trace[0]) - pandora_pct(50_000.0, 0)).abs() < 0.01);
+        assert!((implied(&r.trace[1]) - pandora_pct(50_000.0, 4)).abs() < 0.01, "12 h cycle fed 4");
+        // Rebirth boundary: back to 0, not 6.
+        assert!((implied(&r.trace[2]) - pandora_pct(50_000.0, 0)).abs() < 0.01, "reset on rebirth");
+    }
+
+    #[test]
+    fn fishing_boost_matches_the_tooltip() {
+        // 1e6 FP → FP^0.25 = 31.62%; level 14 has no milestone (×1.0).
+        assert!((fishing_boost_pct(1e6, 14) - 31.6228).abs() < 0.01);
+        // Milestones at 15 and 27 add +0.1× each (1.1, then 1.2).
+        assert!((fishing_boost_pct(1e6, 15) - 31.6228 * 1.1).abs() < 0.01);
+        assert!((fishing_boost_pct(1e6, 27) - 31.6228 * 1.2).abs() < 0.01);
+        // No fish power → nothing; capped at 200%.
+        assert_eq!(fishing_boost_pct(0.0, 30), 0.0);
+        assert_eq!(fishing_boost_pct(1e12, 27), 200.0); // 1000 × 1.2 → capped
+        // The tooltip's worked example: 12 h into a rebirth, 31.6% → 18.96%.
+        assert!((31.6228 * fishing_decay(12.0) - 18.9737).abs() < 0.01);
+    }
+
+    #[test]
+    fn fishing_boost_decays_over_the_rebirth() {
+        // Lone pet (recipient, no campaign), so growth is feeding only and the
+        // boost is directly observable. 6 h cycles, 30 h rebirth → [6×5]; midpoints
+        // 3/9/15/21/27 h → decay 0.9/0.7/0.5/0.3/0.1. Feeding/cycle = 2 × food 10.
+        let mk = || ChamberPet {
+            name: "P".into(),
+            growth: 1_000.0,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0,
+            passive_per_hour: 0.0,
+            food_per_feeding: 10.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+        };
+        // With a 100% boost, feeding/cycle = 20 × (1 + decay); summed = 20 × 7.5 = 150.
+        let mut on = vec![mk()];
+        let r_on = simulate_growth_chamber(&mut on, 6, 0.0, 5, false, false, Some(30), 100.0);
+        assert!((r_on.breakdown[0].1.feeding - 150.0).abs() < 1e-6, "{}", r_on.breakdown[0].1.feeding);
+        // No boost → flat 20 × 5 = 100.
+        let mut off = vec![mk()];
+        let r_off = simulate_growth_chamber(&mut off, 6, 0.0, 5, false, false, Some(30), 0.0);
+        assert!((r_off.breakdown[0].1.feeding - 100.0).abs() < 1e-6);
+        // Fishing only applies with rebirths modelled (None ⭢ no boost).
+        let mut norb = vec![mk()];
+        let r_norb = simulate_growth_chamber(&mut norb, 6, 0.0, 5, false, false, None, 100.0);
+        assert!((r_norb.breakdown[0].1.feeding - 100.0).abs() < 1e-6, "no rebirths ⭢ no fishing");
     }
 }
