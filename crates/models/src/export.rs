@@ -47,6 +47,11 @@ pub struct ExportPet {
 /// Multiplier the Magic Egg applies to a pet's growth while equipped (+30%).
 pub const MAGIC_EGG_GROWTH_MULT: f64 = 1.3;
 
+/// Global growth multiplier once **all** Patreon God Challenges are completed
+/// (+50%). Applies to every pet and stacks multiplicatively with the Magic Egg
+/// (1.5 × 1.3 = 1.95×).
+pub const PGC_GROWTH_MULT: f64 = 1.5;
+
 impl ExportPet {
     /// Whether this pet currently has a Magic Egg equipped.
     pub fn has_magic_egg(&self) -> bool {

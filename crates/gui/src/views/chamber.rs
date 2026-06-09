@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 use eframe::egui::{self, RichText};
 use itrtg_models::{
-    CampaignType, Equipment, ExportPet, Loadout, Quality, MAGIC_EGG_GROWTH_MULT,
+    CampaignType, Equipment, ExportPet, Loadout, Quality, MAGIC_EGG_GROWTH_MULT, PGC_GROWTH_MULT,
 };
 use itrtg_planner::campaign::{
     simulate_growth_chamber, ChamberPet, ChamberResult, ChamberRun, SpecialPet,
@@ -43,6 +43,10 @@ pub struct ChamberState {
     pub pandora_feedings: u32,
     /// UPC bonus % (`5 · Ultimate Pet Challenges`). Manual for now.
     pub upc_pct: f64,
+    /// All Patreon God Challenges completed → every pet's growth is multiplied
+    /// by ×1.5 (stacking with the Magic Egg). Auto-filled from a Main-stats
+    /// export (`done == max`).
+    pub pgc_complete: bool,
     /// Which food is fed to every pet — index into [`FOODS`]. Drives per-feeding
     /// growth (every pet is fed `floor(hours/3)` times per cycle).
     pub food_choice: usize,
@@ -127,6 +131,7 @@ impl Default for ChamberState {
             max_cycles: 5_000,
             pandora_feedings: 0,
             upc_pct: 0.0,
+            pgc_complete: false,
             food_choice: 4, // Chocolate
             dpc_highest_multi: 0.0,
             gold_dragon_food: None,
@@ -155,6 +160,7 @@ impl ChamberState {
         self.max_cycles = src.max_cycles;
         self.pandora_feedings = src.pandora_feedings;
         self.upc_pct = src.upc_pct;
+        self.pgc_complete = src.pgc_complete;
         self.food_choice = src.food_choice.min(FOODS.len() - 1);
         self.dpc_highest_multi = src.dpc_highest_multi;
         self.gold_dragon_food = src.gold_dragon_food.filter(|&i| i < FOODS.len());
@@ -177,6 +183,7 @@ impl ChamberState {
             max_cycles: self.max_cycles,
             pandora_feedings: self.pandora_feedings,
             upc_pct: self.upc_pct,
+            pgc_complete: self.pgc_complete,
             food_choice: self.food_choice,
             dpc_highest_multi: self.dpc_highest_multi,
             gold_dragon_food: self.gold_dragon_food,
@@ -193,13 +200,18 @@ impl ChamberState {
     }
 
     /// Auto-fill the chamber's global inputs from a Main-stats export: UPC bonus
-    /// (`5 ·` challenges, capped 100%), the DPC food multiplier, and Fish Power /
-    /// Fishing Level. Returns the filled field labels for the import status.
+    /// (`5 ·` challenges, capped 100%), the PGC-complete toggle, the DPC food
+    /// multiplier, and Fish Power / Fishing Level. Returns the filled field
+    /// labels for the import status.
     pub fn apply_main_stats(&mut self, ms: &itrtg_models::MainStats) -> Vec<&'static str> {
         let mut filled = Vec::new();
         if let Some(upc) = ms.ultimate_pet_challenges {
             self.upc_pct = (5.0 * upc as f64).min(100.0);
             filled.push("UPC %");
+        }
+        if let Some((done, max)) = ms.patreon_god_challenges {
+            self.pgc_complete = max > 0 && done >= max;
+            filled.push("PGC");
         }
         if let Some(multi) = ms.day_pet_challenge_multi {
             self.dpc_highest_multi = multi;
@@ -297,11 +309,14 @@ fn chamber_pet(
     state: &ChamberState,
 ) -> Option<ChamberPet> {
     let export = effective_export(pet, state)?;
-    // Base growth is the accumulator; the Magic Egg (+30%) makes total growth that
-    // the campaign reads. (Patreon-God-Challenge would multiply here too once we
-    // track it — the player has none yet.)
+    // Base growth is the accumulator; the Magic Egg (+30%) and the global PGC
+    // (+50%, all 25 challenges done) multiply it into the total growth the
+    // campaign reads.
     let growth = export.growth as f64;
-    let growth_multiplier = if export.has_magic_egg() { MAGIC_EGG_GROWTH_MULT } else { 1.0 };
+    let mut growth_multiplier = if export.has_magic_egg() { MAGIC_EGG_GROWTH_MULT } else { 1.0 };
+    if state.pgc_complete {
+        growth_multiplier *= PGC_GROWTH_MULT;
+    }
     // Recompute the Growth bonus from the *effective* export so loadout/CL edits
     // show live. With no override this is the unedited export, so the result
     // matches `pet.campaign_bonus_for` exactly; only build the synthetic pet (and
@@ -365,6 +380,9 @@ pub fn show(
         ui.label(RichText::new("UPC %:").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::DragValue::new(&mut state.upc_pct).range(0.0..=100.0).speed(1.0))
             .on_hover_text("5 × Ultimate Pet Challenges completed. Auto-filled when you import a Main-stats export.");
+        ui.separator();
+        ui.checkbox(&mut state.pgc_complete, RichText::new("PGC ×1.5").size(12.0))
+            .on_hover_text("All 25 Patreon God Challenges completed — every pet's growth is multiplied by ×1.5, stacking with the Magic Egg (1.5 × 1.3 = 1.95×). Auto-filled when you import a Main-stats export.");
         ui.separator();
         ui.label(RichText::new("Pandora feedings:").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20))
@@ -1345,6 +1363,51 @@ mod tests {
         state.upc_pct = 12.0;
         assert!(state.apply_main_stats(&MainStats::default()).is_empty());
         assert_eq!(state.upc_pct, 12.0);
+
+        // PGC is complete only at done == max; an incomplete export clears it.
+        let filled = state
+            .apply_main_stats(&MainStats { patreon_god_challenges: Some((25, 25)), ..Default::default() });
+        assert_eq!(filled, vec!["PGC"]);
+        assert!(state.pgc_complete);
+        state.apply_main_stats(&MainStats { patreon_god_challenges: Some((0, 25)), ..Default::default() });
+        assert!(!state.pgc_complete);
+    }
+
+    #[test]
+    fn pgc_complete_multiplies_total_growth() {
+        use itrtg_models::{CampaignInputs, CampaignOverrides};
+
+        let pet = merged("Foo", export_with(1000, 5));
+        let roster = vec![pet.clone()];
+        let overrides = CampaignOverrides::default();
+        let inputs = CampaignInputs::default();
+        let ctx = CampaignContext {
+            overrides: &overrides,
+            roster: &roster,
+            inputs: &inputs,
+            include_equipment: true,
+            include_class: true,
+        };
+        let rates = GrowthRates { evolved_pets: 0, moai_per_hour: 0.0, pendant_cap: 0 };
+
+        let mut state = ChamberState::default();
+        assert_eq!(chamber_pet(&pet, &ctx, &rates, &state).unwrap().growth_multiplier, 1.0);
+        state.pgc_complete = true;
+        assert_eq!(chamber_pet(&pet, &ctx, &rates, &state).unwrap().growth_multiplier, 1.5);
+
+        // Stacks multiplicatively with the Magic Egg: 1.5 × 1.3 = 1.95.
+        let base = pet.export.clone().unwrap();
+        set_class_level(&mut state, "Foo", &base, 5); // seed the override entry
+        state.overrides.get_mut("Foo").unwrap().loadout.weapon = Some(Equipment {
+            name: "Magic Egg".into(),
+            upgrade_level: None,
+            quality: Quality::SSS,
+            enchant_level: None,
+            gem: None,
+            gem_level: None,
+        });
+        let mult = chamber_pet(&pet, &ctx, &rates, &state).unwrap().growth_multiplier;
+        assert!((mult - 1.95).abs() < 1e-12, "egg × PGC = {mult}");
     }
 
     #[test]
