@@ -7,10 +7,11 @@ read by code). Start here before extending the chamber.
 The chamber lives in two files plus supporting data:
 
 - **`crates/planner/src/campaign.rs`** — the engine. Key items:
-  `simulate_growth_chamber` (the per-cycle loop), `growth_campaign_detailed`
-  (per-pet contributions + recipient), `apply_growth_specials` (Pandora/Bag
-  layer), `pandora_pct`, `fishing_boost_pct` + `fishing_decay`, `nightmare_malus`,
-  `rebirth_schedule`, and the types `ChamberPet`, `ChamberCycle`, `ChamberResult`,
+  `simulate_growth_chamber` (the per-cycle loop; takes a `ChamberRun` config),
+  `growth_campaign_detailed` (per-pet contributions + recipient),
+  `apply_growth_specials` (Pandora/Bag layer), `pandora_pct`,
+  `fishing_boost_pct` + `fishing_decay`, `nightmare_malus`, `rebirth_schedule`,
+  and the types `ChamberRun`, `ChamberPet`, `ChamberCycle`, `ChamberResult`,
   `GrowthBreakdown`, `SpecialPet`.
 - **`crates/gui/src/views/chamber.rs`** — the view. `ChamberState` (persisted
   inputs), `show`, `chamber_pet`/`build_roster` (roster → sim bridge),
@@ -89,46 +90,40 @@ The chamber lives in two files plus supporting data:
 
 Roughly highest-leverage first. Each has enough context to start cold.
 
-1. **`ChamberRun` config-struct refactor.** `simulate_growth_chamber` has 8
-   positional args (with an `#[allow(clippy::too_many_arguments)]`). Introduce a
-   `ChamberRun { hours, upc_pct, max_cycles, stop_at_targets,
-   skip_first_cycle_passive, rebirth_hours, fishing_boost_pct }` (+ `Default` for
-   ergonomic tests) and take `&ChamberRun`. ~17 call sites (mostly tests). Do this
-   **before** adding the next sim param.
-2. **PGC (Patreon God Challenge).** All 25 completed → **×1.5 growth multiplier**,
+1. **PGC (Patreon God Challenge).** All 25 completed → **×1.5 growth multiplier**,
    stacking with the Magic Egg (1.5 × 1.3 = 1.95×). Affects total growth (campaign
    reads total) and evo thresholds (egg discount becomes `/1.95`). Main-stats has
    `Patreon Gods Challenges: 0 / 25` — auto-fill "complete" when done == max, then
    fold ×1.5 into `chamber_pet`'s `growth_multiplier`. Player is at 0/25.
-3. **Event-gear levels.** Candy Cane / Merry Mantle / Christmas Boots are pinned to
+2. **Event-gear levels.** Candy Cane / Merry Mantle / Christmas Boots are pinned to
    **SSS+20** (in `weapon_for`/`armor_editor`/`accessory_editor`, and
    `merge.rs::event_equip_bonus` only scores SSS+20). The override model already
    stores arbitrary `Equipment` levels — so the work is (a) replace
    `event_equip_bonus` with real level formulas once known, (b) un-gate the
    quality/upgrade sub-row (currently `is_stick(w)`-only) for event gear.
-4. **Recent-rate ETA.** The not-reached ETA extrapolates from the *whole-run*
+3. **Recent-rate ETA.** The not-reached ETA extrapolates from the *whole-run*
    average; rewards trend up over cycles, so it overshoots (~3 cycles late seen in
    testing). Switch to a recent window (e.g. the last rebirth's cycles).
-5. **Per-cycle click-through pop-out** (the "fun" one). Step through each cycle
+4. **Per-cycle click-through pop-out** (the "fun" one). Step through each cycle
    individually. The sim already records `ChamberResult.trace` (per-cycle
    recipient, recipient_gain, bag_gift, contributions, hours).
-6. **Nightmare validation + God-Power uncap.** The malus is from the wiki text, not
+5. **Nightmare validation + God-Power uncap.** The malus is from the wiki text, not
    a live capture — confirm the **ordering** vs Pandora/Bag with a real
    Growth-campaign-with-Nightmare export (he's CL 17, parked in God Power for now).
    Separately, the **GP uncap** (Nightmare always; Ant Queen after evolving) is
    unmodelled — only relevant if the God Power campaign is ever simulated.
-7. **SpaceDim factor.** The reference flags SpaceDim as affecting food growth (TBD).
+6. **SpaceDim factor.** The reference flags SpaceDim as affecting food growth (TBD).
    Currently `base × DPC × fishing` matches in-game exactly, so it's either baked
    into the pet multiplier/DPC or negligible for the player. Revisit if food
    values diverge.
-8. **Per-pet food override.** One global food type today (Gold Dragon already has
+7. **Per-pet food override.** One global food type today (Gold Dragon already has
    its own selector). Could allow per-pet food.
-9. **Limited-item caps (phase 3).** At most ~2 of Magic Egg / Growing Love Pendant
+8. **Limited-item caps (phase 3).** At most ~2 of Magic Egg / Growing Love Pendant
    / each event piece across chambers (generalize the old `pendant < 2` gate).
    Spec is fuzzy — "how many you own" isn't cleanly in the export. Low priority.
-10. **Fresh-rebirth validation of fishing/Pandora.** Both modelled from tooltips;
-    a real fresh-rebirth capture (fishing is dormant for the player now — rebirth
-    too old) would confirm them.
+9. **Fresh-rebirth validation of fishing/Pandora.** Both modelled from tooltips;
+   a real fresh-rebirth capture (fishing is dormant for the player now — rebirth
+   too old) would confirm them.
 
 ## Validation assets
 

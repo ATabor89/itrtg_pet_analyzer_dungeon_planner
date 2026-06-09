@@ -16,7 +16,7 @@ use itrtg_models::{
     CampaignType, Equipment, ExportPet, Loadout, Quality, MAGIC_EGG_GROWTH_MULT,
 };
 use itrtg_planner::campaign::{
-    simulate_growth_chamber, ChamberPet, ChamberResult, SpecialPet,
+    simulate_growth_chamber, ChamberPet, ChamberResult, ChamberRun, SpecialPet,
 };
 use itrtg_planner::growth::GrowthRates;
 use itrtg_planner::merge::{CampaignContext, MergedPet};
@@ -559,13 +559,15 @@ pub fn show(
             let mut roster = build_roster(data, ctx, rates, state);
             state.result = Some(simulate_growth_chamber(
                 &mut roster,
-                state.hours,
-                state.upc_pct,
-                state.max_cycles,
-                state.run_until_targets,
-                state.exported_after_campaign,
-                state.rebirth_enabled.then(|| state.rebirth_total_hours()),
-                state.fishing_boost(),
+                &ChamberRun {
+                    hours: state.hours,
+                    upc_pct: state.upc_pct,
+                    max_cycles: state.max_cycles,
+                    stop_at_targets: state.run_until_targets,
+                    skip_first_cycle_passive: state.exported_after_campaign,
+                    rebirth_hours: state.rebirth_enabled.then(|| state.rebirth_total_hours()),
+                    fishing_boost_pct: state.fishing_boost(),
+                },
             ));
         }
     });
