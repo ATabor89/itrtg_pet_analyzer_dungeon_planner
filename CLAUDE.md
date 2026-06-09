@@ -25,9 +25,15 @@ well-tested logic and concise UI code that follows existing patterns.
     (`evo_readiness`).
   - `growth.rs` — base-growth-over-time estimates (Growing Love Pendant + Moai
     rates, the pendant cap, time-to-target).
+  - `campaign.rs` — the **Growth Chamber** sim (`simulate_growth_chamber`):
+    per-cycle Growth campaigns, special pets (Pandora/Bag/Nightmare), rebirth
+    scheduling, fishing/feeding, per-source breakdown.
 - `crates/gui` — egui app. `views/dungeon.rs` is the main planner view;
-  `views/analyzer.rs`, `views/log_viewer.rs` are secondary. `state.rs` is the
-  persisted `AppState`.
+  `views/chamber.rs` is the Growth Chamber view; `views/analyzer.rs`,
+  `views/log_viewer.rs` are secondary. `state.rs` is the persisted `AppState`.
+  **Before touching the chamber, read `reference/growth_chamber_status.md`** — its
+  full status, the load-bearing design decisions (base-vs-total growth, the
+  multiplicative food model, the Moai boundary), and the open-work list.
 - `crates/wiki-extractor`, `crates/pet-importer` — data ingestion tools.
 
 ### Key data files (`data/`)
