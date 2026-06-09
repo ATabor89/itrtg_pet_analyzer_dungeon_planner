@@ -421,6 +421,20 @@ fn show_pet_cards(
     // Render in the chamber's order; clone names so we can mutate `state`.
     let names: Vec<String> = state.chamber.clone();
 
+    // Nightmare's team malus, if he's in the chamber — the points he docks from
+    // every *other* pet's campaign bonus. Display-only here (the sim applies it
+    // to the bonuses itself); recomputed each frame from his *effective* class
+    // level, so the cards track add/remove and the CL editor live.
+    let nightmare_malus: Option<f32> = if names.iter().any(|n| n == "Nightmare") {
+        data.merged
+            .iter()
+            .find(|p| p.name == "Nightmare")
+            .and_then(|p| effective_export(p, state))
+            .map(|e| itrtg_planner::campaign::nightmare_malus(e.class_level) as f32)
+    } else {
+        None
+    };
+
     // Lay the cards out in a *balanced* grid: pick the most columns that fit the
     // available width, then even the rows so the last one isn't a lonely single
     // card (e.g. 10 ⭢ 5+5, 9 ⭢ 5+4, 7 ⭢ 4+3 — never 9+1).
@@ -460,7 +474,8 @@ fn show_pet_cards(
                 // The card shows (and edits) the *effective* export: the live
                 // export with any per-pet override applied.
                 let eff = effective_export(pet, state);
-                let natural = show_pet_card(ui, state, name, &cp, eff.as_ref(), pad_to);
+                let natural =
+                    show_pet_card(ui, state, name, &cp, eff.as_ref(), pad_to, nightmare_malus);
                 row_max = row_max.max(natural);
             }
         });
@@ -496,6 +511,9 @@ fn show_pet_card(
     cp: &ChamberPet,
     export: Option<&itrtg_models::ExportPet>,
     pad_to: f32,
+    // Nightmare's malus (points) if he's in the chamber. Subtracted from every
+    // *other* pet's displayed bonus; shown as the strength on Nightmare's own card.
+    nightmare_malus: Option<f32>,
 ) -> f32 {
     egui::Frame::new()
         .fill(style::BG_SURFACE)
@@ -509,30 +527,52 @@ fn show_pet_card(
             if pad_to > 0.0 {
                 ui.set_min_height(pad_to);
             }
+            let is_nightmare = matches!(cp.special, Some(SpecialPet::Nightmare { .. }));
             let inner = ui.vertical(|ui| {
-                // Name + special tag.
+                // Name + a special tag describing the pet's campaign role.
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(name).color(style::TEXT_BRIGHT).size(13.0).strong());
-                    let tag = match cp.special {
-                        Some(SpecialPet::Pandora { .. }) => Some("Pandora"),
-                        Some(SpecialPet::Bag { .. }) => Some("Bag"),
-                        Some(SpecialPet::Nightmare { .. }) => Some("Nightmare"),
+                    let tag: Option<(String, egui::Color32)> = match cp.special {
+                        Some(SpecialPet::Pandora { .. }) => {
+                            Some(("amplifies deposit".into(), style::ACCENT))
+                        }
+                        Some(SpecialPet::Bag { .. }) => Some(("gifts the lowest".into(), style::ACCENT)),
+                        Some(SpecialPet::Nightmare { .. }) => Some((
+                            format!("−{:.2} to others", nightmare_malus.unwrap_or(0.0)),
+                            style::WARNING,
+                        )),
                         None => None,
                     };
-                    if let Some(tag) = tag {
-                        ui.label(RichText::new(tag).color(style::ACCENT).size(10.0));
+                    if let Some((tag, color)) = tag {
+                        ui.label(RichText::new(tag).color(color).size(10.0));
                     }
                 });
-                // Total growth + Growth bonus.
+                // Total growth + Growth bonus — reduced live by a chamber Nightmare's
+                // malus (Nightmare's own bonus is not reduced).
+                let display_bonus = if is_nightmare {
+                    cp.campaign_bonus_pct
+                } else {
+                    cp.campaign_bonus_pct - nightmare_malus.unwrap_or(0.0)
+                };
                 ui.label(
                     RichText::new(format!(
                         "total {:.0}   +{:.0}% growth",
                         cp.growth * cp.growth_multiplier,
-                        cp.campaign_bonus_pct
+                        display_bonus
                     ))
                     .color(style::TEXT_NORMAL)
                     .size(11.0),
                 );
+                // Why the bonus is reduced (only on the affected pets).
+                if !is_nightmare
+                    && let Some(m) = nightmare_malus
+                {
+                    ui.label(
+                        RichText::new(format!("Nightmare −{m:.2}"))
+                            .color(style::WARNING)
+                            .size(10.0),
+                    );
+                }
                 // Passive/hr (read-only) + editable CL.
                 ui.horizontal(|ui| {
                     ui.label(

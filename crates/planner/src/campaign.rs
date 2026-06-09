@@ -298,7 +298,7 @@ pub enum SpecialPet {
 
 /// The campaign-bonus points Nightmare docks from each *other* pet at a given
 /// class level: `(20 − 0.25·CL)`, floored at 1 (subtractive, per the wiki).
-fn nightmare_malus(class_level: u32) -> f64 {
+pub fn nightmare_malus(class_level: u32) -> f64 {
     (20.0 - 0.25 * class_level as f64).max(1.0)
 }
 
