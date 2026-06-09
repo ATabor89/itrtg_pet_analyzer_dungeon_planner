@@ -45,12 +45,13 @@ The chamber lives in two files plus supporting data:
 - **Rebirth-relative effects** — **fishing** food boost (decays over the first
   30 h) and **Pandora feedings** (accumulate, reset each rebirth).
 - **Food auto-compute** — `BASE_FOOD × (1 + DPC%)`, fishing layered on in the sim.
-- **Main-stats auto-fill** — UPC, PGC complete, DPC multi, Fish Power, Fishing
+- **Main-stats auto-fill** — UPC, PGC done/max, DPC multi, Fish Power, Fishing
   Level.
-- **PGC** — the "all 25 Patreon God Challenges" ×1.5 multiplier
-  (`PGC_GROWTH_MULT`) folds into each pet's `growth_multiplier` (stacks with the
-  egg: 1.5 × 1.3 = 1.95×) via the `pgc_complete` toggle, auto-filled from the
-  Main-stats `Patreon Gods Challenges` line (complete when done == max).
+- **PGC** — the Patreon-God-Challenge growth multiplier (`pgc_growth_mult`:
+  **+1% per completion, doubled once all are complete** — 24/25 → ×1.24 but
+  25/25 → ×1.50) folds into each pet's `growth_multiplier` (stacks with the
+  egg: at 25/25, 1.5 × 1.3 = 1.95×). Done/max auto-filled from the Main-stats
+  `Patreon Gods Challenges` line.
 - **Report** — elapsed time (h → days → years), per-pet time-to-target, and a
   linear-extrapolation **ETA** for pets that miss their target. The ETA rate is
   the pet's **recent** growth/cycle (`recent_rate_per_cycle`: last two
@@ -102,16 +103,18 @@ Roughly highest-leverage first. Each has enough context to start cold.
 1. **PGC follow-ups.** The chamber side is done (see above). Still open:
    (a) **evo thresholds / analyzer** — `evo_readiness`, `hours_to_evolve`, and
    the analyzer's growth-target ETA only discount the Magic Egg (`/1.3`); with
-   PGC complete the discount becomes `/1.95` and `effective_growth` gains a
-   global ×1.5 — needs the flag threaded into those `MergedPet` seams.
-   (b) **importer check** — once the PGCs are actually completed, verify whether
-   the *pet* export's growth column starts including the ×1.5 (the way it
-   includes the egg's ×1.3). If so, `pet-importer` must divide it back out
-   (like the `has_magic_egg` block) or every stored base growth inflates — and
-   the chamber, folding ×1.5 in again, would double-count. The importer can't
-   detect PGC on its own (it's in the Main-stats export, not the pet export),
-   so this likely needs a flag/setting. Player is at 0/25 — neither is testable
-   yet.
+   PGC the discount becomes `/(1.3 × pgc_growth_mult)` and `effective_growth`
+   gains the global PGC multiplier — needs done/max threaded into those
+   `MergedPet` seams.
+   (b) **importer check** — verify whether the *pet* export's growth column
+   includes the PGC multiplier (the way it includes the egg's ×1.3). If so,
+   `pet-importer` must divide it back out (like the `has_magic_egg` block) or
+   every stored base growth inflates — and the chamber, folding the multiplier
+   in again, would double-count. The importer can't detect PGC on its own
+   (it's in the Main-stats export, not the pet export), so this likely needs a
+   flag/setting. Since the bonus is **gradual** (+1%/completion), this becomes
+   testable as soon as the **first** challenge is completed: compare a pet's
+   export growth right before/after. Player is at 0/25 today.
 2. **Event-gear levels.** Candy Cane / Merry Mantle / Christmas Boots are pinned to
    **SSS+20** (in `weapon_for`/`armor_editor`/`accessory_editor`, and
    `merge.rs::event_equip_bonus` only scores SSS+20). The override model already
