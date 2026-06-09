@@ -309,7 +309,8 @@ pub fn show(
         ui.add(egui::DragValue::new(&mut state.upc_pct).range(0.0..=100.0).speed(1.0));
         ui.separator();
         ui.label(RichText::new("Pandora feedings:").color(style::TEXT_MUTED).size(12.0));
-        ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20));
+        ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20))
+            .on_hover_text("Pandora's starting feeding count. It climbs as she's fed each cycle (bonus caps at 20) and resets at the start of each rebirth.");
     });
 
     // --- Food (per-feeding growth, fed to every pet) ---
