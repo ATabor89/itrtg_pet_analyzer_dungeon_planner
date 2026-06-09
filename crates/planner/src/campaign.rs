@@ -476,7 +476,7 @@ fn tick_passive_and_feeding(
 /// Run parameters for [`simulate_growth_chamber`] — everything about the run
 /// itself, as opposed to the roster. `Default` is a single uniform 12 h cycle
 /// with no bonuses, so tests and callers only name what they change.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ChamberRun {
     /// Campaign length per cycle in hours (clamped to 1..=12).
     pub hours: u32,
