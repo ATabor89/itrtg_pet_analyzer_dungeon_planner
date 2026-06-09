@@ -122,7 +122,8 @@ general progress counters, possibly useful for other thresholds.
 - **Monster Blood**: dropped on Vampire's killing blow in a dungeon. **1,000**
   needed to evolve. Not tracked in the export.
 - **Blood Potions**: crafted from **6 Monster Blood + 1 Sun Stone**. Consuming
-  them grants **100 base growth** (or **150 total growth** if all PGCs are done),
+  them grants **100 base growth** (total growth = 100 × the PGC multiplier —
+  +1% per completion, doubled at full completion, so ×1.5 / 150 at 25/25),
   up to a cap of **Dungeon Level × 10**. Pressing the button consumes **all**
   available potions at once.
 - Strategy notes: consume immediately to raise her crafting-speed bonus, or

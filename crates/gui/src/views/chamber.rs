@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 use eframe::egui::{self, RichText};
 use itrtg_models::{
-    CampaignType, Equipment, ExportPet, Loadout, Quality, MAGIC_EGG_GROWTH_MULT, PGC_GROWTH_MULT,
+    pgc_growth_mult, CampaignType, Equipment, ExportPet, Loadout, Quality, MAGIC_EGG_GROWTH_MULT,
 };
 use itrtg_planner::campaign::{
     simulate_growth_chamber, ChamberPet, ChamberResult, ChamberRun, SpecialPet,
@@ -43,10 +43,13 @@ pub struct ChamberState {
     pub pandora_feedings: u32,
     /// UPC bonus % (`5 · Ultimate Pet Challenges`). Manual for now.
     pub upc_pct: f64,
-    /// All Patreon God Challenges completed → every pet's growth is multiplied
-    /// by ×1.5 (stacking with the Magic Egg). Auto-filled from a Main-stats
-    /// export (`done == max`).
-    pub pgc_complete: bool,
+    /// Patreon God Challenges completed — +1% growth per completion, doubled
+    /// once all are done (24/25 → ×1.24, 25/25 → ×1.50; stacks with the Magic
+    /// Egg). Auto-filled from a Main-stats export.
+    pub pgc_done: u32,
+    /// Total Patreon God Challenges available (the export's `/ <max>` side —
+    /// 25 today; drives the completion doubling and the input's range).
+    pub pgc_max: u32,
     /// Which food is fed to every pet — index into [`FOODS`]. Drives per-feeding
     /// growth (every pet is fed `floor(hours/3)` times per cycle).
     pub food_choice: usize,
@@ -131,7 +134,8 @@ impl Default for ChamberState {
             max_cycles: 5_000,
             pandora_feedings: 0,
             upc_pct: 0.0,
-            pgc_complete: false,
+            pgc_done: 0,
+            pgc_max: 25,
             food_choice: 4, // Chocolate
             dpc_highest_multi: 0.0,
             gold_dragon_food: None,
@@ -160,7 +164,10 @@ impl ChamberState {
         self.max_cycles = src.max_cycles;
         self.pandora_feedings = src.pandora_feedings;
         self.upc_pct = src.upc_pct;
-        self.pgc_complete = src.pgc_complete;
+        // Sanitize like the other loaded indices: done can't exceed max (a
+        // hand-edited value would otherwise apply a huge multiplier).
+        self.pgc_max = src.pgc_max;
+        self.pgc_done = src.pgc_done.min(src.pgc_max);
         self.food_choice = src.food_choice.min(FOODS.len() - 1);
         self.dpc_highest_multi = src.dpc_highest_multi;
         self.gold_dragon_food = src.gold_dragon_food.filter(|&i| i < FOODS.len());
@@ -183,7 +190,8 @@ impl ChamberState {
             max_cycles: self.max_cycles,
             pandora_feedings: self.pandora_feedings,
             upc_pct: self.upc_pct,
-            pgc_complete: self.pgc_complete,
+            pgc_done: self.pgc_done,
+            pgc_max: self.pgc_max,
             food_choice: self.food_choice,
             dpc_highest_multi: self.dpc_highest_multi,
             gold_dragon_food: self.gold_dragon_food,
@@ -200,7 +208,7 @@ impl ChamberState {
     }
 
     /// Auto-fill the chamber's global inputs from a Main-stats export: UPC bonus
-    /// (`5 ·` challenges, capped 100%), the PGC-complete toggle, the DPC food
+    /// (`5 ·` challenges, capped 100%), the PGC completion count, the DPC food
     /// multiplier, and Fish Power / Fishing Level. Returns the filled field
     /// labels for the import status.
     pub fn apply_main_stats(&mut self, ms: &itrtg_models::MainStats) -> Vec<&'static str> {
@@ -210,7 +218,8 @@ impl ChamberState {
             filled.push("UPC %");
         }
         if let Some((done, max)) = ms.patreon_god_challenges {
-            self.pgc_complete = max > 0 && done >= max;
+            self.pgc_done = done;
+            self.pgc_max = max;
             filled.push("PGC");
         }
         if let Some(multi) = ms.day_pet_challenge_multi {
@@ -226,6 +235,11 @@ impl ChamberState {
             filled.push("Fishing level");
         }
         filled
+    }
+
+    /// The global PGC growth multiplier (×1 with no completions).
+    fn pgc_mult(&self) -> f64 {
+        pgc_growth_mult(self.pgc_done, self.pgc_max)
     }
 
     /// The DPC food boost %: `log2(highest pet multiplier)`, capped at 100%. 0 when
@@ -310,13 +324,11 @@ fn chamber_pet(
 ) -> Option<ChamberPet> {
     let export = effective_export(pet, state)?;
     // Base growth is the accumulator; the Magic Egg (+30%) and the global PGC
-    // (+50%, all 25 challenges done) multiply it into the total growth the
-    // campaign reads.
+    // (+1% per completion, doubled at full completion) multiply it into the
+    // total growth the campaign reads.
     let growth = export.growth as f64;
-    let mut growth_multiplier = if export.has_magic_egg() { MAGIC_EGG_GROWTH_MULT } else { 1.0 };
-    if state.pgc_complete {
-        growth_multiplier *= PGC_GROWTH_MULT;
-    }
+    let growth_multiplier =
+        if export.has_magic_egg() { MAGIC_EGG_GROWTH_MULT } else { 1.0 } * state.pgc_mult();
     // Recompute the Growth bonus from the *effective* export so loadout/CL edits
     // show live. With no override this is the unedited export, so the result
     // matches `pet.campaign_bonus_for` exactly; only build the synthetic pet (and
@@ -381,8 +393,14 @@ pub fn show(
         ui.add(egui::DragValue::new(&mut state.upc_pct).range(0.0..=100.0).speed(1.0))
             .on_hover_text("5 × Ultimate Pet Challenges completed. Auto-filled when you import a Main-stats export.");
         ui.separator();
-        ui.checkbox(&mut state.pgc_complete, RichText::new("PGC ×1.5").size(12.0))
-            .on_hover_text("All 25 Patreon God Challenges completed — every pet's growth is multiplied by ×1.5, stacking with the Magic Egg (1.5 × 1.3 = 1.95×). Auto-filled when you import a Main-stats export.");
+        ui.label(RichText::new("PGC:").color(style::TEXT_MUTED).size(12.0))
+            .on_hover_text("Patreon God Challenges completed — +1% growth per completion, doubled once all are done (24/25 → ×1.24, 25/25 → ×1.50). Stacks with the Magic Egg. Auto-filled when you import a Main-stats export.");
+        ui.add(egui::DragValue::new(&mut state.pgc_done).range(0..=state.pgc_max));
+        ui.label(
+            RichText::new(format!("/ {}  \u{2B62} ×{:.2} growth", state.pgc_max, state.pgc_mult()))
+                .color(style::TEXT_MUTED)
+                .size(11.0),
+        );
         ui.separator();
         ui.label(RichText::new("Pandora feedings:").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20))
@@ -1415,13 +1433,11 @@ mod tests {
         assert!(state.apply_main_stats(&MainStats::default()).is_empty());
         assert_eq!(state.upc_pct, 12.0);
 
-        // PGC is complete only at done == max; an incomplete export clears it.
+        // PGC fills both the completed count and the max.
         let filled = state
-            .apply_main_stats(&MainStats { patreon_god_challenges: Some((25, 25)), ..Default::default() });
+            .apply_main_stats(&MainStats { patreon_god_challenges: Some((24, 25)), ..Default::default() });
         assert_eq!(filled, vec!["PGC"]);
-        assert!(state.pgc_complete);
-        state.apply_main_stats(&MainStats { patreon_god_challenges: Some((0, 25)), ..Default::default() });
-        assert!(!state.pgc_complete);
+        assert_eq!((state.pgc_done, state.pgc_max), (24, 25));
     }
 
     #[test]
@@ -1470,7 +1486,7 @@ mod tests {
     }
 
     #[test]
-    fn pgc_complete_multiplies_total_growth() {
+    fn pgc_completions_scale_total_growth() {
         use itrtg_models::{CampaignInputs, CampaignOverrides};
 
         let pet = merged("Foo", export_with(1000, 5));
@@ -1488,7 +1504,12 @@ mod tests {
 
         let mut state = ChamberState::default();
         assert_eq!(chamber_pet(&pet, &ctx, &rates, &state).unwrap().growth_multiplier, 1.0);
-        state.pgc_complete = true;
+        // Gradual: +1% per completion below the max…
+        state.pgc_done = 10;
+        let mult = chamber_pet(&pet, &ctx, &rates, &state).unwrap().growth_multiplier;
+        assert!((mult - 1.10).abs() < 1e-12, "10/25 → {mult}");
+        // …doubled at full completion.
+        state.pgc_done = 25;
         assert_eq!(chamber_pet(&pet, &ctx, &rates, &state).unwrap().growth_multiplier, 1.5);
 
         // Stacks multiplicatively with the Magic Egg: 1.5 × 1.3 = 1.95.
