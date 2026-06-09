@@ -395,17 +395,19 @@ pub struct ChamberResult {
 }
 
 /// Tick one round of between-campaign growth into every pet — passive
-/// (Moai + pendant) and feeding (normal + Gold Dragon) — recording each source
-/// into `breakdown` (in total terms, scaled by the pet's multiplier).
+/// (Moai + pendant, over `passive_hours`) and feeding (normal + Gold Dragon) —
+/// recording each source into `breakdown` (in total terms, scaled by the pet's
+/// multiplier). `passive_hours` is 0 for a cycle whose passive is suppressed
+/// (e.g. the first cycle when the export already includes it).
 fn tick_passive_and_feeding(
     pets: &mut [ChamberPet],
     breakdown: &mut [GrowthBreakdown],
-    hours: u32,
+    passive_hours: f64,
     feedings: f64,
 ) {
     for (i, pet) in pets.iter_mut().enumerate() {
         let mult = pet.growth_multiplier;
-        let passive = pet.passive_per_hour * hours as f64;
+        let passive = pet.passive_per_hour * passive_hours;
         let feed = feedings * pet.food_per_feeding;
         let gd = feedings * pet.gold_dragon_per_feeding;
         pet.growth += passive + feed + gd;
@@ -434,6 +436,10 @@ pub fn simulate_growth_chamber(
     upc_pct: f64,
     max_cycles: u32,
     stop_at_targets: bool,
+    // When true, the **first** cycle adds no passive growth — for an export
+    // captured at a campaign's end, which already holds that campaign's passive
+    // (Moai). Avoids double-counting it; see `reference/real_growth_campaign`.
+    skip_first_cycle_passive: bool,
 ) -> ChamberResult {
     let hours = hours.clamp(1, 12);
     let targeted = pets.iter().filter(|p| p.target.is_some()).count();
@@ -455,6 +461,12 @@ pub fn simulate_growth_chamber(
     let end_total = |p: &ChamberPet| (p.growth + p.passive_per_hour * hours as f64) * p.growth_multiplier;
 
     for cycle in 0..max_cycles {
+        // Passive hours realised this cycle — suppressed on the first cycle when
+        // the export already includes the finishing campaign's passive. (The
+        // formula's end-of-run growth still uses the full `hours`; the extra
+        // passive there shifts contributions by a negligible fraction.)
+        let passive_hours =
+            if cycle == 0 && skip_first_cycle_passive { 0.0 } else { hours as f64 };
         // Indices of the campaign participants, in roster order.
         let chamber_idx: Vec<usize> = (0..pets.len()).filter(|&i| pets[i].in_chamber).collect();
 
@@ -524,7 +536,7 @@ pub fn simulate_growth_chamber(
                 .expect("non-empty roster");
 
             // Realise growth: passive + feeding into all, then the deposits.
-            tick_passive_and_feeding(pets, &mut breakdown, hours, feedings);
+            tick_passive_and_feeding(pets, &mut breakdown, passive_hours, feedings);
             pets[recipient].growth += recipient_deposit;
             breakdown[recipient].campaign += recipient_deposit * pets[recipient].growth_multiplier;
             if bag_fraction > 0.0 {
@@ -537,7 +549,7 @@ pub fn simulate_growth_chamber(
             cycle_record.recipient_gain = recipient_deposit;
         } else {
             // No campaign this cycle — only passive + feeding growth ticks.
-            tick_passive_and_feeding(pets, &mut breakdown, hours, feedings);
+            tick_passive_and_feeding(pets, &mut breakdown, passive_hours, feedings);
         }
         trace.push(cycle_record);
 
@@ -717,7 +729,7 @@ mod tests {
             ChamberPet { name: "NewPet".into(), growth: 1_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true, false);
         // Reached its target in a finite number of cycles; the loop stopped there.
         assert!(result.reached.iter().any(|(n, _)| n == "NewPet"));
         assert!(result.cycles >= 1 && result.cycles < 1000);
@@ -737,7 +749,7 @@ mod tests {
             ChamberPet { name: "B".into(), growth: 1_001.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4, true);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4, true, false);
         let recipients: Vec<usize> = result.trace.iter().map(|c| c.recipient).collect();
         assert_eq!(recipients, vec![0, 1, 0, 1]); // alternating
     }
@@ -754,7 +766,7 @@ mod tests {
             ChamberPet { name: "Dup".into(), growth: 1_500.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true, false);
         assert_eq!(result.reached.len(), 2); // both, despite the shared name
         assert!(result.cycles < 1000); // stopped early, didn't spin to the cap
     }
@@ -775,7 +787,7 @@ mod tests {
             in_chamber: true,
             special: None,
         }];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true, false);
         assert_eq!(result.cycles, 2);
         assert!((result.final_growth[0].1 - 2.0 * 100.0 * 12.0).abs() < 1e-9);
     }
@@ -796,11 +808,11 @@ mod tests {
         };
         // 12 h → floor(12/3) = 4 feedings × 10/feeding = +40/cycle × 2 cycles = 80.
         let mut pets = vec![solo(10.0)];
-        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 2, true, false);
         assert!((r.final_growth[0].1 - 80.0).abs() < 1e-9, "got {}", r.final_growth[0].1);
         // A sub-3h campaign yields no feedings (floor(2/3) = 0).
         let mut pets2 = vec![solo(10.0)];
-        let r2 = simulate_growth_chamber(&mut pets2, 2, 0.0, 1, true);
+        let r2 = simulate_growth_chamber(&mut pets2, 2, 0.0, 1, true, false);
         assert_eq!(r2.final_growth[0].1, 0.0);
     }
 
@@ -820,7 +832,7 @@ mod tests {
         };
         // A is a high-total contributor; B is the low-total recipient, egg ×1.3.
         let mut pets = vec![pet("A", 100_000.0, 1.0), pet("B", 1_000.0, 1.3)];
-        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false, false);
         // Reward = A's contribution = (log15(100000) − 1.75) · 12. The reward lands
         // on B's *base*, so its *total* rises by reward · 1.3.
         let reward = (100_000_f64.ln() / 15_f64.ln() - 1.75) * 12.0;
@@ -846,7 +858,7 @@ mod tests {
         };
         let mut pets = vec![pet("Low", 1_000.0), pet("High", 100_000.0)];
         pets[1].campaign_bonus_pct = 50.0; // exercise the bonus factor
-        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false);
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false, false);
         let c = &r.trace[0].contributions;
         assert_eq!(c.len(), 2);
         // Low is the recipient (contributes 0); High contributes the base total,
@@ -938,7 +950,7 @@ mod tests {
             })
             .collect();
 
-        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, true);
+        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, true, false);
         assert_eq!(result.cycles, 1);
 
         // Otter (index 0) is the recipient and gains base × Pandora's 1.4342
@@ -1010,7 +1022,7 @@ mod tests {
             mk("Pandora's Box", 57_410.0, 0.0, 1.3, Some(SpecialPet::Pandora { feedings: 16 })),
             mk("Vampire", 57_499.0, 469.86, 1.0, None),
         ];
-        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, false);
+        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, false, false);
         let cyc = &result.trace[0];
         assert_eq!(cyc.recipient, 0, "Bag is the lowest-growth chamber pet");
 
@@ -1050,7 +1062,7 @@ mod tests {
             special: None,
         };
         let mut pets = vec![mk("Low", 1_000.0), mk("High", 5_000.0)];
-        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 3, false);
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 3, false, false);
 
         let get = |name: &str| result.breakdown.iter().find(|(n, _)| n == name).unwrap().1.clone();
         let (low, high) = (get("Low"), get("High"));
@@ -1077,5 +1089,36 @@ mod tests {
                 final_g - start
             );
         }
+    }
+
+    #[test]
+    fn skip_first_cycle_passive_drops_exactly_one_round_of_passive() {
+        // A lone pet is the recipient and contributes nothing, so its growth comes
+        // purely from passive — isolating the toggle's effect.
+        let mk = || ChamberPet {
+            name: "P".into(),
+            growth: 1_000.0,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0,
+            passive_per_hour: 3.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+        };
+        // 2 cycles, 12 h, passive 3/h → 36/cycle.
+        let mut normal = vec![mk()];
+        let mut skipped = vec![mk()];
+        let r_normal = simulate_growth_chamber(&mut normal, 12, 0.0, 2, false, false);
+        let r_skip = simulate_growth_chamber(&mut skipped, 12, 0.0, 2, false, true);
+
+        assert!((r_normal.breakdown[0].1.passive - 72.0).abs() < 1e-6);
+        // First cycle's 36 is suppressed; only the second cycle's passive remains.
+        assert!((r_skip.breakdown[0].1.passive - 36.0).abs() < 1e-6);
+        assert!(
+            (r_normal.final_growth[0].1 - r_skip.final_growth[0].1 - 36.0).abs() < 1e-6,
+            "skipping drops exactly one cycle of passive from the total"
+        );
     }
 }
