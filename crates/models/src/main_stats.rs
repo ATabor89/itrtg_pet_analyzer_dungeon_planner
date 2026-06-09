@@ -31,6 +31,8 @@ pub struct MainStats {
     pub goblin_ucc: Option<u32>,
     /// `Overflow Challenges` completed → Goblin's OC evo-bonus term.
     pub goblin_oc: Option<u32>,
+    /// `Ultimate Pet Challenges` completed → the chamber's UPC bonus (`5 ·` this).
+    pub ultimate_pet_challenges: Option<u32>,
     /// `Chp Stone Pet improvement` → Stone/Golem's +100% campaign upgrade.
     pub stone_campaign_upgrade: Option<bool>,
     /// `Earth Eater Earthlike planets eaten`, kept as the **raw value string**
@@ -73,6 +75,7 @@ pub fn parse_main_stats(source: &str) -> Result<MainStats, String> {
         challenge_points: count("Challenge Points"),
         goblin_ucc: challenge("Ultimate Challenge Challenges").map(|v| v as u32),
         goblin_oc: challenge("Overflow Challenges").map(|v| v as u32),
+        ultimate_pet_challenges: challenge("Ultimate Pet Challenges").map(|v| v as u32),
         stone_campaign_upgrade: map
             .get("Chp Stone Pet improvement")
             .map(|v| v.eq_ignore_ascii_case("true")),
@@ -106,6 +109,7 @@ mod tests {
         assert_eq!(ms.challenge_points, Some(721));
         assert_eq!(ms.goblin_ucc, Some(0)); // "0 / 67"
         assert_eq!(ms.goblin_oc, Some(0)); // "0 / 9,999"
+        assert_eq!(ms.ultimate_pet_challenges, Some(8)); // "8 / 20" → UPC 40%
         assert_eq!(ms.stone_campaign_upgrade, Some(false)); // "False"
         assert_eq!(ms.base_growth_per_hour, Some(2)); // both Moai, L20
         // Earth Eater is kept raw and must round-trip through the flexible parser.
