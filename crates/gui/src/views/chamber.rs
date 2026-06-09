@@ -182,10 +182,11 @@ impl ChamberState {
         self.food_values.get(self.food_choice).copied().unwrap_or(0.0)
     }
 
-    /// Average rebirth length in hours (the entered value × its unit, rounded).
+    /// Average rebirth length in **whole** hours (value × unit, truncated — a
+    /// partial hour can't run another campaign, so it's dropped).
     fn rebirth_total_hours(&self) -> u32 {
         let factor = REBIRTH_UNITS.get(self.rebirth_unit).map_or(1, |&(_, h)| h) as f64;
-        ((self.rebirth_value * factor).round() as i64).clamp(1, u32::MAX as i64) as u32
+        ((self.rebirth_value * factor).floor() as i64).clamp(1, u32::MAX as i64) as u32
     }
 
     /// Per-feeding growth every pet gets from a Gold Dragon feeding (25% of his
@@ -371,6 +372,15 @@ pub fn show(
                     ui.selectable_value(&mut state.rebirth_unit, i, *label);
                 }
             });
+            // Effective whole-hour length — shown when it's a conversion or a
+            // partial hour gets truncated (e.g. 7.03 d ⭢ 168 h, 7.5 h ⭢ 7 h).
+            if state.rebirth_unit != 0 || state.rebirth_value.fract() != 0.0 {
+                ui.label(
+                    RichText::new(format!("= {} h", state.rebirth_total_hours()))
+                        .color(style::TEXT_MUTED)
+                        .size(11.0),
+                );
+            }
         });
         if state.rebirth_enabled {
             let cycle = state.hours.clamp(1, 12);
