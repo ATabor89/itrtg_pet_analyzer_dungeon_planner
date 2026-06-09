@@ -237,6 +237,8 @@ fn chamber_pet(
     let special = match pet.name.as_str() {
         "Pandora's Box" => Some(SpecialPet::Pandora { feedings: state.pandora_feedings }),
         "Bag" => Some(SpecialPet::Bag { token_improved: export.improved }),
+        // Reduces every other chamber pet's campaign bonus by (20 − 0.25·CL) pts.
+        "Nightmare" => Some(SpecialPet::Nightmare { class_level: export.class_level }),
         _ => None,
     };
     Some(ChamberPet {
@@ -514,6 +516,7 @@ fn show_pet_card(
                     let tag = match cp.special {
                         Some(SpecialPet::Pandora { .. }) => Some("Pandora"),
                         Some(SpecialPet::Bag { .. }) => Some("Bag"),
+                        Some(SpecialPet::Nightmare { .. }) => Some("Nightmare"),
                         None => None,
                     };
                     if let Some(tag) = tag {
