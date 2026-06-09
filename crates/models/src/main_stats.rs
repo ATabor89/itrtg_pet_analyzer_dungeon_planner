@@ -33,6 +33,9 @@ pub struct MainStats {
     pub goblin_oc: Option<u32>,
     /// `Ultimate Pet Challenges` completed → the chamber's UPC bonus (`5 ·` this).
     pub ultimate_pet_challenges: Option<u32>,
+    /// `Patreon Gods Challenges` as `(done, max)` → the chamber's PGC toggle
+    /// (all done = a global ×1.5 growth multiplier).
+    pub patreon_god_challenges: Option<(u32, u32)>,
     /// `Day Pet Challenge highest multi` (a percent, e.g. `3.664 E+9`) → the food
     /// DPC boost `log2(multi)` (capped 100%).
     pub day_pet_challenge_multi: Option<f64>,
@@ -74,6 +77,11 @@ pub fn parse_main_stats(source: &str) -> Result<MainStats, String> {
             .copied()
             .and_then(|v| parse_count(v.split('/').next()?.trim()))
     };
+    // Both sides of a "<done> / <max>" challenge line, for done-vs-max checks.
+    let challenge_pair = |label: &str| -> Option<(u32, u32)> {
+        let (done, max) = map.get(label)?.split_once('/')?;
+        Some((parse_count(done.trim())? as u32, parse_count(max.trim())? as u32))
+    };
 
     Ok(MainStats {
         pet_stones: count("Pet Stones"),
@@ -83,6 +91,7 @@ pub fn parse_main_stats(source: &str) -> Result<MainStats, String> {
         goblin_ucc: challenge("Ultimate Challenge Challenges").map(|v| v as u32),
         goblin_oc: challenge("Overflow Challenges").map(|v| v as u32),
         ultimate_pet_challenges: challenge("Ultimate Pet Challenges").map(|v| v as u32),
+        patreon_god_challenges: challenge_pair("Patreon Gods Challenges"),
         day_pet_challenge_multi: map
             .get("Day Pet Challenge highest multi")
             .copied()
@@ -123,6 +132,7 @@ mod tests {
         assert_eq!(ms.goblin_ucc, Some(0)); // "0 / 67"
         assert_eq!(ms.goblin_oc, Some(0)); // "0 / 9,999"
         assert_eq!(ms.ultimate_pet_challenges, Some(8)); // "8 / 20" → UPC 40%
+        assert_eq!(ms.patreon_god_challenges, Some((0, 25))); // "0 / 25" — not complete
         assert_eq!(ms.day_pet_challenge_multi, Some(3.664e9)); // "3.664 E+9"
         assert_eq!(ms.fish_power, Some(1.050e6)); // "1.050 E+6"
         assert_eq!(ms.fishing_level, Some(14));
