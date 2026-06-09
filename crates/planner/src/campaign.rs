@@ -898,4 +898,81 @@ mod tests {
         assert_eq!(bag_target, 10, "Bag's gift goes to Wolf, not the recipient");
         assert!((bag_amount - 76.18).abs() < 0.2, "Bag gift {bag_amount}");
     }
+
+    /// SECOND real run (`reference/real_growth_campaign/`): a 12 h chamber where
+    /// **Pandora carries a Magic Egg**. In-game, Bag (recipient, token-improved)
+    /// gained **+1678.4**, Pandora's own contribution was 38.57, and Pandora's
+    /// special boost was +580 (≈ +52.8% on the 1098.3 base).
+    ///
+    /// Egg handling end-to-end: the pet importer divides the egg's ×1.3 back out
+    /// of the export "Growth" column and stores the **true base** (Pandora shows
+    /// 57,410 → base 44,162); the chamber sets `growth_multiplier = 1.3` so the
+    /// campaign reads `base · multiplier = 57,410` — the value the game uses. This
+    /// seeds exactly that and confirms the egg is **not** double-applied.
+    #[test]
+    fn pandora_egg_real_run_reconciles() {
+        // The file-1 growths were captured ~1 min before the campaign finished, so
+        // they already include this run's 12 h of Moai — passive must be 0 here or
+        // the recipient deposit double-counts it (same note as the run above).
+        let moai = 0.0_f64;
+        // Per-feeding base: chocolate 10.38 + Gold Dragon's broadcast (2.60, which
+        // is already his 25%). Irrelevant to the deposit (feeding lands after), set
+        // for completeness.
+        let food = 10.38 + 2.60;
+        // `total` is the export "Growth" column; `growth` is the true base the
+        // importer stores (total / mult for an egg pet). The campaign reads
+        // `growth · mult`, recovering the in-game total — no double egg.
+        let mk = |name: &str, total: f64, bonus: f32, mult: f64, special: Option<SpecialPet>| {
+            ChamberPet {
+                name: name.into(),
+                growth: total / mult,
+                growth_multiplier: mult,
+                campaign_bonus_pct: bonus,
+                passive_per_hour: moai,
+                food_per_feeding: food,
+                target: None,
+                in_chamber: true,
+                special,
+            }
+        };
+        // Bonuses backed out of the in-game contribution log (file 2) via the
+        // contribution formula `(log15(g) − 1.75) · 1.4 · 12 · (1 + bonus/100)`,
+        // so this exercises the egg fix + special-pet layer, not the bonus calc.
+        let mut pets = vec![
+            mk("Bag", 55_678.0, 116.0, 1.0, Some(SpecialPet::Bag { token_improved: true })),
+            mk("Hedgehog", 55_775.0, 222.57, 1.0, None),
+            mk("Thunder Ball/Raiju", 55_871.0, 480.86, 1.0, None),
+            mk("Meteor", 56_066.0, 139.58, 1.0, None),
+            mk("Earth Eater", 56_153.0, 131.96, 1.0, None),
+            mk("Sphinx", 56_386.0, 119.80, 1.0, None),
+            mk("Otter", 57_000.0, 157.14, 1.0, None),
+            mk("Cupid", 57_018.0, 231.96, 1.0, None),
+            // Pandora carries a Magic Egg → the chamber sets multiplier 1.3.
+            mk("Pandora's Box", 57_410.0, 0.0, 1.3, Some(SpecialPet::Pandora { feedings: 16 })),
+            mk("Vampire", 57_499.0, 469.86, 1.0, None),
+        ];
+        let result = simulate_growth_chamber(&mut pets, 12, 40.0, 1, false);
+        let cyc = &result.trace[0];
+        assert_eq!(cyc.recipient, 0, "Bag is the lowest-growth chamber pet");
+
+        let pandora_contrib = cyc.contributions.iter().find(|(i, _)| *i == 8).unwrap().1;
+        let base_total: f64 = cyc.contributions.iter().map(|(_, c)| c).sum();
+        eprintln!("--- real_growth_campaign reconciliation ---");
+        eprintln!("Pandora contribution: {pandora_contrib:.2}  (game 38.57)");
+        eprintln!("base total: {base_total:.2}  (game 1098.3)");
+        eprintln!("Bag recipient deposit: {:.2}  (game 1678.4)", cyc.recipient_gain);
+
+        // Pandora's own contribution must use its export total (57,410), not
+        // 57,410 · 1.3 — i.e. the egg is not double-applied.
+        assert!(
+            (pandora_contrib - 38.57).abs() < 0.3,
+            "Pandora contribution {pandora_contrib:.2}, game 38.57"
+        );
+        // The full deposit (base · Pandora-boost) lands on the in-game +1678.4.
+        assert!(
+            (cyc.recipient_gain - 1678.4).abs() < 3.0,
+            "Bag deposit {:.2}, game 1678.4",
+            cyc.recipient_gain
+        );
+    }
 }
