@@ -936,10 +936,14 @@ fn recommend_chamber(state: &mut ChamberState, data: &DataStore, ctx: &CampaignC
     state.chamber = ranked.iter().take(10).map(|(n, _, _)| n.to_string()).collect();
 }
 
-/// Friendly hours: plain hours, with a day approximation once it's a few days.
+/// Friendly hours: plain hours, a day approximation once it's a few days, and
+/// years once it's a long way out (for target estimates).
 fn fmt_hours(h: u32) -> String {
-    if h >= 72 {
-        format!("~{h} h \u{2248} {:.1} d", h as f64 / 24.0)
+    let days = h as f64 / 24.0;
+    if days >= 365.0 {
+        format!("~{:.1} yr", days / 365.0)
+    } else if h >= 72 {
+        format!("~{h} h \u{2248} {days:.1} d")
     } else {
         format!("~{h} h")
     }
@@ -1061,7 +1065,25 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                         let h: u32 = result.trace.iter().take(*cycle as usize).map(|c| c.hours).sum();
                         (format!("\u{2713} target at cycle {cycle} ({})", fmt_hours(h)), style::SUCCESS)
                     }
-                    (None, Some(t)) => (format!("{final_g:.0}/{t} (not reached)"), style::WARNING),
+                    (None, Some(t)) => {
+                        // Linear-extrapolate from this pet's average growth/cycle to
+                        // estimate when it would reach the target (total from the run
+                        // start, so it lines up with the reached pets above).
+                        let per_cycle = delta / result.cycles.max(1) as f64;
+                        let remaining = *t as f64 - final_g;
+                        if per_cycle > 0.0 && remaining > 0.0 {
+                            let more = (remaining / per_cycle).ceil();
+                            let avg_cycle_h = total_hours as f64 / result.cycles.max(1) as f64;
+                            let eta_h = (total_hours as f64 + more * avg_cycle_h).min(u32::MAX as f64);
+                            let est_cycle = result.cycles as f64 + more;
+                            (
+                                format!("{final_g:.0}/{t} — est. cycle ~{est_cycle:.0} ({})", fmt_hours(eta_h as u32)),
+                                style::WARNING,
+                            )
+                        } else {
+                            (format!("{final_g:.0}/{t} (not reached)"), style::WARNING)
+                        }
+                    }
                     (None, None) => (String::new(), style::TEXT_MUTED),
                 };
                 ui.label(
