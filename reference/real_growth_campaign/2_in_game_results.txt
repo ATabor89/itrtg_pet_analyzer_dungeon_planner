@@ -1,0 +1,50 @@
+----------------
+In-game results
+----------------
+
+Ran 1 cycles (~12 h) — 0 target(s) reached.  (by growth gained)
+  avg +246.1/pet/cycle  (chamber total +2461)
+  Bag: 55678 ⭢ 57433  (+1755)  contrib ~0/cyc
+  Pandora's Box: 57411 ⭢ 57509  (+98)  contrib ~39/cyc
+  Cupid: 57018 ⭢ 57094  (+76)  contrib ~128/cyc
+  Earth Eater: 56153 ⭢ 56229  (+76)  contrib ~89/cyc  56229/63076 (not reached)
+  Hedgehog: 55775 ⭢ 55851  (+76)  contrib ~124/cyc
+  Meteor: 56066 ⭢ 56142  (+76)  contrib ~92/cyc
+  Otter: 57000 ⭢ 57076  (+76)  contrib ~99/cyc
+  Sphinx: 56386 ⭢ 56462  (+76)  contrib ~85/cyc
+  Thunder Ball/Raiju: 55871 ⭢ 55947  (+76)  contrib ~223/cyc  55947/61538 (not reached)
+  Vampire: 57499 ⭢ 57575  (+76)  contrib ~220/cyc
+
+
+----------------
+In-game results
+----------------
+
+Your pets Bag, Hedgehog, Thunder Ball, Meteor, Earth Eater, Sphinx, Otter, Cupid,
+Pandora's box and Vampire finished their Growth Campaign.
+
+The total growth of Goat has increased by 83.92 (Bag)!
+
+The total growth for Bag has increased by 1,678.4!
+
+Bag received 45,396 class experience.
+Hedgehog increased the growth gain for Bag by 123.87.
+Hedgehog received 45,454 class experience.
+Thunder Ball increased the growth gain for Bag by 223.12.
+Meteor increased the growth gain for Bag by 92.08.
+Meteor received 45,629 class experience.
+Earth Eater increased the growth gain for Bag by 89.17.
+Sphinx increased the growth gain for Bag by 84.56.
+Sphinx received 45,821 class experience.
+Otter increased the growth gain for Bag by 99.09.
+Otter received 46,189 class experience.
+Cupid increased the growth gain for Bag by 127.93.
+Cupid received 46,200 class experience.
+Pandora's box increased the growth gain for Bag by 38.57.
+Vampire increased the growth gain for Bag by 219.91.
+Pandora's box gave an additional growth of 580.
+
+Note: Meteor was at 4524.51 hours before, 4536.51 after
+Note: Pandora's Box was at 16 feedings before
+Note: UPC% is 40%
+Note: Feeding was chocolate for everyone; my growth per feeding is showing 10.38, and Gold Dragon is showing 2.60 per feeding (chocolate) to everyone. I don't believe this properly accounts for the discrepancy here.
