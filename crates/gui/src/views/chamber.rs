@@ -219,7 +219,7 @@ impl ChamberState {
     /// The DPC food boost %: `log2(highest pet multiplier)`, capped at 100%. 0 when
     /// there's no multiplier (≤ 1, where the log is ≤ 0).
     fn dpc_boost_pct(&self) -> f64 {
-        if self.dpc_highest_multi <= 1.0 {
+        if !self.dpc_highest_multi.is_finite() || self.dpc_highest_multi <= 1.0 {
             return 0.0;
         }
         self.dpc_highest_multi.log2().clamp(0.0, 100.0)
