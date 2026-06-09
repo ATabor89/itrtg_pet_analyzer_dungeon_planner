@@ -115,5 +115,6 @@ feeding. He's best fed **chocolate**, and he has his **own food selector**.
   feedings accumulate and reset each rebirth; driven by a rebirth-length input,
   simulating from rebirth start.
 - [ ] **Per-pet food** override (vs the global food type).
-- [ ] **PGC** ×1.5 growth multiplier (chamber total growth + evo thresholds);
-  **SpaceDim** factor.
+- [x] **PGC** ×1.5 growth multiplier in the **chamber** (toggle auto-filled from
+  Main stats, folded into each pet's `growth_multiplier`). Still open: the
+  evo-threshold / analyzer side, and the **SpaceDim** factor — see the tracker.
