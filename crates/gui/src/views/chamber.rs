@@ -164,8 +164,10 @@ impl ChamberState {
         self.max_cycles = src.max_cycles;
         self.pandora_feedings = src.pandora_feedings;
         self.upc_pct = src.upc_pct;
-        self.pgc_done = src.pgc_done;
+        // Sanitize like the other loaded indices: done can't exceed max (a
+        // hand-edited value would otherwise apply a huge multiplier).
         self.pgc_max = src.pgc_max;
+        self.pgc_done = src.pgc_done.min(src.pgc_max);
         self.food_choice = src.food_choice.min(FOODS.len() - 1);
         self.dpc_highest_multi = src.dpc_highest_multi;
         self.gold_dragon_food = src.gold_dragon_food.filter(|&i| i < FOODS.len());
