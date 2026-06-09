@@ -290,6 +290,16 @@ pub enum SpecialPet {
     /// Bag — gifts to the **global** lowest-growth pet. Token-improved gives a
     /// free 5%; pre-token steals 10% from the campaign.
     Bag { token_improved: bool },
+    /// Nightmare — subtracts `(20 − 0.25·class_level)` points (min 1) from every
+    /// **other** chamber pet's campaign bonus. (Its own `+200%` self-boost is part
+    /// of its campaign bonus already, via the curated overrides.)
+    Nightmare { class_level: u32 },
+}
+
+/// The campaign-bonus points Nightmare docks from each *other* pet at a given
+/// class level: `(20 − 0.25·CL)`, floored at 1 (subtractive, per the wiki).
+pub fn nightmare_malus(class_level: u32) -> f64 {
+    (20.0 - 0.25 * class_level as f64).max(1.0)
 }
 
 /// Pandora's Box campaign bonus %: `min(growth, 100k)/5000 · rate`, where the
@@ -474,6 +484,18 @@ pub fn simulate_growth_chamber(
             ChamberCycle { recipient: 0, recipient_gain: 0.0, bag_gift: None, contributions: Vec::new() };
 
         if !chamber_idx.is_empty() {
+            // Nightmare's team malus: every *other* chamber pet's campaign bonus is
+            // reduced by `(20 − 0.25·CL)` points (subtractive). Find the Nightmare,
+            // if any, so its own bonus is left intact.
+            let nightmare: Option<(usize, f64)> = chamber_idx.iter().find_map(|&i| {
+                match pets[i].special {
+                    Some(SpecialPet::Nightmare { class_level }) => {
+                        Some((i, nightmare_malus(class_level)))
+                    }
+                    _ => None,
+                }
+            });
+
             // Base total + recipient from the Growth campaign over the chamber. The
             // f64 growth truncates to u64 for the log term — lossy by design,
             // negligible at real magnitudes.
@@ -486,7 +508,12 @@ pub fn simulate_growth_chamber(
                     // `end_total`.
                     growth: (pets[i].growth * pets[i].growth_multiplier) as u64,
                     stats: None,
-                    campaign_bonus_pct: pets[i].campaign_bonus_pct,
+                    campaign_bonus_pct: match nightmare {
+                        Some((nm, malus)) if i != nm => {
+                            pets[i].campaign_bonus_pct - malus as f32
+                        }
+                        _ => pets[i].campaign_bonus_pct,
+                    },
                     passive_per_hour: pets[i].passive_per_hour * pets[i].growth_multiplier,
                 })
                 .collect();
@@ -513,7 +540,8 @@ pub fn simulate_growth_chamber(
                         bag_fraction = if token_improved { 0.05 } else { 0.10 };
                         bag_steals = !token_improved;
                     }
-                    None => {}
+                    // Nightmare's malus is already folded into the team bonuses above.
+                    Some(SpecialPet::Nightmare { .. }) | None => {}
                 }
             }
             let specials = apply_growth_specials(base, pandora, bag_fraction);
@@ -1120,5 +1148,44 @@ mod tests {
             (r_normal.final_growth[0].1 - r_skip.final_growth[0].1 - 36.0).abs() < 1e-6,
             "skipping drops exactly one cycle of passive from the total"
         );
+    }
+
+    #[test]
+    fn nightmare_subtracts_its_malus_from_other_pets_only() {
+        let mk = |name: &str, growth: f64, bonus: f32, special: Option<SpecialPet>| ChamberPet {
+            name: name.into(),
+            growth,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: bonus,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special,
+        };
+        let mut pets = vec![
+            mk("R", 1_000.0, 0.0, None),  // recipient (lowest) — contributes 0
+            mk("C", 5_000.0, 100.0, None), // contributor — bonus docked by the malus
+            mk("N", 6_000.0, 299.0, Some(SpecialPet::Nightmare { class_level: 17 })),
+        ];
+        let r = simulate_growth_chamber(&mut pets, 12, 0.0, 1, false, false);
+        let cyc = &r.trace[0];
+        assert_eq!(cyc.recipient, 0);
+        let contrib = |idx: usize| cyc.contributions.iter().find(|(i, _)| *i == idx).unwrap().1;
+
+        // CL 17 → malus 20 − 0.25·17 = 15.75 points.
+        let base = |g: f64| (log_base(g, 15.0) - 1.75) * 12.0; // UPC 0
+        // C's +100% is reduced to +84.25%; Nightmare's own +299% is untouched.
+        assert!((contrib(1) - base(5_000.0) * 1.8425).abs() < 1e-4, "C {}", contrib(1));
+        assert!((contrib(2) - base(6_000.0) * 3.99).abs() < 1e-4, "N {}", contrib(2));
+    }
+
+    #[test]
+    fn nightmare_malus_floors_at_one_point() {
+        // 20 − 0.25·CL would go negative past CL 80; it floors at 1 point.
+        assert_eq!(nightmare_malus(17), 15.75);
+        assert_eq!(nightmare_malus(80), 1.0); // 20 − 20 = 0 → floored
+        assert_eq!(nightmare_malus(200), 1.0);
     }
 }
