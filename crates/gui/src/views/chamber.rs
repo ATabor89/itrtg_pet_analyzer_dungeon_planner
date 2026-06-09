@@ -55,6 +55,10 @@ pub struct ChamberState {
     pub gold_dragon_food: Option<usize>,
     /// Run until every tracked pet hits its target (vs a fixed cycle count).
     pub run_until_targets: bool,
+    /// The export was captured right at a campaign's end (so its growth already
+    /// includes that campaign's passive/Moai). When set, the first simulated
+    /// cycle adds no passive growth — avoids double-counting it.
+    pub exported_after_campaign: bool,
     /// Per-pet what-if overrides (canonical name → tweaked loadout + CL). Absent
     /// means "use the live export as-is". Seeded from the export on first edit;
     /// the card's "Refresh from export" button drops the entry to revert.
@@ -107,6 +111,7 @@ impl Default for ChamberState {
             food_values: [1.3, 2.6, 5.19, 7.79, 10.38],
             gold_dragon_food: None,
             run_until_targets: false,
+            exported_after_campaign: false,
             overrides: BTreeMap::new(),
             search: String::new(),
             result: None,
@@ -129,6 +134,7 @@ impl ChamberState {
         self.food_values = src.food_values;
         self.gold_dragon_food = src.gold_dragon_food.filter(|&i| i < FOODS.len());
         self.run_until_targets = src.run_until_targets;
+        self.exported_after_campaign = src.exported_after_campaign;
         self.overrides = src.overrides.clone();
     }
 
@@ -145,6 +151,7 @@ impl ChamberState {
             food_values: self.food_values,
             gold_dragon_food: self.gold_dragon_food,
             run_until_targets: self.run_until_targets,
+            exported_after_campaign: self.exported_after_campaign,
             overrides: self.overrides.clone(),
             ..Default::default()
         };
@@ -326,6 +333,14 @@ pub fn show(
             RichText::new("Stop early when all targets reached").size(12.0),
         )
         .on_hover_text("Off: always run the full max cycles. On: stop as soon as every target is hit (max cycles still caps it).");
+        ui.separator();
+        ui.checkbox(
+            &mut state.exported_after_campaign,
+            RichText::new("Export taken at a campaign's end").size(12.0),
+        )
+        .on_hover_text(
+            "On: the first cycle adds no passive (Moai) growth, since an export captured right when a campaign finished already includes it. Avoids double-counting that ~one cycle of Moai.",
+        );
     });
 
     ui.horizontal(|ui| {
@@ -363,6 +378,7 @@ pub fn show(
                 state.upc_pct,
                 state.max_cycles,
                 state.run_until_targets,
+                state.exported_after_campaign,
             ));
         }
     });
