@@ -47,10 +47,14 @@ pub struct ExportPet {
 /// Multiplier the Magic Egg applies to a pet's growth while equipped (+30%).
 pub const MAGIC_EGG_GROWTH_MULT: f64 = 1.3;
 
-/// Global growth multiplier once **all** Patreon God Challenges are completed
-/// (+50%). Applies to every pet and stacks multiplicatively with the Magic Egg
-/// (1.5 × 1.3 = 1.95×).
-pub const PGC_GROWTH_MULT: f64 = 1.5;
+/// Global growth multiplier from Patreon God Challenge completions: **+1% per
+/// completion**, doubled once **all** are complete — so 24/25 is ×1.24 but
+/// 25/25 jumps to ×1.50. Applies to every pet and stacks multiplicatively with
+/// the Magic Egg (at 25/25: 1.5 × 1.3 = 1.95×).
+pub fn pgc_growth_mult(done: u32, max: u32) -> f64 {
+    let pct = if max > 0 && done >= max { 2.0 * done as f64 } else { done as f64 };
+    1.0 + pct / 100.0
+}
 
 impl ExportPet {
     /// Whether this pet currently has a Magic Egg equipped.
@@ -75,5 +79,21 @@ impl ExportPet {
         } else {
             self.growth
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pgc_mult_is_gradual_and_doubles_at_completion() {
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-12;
+        assert!(close(pgc_growth_mult(0, 25), 1.0));
+        assert!(close(pgc_growth_mult(10, 25), 1.10));
+        assert!(close(pgc_growth_mult(24, 25), 1.24));
+        assert!(close(pgc_growth_mult(25, 25), 1.50));
+        // No challenges known at all → no bonus (and no spurious doubling).
+        assert!(close(pgc_growth_mult(0, 0), 1.0));
     }
 }

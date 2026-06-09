@@ -94,10 +94,11 @@ feeding. He's best fed **chocolate**, and he has his **own food selector**.
 
 ## Related multipliers (for evolutions, not campaigns)
 
-- **PGC (Pet Growth Challenge)** — all completed gives a **1.5× growth**
-  multiplier. With the Magic Egg that's `1.5 · 1.3 = 1.95×` total. Affects
-  **evolve thresholds** (the egg discount becomes `/1.95` instead of `/1.3` once
-  PGC is done). The player has none yet — slot into the evo-readiness logic later.
+- **PGC (Patreon God Challenge)** — **+1% growth per completion, doubled once
+  all are complete**: 24/25 → ×1.24, 25/25 → ×1.50. With the Magic Egg at full
+  completion that's `1.5 · 1.3 = 1.95×` total. Affects **evolve thresholds**
+  (the egg discount becomes `/(1.3 · pgc mult)` instead of `/1.3`). The player
+  has none yet — slot into the evo-readiness logic later.
 - **SpaceDim** — affects food growth (above) and possibly more; TBD.
 
 ## Implementation status
@@ -115,6 +116,7 @@ feeding. He's best fed **chocolate**, and he has his **own food selector**.
   feedings accumulate and reset each rebirth; driven by a rebirth-length input,
   simulating from rebirth start.
 - [ ] **Per-pet food** override (vs the global food type).
-- [x] **PGC** ×1.5 growth multiplier in the **chamber** (toggle auto-filled from
-  Main stats, folded into each pet's `growth_multiplier`). Still open: the
-  evo-threshold / analyzer side, and the **SpaceDim** factor — see the tracker.
+- [x] **PGC** growth multiplier in the **chamber** (+1%/completion, doubled at
+  full completion; done/max auto-filled from Main stats, folded into each pet's
+  `growth_multiplier`). Still open: the evo-threshold / analyzer side, and the
+  **SpaceDim** factor — see the tracker.
