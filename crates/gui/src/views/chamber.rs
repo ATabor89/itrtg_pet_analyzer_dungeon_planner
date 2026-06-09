@@ -177,6 +177,15 @@ impl ChamberState {
         };
     }
 
+    /// Auto-fill from a Main-stats export: the UPC bonus is `5 ·` the Ultimate
+    /// Pet Challenges completed (capped at 100%). Returns the filled field label
+    /// for the import status, or `None` if the export didn't carry it.
+    pub fn apply_main_stats(&mut self, ms: &itrtg_models::MainStats) -> Option<&'static str> {
+        let upc = ms.ultimate_pet_challenges?;
+        self.upc_pct = (5.0 * upc as f64).min(100.0);
+        Some("UPC %")
+    }
+
     /// Effective growth per feeding for the chosen food.
     fn food_growth(&self) -> f64 {
         self.food_values.get(self.food_choice).copied().unwrap_or(0.0)
@@ -306,7 +315,8 @@ pub fn show(
         ui.add(egui::DragValue::new(&mut state.hours).range(1..=12));
         ui.separator();
         ui.label(RichText::new("UPC %:").color(style::TEXT_MUTED).size(12.0));
-        ui.add(egui::DragValue::new(&mut state.upc_pct).range(0.0..=100.0).speed(1.0));
+        ui.add(egui::DragValue::new(&mut state.upc_pct).range(0.0..=100.0).speed(1.0))
+            .on_hover_text("5 × Ultimate Pet Challenges completed. Auto-filled when you import a Main-stats export.");
         ui.separator();
         ui.label(RichText::new("Pandora feedings:").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20));
@@ -1212,6 +1222,26 @@ mod tests {
         let eff = effective_export(&pet, &state).unwrap();
         assert_eq!(eff.class_level, 5);
         assert!(eff.loadout.weapon.is_none());
+    }
+
+    #[test]
+    fn upc_auto_fills_from_main_stats() {
+        use itrtg_models::MainStats;
+        let mut state = ChamberState::default();
+        // 8 UPCs → 5 × 8 = 40%.
+        let filled = state.apply_main_stats(&MainStats {
+            ultimate_pet_challenges: Some(8),
+            ..Default::default()
+        });
+        assert_eq!(filled, Some("UPC %"));
+        assert_eq!(state.upc_pct, 40.0);
+        // Capped at 100% (20 UPCs would be exactly 100).
+        state.apply_main_stats(&MainStats { ultimate_pet_challenges: Some(30), ..Default::default() });
+        assert_eq!(state.upc_pct, 100.0);
+        // No UPC line ⭢ untouched, nothing reported.
+        state.upc_pct = 12.0;
+        assert_eq!(state.apply_main_stats(&MainStats::default()), None);
+        assert_eq!(state.upc_pct, 12.0);
     }
 
     #[test]

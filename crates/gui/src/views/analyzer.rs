@@ -2258,6 +2258,7 @@ mod tests {
             stone_campaign_upgrade: Some(true),
             earth_eater_planets_text: Some("7.142 E+6".to_string()),
             base_growth_per_hour: Some(2),
+            ..Default::default()
         };
         let applied = st.apply_main_stats(&ms);
         assert_eq!(applied.len(), 9);
