@@ -162,12 +162,6 @@ impl ChamberState {
             .and_then(|i| self.food_values.get(i))
             .map_or(0.0, |&v| 0.25 * v)
     }
-
-    /// Total growth each pet gains per feeding: its own food plus Gold Dragon's
-    /// 25% broadcast.
-    fn per_feeding_growth(&self) -> f64 {
-        self.food_growth() + self.gold_dragon_broadcast()
-    }
 }
 
 /// Build the full sim roster from every unlocked pet: those in `state.chamber`
@@ -244,7 +238,8 @@ fn chamber_pet(
         growth_multiplier,
         campaign_bonus_pct: bonus,
         passive_per_hour: passive,
-        food_per_feeding: state.per_feeding_growth(),
+        food_per_feeding: state.food_growth(),
+        gold_dragon_per_feeding: state.gold_dragon_broadcast(),
         target: state.targets.get(&pet.name).map(|&t| t as f64),
         in_chamber: state.chamber.iter().any(|n| n == &pet.name),
         special,
@@ -873,6 +868,28 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                 ui.label(RichText::new(summary).color(style::TEXT_MUTED).size(11.0));
             }
 
+            // Growth by source across the reported pets (each pet's gain splits
+            // into campaign + passive + feeding + Gold Dragon — see `breakdown`).
+            let bd = |name: &str| result.breakdown.iter().find(|(n, _)| n == name).map(|(_, b)| b);
+            if !rows.is_empty() {
+                let (mut camp, mut pass, mut feed, mut gd) = (0.0, 0.0, 0.0, 0.0);
+                for (name, _, _) in &rows {
+                    if let Some(b) = bd(name) {
+                        camp += b.campaign;
+                        pass += b.passive;
+                        feed += b.feeding;
+                        gd += b.gold_dragon;
+                    }
+                }
+                ui.label(
+                    RichText::new(format!(
+                        "  by source — campaign +{camp:.0}  ·  passive +{pass:.0}  ·  feeding +{feed:.0}  ·  Gold Dragon +{gd:.0}"
+                    ))
+                    .color(style::ACCENT)
+                    .size(11.0),
+                );
+            }
+
             for (name, start, final_g) in rows {
                 let delta = final_g - start;
                 let avg_contrib =
@@ -891,6 +908,17 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                     .color(color)
                     .size(11.0),
                 );
+                // Per-pet split: what made up this pet's gain.
+                if let Some(b) = bd(name) {
+                    ui.label(
+                        RichText::new(format!(
+                            "      campaign +{:.0}  passive +{:.0}  feeding +{:.0}  GD +{:.0}",
+                            b.campaign, b.passive, b.feeding, b.gold_dragon
+                        ))
+                        .color(style::TEXT_MUTED)
+                        .size(10.0),
+                    );
+                }
             }
         });
 }

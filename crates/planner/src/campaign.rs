@@ -323,10 +323,15 @@ pub struct ChamberPet {
     /// Pendant + Moai growth per hour for this pet (0 if none). One tick per
     /// campaign-hour (see `campaign_simulation.md` §7).
     pub passive_per_hour: f64,
-    /// Effective growth per feeding for this pet (food type × multipliers; 0 to
-    /// skip). Every pet is fed `floor(hours/3)` times per cycle — see
-    /// `food_and_feedings.md`.
+    /// Effective growth per **normal** feeding for this pet (food type ×
+    /// multipliers; 0 to skip). Every pet is fed `floor(hours/3)` times per cycle
+    /// — see `food_and_feedings.md`. Excludes the Gold Dragon broadcast (tracked
+    /// separately for the report).
     pub food_per_feeding: f64,
+    /// Gold Dragon's per-feeding broadcast to this pet (25% of his food's growth;
+    /// 0 if he isn't fed). Added every feeding alongside `food_per_feeding`, but
+    /// kept separate so the report can attribute it.
+    pub gold_dragon_per_feeding: f64,
     /// Stop tracking this pet once its growth reaches this target (e.g. an evolve
     /// threshold). `None` = an untracked resident.
     pub target: Option<f64>,
@@ -353,6 +358,27 @@ pub struct ChamberCycle {
     pub contributions: Vec<(usize, f64)>,
 }
 
+/// A pet's growth over a run, split by source (all in **total** terms — already
+/// scaled by the pet's `growth_multiplier`, so the four sum to its growth gain).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GrowthBreakdown {
+    /// Campaign growth received: recipient deposits + any Bag gifts.
+    pub campaign: f64,
+    /// Passive growth: Moai (everyone) + the pendant (if equipped).
+    pub passive: f64,
+    /// Normal feeding growth (the chosen food).
+    pub feeding: f64,
+    /// Gold Dragon's broadcast feeding growth.
+    pub gold_dragon: f64,
+}
+
+impl GrowthBreakdown {
+    /// Total growth gained across all sources.
+    pub fn total(&self) -> f64 {
+        self.campaign + self.passive + self.feeding + self.gold_dragon
+    }
+}
+
 /// Outcome of a chamber simulation.
 #[derive(Debug, Clone)]
 pub struct ChamberResult {
@@ -363,6 +389,30 @@ pub struct ChamberResult {
     pub trace: Vec<ChamberCycle>,
     /// Final growth per pet, in the input order.
     pub final_growth: Vec<(String, f64)>,
+    /// Growth gained per pet split by source, in the input order (parallel to
+    /// `final_growth`).
+    pub breakdown: Vec<(String, GrowthBreakdown)>,
+}
+
+/// Tick one round of between-campaign growth into every pet — passive
+/// (Moai + pendant) and feeding (normal + Gold Dragon) — recording each source
+/// into `breakdown` (in total terms, scaled by the pet's multiplier).
+fn tick_passive_and_feeding(
+    pets: &mut [ChamberPet],
+    breakdown: &mut [GrowthBreakdown],
+    hours: u32,
+    feedings: f64,
+) {
+    for (i, pet) in pets.iter_mut().enumerate() {
+        let mult = pet.growth_multiplier;
+        let passive = pet.passive_per_hour * hours as f64;
+        let feed = feedings * pet.food_per_feeding;
+        let gd = feedings * pet.gold_dragon_per_feeding;
+        pet.growth += passive + feed + gd;
+        breakdown[i].passive += passive * mult;
+        breakdown[i].feeding += feed * mult;
+        breakdown[i].gold_dragon += gd * mult;
+    }
 }
 
 /// Simulate a growth chamber: repeatedly run the Growth campaign over the
@@ -392,6 +442,8 @@ pub fn simulate_growth_chamber(
     // a name, which would otherwise break the stop condition).
     let mut done = vec![false; pets.len()];
     let mut trace: Vec<ChamberCycle> = Vec::new();
+    // Growth gained per pet, split by source (total terms). Parallel to `pets`.
+    let mut breakdown = vec![GrowthBreakdown::default(); pets.len()];
     // Feedings per pet per round — one every 3 hours (`food_and_feedings.md`).
     let feedings = (hours / 3) as f64;
     // End-of-run **total** growth — the basis the campaign picks the recipient /
@@ -472,21 +524,20 @@ pub fn simulate_growth_chamber(
                 .expect("non-empty roster");
 
             // Realise growth: passive + feeding into all, then the deposits.
-            for pet in pets.iter_mut() {
-                pet.growth += pet.passive_per_hour * hours as f64 + feedings * pet.food_per_feeding;
-            }
+            tick_passive_and_feeding(pets, &mut breakdown, hours, feedings);
             pets[recipient].growth += recipient_deposit;
+            breakdown[recipient].campaign += recipient_deposit * pets[recipient].growth_multiplier;
             if bag_fraction > 0.0 {
                 pets[global_lowest].growth += specials.bag_gift;
+                breakdown[global_lowest].campaign +=
+                    specials.bag_gift * pets[global_lowest].growth_multiplier;
                 cycle_record.bag_gift = Some((global_lowest, specials.bag_gift));
             }
             cycle_record.recipient = recipient;
             cycle_record.recipient_gain = recipient_deposit;
         } else {
             // No campaign this cycle — only passive + feeding growth ticks.
-            for pet in pets.iter_mut() {
-                pet.growth += pet.passive_per_hour * hours as f64 + feedings * pet.food_per_feeding;
-            }
+            tick_passive_and_feeding(pets, &mut breakdown, hours, feedings);
         }
         trace.push(cycle_record);
 
@@ -506,6 +557,7 @@ pub fn simulate_growth_chamber(
                 reached,
                 trace,
                 final_growth: pets.iter().map(|p| (p.name.clone(), p.growth * p.growth_multiplier)).collect(),
+                breakdown: pets.iter().zip(&breakdown).map(|(p, b)| (p.name.clone(), b.clone())).collect(),
             };
         }
     }
@@ -515,6 +567,7 @@ pub fn simulate_growth_chamber(
         reached,
         trace,
         final_growth: pets.iter().map(|p| (p.name.clone(), p.growth * p.growth_multiplier)).collect(),
+        breakdown: pets.iter().zip(&breakdown).map(|(p, b)| (p.name.clone(), b.clone())).collect(),
     }
 }
 
@@ -658,11 +711,11 @@ mod tests {
         // A new low-growth pet stays the recipient while two residents feed it.
         let mut pets = vec![
             ChamberPet { name: "Resident1".into(), growth: 200_000.0, growth_multiplier: 1.0,
-            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
             ChamberPet { name: "Resident2".into(), growth: 210_000.0, growth_multiplier: 1.0,
-            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
             ChamberPet { name: "NewPet".into(), growth: 1_000.0, growth_multiplier: 1.0,
-            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true);
         // Reached its target in a finite number of cycles; the loop stopped there.
@@ -680,9 +733,9 @@ mod tests {
         // each cycle — the rotation that cycles a settled chamber.
         let mut pets = vec![
             ChamberPet { name: "A".into(), growth: 1_000.0, growth_multiplier: 1.0,
-            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
             ChamberPet { name: "B".into(), growth: 1_001.0, growth_multiplier: 1.0,
-            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 4, true);
         let recipients: Vec<usize> = result.trace.iter().map(|c| c.recipient).collect();
@@ -695,11 +748,11 @@ mod tests {
         // index, not name) so the stop condition can fire.
         let mut pets = vec![
             ChamberPet { name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
-            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
             ChamberPet { name: "Dup".into(), growth: 1_000.0, growth_multiplier: 1.0,
-            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
+            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
             ChamberPet { name: "Dup".into(), growth: 1_500.0, growth_multiplier: 1.0,
-            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
+            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(&mut pets, 12, 0.0, 1000, true);
         assert_eq!(result.reached.len(), 2); // both, despite the shared name
@@ -717,6 +770,7 @@ mod tests {
             campaign_bonus_pct: 0.0,
             passive_per_hour: 100.0,
             food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
             target: None,
             in_chamber: true,
             special: None,
@@ -735,6 +789,7 @@ mod tests {
             campaign_bonus_pct: 0.0,
             passive_per_hour: 0.0,
             food_per_feeding: food,
+            gold_dragon_per_feeding: 0.0,
             target: None,
             in_chamber: true,
             special: None,
@@ -758,6 +813,7 @@ mod tests {
             campaign_bonus_pct: 0.0,
             passive_per_hour: 0.0,
             food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
             target: None,
             in_chamber: true,
             special: None,
@@ -783,6 +839,7 @@ mod tests {
             campaign_bonus_pct: 0.0,
             passive_per_hour: 0.0,
             food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
             target: None,
             in_chamber: true,
             special: None,
@@ -874,6 +931,7 @@ mod tests {
                 campaign_bonus_pct: bonus,
                 passive_per_hour: 0.0,
                 food_per_feeding: 0.0,
+                gold_dragon_per_feeding: 0.0,
                 target: None,
                 in_chamber,
                 special,
@@ -915,10 +973,10 @@ mod tests {
         // they already include this run's 12 h of Moai — passive must be 0 here or
         // the recipient deposit double-counts it (same note as the run above).
         let moai = 0.0_f64;
-        // Per-feeding base: chocolate 10.38 + Gold Dragon's broadcast (2.60, which
-        // is already his 25%). Irrelevant to the deposit (feeding lands after), set
-        // for completeness.
-        let food = 10.38 + 2.60;
+        // Per feeding: chocolate 10.38 + Gold Dragon's broadcast 2.60 (already his
+        // 25%). Irrelevant to the deposit (feeding lands after), set for realism.
+        let food = 10.38;
+        let gd = 2.60;
         // `total` is the export "Growth" column; `growth` is the true base the
         // importer stores (total / mult for an egg pet). The campaign reads
         // `growth · mult`, recovering the in-game total — no double egg.
@@ -930,6 +988,7 @@ mod tests {
                 campaign_bonus_pct: bonus,
                 passive_per_hour: moai,
                 food_per_feeding: food,
+                gold_dragon_per_feeding: gd,
                 target: None,
                 in_chamber: true,
                 special,
@@ -974,5 +1033,49 @@ mod tests {
             "Bag deposit {:.2}, game 1678.4",
             cyc.recipient_gain
         );
+    }
+
+    #[test]
+    fn breakdown_splits_growth_by_source_and_sums_to_gain() {
+        let mk = |name: &str, growth: f64| ChamberPet {
+            name: name.into(),
+            growth,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0,
+            passive_per_hour: 2.0,
+            food_per_feeding: 5.0,
+            gold_dragon_per_feeding: 1.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+        };
+        let mut pets = vec![mk("Low", 1_000.0), mk("High", 5_000.0)];
+        let result = simulate_growth_chamber(&mut pets, 12, 0.0, 3, false);
+
+        let get = |name: &str| result.breakdown.iter().find(|(n, _)| n == name).unwrap().1.clone();
+        let (low, high) = (get("Low"), get("High"));
+
+        // Uniform sources over 3 cycles, 4 feedings/cycle (12 h): passive 2·12·3=72,
+        // feeding 5·4·3=60, Gold Dragon 1·4·3=12 — for both pets.
+        for b in [&low, &high] {
+            assert!((b.passive - 72.0).abs() < 1e-6, "passive {}", b.passive);
+            assert!((b.feeding - 60.0).abs() < 1e-6, "feeding {}", b.feeding);
+            assert!((b.gold_dragon - 12.0).abs() < 1e-6, "gold dragon {}", b.gold_dragon);
+        }
+        // Only the recipient (Low, lowest growth) gains campaign growth.
+        assert!(low.campaign > 0.0, "recipient gains campaign growth");
+        assert_eq!(high.campaign, 0.0, "a pure contributor gains none");
+
+        // The four sources sum to each pet's actual growth gain.
+        for (name, &start) in [("Low", &1_000.0), ("High", &5_000.0)] {
+            let final_g = result.final_growth.iter().find(|(n, _)| n == name).unwrap().1;
+            let b = get(name);
+            assert!(
+                (b.total() - (final_g - start)).abs() < 1e-6,
+                "{name}: breakdown {} vs gain {}",
+                b.total(),
+                final_g - start
+            );
+        }
     }
 }
