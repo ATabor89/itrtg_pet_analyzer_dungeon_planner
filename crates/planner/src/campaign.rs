@@ -307,17 +307,18 @@ pub fn nightmare_malus(class_level: u32) -> f64 {
 /// a rebirth). If the rebirth is shorter than a cycle, the cycle is clamped to
 /// the rebirth. The chamber repeats this schedule across rebirths.
 ///
+/// `cycle_hours` is clamped to the campaign range 1..=12 and to the rebirth, so
+/// every entry is a valid campaign length and the result is never empty.
+///
 /// Examples: `(12, 20) ⭢ [12, 8]`, `(12, 24) ⭢ [12, 12]`, `(12, 8) ⭢ [8]`,
 /// `(12, 13) ⭢ [12, 1]`.
 pub fn rebirth_schedule(cycle_hours: u32, rebirth_hours: u32) -> Vec<u32> {
-    let full = cycle_hours.clamp(1, rebirth_hours.max(1));
-    let mut sched = vec![full; (rebirth_hours / full) as usize];
-    let rem = rebirth_hours % full;
+    let rebirth = rebirth_hours.max(1);
+    let full = cycle_hours.clamp(1, 12).min(rebirth); // ≤ 12 and ≤ rebirth
+    let mut sched = vec![full; (rebirth / full) as usize];
+    let rem = rebirth % full;
     if rem > 0 {
         sched.push(rem);
-    }
-    if sched.is_empty() {
-        sched.push(full);
     }
     sched
 }
@@ -1232,6 +1233,8 @@ mod tests {
         // Rebirth shorter than a cycle clamps the cycle to the rebirth.
         assert_eq!(rebirth_schedule(12, 8), vec![8]);
         assert_eq!(rebirth_schedule(12, 1), vec![1]);
+        // A cycle over the 12 h campaign cap is clamped to 12.
+        assert_eq!(rebirth_schedule(15, 40), vec![12, 12, 12, 4]);
     }
 
     #[test]
