@@ -102,15 +102,18 @@ feeding. He's best fed **chocolate**, and he has his **own food selector**.
 
 ## Implementation status
 
-- [x] **Feeding growth in the chamber engine** — each pet gains
-  `floor(hours/3) · effectiveFoodGrowth` per round, applied to the whole roster
-  **between rounds** (after the campaign, excluded from `end_growth`). The
-  effective per-food value is a (user-set) input for now.
-- [x] **Gold Dragon broadcast** — `+0.25 · gdFoodGrowth` per feeding to every
-  pet, via its own food selector.
-- [ ] **Auto-derive** the effective values from base × DPC × fishing (needs the
-  composition pinned down + the SpaceDim factor).
-- [ ] **Rebirth-relative decay** (fishing over 30 h, Pandora accumulation) driven
-  by a "typical rebirth length" input, simulating from rebirth start.
+> The chamber's full tracker is now `reference/growth_chamber_status.md`.
+
+- [x] **Feeding growth in the chamber engine** — `floor(hours/3) · food` per
+  round, applied to the whole roster between rounds (excluded from `end_growth`).
+- [x] **Gold Dragon broadcast** — `+0.25 · gdFood` per feeding to every pet.
+- [x] **Auto-derive food** — `base × (1 + DPC) × (1 + fishing·decay)`,
+  **multiplicative** (this resolved the 1.733-vs-1.638 question). DPC =
+  `log2(highest pet multi)` capped 100%, auto-filled from Main stats. SpaceDim
+  appears baked in / negligible (matches in-game exactly) — revisit if it diverges.
+- [x] **Rebirth-relative decay** — fishing decays over the first 30 h; Pandora
+  feedings accumulate and reset each rebirth; driven by a rebirth-length input,
+  simulating from rebirth start.
 - [ ] **Per-pet food** override (vs the global food type).
-- [ ] **PGC** into evo thresholds; **SpaceDim** factor.
+- [ ] **PGC** ×1.5 growth multiplier (chamber total growth + evo thresholds);
+  **SpaceDim** factor.
