@@ -16,7 +16,7 @@ const HEADER: &str = "Idling to Rule the Gods";
 
 /// Values lifted from a Main-stats export. Each is `None` if its line was absent
 /// or unparseable. Only the subset the app can act on today is modelled.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct MainStats {
     /// `Pet Stones` → Beachball's held-stones input.
     pub pet_stones: Option<u64>,
@@ -33,6 +33,13 @@ pub struct MainStats {
     pub goblin_oc: Option<u32>,
     /// `Ultimate Pet Challenges` completed → the chamber's UPC bonus (`5 ·` this).
     pub ultimate_pet_challenges: Option<u32>,
+    /// `Day Pet Challenge highest multi` (a percent, e.g. `3.664 E+9`) → the food
+    /// DPC boost `log2(multi)` (capped 100%).
+    pub day_pet_challenge_multi: Option<f64>,
+    /// `Fish Power` → the fishing food boost `FishPower^0.25 · milestone`.
+    pub fish_power: Option<f64>,
+    /// `Fishing Level` → the fishing milestones (+10% at 15, +10% at 27).
+    pub fishing_level: Option<u32>,
     /// `Chp Stone Pet improvement` → Stone/Golem's +100% campaign upgrade.
     pub stone_campaign_upgrade: Option<bool>,
     /// `Earth Eater Earthlike planets eaten`, kept as the **raw value string**
@@ -76,6 +83,12 @@ pub fn parse_main_stats(source: &str) -> Result<MainStats, String> {
         goblin_ucc: challenge("Ultimate Challenge Challenges").map(|v| v as u32),
         goblin_oc: challenge("Overflow Challenges").map(|v| v as u32),
         ultimate_pet_challenges: challenge("Ultimate Pet Challenges").map(|v| v as u32),
+        day_pet_challenge_multi: map
+            .get("Day Pet Challenge highest multi")
+            .copied()
+            .and_then(crate::parse_flexible_number),
+        fish_power: map.get("Fish Power").copied().and_then(crate::parse_flexible_number),
+        fishing_level: count("Fishing Level").map(|v| v as u32),
         stone_campaign_upgrade: map
             .get("Chp Stone Pet improvement")
             .map(|v| v.eq_ignore_ascii_case("true")),
@@ -110,6 +123,9 @@ mod tests {
         assert_eq!(ms.goblin_ucc, Some(0)); // "0 / 67"
         assert_eq!(ms.goblin_oc, Some(0)); // "0 / 9,999"
         assert_eq!(ms.ultimate_pet_challenges, Some(8)); // "8 / 20" → UPC 40%
+        assert_eq!(ms.day_pet_challenge_multi, Some(3.664e9)); // "3.664 E+9"
+        assert_eq!(ms.fish_power, Some(1.050e6)); // "1.050 E+6"
+        assert_eq!(ms.fishing_level, Some(14));
         assert_eq!(ms.stone_campaign_upgrade, Some(false)); // "False"
         assert_eq!(ms.base_growth_per_hour, Some(2)); // both Moai, L20
         // Earth Eater is kept raw and must round-trip through the flexible parser.

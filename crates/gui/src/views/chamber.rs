@@ -46,9 +46,10 @@ pub struct ChamberState {
     /// Which food is fed to every pet — index into [`FOODS`]. Drives per-feeding
     /// growth (every pet is fed `floor(hours/3)` times per cycle).
     pub food_choice: usize,
-    /// Effective growth-per-feeding for each food type (DPC + fishing baked in;
-    /// see `food_and_feedings.md`). Editable until we auto-derive them.
-    pub food_values: [f64; 5],
+    /// Day Pet Challenge highest pet multiplier (a percent, e.g. `3.664e9`). Drives
+    /// the food DPC boost `log2(multi)` (capped 100%). Auto-filled from the
+    /// Main-stats export; 0 = no DPC boost.
+    pub dpc_highest_multi: f64,
     /// Food fed to **Gold Dragon** (index into [`FOODS`]); `None` = not fed / not
     /// owned. Feeding him gives **every** pet 25% of the growth he gains — a big,
     /// campaign-independent source. Best fed chocolate.
@@ -108,8 +109,11 @@ pub struct PetOverride {
     pub class_level: u32,
 }
 
-/// Food types, lowest→highest growth. Index matches [`ChamberState::food_values`].
+/// Food types, lowest→highest growth.
 pub const FOODS: [&str; 5] = ["Free", "Puny", "Strong", "Mighty", "Chocolate"];
+
+/// Base growth per feeding for each [`FOODS`] type (before DPC/fishing boosts).
+pub const BASE_FOOD: [f64; 5] = [0.75, 1.5, 3.0, 4.5, 6.0];
 
 /// Rebirth-length units `(label, hours)`. Index matches [`ChamberState::rebirth_unit`].
 pub const REBIRTH_UNITS: [(&str, u32); 3] = [("Hours", 1), ("Days", 24), ("Weeks", 168)];
@@ -124,7 +128,7 @@ impl Default for ChamberState {
             pandora_feedings: 0,
             upc_pct: 0.0,
             food_choice: 4, // Chocolate
-            food_values: [1.3, 2.6, 5.19, 7.79, 10.38],
+            dpc_highest_multi: 0.0,
             gold_dragon_food: None,
             run_until_targets: false,
             exported_after_campaign: false,
@@ -152,7 +156,7 @@ impl ChamberState {
         self.pandora_feedings = src.pandora_feedings;
         self.upc_pct = src.upc_pct;
         self.food_choice = src.food_choice.min(FOODS.len() - 1);
-        self.food_values = src.food_values;
+        self.dpc_highest_multi = src.dpc_highest_multi;
         self.gold_dragon_food = src.gold_dragon_food.filter(|&i| i < FOODS.len());
         self.run_until_targets = src.run_until_targets;
         self.exported_after_campaign = src.exported_after_campaign;
@@ -174,7 +178,7 @@ impl ChamberState {
             pandora_feedings: self.pandora_feedings,
             upc_pct: self.upc_pct,
             food_choice: self.food_choice,
-            food_values: self.food_values,
+            dpc_highest_multi: self.dpc_highest_multi,
             gold_dragon_food: self.gold_dragon_food,
             run_until_targets: self.run_until_targets,
             exported_after_campaign: self.exported_after_campaign,
@@ -188,18 +192,48 @@ impl ChamberState {
         };
     }
 
-    /// Auto-fill from a Main-stats export: the UPC bonus is `5 ·` the Ultimate
-    /// Pet Challenges completed (capped at 100%). Returns the filled field label
-    /// for the import status, or `None` if the export didn't carry it.
-    pub fn apply_main_stats(&mut self, ms: &itrtg_models::MainStats) -> Option<&'static str> {
-        let upc = ms.ultimate_pet_challenges?;
-        self.upc_pct = (5.0 * upc as f64).min(100.0);
-        Some("UPC %")
+    /// Auto-fill the chamber's global inputs from a Main-stats export: UPC bonus
+    /// (`5 ·` challenges, capped 100%), the DPC food multiplier, and Fish Power /
+    /// Fishing Level. Returns the filled field labels for the import status.
+    pub fn apply_main_stats(&mut self, ms: &itrtg_models::MainStats) -> Vec<&'static str> {
+        let mut filled = Vec::new();
+        if let Some(upc) = ms.ultimate_pet_challenges {
+            self.upc_pct = (5.0 * upc as f64).min(100.0);
+            filled.push("UPC %");
+        }
+        if let Some(multi) = ms.day_pet_challenge_multi {
+            self.dpc_highest_multi = multi;
+            filled.push("DPC multi");
+        }
+        if let Some(fp) = ms.fish_power {
+            self.fish_power = fp;
+            filled.push("Fish Power");
+        }
+        if let Some(level) = ms.fishing_level {
+            self.fishing_level = level;
+            filled.push("Fishing level");
+        }
+        filled
     }
 
-    /// Effective growth per feeding for the chosen food.
+    /// The DPC food boost %: `log2(highest pet multiplier)`, capped at 100%. 0 when
+    /// there's no multiplier (≤ 1, where the log is ≤ 0).
+    fn dpc_boost_pct(&self) -> f64 {
+        if self.dpc_highest_multi <= 1.0 {
+            return 0.0;
+        }
+        self.dpc_highest_multi.log2().clamp(0.0, 100.0)
+    }
+
+    /// The steady (no-fishing) growth per feeding for a food type: base × the DPC
+    /// boost. Fishing is layered on top by the sim (it decays over the rebirth).
+    fn food_value(&self, idx: usize) -> f64 {
+        BASE_FOOD.get(idx).copied().unwrap_or(0.0) * (1.0 + self.dpc_boost_pct() / 100.0)
+    }
+
+    /// Effective steady growth per feeding for the chosen food.
     fn food_growth(&self) -> f64 {
-        self.food_values.get(self.food_choice).copied().unwrap_or(0.0)
+        self.food_value(self.food_choice)
     }
 
     /// Average rebirth length in **whole** hours (value × unit, truncated — a
@@ -217,9 +251,7 @@ impl ChamberState {
     /// Per-feeding growth every pet gets from a Gold Dragon feeding (25% of his
     /// food's growth). 0 if Gold Dragon isn't being fed.
     fn gold_dragon_broadcast(&self) -> f64 {
-        self.gold_dragon_food
-            .and_then(|i| self.food_values.get(i))
-            .map_or(0.0, |&v| 0.25 * v)
+        self.gold_dragon_food.map_or(0.0, |i| 0.25 * self.food_value(i))
     }
 }
 
@@ -348,11 +380,32 @@ pub fn show(
             }
         }
         ui.separator();
-        ui.label(RichText::new("growth/feeding:").color(style::TEXT_MUTED).size(11.0));
-        let choice = state.food_choice.min(FOODS.len() - 1);
-        ui.add(egui::DragValue::new(&mut state.food_values[choice]).speed(0.1));
+        // Computed from the base food value × the DPC boost (fishing layered on in
+        // the sim). No longer a manual input.
         ui.label(
-            RichText::new(format!("({} feedings/cycle)", state.hours / 3))
+            RichText::new(format!("{:.2} growth/feeding", state.food_growth()))
+                .color(style::TEXT_NORMAL)
+                .size(11.0),
+        );
+        ui.label(
+            RichText::new(format!("× {} feedings/cycle", state.hours / 3))
+                .color(style::TEXT_MUTED)
+                .size(10.0),
+        );
+    });
+
+    // --- DPC (food growth boost: log2(highest pet multiplier), capped 100%) ---
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("DPC highest multi:").color(style::TEXT_MUTED).size(12.0))
+            .on_hover_text("Day Pet Challenge highest pet multiplier (a %). Boosts food growth by log2(multi), capped 100%. Auto-filled from a Main-stats export.");
+        ui.add(
+            egui::DragValue::new(&mut state.dpc_highest_multi)
+                .range(0.0..=1e18)
+                .speed(1e5)
+                .max_decimals(0),
+        );
+        ui.label(
+            RichText::new(format!("⭢ +{:.2}% to food", state.dpc_boost_pct()))
                 .color(style::TEXT_MUTED)
                 .size(10.0),
         );
@@ -1267,23 +1320,44 @@ mod tests {
     }
 
     #[test]
-    fn upc_auto_fills_from_main_stats() {
+    fn main_stats_auto_fill_the_chamber_inputs() {
         use itrtg_models::MainStats;
         let mut state = ChamberState::default();
-        // 8 UPCs → 5 × 8 = 40%.
         let filled = state.apply_main_stats(&MainStats {
-            ultimate_pet_challenges: Some(8),
+            ultimate_pet_challenges: Some(8), // 5 × 8 = 40%
+            day_pet_challenge_multi: Some(3.664e9),
+            fish_power: Some(1.05e6),
+            fishing_level: Some(14),
             ..Default::default()
         });
-        assert_eq!(filled, Some("UPC %"));
+        assert_eq!(filled, vec!["UPC %", "DPC multi", "Fish Power", "Fishing level"]);
         assert_eq!(state.upc_pct, 40.0);
-        // Capped at 100% (20 UPCs would be exactly 100).
+        assert_eq!(state.dpc_highest_multi, 3.664e9);
+        assert_eq!(state.fish_power, 1.05e6);
+        assert_eq!(state.fishing_level, 14);
+
+        // UPC caps at 100%.
         state.apply_main_stats(&MainStats { ultimate_pet_challenges: Some(30), ..Default::default() });
         assert_eq!(state.upc_pct, 100.0);
-        // No UPC line ⭢ untouched, nothing reported.
+        // An empty export fills nothing and leaves values untouched.
         state.upc_pct = 12.0;
-        assert_eq!(state.apply_main_stats(&MainStats::default()), None);
+        assert!(state.apply_main_stats(&MainStats::default()).is_empty());
         assert_eq!(state.upc_pct, 12.0);
+    }
+
+    #[test]
+    fn dpc_boost_matches_the_in_game_food_values() {
+        // in-game shows "Pet food growth boost: 32%" for this multi.
+        let mut state = ChamberState { dpc_highest_multi: 3.664e9, ..Default::default() };
+        // Accurate log2 ≈ 31.77% (the display rounds to 32).
+        assert!((state.dpc_boost_pct() - 31.77).abs() < 0.05, "{}", state.dpc_boost_pct());
+        // Chocolate (base 6) → 6 × 1.3177 ≈ 7.906, matching the in-game 7.91.
+        state.food_choice = 4;
+        assert!((state.food_growth() - 7.906).abs() < 0.01, "{}", state.food_growth());
+        // No DPC multi → base food, no boost.
+        state.dpc_highest_multi = 0.0;
+        assert_eq!(state.dpc_boost_pct(), 0.0);
+        assert_eq!(state.food_growth(), 6.0);
     }
 
     #[test]
