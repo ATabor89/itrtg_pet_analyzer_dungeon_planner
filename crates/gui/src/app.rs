@@ -113,7 +113,9 @@ impl eframe::App for App {
         // data store can't reach it). Done here so it covers both the synchronous
         // (native) and async (WASM) clipboard paths uniformly.
         if let Some(ms) = self.data.pending_main_stats.take() {
-            let applied = self.analyzer_state.apply_main_stats(&ms);
+            let mut applied = self.analyzer_state.apply_main_stats(&ms);
+            // The chamber's UPC bonus lives on its own state, so fill it here too.
+            applied.extend(self.chamber_state.apply_main_stats(&ms));
             self.data.import_status = Some(if applied.is_empty() {
                 ("Main stats imported, but no fields to fill".to_string(), false)
             } else {
