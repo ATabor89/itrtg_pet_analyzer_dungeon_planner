@@ -677,6 +677,9 @@ fn show_pet_cards(
     // measurements are still settling so it converges immediately.
     let prev_heights = state.row_heights.clone();
     let mut new_heights: Vec<f32> = Vec::with_capacity(prev_heights.len());
+    // Chamber entries removed via a stale-entry stub this frame (applied after
+    // the loop — `names` is a snapshot of `state.chamber`).
+    let mut removed: Vec<String> = Vec::new();
 
     for (row_idx, chunk) in names.chunks(cols).enumerate() {
         // Center the row: pad the left by half the unused width so the row's
@@ -692,7 +695,19 @@ fn show_pet_cards(
                 ui.add_space(pad);
             }
             for name in chunk {
-                let Some(pet) = data.merged.iter().find(|p| &p.name == name) else { continue };
+                // An entry can go stale after a re-import (renamed/missing pet,
+                // locked, no export). Show a removable stub instead of skipping
+                // silently — a skipped ghost still counts toward the 10-slot
+                // cap, the picker can't list it, and a locked pet would render
+                // as a participant while `build_roster` drops it from the sim.
+                let pet = data.merged.iter().find(|p| &p.name == name);
+                if let Some(reason) = chamber_entry_issue(pet) {
+                    if show_ghost_card(ui, name, reason) {
+                        removed.push(name.clone());
+                    }
+                    continue;
+                }
+                let Some(pet) = pet else { continue };
                 let Some(cp) = chamber_pet(pet, ctx, rates, state) else { continue };
                 // The card shows (and edits) the *effective* export: the live
                 // export with any per-pet override applied.
@@ -703,6 +718,18 @@ fn show_pet_cards(
             }
         });
         new_heights.push(row_max);
+    }
+
+    if !removed.is_empty() {
+        state.chamber.retain(|n| !removed.contains(n));
+        // A roster-missing pet's target/override are equally unreachable from
+        // the UI — drop them with it so they don't linger in the app state.
+        for n in &removed {
+            if !data.merged.iter().any(|p| &p.name == n) {
+                state.targets.remove(n);
+                state.overrides.remove(n);
+            }
+        }
     }
 
     // Repaint until the per-row heights stop changing (within ~half a pixel), so a
@@ -721,6 +748,40 @@ fn show_pet_cards(
 
 /// Inner content width of a chamber pet card (excludes the frame's margin/stroke).
 const CARD_WIDTH: f32 = 232.0;
+
+/// Why a chamber entry can't participate in a run, if it can't (`None` = fine).
+/// `pet` is the roster lookup for the entry's name — `None` when no merged pet
+/// has that name anymore (re-import from another account, wiki rename).
+fn chamber_entry_issue(pet: Option<&MergedPet>) -> Option<&'static str> {
+    match pet {
+        None => Some("not in the imported roster"),
+        // Before the lock check: is_unlocked() is also false with no export.
+        Some(p) if p.export.is_none() => Some("no export data"),
+        Some(p) if !p.is_unlocked() => Some("locked — excluded from the sim"),
+        Some(_) => None,
+    }
+}
+
+/// Stub card for a stale chamber entry ([`chamber_entry_issue`]): shows the
+/// name, the reason it can't run, and a remove button to free the slot.
+/// Returns true when remove is clicked.
+fn show_ghost_card(ui: &mut egui::Ui, name: &str, reason: &str) -> bool {
+    let mut remove = false;
+    egui::Frame::new()
+        .fill(style::BG_SURFACE)
+        .stroke(egui::Stroke::new(1.0, style::WARNING))
+        .corner_radius(egui::CornerRadius::same(6))
+        .inner_margin(8.0)
+        .show(ui, |ui| {
+            ui.set_width(CARD_WIDTH);
+            ui.vertical(|ui| {
+                ui.label(RichText::new(name).color(style::TEXT_BRIGHT).size(13.0).strong());
+                ui.label(RichText::new(reason).color(style::WARNING).size(11.0));
+                remove = ui.button(RichText::new("Remove from chamber").size(11.0)).clicked();
+            });
+        });
+    remove
+}
 
 /// One chamber pet card (~240px). Reuses `ChamberPet` (`cp`) for the numbers.
 ///
@@ -1438,6 +1499,26 @@ mod tests {
             .apply_main_stats(&MainStats { patreon_god_challenges: Some((24, 25)), ..Default::default() });
         assert_eq!(filled, vec!["PGC"]);
         assert_eq!((state.pgc_done, state.pgc_max), (24, 25));
+    }
+
+    #[test]
+    fn chamber_entry_issue_classifies_stale_entries() {
+        // Missing from the roster entirely (re-import / wiki rename): the old
+        // code skipped these silently — they held a chamber slot forever.
+        assert_eq!(chamber_entry_issue(None), Some("not in the imported roster"));
+        // Locked after a re-import: a card used to render while build_roster
+        // silently dropped the pet from the sim.
+        let mut locked = export_with(1000, 5);
+        locked.unlocked = false;
+        assert_eq!(
+            chamber_entry_issue(Some(&merged("Foo", locked))),
+            Some("locked — excluded from the sim")
+        );
+        // Wiki-only pet (no export at all).
+        let wiki_only = MergedPet { name: "Bar".into(), wiki: None, export: None };
+        assert_eq!(chamber_entry_issue(Some(&wiki_only)), Some("no export data"));
+        // A normal unlocked pet is fine.
+        assert_eq!(chamber_entry_issue(Some(&merged("Baz", export_with(1000, 5)))), None);
     }
 
     #[test]
