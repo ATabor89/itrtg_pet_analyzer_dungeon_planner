@@ -111,8 +111,8 @@ multiplier, open staircase questions), see `normal_stats_investigation.md`.
 |-----|---------|----------|
 | `a` | element: 0=Neutral, 1=Fire, 2=Water, 3=Earth, 4=Wind | matches export Element for all checked |
 | `b` | dungeon level | Salamander 101 ✓, Sylph 117 ✓ |
-| `c` | dungeon exp | |
-| `d` | class struct: `a`=class id, `b`=class level, `c`=class exp | Salamander Supporter 24 ✓, Sylph Mage 24 ✓ |
+| `c` | dungeon exp — **current toward the next DL**, resets on level-up | matches the in-game "current / needed" display exactly (Salamander 147,749, Succubus 130,099); requirement = 10·DL^2.25 (DL≥10), verified to the digit |
+| `d` | class struct: `a`=class id, `b`=class level, `c`=class exp (current toward next CL, same semantics) | Salamander was CL 24 at 1,144,938/1,153,000 in save 1, CL 25 with a reset counter in save 2; requirement = 1000+2000·CL² verified exactly |
 | `e`,`f`,`g` | weapon / armor / accessory **equip instance id** (0 = none) | 704/766/787 = Pet Equips export `Salamander=704,766,787` ✓ |
 
 ### Class ids (from pairing all 158 pets with the export, zero conflicts)
