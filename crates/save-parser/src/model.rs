@@ -90,14 +90,19 @@ pub struct SavePet {
     pub element: Option<Element>,
     /// Dungeon level (`w.b`).
     pub dungeon_level: u32,
-    /// Dungeon exp (`w.c`). Stored as float — exp accumulators elsewhere in
-    /// the save are fractional, so don't assume this stays integral.
+    /// Dungeon exp (`w.c`): **current exp toward the next dungeon level**,
+    /// resetting on level-up — matches the in-game "current / needed"
+    /// display exactly. The requirement side is
+    /// [`crate::formulas::dungeon_exp_to_next`].
     pub dungeon_exp: f64,
     /// Class (`w.d.a`), `None` for classless pets (id 0).
     pub class: Option<Class>,
     /// Class level (`w.d.b`).
     pub class_level: u32,
-    /// Class exp (`w.d.c`), float for the same reason as `dungeon_exp`.
+    /// Class exp (`w.d.c`): current exp toward the next class level, same
+    /// semantics as `dungeon_exp` (verified across saves: Salamander hit
+    /// CL 25 between the two reference saves and the counter reset).
+    /// Requirement: [`crate::formulas::class_exp_to_next`].
     pub class_exp: f64,
     /// Equipment instance ids (`w.e`/`w.f`/`w.g`), `None` when empty (0).
     pub weapon_id: Option<u32>,
