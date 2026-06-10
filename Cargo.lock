@@ -3390,6 +3390,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "save-parser"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "flate2",
+ "itrtg-models",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
