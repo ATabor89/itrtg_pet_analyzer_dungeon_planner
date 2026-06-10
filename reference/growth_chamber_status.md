@@ -72,6 +72,12 @@ The chamber lives in two files plus supporting data:
   inflates Pandora and the deposit (this was a false-alarm "bug" during
   validation). `effective_export` applies overrides on a clone; `chamber_pet`
   recomputes the bonus from it.
+  **Export rounding (validated in-game 2026-06, Pandora's Box):** growth is
+  fractional internally (base 44334.321…, total 57634.617… = base × 1.3
+  exactly) and the export shows the **rounded** total (57,635) — normal
+  rounding, not floor. So the importer's `round(export / 1.3)` is the right
+  inverse, recovering base to within ±1; exact recovery would need the save
+  file, and ±1 is noise at campaign magnitudes. Don't revisit.
 - **Moai boundary artifact.** An export captured at a campaign's *end* already
   contains that campaign's ~12 h of Moai. The sim, starting from that value, would
   re-add a full cycle of passive (~+24/pet). The `exported_after_campaign` toggle
