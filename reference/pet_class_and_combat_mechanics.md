@@ -50,6 +50,41 @@ Attack/Def/Speed   = ((1 + 2.4*DL) * (1 + TotalGrowth/200000) * EquipMod * DojoM
 - Weakness wheel (weak to the element above it): fire→water, wind→fire,
   earth→wind, water→earth.
 
+## Equipment stat scaling (wiki)
+
+The stats in `data/equipment_catalog.yaml` (`stats_a0`) are for **Quality A,
++0**. Actual bonuses scale by two additive-step multipliers, multiplied
+together:
+
+- **Quality**: ±10% per quality step around A. C ⇒ ×0.8, B ⇒ ×0.9, A ⇒ ×1.0,
+  S ⇒ ×1.1, SS ⇒ ×1.2, SSS ⇒ ×1.3.
+  Save quality ids line up as A=5 with ±1 per step (verified 8=SSS, 6=S,
+  4=B against exports), so `mult = 1 + (id − 5) × 0.1`.
+- **Upgrade**: +5% per "+" level: `mult = 1 + 0.05 × plus` (+8 ⇒ 1.4,
+  +20 ⇒ 2.0).
+- Overall: quality × upgrade (SSS +20 ⇒ 1.3 × 2.0 = 2.6).
+- Applies to weapons, armor, and accessories alike.
+
+Units: the HP/Attack/Defense/Speed values are **percentages** (Inferno
+Gloves A+0: −10% HP, +30% Atk, −10% Def, +10% Spd), while element values
+are **flat** adds (+75 fire, −50 water). Open question: whether the
+quality/upgrade multipliers also scale the flat element values.
+
+**Unique equipment** (event/special pieces, the 300-series type ids in the
+save) cannot be obtained at A+0; the wiki lists their A+0-equivalent stats
+with actual-on-obtainment values in parentheses.
+
+### Gems
+
+Socketed gem bonuses scale with the *equipment's tier*; `N` = gem level
+(a level 10 gem ⇒ 10% × tier):
+
+- Neutral gem: +N% × tier to **all elements**
+- Fire gem: +N% × tier Attack
+- Water gem: +N% × tier Health
+- Earth gem: +N% × tier Defense
+- Wind gem: +N% × tier Speed
+
 ## Combat (wiki)
 
 - Speed: at 0 you act once/round; up to 500 ⇒ (speed/5)% chance of a 2nd
