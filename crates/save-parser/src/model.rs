@@ -26,6 +26,14 @@ pub struct SaveFile {
     pub player_name: Option<String>,
     /// Pet stones (root `X.y`).
     pub pet_stones: Option<u64>,
+    /// Pet food counts (root `X.c`/`X.d`/`X.e`) and chocolate (root `X.v`).
+    /// These are dedicated fields, not material-inventory entries.
+    pub puny_food: u64,
+    pub strong_food: u64,
+    pub mighty_food: u64,
+    pub chocolate: u64,
+    /// Gem inventory (root `X.002`).
+    pub gems: Vec<GemStack>,
     /// All pets (root `X.b`), in save order.
     pub pets: Vec<SavePet>,
     /// Owned pet equipment instances (root `X.R`).
@@ -56,6 +64,13 @@ pub struct SavePet {
     pub unlocked: bool,
     /// Growth (`E`). Fractional; in-game exports show it rounded.
     pub growth: f64,
+    /// Normal level (`g`) — resets at rebirth; drives normal stats.
+    pub normal_level: u32,
+    /// Current Physical stat (`j` ÷ 10 — the save stores it ×10). Mystic and
+    /// Battle are not stored; in-game they differ from Physical only by the
+    /// Strategy Room multiplier ratio. See
+    /// `reference/save_file_deserialization/normal_stats_investigation.md`.
+    pub physical_stat: f64,
     /// Dungeon team slot 1–6 (`v`), `None` when not on a team.
     pub team_slot: Option<u8>,
     /// Element (`w.a`).
@@ -81,7 +96,9 @@ pub struct SavePet {
     /// Partner-related counter (`G`) — bond level? Only nonzero with partner.
     pub partner_bond: u64,
     /// The pet's raw node, for the still-unidentified fields
-    /// (`d,e,f,g,h,j,n,o,p,q,r,s,t,u,x,y,z,A–D,H`).
+    /// (`d,e,f,h,n,o,p,q,r,s,t,u,x,y,z,A–D,H`). Known but derived: `p`/`q`/`r`
+    /// are exactly 556×/550×/10× the accumulator `o` (meaning TBD), and `h`
+    /// is level/exp-state related.
     pub raw: Node,
 }
 
@@ -116,6 +133,16 @@ impl MaterialStack {
     pub fn name(&self) -> Option<&'static str> {
         crate::items::material_name(self.item_id)
     }
+}
+
+/// One gem stack (`X.002[i]`): element id + gem level + count.
+/// Uses the same element ids as pets (0=Neutral, 1=Fire, 2=Water, 3=Earth,
+/// 4=Wind).
+#[derive(Debug, Clone, Copy)]
+pub struct GemStack {
+    pub element: Option<Element>,
+    pub level: u32,
+    pub count: u64,
 }
 
 /// One persistent dungeon team (`X.S[i]`).
@@ -225,11 +252,30 @@ impl SaveFile {
             })
             .unwrap_or_default();
 
+        let gems = x
+            .get("002")
+            .map(|g| {
+                g.list_or_single()
+                    .iter()
+                    .map(|n| GemStack {
+                        element: element_from_id(get_u32(n, "a")),
+                        level: get_u32(n, "b"),
+                        count: get_u64(n, "c"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         Ok(SaveFile {
             saved_at_unix: root.get("c").and_then(Node::as_i64),
             god_name: root.get("s").and_then(Node::as_str).map(str::to_string),
             player_name: root.get("W").and_then(Node::as_str).map(str::to_string),
             pet_stones: x.get("y").and_then(Node::as_u64),
+            puny_food: get_u64(x, "c"),
+            strong_food: get_u64(x, "d"),
+            mighty_food: get_u64(x, "e"),
+            chocolate: get_u64(x, "v"),
+            gems,
             pets,
             equipment,
             materials,
@@ -268,6 +314,8 @@ impl SavePet {
             type_id: get_u32(node, "k"),
             unlocked: node.get("l").and_then(Node::as_bool).unwrap_or(false),
             growth: node.get("E").and_then(Node::as_f64).unwrap_or(0.0),
+            normal_level: get_u32(node, "g"),
+            physical_stat: get_f64(node, "j") / 10.0,
             team_slot: match get_u32(node, "v") {
                 0 => None,
                 slot => u8::try_from(slot).ok(),
@@ -289,6 +337,11 @@ impl SavePet {
 }
 
 impl EquipmentItem {
+    /// Display name of the item type, if identified.
+    pub fn type_name(&self) -> Option<&'static str> {
+        crate::items::equipment_type_name(self.type_id)
+    }
+
     fn from_node(node: &Node) -> Self {
         let gem_level = get_u32(node, "f");
         EquipmentItem {
