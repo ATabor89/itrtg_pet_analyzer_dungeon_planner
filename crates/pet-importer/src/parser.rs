@@ -5,7 +5,9 @@ use itrtg_models::*;
 /// Parse a full pet stats export file into a list of ExportPet structs.
 pub fn parse_export(source: &str) -> anyhow::Result<Vec<ExportPet>> {
     let mut pets = Vec::new();
-    let mut lines = source.lines();
+    // Tolerate leading whitespace/blank lines before the header (the GUI's
+    // paste dispatch trims the same way, so the two stay in agreement).
+    let mut lines = source.trim_start().lines();
 
     // Skip the header line
     let header = lines.next().ok_or_else(|| anyhow::anyhow!("Empty export file"))?;
@@ -21,13 +23,16 @@ pub fn parse_export(source: &str) -> anyhow::Result<Vec<ExportPet>> {
 
         let fields: Vec<&str> = line.split(';').collect();
         if fields.len() < 24 {
-            eprintln!("Warning: skipping line with {} fields (expected 24): {}", fields.len(), &line[..line.len().min(60)]);
+            // Truncate by characters, not bytes — a byte slice can panic
+            // mid-codepoint on non-ASCII input.
+            let preview: String = line.chars().take(60).collect();
+            eprintln!("Warning: skipping line with {} fields (expected 24): {}", fields.len(), preview);
             continue;
         }
 
         let export_name = fields[0].to_string();
         let element = parse_element(fields[1]);
-        let growth = parse_number(fields[2]);
+        let growth = parse_growth(fields[2]);
         let dungeon_level = parse_number(fields[3]) as u32;
         let class = parse_class(fields[4]);
         let class_level = parse_number(fields[5]) as u32;
@@ -128,6 +133,25 @@ fn parse_class(s: &str) -> Option<Class> {
 fn parse_number(s: &str) -> u64 {
     let cleaned: String = s.trim().replace(',', "");
     cleaned.parse().unwrap_or(0)
+}
+
+/// Parse the growth column. Plain comma-grouped integers today, but the game's
+/// number formatter switches to `3.290 E+6` notation at ≥1e6 elsewhere (the
+/// Main-stats export) — accept that too rather than silently importing 0, and
+/// warn when the value is unreadable either way (a zero-growth pet would
+/// quietly wreck recommendations).
+fn parse_growth(s: &str) -> u64 {
+    let cleaned: String = s.trim().replace(',', "");
+    if let Ok(v) = cleaned.parse::<u64>() {
+        return v;
+    }
+    match parse_flexible_number(s) {
+        Some(v) if v >= 0.0 => v.round() as u64,
+        _ => {
+            eprintln!("Warning: unparseable growth value '{}', importing as 0", s.trim());
+            0
+        }
+    }
 }
 
 /// Parse a signed number that may contain commas.
@@ -277,6 +301,44 @@ fn parse_action(s: &str) -> PetAction {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A minimal valid 24-field export line with the given growth column.
+    fn line_with_growth(growth: &str) -> String {
+        format!("Foo;Fire;{growth};1;None;0;1;1;1;1;0;0;0;0;0;0;none;none;none;Idle;Yes;No;;No")
+    }
+
+    #[test]
+    fn malformed_line_with_multibyte_utf8_is_skipped_not_panicked() {
+        // 59 ASCII chars then 'é' (2 bytes, straddling byte 60) — the old
+        // byte-truncated warning (&line[..60]) panicked here; it must warn
+        // and skip instead.
+        let bad = format!("{}éxyz", "a".repeat(59));
+        let pets = parse_export(&format!("Name;Element;Growth\n{bad}\n")).unwrap();
+        assert!(pets.is_empty());
+    }
+
+    #[test]
+    fn growth_accepts_scientific_notation() {
+        // The game's formatter switches to "X.XXX E+6" at ≥1e6 — must not
+        // silently import as 0.
+        let pets =
+            parse_export(&format!("Name;Element;Growth\n{}\n", line_with_growth("3.290 E+6")))
+                .unwrap();
+        assert_eq!(pets[0].growth, 3_290_000);
+        // The plain comma-grouped form still parses exactly.
+        let pets =
+            parse_export(&format!("Name;Element;Growth\n{}\n", line_with_growth("223,132")))
+                .unwrap();
+        assert_eq!(pets[0].growth, 223_132);
+    }
+
+    #[test]
+    fn leading_blank_lines_before_the_header_are_tolerated() {
+        let pets =
+            parse_export(&format!("\n\n  \nName;Element;Growth\n{}\n", line_with_growth("5")))
+                .unwrap();
+        assert_eq!(pets.len(), 1);
+    }
 
     #[test]
     fn test_parse_equipment_full() {
