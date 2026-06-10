@@ -484,6 +484,18 @@ fn god_power_block_matches_exports() {
     assert_eq!(save2.rebirths, Some(137));
     assert_eq!(save1.light_clones, Some(68581));
     assert_eq!(save2.light_clones, Some(68681));
+
+    // Statistics multi: displayed 1.125e15× = 2^50, which cross-validates
+    // the 50 paid doublings (2,500 GP ÷ 50/double) stored at p.017/p.019.
+    // (The save's text serialization keeps 15 significant digits, so the
+    // parsed value is 2^50 to within that precision, not bit-exact.)
+    let multi = save2.statistics_multi.unwrap();
+    assert!((multi - (2f64).powi(50)).abs() / (2f64).powi(50) < 1e-14);
+    assert_eq!(save2.root.get_path(&["p", "017"]).unwrap().as_u64(), Some(50));
+
+    // Creation count from god power (export "Creation Count: 166" = 1 base
+    // + 165 from GP).
+    assert_eq!(save2.creation_count_gp, Some(165));
 }
 
 #[test]

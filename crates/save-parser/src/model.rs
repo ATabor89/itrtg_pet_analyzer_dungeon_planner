@@ -56,8 +56,18 @@ pub struct SaveFile {
     pub crystal_power: Option<u64>,
     /// Rebirth count (root `x.k`).
     pub rebirths: Option<u64>,
-    /// Light clones (root `O.030`).
+    /// Light clones (root `O.030`). (Bought with Baal Power, not GP — but
+    /// the count is mirrored near the god-power data.)
     pub light_clones: Option<u64>,
+    /// Statistics multi (root `p.C`) — the rebirth-multiplier input tracked
+    /// on the statistics page. 2^50 on the reference account (to the save's
+    /// 15-significant-digit text precision), cross-validating the 50 paid
+    /// doublings (2,500 GP ÷ 50 per double) recorded at `p.017`/`p.019`.
+    pub statistics_multi: Option<f64>,
+    /// Creation count from god power (root `p.q`). The export's "Creation
+    /// Count" adds the base 1 (and equipped-crystal bonuses are separate).
+    /// Milestones key off this from-god-power value.
+    pub creation_count_gp: Option<u64>,
     /// Anni Cake's current stat bonus in percent (root `033`), stored
     /// directly as a fractional float (948.969… displays as 949%). Grows by
     /// 10% (+0.1%×CL when evolved) per hour in food campaigns, fractional
@@ -495,6 +505,8 @@ impl SaveFile {
             crystal_power: root.get_path(&["p", "002"]).and_then(Node::as_u64),
             rebirths: root.get_path(&["x", "k"]).and_then(Node::as_u64),
             light_clones: root.get_path(&["O", "030"]).and_then(Node::as_u64),
+            statistics_multi: root.get_path(&["p", "C"]).and_then(Node::as_f64),
+            creation_count_gp: root.get_path(&["p", "q"]).and_then(Node::as_u64),
             anni_cake_bonus_percent: root.get("033").and_then(Node::as_f64),
             researches,
             pets,
