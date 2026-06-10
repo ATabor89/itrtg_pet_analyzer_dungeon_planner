@@ -45,6 +45,13 @@ pub struct SaveFile {
     pub dungeon_teams: Vec<DungeonTeam>,
     /// Campaign slots (root `X.x`).
     pub campaigns: Vec<CampaignSlot>,
+    /// Anni Cake's current stat bonus in percent (root `033`), stored
+    /// directly as a fractional float (948.969… displays as 949%). Grows by
+    /// 10% (+0.1%×CL when evolved) per hour in food campaigns, fractional
+    /// from early-cancelled campaigns; resets on rebirth, capped at 3653%.
+    pub anni_cake_bonus_percent: Option<f64>,
+    /// Adventure-mode researches (root `032.H.a`), in id order.
+    pub researches: Vec<Research>,
     /// The full raw tree, for exploring not-yet-identified fields.
     pub root: Node,
 }
@@ -187,6 +194,95 @@ pub struct DungeonTeam {
     pub loot: Vec<(u32, u64)>,
 }
 
+/// One adventure-mode research (root `032.H.a[i]`).
+///
+/// Verified 43/43 against the Main Stats export's "Researches" section
+/// (same order as the export, 1-based: id 1 = God HP … id 43 = Core
+/// Removal Cost). Exactly two entries had `in_progress` set, matching
+/// "Research Slots Level: 2".
+#[derive(Debug, Clone, Copy)]
+pub struct Research {
+    /// Research id (`a`). See [`research_name`] / [`researches`].
+    pub id: u32,
+    /// Current level (`b`).
+    pub level: u32,
+    /// Maximum level (`f`).
+    pub max_level: u32,
+    /// Currently being researched (`c` = 1).
+    pub in_progress: bool,
+    /// Accumulated research progress toward the next level (`d`).
+    pub progress: f64,
+}
+
+/// Research id constants (the ones the planner is likely to care about).
+pub mod researches {
+    /// "Multiplies the stats your pets gain from growth (not dungeon
+    /// stats)" — +1% per level. This is the ×1.05 factor in the
+    /// normal-stats global multiplier at level 5.
+    pub const PET_STATS: u32 = 28;
+    pub const CRAFTING_EXP: u32 = 16;
+    pub const CRAFTING_SPEED: u32 = 17;
+    pub const SMITHING_EXP: u32 = 18;
+    pub const SMITHING_SPEED: u32 = 19;
+    pub const ALCHEMY_EXP: u32 = 20;
+    pub const ALCHEMY_SPEED: u32 = 21;
+}
+
+/// Display name for a research id, in Main Stats export order.
+pub fn research_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 43] = [
+        "God HP",
+        "God Attack",
+        "God Mystic",
+        "Building Speed",
+        "Creating Speed",
+        "Core Drop Rate",
+        "Core Quality",
+        "Drop Rate",
+        "Exp Gain",
+        "Equip Attack",
+        "Equip Def",
+        "Equip Int",
+        "Equip Res",
+        "Equip Hit",
+        "Equip Speed",
+        "Crafting Exp",
+        "Crafting Speed",
+        "Smithing Exp",
+        "Smithing Speed",
+        "Alchemy Exp",
+        "Alchemy Speed",
+        "Equip Quality Min",
+        "Equip Quality Multi",
+        "Active Skill Slot",
+        "Passive Skill Slot",
+        "Research Speed",
+        "Research Slots",
+        "Pet Stats",
+        "Equip Hp",
+        "Might Speed",
+        "Spacedim Speed",
+        "Multiverse Speed",
+        "Max Class Lv",
+        "Side Crafting Speed",
+        "Min Pow",
+        "Enemy Min Lv",
+        "Reduce Class Lv Req",
+        "Crit Chance",
+        "Crit Dam",
+        "No Overkill Crit",
+        "Max Skill Lv",
+        "Skill Experience",
+        "Core Removal Cost",
+    ];
+    // id 0 is an unused placeholder entry in the save.
+    if id >= 1 && (id as usize) <= NAMES.len() {
+        Some(NAMES[id as usize - 1])
+    } else {
+        None
+    }
+}
+
 /// One campaign slot (`X.x[i]`).
 #[derive(Debug, Clone)]
 pub struct CampaignSlot {
@@ -233,14 +329,12 @@ pub mod trackers {
     pub const SEROW_ITEMS_SAVED: &str = "324";
     /// Bag: total bonus growth granted.
     pub const BAG_BONUS_GROWTH: &str = "336";
-    /// Anni Cake: accumulated food-campaign time this rebirth (a fractional
-    /// counter; early-cancelled campaigns leave non-integer residue). The
-    /// displayed stat bonus is derived from it:
-    /// `bonus% = floor(value / 3600)` — matches both reference saves
-    /// (3,419,933.57 → 949% displayed; 3,281,807.02 → 911%). The stat
-    /// multiplier applies the floored percentage. Resets on rebirth,
-    /// display-capped at 3653%.
-    pub const ANNI_CAKE_FOOD_TIME: &str = "138";
+    // NOTE: x.138 was briefly misidentified as Anni Cake's bonus because
+    // floor(x.138/3600) happened to equal the displayed 949% in save 2 — a
+    // genuine coincidence (save 1 disagrees: 911 vs the actual 709). The
+    // real bonus is stored directly at root `033` (see
+    // [`crate::SaveFile::anni_cake_bonus_percent`]). x.138 remains an
+    // unidentified food/campaign-time-shaped counter.
 
     // -- global counters (cross-checked against the Main Stats exports) --
     /// AFK clones killed (lifetime).
@@ -356,6 +450,22 @@ impl SaveFile {
             })
             .unwrap_or_default();
 
+        let researches = root
+            .get_path(&["032", "H", "a"])
+            .map(|r| {
+                r.list_or_single()
+                    .iter()
+                    .map(|n| Research {
+                        id: get_u32(n, "a"),
+                        level: get_u32(n, "b"),
+                        max_level: get_u32(n, "f"),
+                        in_progress: get_u32(n, "c") == 1,
+                        progress: get_f64(n, "d"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         Ok(SaveFile {
             saved_at_unix: root.get("c").and_then(Node::as_i64),
             god_name: root.get("s").and_then(Node::as_str).map(str::to_string),
@@ -366,6 +476,8 @@ impl SaveFile {
             mighty_food: get_u64(x, "e"),
             chocolate: get_u64(x, "v"),
             gems,
+            anni_cake_bonus_percent: root.get("033").and_then(Node::as_f64),
+            researches,
             pets,
             equipment,
             materials,
@@ -380,6 +492,15 @@ impl SaveFile {
     /// special trackers. See [`trackers`] for the identified keys.
     pub fn global_tracker(&self, key: &str) -> Option<f64> {
         self.root.get_path(&["x", key]).and_then(Node::as_f64)
+    }
+
+    /// Level of a research by id (0 if absent). See [`researches`] for ids.
+    pub fn research_level(&self, id: u32) -> u32 {
+        self.researches
+            .iter()
+            .find(|r| r.id == id)
+            .map(|r| r.level)
+            .unwrap_or(0)
     }
 
     pub fn pet_by_type_id(&self, type_id: u32) -> Option<&SavePet> {
