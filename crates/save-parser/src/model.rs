@@ -111,6 +111,13 @@ pub struct MaterialStack {
     pub count: u64,
 }
 
+impl MaterialStack {
+    /// Display name from the known id table, if this id has been identified.
+    pub fn name(&self) -> Option<&'static str> {
+        crate::items::material_name(self.item_id)
+    }
+}
+
 /// One persistent dungeon team (`X.S[i]`).
 #[derive(Debug, Clone)]
 pub struct DungeonTeam {

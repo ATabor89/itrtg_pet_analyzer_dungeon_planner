@@ -77,6 +77,21 @@ fn main() -> ExitCode {
             members.join(", ")
         );
     }
+    let unknown_mats: Vec<&save_parser::model::MaterialStack> = save
+        .materials
+        .iter()
+        .filter(|m| m.name().is_none())
+        .collect();
+    println!("\nMaterials ({} unidentified ids):", unknown_mats.len());
+    let mut mats: Vec<&save_parser::model::MaterialStack> = save.materials.iter().collect();
+    mats.sort_by_key(|m| m.item_id);
+    for mat in mats {
+        match mat.name() {
+            Some(name) => println!("  {:>4}  {:<24} x{}", mat.item_id, name, mat.count),
+            None => println!("  {:>4}  ???                      x{}", mat.item_id, mat.count),
+        }
+    }
+
     println!("\nTop pets by growth:");
     let mut by_growth: Vec<&save_parser::model::SavePet> = save.pets.iter().collect();
     by_growth.sort_by(|a, b| b.growth.total_cmp(&a.growth));
