@@ -466,6 +466,27 @@ fn global_trackers_match_exports_and_tooltips() {
 }
 
 #[test]
+fn god_power_block_matches_exports() {
+    let (Some(save1), Some(save2)) = (load_reference_save(), load_second_save()) else {
+        eprintln!("reference saves not present; skipping");
+        return;
+    };
+    // Main Stats exports: GP 1,297 → 1,662 (+365 earned between saves),
+    // spent 60,852 in both, might 100,983, crystal power 4,183,
+    // rebirths 137, light clones 68,581 → 68,681.
+    assert_eq!(save1.gp_available, Some(1297));
+    assert_eq!(save2.gp_available, Some(1662));
+    assert_eq!(save1.gp_spent, Some(60852));
+    assert_eq!(save2.gp_spent, Some(60852));
+    assert_eq!(save2.total_might, Some(100983));
+    assert_eq!(save2.crystal_power, Some(4183));
+    assert_eq!(save1.rebirths, Some(137));
+    assert_eq!(save2.rebirths, Some(137));
+    assert_eq!(save1.light_clones, Some(68581));
+    assert_eq!(save2.light_clones, Some(68681));
+}
+
+#[test]
 fn anni_cake_bonus_is_stored_directly() {
     let (Some(save1), Some(save2)) = (load_reference_save(), load_second_save()) else {
         eprintln!("reference saves not present; skipping");

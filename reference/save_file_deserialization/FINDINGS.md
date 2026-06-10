@@ -47,7 +47,7 @@ So: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`.
 | `h` | creations (28) | |
 | `i` | monuments-ish (29) | |
 | `j`,`k` | more building/might blocks (28/34) | |
-| `p` | god-power block | `j`=available GP 1297 ✓, `v`=GP spent 60,852 ✓, `F`=total might 100,983 ✓; `Z.002`=crystal power 4,183 ✓ |
+| `p` | god-power block, see its own section below | `j`=available GP, `v`=GP spent, `F`=total might, `002`=crystal power |
 | `s` | god name | "Shoggoth269" |
 | `y`,`z` | achievements (168 each: flag + id) | |
 | `W` | player name | "ShoggothUnknown" |
@@ -119,6 +119,34 @@ multiplier, open staircase questions), see `normal_stats_investigation.md`.
 
 0=None, 1=Blacksmith, 2=Alchemist, 3=Adventurer, 4=Defender, 5=Supporter,
 6=Rogue, 7=Assassin, 8=Mage.
+
+## `root.p` — the god-power block
+
+Numeric keys (`001`–`035`) are siblings of the letter keys inside `p`.
+Confirmed (cross-save diff vs the two Main Stats exports):
+
+| key | meaning | evidence |
+|---|---|---|
+| `j` | available GP | 1,297 → 1,662, +365 = GP/h gain between saves ✓ |
+| `v` | total GP spent | 60,852 in both ✓ |
+| `h`, `i` | GP-purchased creating / building speed % | both 45,000 = "45,000 % from god power" in both export speed lines ✓ |
+| `q` | creation count, 0-based | 165 in both saves vs export "Creation Count: 166" |
+| `F` | total might | 100,983 ✓ |
+| `002` | crystal power | 4,183 ✓ |
+| `027` | = `j` + 18 in both saves | GP-adjacent; the constant 18 offset is unexplained |
+| `003` | delta (+21) matches Lucky Draws *opened* delta | absolute value 7,659 ≠ 3,053 though — id unclear |
+| `L`, `S`, `013` | ms timers, all advanced by the same +38.8e6 ms | plausibly time-since-rebirth (~12 h at save 1) |
+| `T`, `012` | 44 → 43, decrementing counter | countdown of something |
+| `C` | exactly 2^50 | some cap constant |
+| `017`, `019` | both exactly 50 — candidate **statistics-multi doubling count** (2,500 GP spent ÷ 50 GP per double = 50; the raw "2500" appears nowhere in the save) | needs a purchase between saves to disambiguate which |
+
+Note on terminology: the GP "stats multi" purchase doubles the *statistics
+multi* (the rebirth-multiplier input tracked on the statistics page) — it
+has nothing to do with pet stats. Yet another meaning of "stats".
+
+Other singles found while anchoring exports: `x.k` = rebirths (137),
+`O.030` = light clones (68,581 → 68,681 ✓ both saves). `root.O` appears to
+be another statistics block (spacedim totals etc. nearby in `009`).
 
 ## `root.x` — the global tracker block
 
