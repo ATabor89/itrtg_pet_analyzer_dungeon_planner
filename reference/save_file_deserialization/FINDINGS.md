@@ -165,10 +165,16 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
 - `X.v` (10,062), `X.z` (13,253,888), `X.T` (23 entries), `X.028` (737 ids),
   pet `t`/`u` — unidentified.
 - Material id ↔ name: partially solved — `crates/save-parser/src/items.rs`
-  merges the prior project's table with the export-confirmed ids. Still
-  unidentified (nonzero in this save): 16, 17, 21, 31, 32, 130, 160, 164,
-  167, 168; 131–135 are plausibly the five T4 bars (all count 32, right
-  after the T3 bars at 33–37).
+  merges the prior project's table with export- and user-confirmed ids
+  (31/32 = Lucky/Wise Talisman, 33–37 = the elemental bars: Inferno/
+  Tsunami/Hurricane/Forest/Titanium, pinned by live inventory counts).
+  Tier structure per element: T1/T2 raw materials → T3 "Magic" materials
+  (24–28) → bars (33–37, crafted from T1–T3 + Whetstones + Sacred Stones);
+  T4 materials are 131–135 = {Mythril, Ocean/Sun/Sky/Jungle Stone} but all
+  five sat at count 32, so the id↔name assignment within that set is still
+  ambiguous. Still unidentified (nonzero in this save): 16, 17, 21, 130,
+  160, 164, 167, 168. A fresh save + full inventory transcription is
+  planned, which should disambiguate the T4 set and more.
 - Equipment *type* id ↔ name (the `R.a` namespace — distinct from materials!)
   — only spot-checked (21 = Inferno Sword, 51 = Magic Stick); buildable by
   joining `R` against the Pet Stats export gear strings systematically.
