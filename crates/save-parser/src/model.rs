@@ -45,6 +45,19 @@ pub struct SaveFile {
     pub dungeon_teams: Vec<DungeonTeam>,
     /// Campaign slots (root `X.x`).
     pub campaigns: Vec<CampaignSlot>,
+    /// Available god power (root `p.j`).
+    pub gp_available: Option<u64>,
+    /// Total god power spent (root `p.v`).
+    pub gp_spent: Option<u64>,
+    /// Total might (root `p.F`).
+    pub total_might: Option<u64>,
+    /// Crystal power (root `p.002` — the numeric keys are siblings of the
+    /// letter keys inside `p`).
+    pub crystal_power: Option<u64>,
+    /// Rebirth count (root `x.k`).
+    pub rebirths: Option<u64>,
+    /// Light clones (root `O.030`).
+    pub light_clones: Option<u64>,
     /// Anni Cake's current stat bonus in percent (root `033`), stored
     /// directly as a fractional float (948.969… displays as 949%). Grows by
     /// 10% (+0.1%×CL when evolved) per hour in food campaigns, fractional
@@ -476,6 +489,12 @@ impl SaveFile {
             mighty_food: get_u64(x, "e"),
             chocolate: get_u64(x, "v"),
             gems,
+            gp_available: root.get_path(&["p", "j"]).and_then(Node::as_u64),
+            gp_spent: root.get_path(&["p", "v"]).and_then(Node::as_u64),
+            total_might: root.get_path(&["p", "F"]).and_then(Node::as_u64),
+            crystal_power: root.get_path(&["p", "002"]).and_then(Node::as_u64),
+            rebirths: root.get_path(&["x", "k"]).and_then(Node::as_u64),
+            light_clones: root.get_path(&["O", "030"]).and_then(Node::as_u64),
             anni_cake_bonus_percent: root.get("033").and_then(Node::as_f64),
             researches,
             pets,
