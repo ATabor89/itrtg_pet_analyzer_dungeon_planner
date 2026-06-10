@@ -3,3 +3,9 @@
 
 # Per-user app state — auto-maintained by the tool, not source-controlled.
 /data/app_state.yaml
+
+# Derived artifacts of the save-deserialization work — regenerate with
+# expand_save.ps1 or `save-dump --tree`.
+/reference/save_file_deserialization/decompressed.bin
+/reference/save_file_deserialization/save_layer1.txt
+/reference/save_file_deserialization/save_expanded.txt

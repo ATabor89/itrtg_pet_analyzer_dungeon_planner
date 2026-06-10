@@ -1,0 +1,18 @@
+[package]
+name = "save-parser"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "save_parser"
+path = "src/lib.rs"
+
+[[bin]]
+name = "save-dump"
+path = "src/main.rs"
+
+[dependencies]
+itrtg-models = { path = "../models" }
+anyhow = "1"
+base64 = "0.22"
+flate2 = "1"
