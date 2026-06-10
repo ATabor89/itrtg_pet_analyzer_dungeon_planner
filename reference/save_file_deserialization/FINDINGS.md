@@ -86,10 +86,9 @@ team roster:
 |-----|---------|----------|
 | `a` | display name (see name mapping below) | |
 | `g` | **normal level** (resets at rebirth) | matches displayed level exactly for all 7 pets checked 2026-06-10 |
-| `j` | **current Physical stat × 10** | Gnome j=36,881,717,678 ↔ displayed 3.688e9; all 6 checked pets match. Mystic/Battle are not stored (they differ from Physical only by Strategy Room ratios) |
-| `o` | stat-related accumulator, meaning TBD | the only independent value behind p/q/r; not proportional to current stats across pets |
-| `p`, `q`, `r` | = 556×`o`, 550×`o`, 10×`o` **exactly** (every pet) | derived, not independent; note 556/550 ≠ the SR physical/mystic ratio |
-| `h` | level/exp-state related | Fire Fox & Swan (same level 2,052) have identical h; not monotonic in level across pets |
+| `j` | **current normal Health** (= 10 × Physical; recomputed live) | Gnome j ↔ displayed Health 36.885e9 / Physical 3.688e9; moved ~+30% between the two saves (Anni Cake accumulation) |
+| `o`,`p`,`q`,`r` | **training-clone stats** (Physical/Mystic/Battle/HP) — a snapshot from when training was last configured | ratios exactly match the user's global per-mille settings (1/556/550) and the HP=10×Physical rule; bit-identical across both saves while `j` moved |
+| `h` | level/exp-state related (likely normal-level exp counter) | identical for same-level pets; static across saves while no pet was training |
 | `k` | **internal pet type id** — the id used by team/campaign lists | team ids resolve: 89=Salamander, 25=Rudolph, 2=Cat, 0=Mouse, 803=Serow |
 | `l` | unlocked flag | locked pets `False` ✓ export Unlocked column |
 | `m` | timer ms: 86,400,000 (locked) / 34,976,500 (all unlocked pets) | shared countdown — next growth tick? |
@@ -126,8 +125,8 @@ Example: instance 704 = "Inferno Sword + 10, SSS, Wind gem lv 10":
 | key | meaning | evidence |
 |-----|---------|----------|
 | `a` | item type id (21 = Inferno Sword, 51 = Magic Stick, 47 = …) | |
-| `b` | plus level (+10/+20/+13) | ✓ export |
-| `c` | quality: 8=SSS, 6=S, 4=B observed (likely 4=B,5=A,6=S,7=SS,8=SSS) | ✓ export |
+| `b` | plus level (+10/+20/+13); stat multiplier = 1 + 0.05×plus | ✓ export + wiki scaling rule |
+| `c` | quality: A=5 baseline, ±1/step (8=SSS, 7=SS, 6=S, 5=A, 4=B verified; 3=C, 2=D inferred); stat multiplier = 1 + (c−5)×0.1 | ✓ export + wiki ("C +8 ⇒ 0.8 × 1.4"; "SSS +20 ⇒ 1.3 × 2.0 = 2.6") |
 | `d`, `h` | instance id (both equal in every entry checked) | referenced by pet `w.e/f/g` and Pet Equips export |
 | `e` | 20 when export shows "(20)" suffix, else 0 | awakening/max-plus cap? |
 | `f` | gem level (10) | ✓ |
