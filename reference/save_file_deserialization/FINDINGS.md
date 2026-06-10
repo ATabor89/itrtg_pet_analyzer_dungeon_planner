@@ -139,9 +139,15 @@ bonus growth. Globals: 013 AFK clones killed, 049 day-pet-challenge multi,
 071 lucky draws opened, 074 crystal power, 078/079/080 dungeon
 bosses/enemies/rooms, 129 total might.
 
-Not found yet: Anni Cake's current bonus % is stored nowhere obvious —
-candidate `x.138` (a seconds counter: 950.0 h at save 2 vs the 949% reading;
-needs one synchronized reading of bonus% at save time to confirm or kill).
+Anni Cake's bonus (`x.138`, confirmed): the game stores her accumulated
+food-campaign time this rebirth as a fractional counter (early-cancelled
+campaigns leave non-integer residue — same reason Meteor shows 4,572.11) and
+derives the displayed bonus as `floor(x.138 / 3600)`: 3,419,933.57 → 949% ✓
+(save 2, matching the contemporaneous tooltip reading), 3,281,807.02 → 911%
+(save 1). The normal-stats multiplier uses the *floored* percentage — the
+fitted global multi (11.015 ≈ (1 + 9.49) × 1.05) only works with 949, not
+the raw 949.98. The counter only advances when a campaign completes (or is
+cancelled-with-rewards).
 
 ## `X.T` — the crafting roster (23 entries)
 
