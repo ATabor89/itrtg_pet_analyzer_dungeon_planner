@@ -463,11 +463,51 @@ fn global_trackers_match_exports_and_tooltips() {
     // Pandora's feedings counter can be negative (observed after rebirth).
     assert_eq!(t1(trackers::PANDORA_FEEDINGS), -28.0);
     assert_eq!(t2(trackers::PANDORA_FEEDINGS), 27.0);
+}
 
-    // Anni Cake: displayed bonus % = floor(food-time counter / 3600).
-    // The user read 949% alongside save 2; save 1 would have shown 911%.
-    assert_eq!((t2(trackers::ANNI_CAKE_FOOD_TIME) / 3600.0).floor(), 949.0);
-    assert_eq!((t1(trackers::ANNI_CAKE_FOOD_TIME) / 3600.0).floor(), 911.0);
+#[test]
+fn anni_cake_bonus_is_stored_directly() {
+    let (Some(save1), Some(save2)) = (load_reference_save(), load_second_save()) else {
+        eprintln!("reference saves not present; skipping");
+        return;
+    };
+    // Root `033` holds the bonus as a fractional percent. The user
+    // predicted "709% in the first save" from the 10%/hour accrual — and
+    // save 1 stores exactly 709.02; save 2's 948.97 displays as 949%.
+    assert_eq!(save1.anni_cake_bonus_percent, Some(709.0245829717));
+    assert_eq!(save2.anni_cake_bonus_percent, Some(948.969027416145));
+    let delta = save2.anni_cake_bonus_percent.unwrap() - save1.anni_cake_bonus_percent.unwrap();
+    // ~24 hours of food campaigns at 10%/hour credited between the saves.
+    assert!((delta - 239.94).abs() < 0.01);
+}
+
+#[test]
+fn researches_match_main_stats_export() {
+    use save_parser::model::{research_name, researches};
+    let save = require_second_save!();
+    assert_eq!(save.researches.len(), 44); // ids 0–43; id 0 is a placeholder
+
+    // Main Stats export "Researches" section (save 1 era, unchanged):
+    assert_eq!(save.research_level(researches::PET_STATS), 5);
+    assert_eq!(save.research_level(6), 22); // Core Drop Rate
+    assert_eq!(save.research_level(7), 40); // Core Quality
+    assert_eq!(save.research_level(26), 20); // Research Speed
+    assert_eq!(save.research_level(27), 2); // Research Slots
+    assert_eq!(save.research_level(researches::ALCHEMY_SPEED), 10);
+    assert_eq!(research_name(researches::PET_STATS), Some("Pet Stats"));
+    assert_eq!(research_name(43), Some("Core Removal Cost"));
+    assert_eq!(research_name(0), None);
+
+    // "Research Slots Level: 2" — exactly two researches in progress.
+    let active: Vec<u32> = save
+        .researches
+        .iter()
+        .filter(|r| r.in_progress)
+        .map(|r| r.id)
+        .collect();
+    assert_eq!(active.len(), 2);
+    assert!(active.contains(&6)); // Core Drop Rate
+    assert!(active.contains(&31)); // Spacedim Speed
 }
 
 #[test]
