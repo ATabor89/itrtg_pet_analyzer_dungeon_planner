@@ -263,7 +263,7 @@ impl SavePet {
             growth: node.get("E").and_then(Node::as_f64).unwrap_or(0.0),
             team_slot: match get_u32(node, "v") {
                 0 => None,
-                slot => Some(slot as u8),
+                slot => u8::try_from(slot).ok(),
             },
             element: w.map(|w| get_u32(w, "a")).and_then(element_from_id),
             dungeon_level: w.map(|w| get_u32(w, "b")).unwrap_or(0),

@@ -15,8 +15,19 @@ use base64::engine::general_purpose::STANDARD as B64;
 use std::io::Read;
 
 /// Decode the outer container layers, yielding the serialized tree plaintext.
+/// Upper bound on the decompressed payload. Real saves are ~300 KB of
+/// plaintext; the cap just turns a corrupt/hostile length prefix or gzip
+/// bomb into a clean error instead of a giant allocation.
+const MAX_DECOMPRESSED_LEN: usize = 64 * 1024 * 1024;
+
 pub fn decode_to_plaintext(raw: &str) -> anyhow::Result<String> {
-    let compact: String = raw.chars().filter(|c| !c.is_whitespace()).collect();
+    // Keep only ASCII non-whitespace: the container is ASCII base64, and
+    // dropping anything else (e.g. a UTF-8 BOM from a text editor) both
+    // tolerates re-saved files and keeps the byte-offset slicing below safe.
+    let compact: String = raw
+        .chars()
+        .filter(|c| c.is_ascii() && !c.is_whitespace())
+        .collect();
 
     // The known format prepends exactly 2 junk characters, but tolerate a
     // clean base64 blob (0) or other small offsets in case the prefix length
@@ -41,9 +52,19 @@ pub fn decode_to_plaintext(raw: &str) -> anyhow::Result<String> {
     };
 
     let expected_len = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
+    ensure!(
+        expected_len <= MAX_DECOMPRESSED_LEN,
+        "length prefix {} exceeds the {} byte sanity cap",
+        expected_len,
+        MAX_DECOMPRESSED_LEN
+    );
 
+    // `take` one byte past the expected size so an over-long stream (lying
+    // prefix, gzip bomb) fails the length check below instead of inflating
+    // to completion.
     let mut decompressed = Vec::with_capacity(expected_len);
     flate2::read::GzDecoder::new(&bytes[4..])
+        .take(expected_len as u64 + 1)
         .read_to_end(&mut decompressed)
         .context("gzip decompression failed")?;
     ensure!(
@@ -96,6 +117,24 @@ mod tests {
         enc.insert(10, '\n');
         enc.insert(4, ' ');
         assert_eq!(decode_to_plaintext(&enc).unwrap(), text);
+    }
+
+    #[test]
+    fn tolerates_utf8_bom_and_non_ascii() {
+        let text = "a:1;b:2;";
+        // A BOM is not whitespace — it must not panic the byte-offset slicing.
+        let enc = format!("\u{feff}{}", encode(text, "V2"));
+        assert_eq!(decode_to_plaintext(&enc).unwrap(), text);
+    }
+
+    #[test]
+    fn rejects_oversized_length_prefix() {
+        let text = "a:1;";
+        let good = encode(text, "");
+        let mut bytes = B64.decode(&good).unwrap();
+        // Claim a payload over the sanity cap.
+        bytes[0..4].copy_from_slice(&(u32::MAX).to_le_bytes());
+        assert!(decode_to_plaintext(&B64.encode(&bytes)).is_err());
     }
 
     #[test]
