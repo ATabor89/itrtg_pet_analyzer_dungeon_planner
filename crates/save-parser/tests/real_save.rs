@@ -466,6 +466,48 @@ fn global_trackers_match_exports_and_tooltips() {
 }
 
 #[test]
+fn exp_counters_store_current_toward_next_level() {
+    use save_parser::formulas::{class_exp_to_next, dungeon_exp_to_next};
+    let save = require_second_save!();
+    // User readings (taken after save 2, values unchanged since):
+    // Salamander DL 101 (147,749 / 323,387), CL 25 (62,692 / 1.251e6);
+    // Hedgehog DL 20 (0 / 8,459), CL 22 (476,666 / 969,000);
+    // Succubus DL 80 (130,099 / 191,405), CL 19 (44,700 / 723,000).
+    for (name, dl, dexp, cl, cexp) in [
+        ("Salamander", 101, 147_749.0, 25, 62_692.0),
+        ("Hedgehog", 20, 0.0, 22, 476_666.0),
+        ("Succubus", 80, 130_099.0, 19, 44_700.0),
+    ] {
+        let pet = save.pet_by_name(name).unwrap();
+        assert_eq!(pet.dungeon_level, dl, "{name} DL");
+        assert_eq!(pet.dungeon_exp, dexp, "{name} dungeon exp");
+        assert_eq!(pet.class_level, cl, "{name} CL");
+        assert_eq!(pet.class_exp, cexp, "{name} class exp");
+        // Stored exp is always below the requirement for the next level.
+        assert!(pet.dungeon_exp < dungeon_exp_to_next(pet.dungeon_level));
+        assert!(pet.class_exp < class_exp_to_next(pet.class_level));
+    }
+}
+
+#[test]
+fn class_exp_reset_on_level_up_across_saves() {
+    let (Some(save1), Some(save2)) = (load_reference_save(), load_second_save()) else {
+        eprintln!("reference saves not present; skipping");
+        return;
+    };
+    // Salamander was CL 24 in save 1 with 1,144,938 class exp — just shy of
+    // the 1,153,000 needed for CL 25. By save 2 he is CL 25 with a small,
+    // freshly reset counter.
+    let s1 = save1.pet_by_name("Salamander").unwrap();
+    let s2 = save2.pet_by_name("Salamander").unwrap();
+    assert_eq!(s1.class_level, 24);
+    assert_eq!(s1.class_exp, 1_144_938.0);
+    assert!(s1.class_exp < save_parser::formulas::class_exp_to_next(24));
+    assert_eq!(s2.class_level, 25);
+    assert!(s2.class_exp < s1.class_exp);
+}
+
+#[test]
 fn raw_tree_keeps_unidentified_fields_reachable() {
     let save = require_save!();
     // X.z — meaning still unknown; the raw tree must keep it visible.
