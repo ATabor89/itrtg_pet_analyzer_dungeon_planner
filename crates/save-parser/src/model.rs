@@ -27,7 +27,8 @@ pub struct SaveFile {
     /// Pet stones (root `X.y`).
     pub pet_stones: Option<u64>,
     /// Pet food counts (root `X.c`/`X.d`/`X.e`) and chocolate (root `X.v`).
-    /// These are dedicated fields, not material-inventory entries.
+    /// These are dedicated fields, not material-inventory entries. An absent
+    /// field reads as 0.
     pub puny_food: u64,
     pub strong_food: u64,
     pub mighty_food: u64,
@@ -105,7 +106,7 @@ pub struct SavePet {
 /// One owned equipment instance (`X.R[i]`).
 #[derive(Debug, Clone)]
 pub struct EquipmentItem {
-    /// Item type id (`a`). The id→name table is still unmapped.
+    /// Item type id (`a`) — resolve with [`EquipmentItem::type_name`].
     pub type_id: u32,
     /// Upgrade ("+") level (`b`).
     pub plus: u32,
@@ -140,6 +141,9 @@ impl MaterialStack {
 /// 4=Wind).
 #[derive(Debug, Clone, Copy)]
 pub struct GemStack {
+    /// Raw element id (`a`), kept so an unrecognized id stays diagnosable.
+    pub element_id: u32,
+    /// Decoded element, `None` if the id is unknown.
     pub element: Option<Element>,
     pub level: u32,
     pub count: u64,
@@ -257,10 +261,14 @@ impl SaveFile {
             .map(|g| {
                 g.list_or_single()
                     .iter()
-                    .map(|n| GemStack {
-                        element: element_from_id(get_u32(n, "a")),
-                        level: get_u32(n, "b"),
-                        count: get_u64(n, "c"),
+                    .map(|n| {
+                        let element_id = get_u32(n, "a");
+                        GemStack {
+                            element_id,
+                            element: element_from_id(element_id),
+                            level: get_u32(n, "b"),
+                            count: get_u64(n, "c"),
+                        }
                     })
                     .collect()
             })
