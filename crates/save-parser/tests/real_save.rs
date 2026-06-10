@@ -586,6 +586,55 @@ fn class_exp_reset_on_level_up_across_saves() {
 }
 
 #[test]
+fn creations_monuments_mights_match_next_ats_export() {
+    use save_parser::items::{creation_name, might_name, monument_name};
+    let save = require_second_save!();
+
+    // Creations: 29 entries; user-named, anchored by Next Ats values.
+    assert_eq!(save.creations.len(), 29);
+    let by_name = |name: &str| {
+        save.creations
+            .iter()
+            .find(|c| creation_name(c.id) == Some(name))
+            .unwrap()
+    };
+    assert_eq!(by_name("Shadow Clone").next_at, 0);
+    assert_eq!(by_name("Light").next_at, 12000);
+    assert_eq!(by_name("Village").next_at, 90);
+    assert_eq!(by_name("Town").next_at, 60);
+    assert_eq!(by_name("Moon").next_at, 10);
+    assert_eq!(by_name("Universe").next_at, 84500);
+
+    // Monuments: 9 entries; g|h = "next at | spread" from the export.
+    assert_eq!(save.monuments.len(), 9);
+    let statue = &save.monuments[0];
+    assert_eq!(monument_name(statue.id), Some("Mighty Statue"));
+    assert_eq!((statue.next_at, statue.spread), (512, 7));
+    let black_hole = &save.monuments[7];
+    assert_eq!(monument_name(black_hole.id), Some("Black Hole"));
+    assert!(black_hole.building);
+    assert_eq!(black_hole.clones_allocated, 4_000_000);
+
+    // Mights: m|n = "next at | spread"; specials carry base duration and
+    // effect percentages (level 64 + base 30 = the 94 s Focused Breathing
+    // unleash observed in-game).
+    assert_eq!(save.mights.len(), 14);
+    assert_eq!(might_name(save.mights[0].id), Some("Physical HP +"));
+    assert_eq!((save.mights[0].next_at, save.mights[0].spread), (256, 2));
+    let fb = &save.mights[8];
+    assert_eq!(might_name(fb.id), Some("Focused Breathing +"));
+    assert!(fb.special);
+    assert_eq!(fb.base_duration_s, 30);
+    assert_eq!(fb.hp_recovery_pct, 100);
+    let ta = &save.mights[13];
+    assert_eq!(might_name(ta.id), Some("Transformation Aura +"));
+    assert_eq!(
+        (ta.hp_recovery_pct, ta.attack_pct, ta.mystic_pct),
+        (200, 200, 200)
+    );
+}
+
+#[test]
 fn raw_tree_keeps_unidentified_fields_reachable() {
     let save = require_save!();
     // X.z — meaning still unknown; the raw tree must keep it visible.
