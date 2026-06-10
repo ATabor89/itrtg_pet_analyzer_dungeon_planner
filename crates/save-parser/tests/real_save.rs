@@ -615,6 +615,19 @@ fn creations_monuments_mights_match_next_ats_export() {
     assert!(black_hole.building);
     assert_eq!(black_hole.clones_allocated, 4_000_000);
 
+    // Levels: b. The Black Hole is mid-build (level 110 < next-at 140);
+    // every other monument is parked at its next-at.
+    assert_eq!(black_hole.level, 110);
+    for m in save.monuments.iter().filter(|m| m.id != 7) {
+        assert_eq!(m.level, m.next_at, "monument {}", m.id);
+    }
+
+    // Creations: d = current amount (Shadow Clone entry = the clone count,
+    // capped at max clones; Earthlike Planet currently 0).
+    assert_eq!(save.creations[0].current_amount, 10_000_000.0);
+    assert_eq!(save.creations[24].current_amount, 0.0);
+    assert_eq!(save.creations[1].clone_cost, 1000); // Light
+
     // Mights: m|n = "next at | spread"; specials carry base duration and
     // effect percentages (level 64 + base 30 = the 94 s Focused Breathing
     // unleash observed in-game).
@@ -631,6 +644,22 @@ fn creations_monuments_mights_match_next_ats_export() {
     assert_eq!(
         (ta.hp_recovery_pct, ta.attack_pct, ta.mystic_pct),
         (200, 200, 200)
+    );
+
+    // Might levels: the user's specials are all level 64, and the sum of
+    // every might level is 3,200 — exactly the White Tiger unlock progress
+    // shown in-game.
+    for special in save.mights.iter().filter(|m| m.special) {
+        assert_eq!(special.level, 64, "might {}", special.id);
+    }
+    assert_eq!(save.might_level_total(), 3200);
+
+    // Pet stones bought with Baal Power (Vermillion Pheasant progress):
+    // the user reads 4,426, static across both saves.
+    use save_parser::model::trackers;
+    assert_eq!(
+        save.global_tracker(trackers::PET_STONES_BAAL_POWER),
+        Some(4426.0)
     );
 }
 
