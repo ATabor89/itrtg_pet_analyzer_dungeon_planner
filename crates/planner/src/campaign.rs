@@ -96,9 +96,15 @@ pub fn simulate(kind: CampaignType, team: &[CampaignPet], params: &CampaignParam
 
 /// The shared multiplier every per-pet term is scaled by: the global UPC bonus,
 /// this pet's per-campaign bonus, and the run length.
+///
+/// The bonus term floors at 0: a bonus below −100% (Mermaid's Growth bonus is
+/// −(growth/1000)% capped at −333%; Nightmare's malus can push a low-bonus
+/// neighbour under −100) means the pet contributes *nothing* — it never flips
+/// the term negative and drains the campaign (a negative total would shrink
+/// the recipient each cycle and turn Bag's gift into theft).
 fn pet_factor(pet: &CampaignPet, p: &CampaignParams) -> f64 {
     let hours = p.hours.clamp(1, 12) as f64;
-    (1.0 + p.upc_pct / 100.0) * (1.0 + pet.campaign_bonus_pct as f64 / 100.0) * hours
+    (1.0 + p.upc_pct / 100.0) * (1.0 + pet.campaign_bonus_pct as f64 / 100.0).max(0.0) * hours
 }
 
 fn log_base(x: f64, base: f64) -> f64 {
@@ -784,6 +790,46 @@ mod tests {
         // A contributes from its end-of-run growth (3400), not its start (1000).
         let expected = (log_base(3_400.0, 15.0) - 1.75) * 12.0;
         assert!((total - expected).abs() < 1e-6, "got {total}, want {expected}");
+    }
+
+    #[test]
+    fn sub_minus_100_bonus_contributes_zero_not_negative() {
+        // Mermaid's Growth bonus is −(growth/1000)% capped at −333% — past 100k
+        // growth she is below −100%, where (1 + bonus) goes negative. Her
+        // contribution must clamp to 0, not turn negative and drain the others.
+        let team = vec![pet("Mermaid", 200_000, -200.0), pet("R", 1_000, 0.0)];
+        let p = params(12);
+        let CampaignOutcome::Growth { total, recipient } = simulate(CampaignType::Growth, &team, &p)
+        else {
+            panic!("expected Growth outcome");
+        };
+        assert_eq!(recipient, 1);
+        assert_eq!(total, 0.0, "a sub-−100% pet contributes nothing, never negative");
+    }
+
+    #[test]
+    fn chamber_recipient_never_loses_growth_to_a_negative_contributor() {
+        let chamber = |name: &str, growth: f64, bonus: f32| ChamberPet {
+            name: name.into(),
+            growth,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: bonus,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+        };
+        // Pre-clamp, Mermaid's negative factor made the cycle total negative:
+        // the recipient *lost* growth every cycle (and a Bag would have "gifted"
+        // negative growth to the global lowest). The Growth campaign can never
+        // shrink a pet.
+        let mut pets = vec![chamber("R", 1_000.0, 0.0), chamber("Mermaid", 200_000.0, -200.0)];
+        let r = simulate_growth_chamber(&mut pets, &ChamberRun::default());
+        let final_r = r.final_growth.iter().find(|(n, _)| n == "R").unwrap().1;
+        assert!(final_r >= 1_000.0, "recipient shrank: 1000 → {final_r}");
+        assert!(r.trace[0].recipient_gain >= 0.0, "negative deposit: {}", r.trace[0].recipient_gain);
     }
 
     #[test]
