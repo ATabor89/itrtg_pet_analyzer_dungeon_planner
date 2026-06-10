@@ -1,0 +1,193 @@
+# ITRTG Save File Format — Findings
+
+Working notes for deserializing a full ITRTG save. Started 2026-06-09 from
+`ManualSave_2026-06-09.txt` plus same-session in-game exports (Pet Stats, Main
+Stats, Pet Equips, Dungeon Teams, Next Ats) used as ground truth for
+cross-referencing.
+
+Regenerate the expanded tree at any time:
+
+```powershell
+.\expand_save.ps1            # writes save_expanded.txt (+ save_layer1.txt, decompressed.bin)
+```
+
+## Container format (outer → inner)
+
+1. The save file is base64 text **with 2 extra characters prepended** (here
+   `V2`). Strip the first 2 characters before decoding. (Purpose unknown —
+   possibly a version tag or junk salt. Worth checking against a second save.)
+2. Base64-decode. Result: `[0..3]` little-endian `int32` = uncompressed length
+   (here 292,296), `[4..]` = a standard **gzip** stream.
+3. Gunzip → ASCII text which is itself **base64 again**.
+4. Base64-decode → "layer 1" plaintext: a serialized object tree (see grammar).
+
+So: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`.
+
+## Serialization grammar
+
+- A **struct** is `key:value;key:value;...`.
+- Keys are single/double letters in declaration order `a..z` then `A..Z`;
+  fields added in later game versions use zero-padded numeric keys
+  (`001:`, `002:`, … `041:`).
+- A key with **no colon and no value** (e.g. `...;c;d:1;`) is an empty field.
+- **Nested structs are base64-encoded** and stored as the value.
+- **Lists** are `&`-joined base64 elements (each element usually a struct).
+- Numbers: invariant-culture ints/doubles, scientific notation (`7.3E+185`).
+  Booleans: `True`/`False`.
+- In some prose/log strings `:` is escaped as `(` (e.g. the server-time log in
+  the root `006` field).
+
+## Top-level map (root struct)
+
+| key | meaning | evidence |
+|-----|---------|----------|
+| `c` | save unix timestamp (s) | 1781053129 ≈ 2026-06-09; `005` = same in ms |
+| `e` | shadow clones block | `a`=current 10,000,061, `b`=max 10,000,000 ✓ |
+| `g` | god title string | "Strongest Entity in the Universe?" |
+| `h` | creations (28) | |
+| `i` | monuments-ish (29) | |
+| `j`,`k` | more building/might blocks (28/34) | |
+| `p` | god-power block | `j`=available GP 1297 ✓, `v`=GP spent 60,852 ✓, `F`=total might 100,983 ✓; `Z.002`=crystal power 4,183 ✓ |
+| `s` | god name | "Shoggoth269" |
+| `y`,`z` | achievements (168 each: flag + id) | |
+| `W` | player name | "ShoggothUnknown" |
+| `X` | **the whole pet system** | see below |
+| `Z`,`001..006` | Steam id, account names, server timestamps | |
+
+(Unlabeled root keys not yet investigated: `a`,`b`,`d` big doubles, `A`,`B`,`D`,
+`K`,`O`,`P`,`Q`,`S`,`T`,`V` blocks, etc.)
+
+## `X` — pet system
+
+| key | meaning | evidence |
+|-----|---------|----------|
+| `b` | list of 158 pets | count matches Pet Stats export exactly, same order |
+| `v` | 10062 | ? (not total dungeon levels 2,920) |
+| `x` | list of 8 **campaign slots** | `d` = `&`-joined pet ids (10 per slot), `e` = 43,200,000 ms = 12 h, `f` = total bonus, `c` = timestamp, `i` = RNG seed |
+| `y` | pet stones | 267,028 ✓ Main Stats |
+| `P` | list of 3 **active dungeon runs** | `a` = dungeon id (2,3,5), `c` = 43,200,000 ms, `d` = depth-ish, seeds in `e`/`j` |
+| `Q` | list of 69 — **material inventory** (`a`=item id, `b`=count) | id 159 = Strategy Books 2,840 ✓; Ants 192,164 ✓; Acorns 24,727 ✓ |
+| `R` | list of 209 — **owned pet equipment** | see equipment struct |
+| `S` | list of 3 — **dungeon teams** | `a` = 6 pet ids (`&`-joined, matched via pet `k`), `b` = dungeon id, `c` = pending loot (item id+count), `d` = depth, `i` = dungeon name ("Scrapyard", "Water Temp", "Forest") |
+| `T` | list of 23 | ? (per-entry: id-ish `a`, float `c`, nested gear-like `g`) |
+| `Z` | a saved 6-pet team preset | `a` = pet ids, `h` = slot order |
+| `028` | list of 737 (id + 2 flags) | ? possibly catalog unlock flags |
+
+## Pet struct (`X.b[i]`)
+
+Confirmed against Salamander / Gnome / Sylph / Vampire and the whole dungeon
+team roster:
+
+| key | meaning | evidence |
+|-----|---------|----------|
+| `a` | display name (see name mapping below) | |
+| `g` | scales with growth — ? (Gnome 13,724 vs growth 72,630) | |
+| `h`, `j`, `o`, `p`, `q`, `r` | big float accumulators; `r` = 10×`o` exactly | ? |
+| `k` | **internal pet type id** — the id used by team/campaign lists | team ids resolve: 89=Salamander, 25=Rudolph, 2=Cat, 0=Mouse, 803=Serow |
+| `l` | unlocked flag | locked pets `False` ✓ export Unlocked column |
+| `m` | timer ms: 86,400,000 (locked) / 34,976,500 (all unlocked pets) | shared countdown — next growth tick? |
+| `v` | **dungeon team slot** (1–6, 0 = none) | matches all 18 team members ✓ |
+| `w` | dungeon sub-struct, see below | |
+| `E` | **growth** (float; exports round it). Stored *without* the Magic Egg ×1.3 — true base growth. | 66841.359… → "66,841" ✓ for every pet; Pandora's box `E` = 44334.321043064, the exact base the Magic Egg validation derived (export shows 57,635 = ×1.3 rounded) |
+| `F` | **partner pet type id** (999 = none) | 158/158 match export Partner column; pairs are mutual (Cat↔Dog, Vampire↔Succubus, Gnome↔Dwarf) |
+| `G` | partner-related counter (bond level?) | only nonzero when F≠999 |
+| `H` | ? (only Cat: 10,920) | |
+| `d`,`e`,`f`,`n`,`s`,`t`,`u`,`x`,`y`,`z`,`A`–`D` | ? | t: Vampire=1, Dog=4, Penguin=7; y: Gnome=14, Salamander=19, Sylph=24 |
+
+### Pet dungeon sub-struct (`w`)
+
+| key | meaning | evidence |
+|-----|---------|----------|
+| `a` | element: 0=Neutral, 1=Fire, 2=Water, 3=Earth, 4=Wind | matches export Element for all checked |
+| `b` | dungeon level | Salamander 101 ✓, Sylph 117 ✓ |
+| `c` | dungeon exp | |
+| `d` | class struct: `a`=class id, `b`=class level, `c`=class exp | Salamander Supporter 24 ✓, Sylph Mage 24 ✓ |
+| `e`,`f`,`g` | weapon / armor / accessory **equip instance id** (0 = none) | 704/766/787 = Pet Equips export `Salamander=704,766,787` ✓ |
+
+### Class ids (from pairing all 158 pets with the export, zero conflicts)
+
+0=None, 1=Blacksmith, 2=Alchemist, 3=Adventurer, 4=Defender, 5=Supporter,
+6=Rogue, 7=Assassin, 8=Mage.
+
+## Equipment struct (`X.R[i]`)
+
+Example: instance 704 = "Inferno Sword + 10, SSS, Wind gem lv 10":
+
+| key | meaning | evidence |
+|-----|---------|----------|
+| `a` | item type id (21 = Inferno Sword, 51 = Magic Stick, 47 = …) | |
+| `b` | plus level (+10/+20/+13) | ✓ export |
+| `c` | quality: 8=SSS, 6=S, 4=B observed (likely 4=B,5=A,6=S,7=SS,8=SSS) | ✓ export |
+| `d`, `h` | instance id (both equal in every entry checked) | referenced by pet `w.e/f/g` and Pet Equips export |
+| `e` | 20 when export shows "(20)" suffix, else 0 | awakening/max-plus cap? |
+| `f` | gem level (10) | ✓ |
+| `g` | gem element (4 = Wind gem, same element ids) | ✓ |
+| `i` | 0 always so far | ? |
+
+## Save name → export name mapping
+
+The save stores the pet's *display name*; exports normalize. Differences found
+(index = position in both lists):
+
+```
+Pandora's box → Pandora        Thunder Ball → Raiju        Young Basilisk → Basilisk
+Pixie Goatmother → PixieGoat   Feather Pile → Owl          Seed → Yggdrasil
+Supreme Taco → StaleTortilla   Flying Cloud → Cloud        Fire Fox → Firefox
+Chicken → Egg                  Answer → Question           Hermit Crab → Crab
+Pigñata → Pignata              Rudolph → Reindeer          Tödlicher Löffel → Spoon
+Vesuvius → Volcano             Treasure → Mimic            Black Hole Chan → BHC
+Holy ITRTG Book → Book         V. Pheasant → VermilionPheasant
+Baby Carno → Carno             Gray1 → GrayChild1          Gray2 → GrayChild2
+Dark Gift → Baphomate
+```
+
+Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
+`AncientMimic`, `Mist Sphere` → `MistSphere`, …). Note `Pigñata` has a real
+`ñ` in the save (UTF-8).
+
+## Cross-reference checks that passed
+
+- Growth (`E`) matches Pet Stats export for every pet (export rounds).
+- All three equip slots match Pet Equips export ids exactly.
+- Dungeon teams: membership (`S[].a` ↔ pet `k`), slots (pet `v`), dungeon
+  names, depths — all match the Dungeon Teams export.
+- GP, GP spent, total might, crystal power, pet stones, strategy books, ants,
+  acorns all found at expected values.
+
+## Open questions / next steps
+
+- Pet fields `d,e,f,g,h,j,n,o,p,q,r,s,t,u,x,y,z,A–D,H` — meaning unknown.
+  `g/h/j/o/p/q/r` presumably the stat-bonus / total-exp accumulators behind the
+  computed HP/Attack/etc. shown in exports (those stats are *not* stored).
+- HP/Attack/Defense/Speed/elemental affinities from the Pet Stats export do
+  not appear literally in the save → derived at runtime. If we ever need them,
+  we either keep using the export or reverse the formulas.
+- `X.v` (10,062), `X.z` (13,253,888), `X.T` (23 entries), `X.028` (737 ids),
+  pet `t`/`u` — unidentified.
+- Item type id ↔ name table (equipment + materials) — buildable by joining
+  `R`/`Q` against the equips/stats exports systematically; only spot-checked
+  so far.
+- The 2 leading junk chars: constant? random? Compare with another save.
+- Re-serialization (writing a save) untested — only needed if we ever want to
+  edit saves, which is out of scope for the planner.
+- Token/evolution state (export "Other" column: GnomeFinal, SylphFinal, fight
+  counts, day counters) — not yet located in the pet struct (candidates: the
+  unknown `t`,`u`,`x`,`y`,`z`,`A–D`,`H` fields).
+
+## Rust parser
+
+`crates/save-parser` implements all of this: `container` (outer layers),
+`tree` (generic grammar → `Node`), `model` (typed `SaveFile` with pets,
+equipment, materials, teams, campaigns; unknown fields stay reachable via the
+raw `Node`s). Its `tests/real_save.rs` cross-checks the reference save against
+the exports — when a field meaning gets identified, promote it from the raw
+tree into the typed model there. `cargo run -p save-parser --bin save-dump --
+<save> [--tree]` replaces `expand_save.ps1` for exploration.
+
+## Files here
+
+- `ManualSave_2026-06-09.txt` — raw save (input).
+- `* Export.txt` — same-session in-game exports (ground truth).
+- `expand_save.ps1` — decoder/expander script.
+- `save_layer1.txt`, `decompressed.bin`, `save_expanded.txt` — derived
+  artifacts (regenerable; the expanded tree is the one to read).

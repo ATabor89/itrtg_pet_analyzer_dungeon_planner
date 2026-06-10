@@ -1,0 +1,2 @@
+---DungeonTeamsStart---
+0:Reindeer=5,Dog=3,Dragon=6,Egg=2,Salamander=4,Succubus=1,;1:Penguin=1,Clam=2,Frog=4,Rabbit=6,Fairy=5,Whale=3,;2:Cat=1,Armadillo=3,Sylph=6,Squirrel=5,MistSphere=4,Serow=2,;---DungeonTeamsEnd---
