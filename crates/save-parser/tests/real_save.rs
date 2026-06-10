@@ -295,13 +295,14 @@ fn second_save_gems_match_transcription() {
 }
 
 #[test]
-fn second_save_normal_level_and_physical_stat() {
+fn second_save_normal_level_and_stats() {
     let save = require_second_save!();
     // User-confirmed displayed values, same day as the save:
     let gnome = save.pet_by_name("Gnome").unwrap();
     assert_eq!(gnome.normal_level, 13_724);
-    // Displayed Physical was 3.688e9; the save stores it ×10 in `j`.
-    assert!((gnome.physical_stat - 3.688e9).abs() / 3.688e9 < 1e-3);
+    // Displayed: Health 36.885e9, Physical 3.688e9 (Health = 10 × Physical).
+    assert!((gnome.normal_health - 36.885e9).abs() / 36.885e9 < 1e-3);
+    assert!((gnome.physical_stat() - 3.688e9).abs() / 3.688e9 < 1e-3);
 
     let anni = save.pet_by_name("Anni Cake").unwrap();
     assert_eq!(anni.normal_level, 10_861);
@@ -309,6 +310,50 @@ fn second_save_normal_level_and_physical_stat() {
     // Fire Fox and Swan were both level 2,052.
     assert_eq!(save.pet_by_name("Fire Fox").unwrap().normal_level, 2052);
     assert_eq!(save.pet_by_name("Swan").unwrap().normal_level, 2052);
+}
+
+#[test]
+fn training_clone_stats_match_per_mille_settings() {
+    let save = require_second_save!();
+    // The user's global training settings: Physical‰ 1, Mystic‰ 556,
+    // Battle‰ 550. Stored clone stats keep exactly those ratios, and
+    // clone HP = 10 × clone Physical (the Health rule).
+    for pet in save.pets.iter().filter(|p| p.clone_physical > 1.0) {
+        let o = pet.clone_physical;
+        assert!((pet.clone_mystic / o - 556.0).abs() < 1e-6, "{}", pet.name);
+        assert!((pet.clone_battle / o - 550.0).abs() < 1e-6, "{}", pet.name);
+        assert!((pet.clone_hp / o - 10.0).abs() < 1e-9, "{}", pet.name);
+    }
+}
+
+#[test]
+fn clone_stats_are_a_snapshot_health_is_live() {
+    // Across the two saves (one day apart): the training-clone stats are
+    // bit-identical (configuration snapshot), while normal Health moved by
+    // ~30% (Anni Cake bonus accumulation).
+    let (Some(save1), Some(save2)) = (load_reference_save(), load_second_save()) else {
+        eprintln!("reference saves not present; skipping");
+        return;
+    };
+    let g1 = save1.pet_by_name("Gnome").unwrap();
+    let g2 = save2.pet_by_name("Gnome").unwrap();
+    assert_eq!(g1.clone_physical, g2.clone_physical);
+    assert_eq!(g1.clone_mystic, g2.clone_mystic);
+    assert!(g2.normal_health > g1.normal_health * 1.2);
+}
+
+#[test]
+fn equipment_multipliers_follow_wiki_rules() {
+    let save = require_second_save!();
+    // Salamander's Inferno Sword is SSS +10: quality 1.3, upgrade 1.5.
+    let salamander = save.pet_by_name("Salamander").unwrap();
+    let weapon = save
+        .equipment_by_instance_id(salamander.weapon_id.unwrap())
+        .unwrap();
+    assert_eq!(weapon.quality_name(), Some("SSS"));
+    assert!((weapon.quality_multiplier() - 1.3).abs() < 1e-9);
+    assert!((weapon.upgrade_multiplier() - 1.5).abs() < 1e-9);
+    assert!((weapon.stat_multiplier() - 1.95).abs() < 1e-9);
 }
 
 #[test]
@@ -340,24 +385,6 @@ fn second_save_equipment_type_names_resolve() {
     assert_eq!(count_of("Inferno Sword"), 10);
     assert_eq!(count_of("Titanium Armor"), 11);
     assert_eq!(count_of("Storm Bow"), 3);
-}
-
-#[test]
-fn second_save_stat_field_relations_hold() {
-    let save = require_second_save!();
-    // p = 556*o, q = 550*o, r = 10*o — exact for every pet with stats.
-    for pet in &save.pets {
-        let o = pet.raw.get("o").and_then(|n| n.as_f64()).unwrap_or(0.0);
-        if o <= 1.0 {
-            continue; // locked pets sit at o = 1 or 0
-        }
-        let p = pet.raw.get("p").and_then(|n| n.as_f64()).unwrap();
-        let q = pet.raw.get("q").and_then(|n| n.as_f64()).unwrap();
-        let r = pet.raw.get("r").and_then(|n| n.as_f64()).unwrap();
-        assert!((p / o - 556.0).abs() < 1e-6, "{}: p/o = {}", pet.name, p / o);
-        assert!((q / o - 550.0).abs() < 1e-6, "{}: q/o = {}", pet.name, q / o);
-        assert!((r / o - 10.0).abs() < 1e-9, "{}: r/o = {}", pet.name, r / o);
-    }
 }
 
 #[test]

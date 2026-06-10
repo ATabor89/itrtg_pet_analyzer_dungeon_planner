@@ -67,11 +67,23 @@ pub struct SavePet {
     pub growth: f64,
     /// Normal level (`g`) — resets at rebirth; drives normal stats.
     pub normal_level: u32,
-    /// Current Physical stat (`j` ÷ 10 — the save stores it ×10). Mystic and
-    /// Battle are not stored; in-game they differ from Physical only by the
-    /// Strategy Room multiplier ratio. See
+    /// Current normal Health (`j`), recomputed live by the game. Health is
+    /// exactly 10 × Physical ("each physical increases 10 Hp"), so
+    /// [`SavePet::physical_stat`] derives from this. Mystic and Battle are
+    /// not stored; in-game they differ from Physical only by the Strategy
+    /// Room multiplier ratio. See
     /// `reference/save_file_deserialization/normal_stats_investigation.md`.
-    pub physical_stat: f64,
+    pub normal_health: f64,
+    /// Training-clone stats — a *snapshot* taken when training was last
+    /// configured (bit-identical across saves a day apart, while
+    /// `normal_health` moved): the clones this pet fights have these stats.
+    /// `o` = clone Physical (Physical‰ × pet Battle / 1000), `p` = clone
+    /// Mystic (Mystic‰ setting), `q` = clone Battle (Battle‰ setting),
+    /// `r` = clone HP (= 10 × clone Physical, per the Health rule).
+    pub clone_physical: f64,
+    pub clone_mystic: f64,
+    pub clone_battle: f64,
+    pub clone_hp: f64,
     /// Dungeon team slot 1–6 (`v`), `None` when not on a team.
     pub team_slot: Option<u8>,
     /// Element (`w.a`).
@@ -97,9 +109,8 @@ pub struct SavePet {
     /// Partner-related counter (`G`) — bond level? Only nonzero with partner.
     pub partner_bond: u64,
     /// The pet's raw node, for the still-unidentified fields
-    /// (`d,e,f,h,n,o,p,q,r,s,t,u,x,y,z,A–D,H`). Known but derived: `p`/`q`/`r`
-    /// are exactly 556×/550×/10× the accumulator `o` (meaning TBD), and `h`
-    /// is level/exp-state related.
+    /// (`d,e,f,h,n,s,t,u,x,y,z,A–D,H`). `h` is level/exp-state related
+    /// (identical for same-level pets, static while not training).
     pub raw: Node,
 }
 
@@ -309,6 +320,11 @@ impl SaveFile {
 }
 
 impl SavePet {
+    /// Current normal Physical stat (= Health / 10).
+    pub fn physical_stat(&self) -> f64 {
+        self.normal_health / 10.0
+    }
+
     fn from_node(node: &Node) -> Self {
         let w = node.get("w");
         let class_node = w.and_then(|w| w.get("d"));
@@ -323,7 +339,11 @@ impl SavePet {
             unlocked: node.get("l").and_then(Node::as_bool).unwrap_or(false),
             growth: node.get("E").and_then(Node::as_f64).unwrap_or(0.0),
             normal_level: get_u32(node, "g"),
-            physical_stat: get_f64(node, "j") / 10.0,
+            normal_health: get_f64(node, "j"),
+            clone_physical: get_f64(node, "o"),
+            clone_mystic: get_f64(node, "p"),
+            clone_battle: get_f64(node, "q"),
+            clone_hp: get_f64(node, "r"),
             team_slot: match get_u32(node, "v") {
                 0 => None,
                 slot => u8::try_from(slot).ok(),
@@ -344,10 +364,46 @@ impl SavePet {
     }
 }
 
+/// Save quality id for quality "A" — the wiki's stat baseline. Each step
+/// above/below shifts the multiplier ±10% (additively).
+const QUALITY_A: u32 = 5;
+
 impl EquipmentItem {
     /// Display name of the item type, if identified.
     pub fn type_name(&self) -> Option<&'static str> {
         crate::items::equipment_type_name(self.type_id)
+    }
+
+    /// Quality letter. Verified against exports: 8=SSS, 7=SS, 6=S, 5=A, 4=B;
+    /// 3=C and 2=D are inferred from the wiki's quality ladder.
+    pub fn quality_name(&self) -> Option<&'static str> {
+        Some(match self.quality {
+            2 => "D",
+            3 => "C",
+            4 => "B",
+            5 => "A",
+            6 => "S",
+            7 => "SS",
+            8 => "SSS",
+            _ => return None,
+        })
+    }
+
+    /// Quality multiplier on the catalogued A+0 stat percentages:
+    /// ±10% per quality step around A (wiki: C ⇒ 0.8, SSS ⇒ 1.3).
+    pub fn quality_multiplier(&self) -> f64 {
+        1.0 + (self.quality as f64 - QUALITY_A as f64) * 0.1
+    }
+
+    /// Upgrade multiplier: +5% per "+" level (wiki: +8 ⇒ 1.4, +20 ⇒ 2.0).
+    pub fn upgrade_multiplier(&self) -> f64 {
+        1.0 + 0.05 * self.plus as f64
+    }
+
+    /// Combined multiplier applied to the item's A+0 stat percentages
+    /// (quality × upgrade; wiki: SSS +20 ⇒ 1.3 × 2.0 = 2.6).
+    pub fn stat_multiplier(&self) -> f64 {
+        self.quality_multiplier() * self.upgrade_multiplier()
     }
 
     fn from_node(node: &Node) -> Self {
