@@ -388,12 +388,90 @@ fn second_save_equipment_type_names_resolve() {
 }
 
 #[test]
+fn current_exp_and_working_experience() {
+    let save = require_second_save!();
+    // User readings: Gnome current exp 1.115e12; Fire Fox & Swan 4.949e9.
+    let gnome = save.pet_by_name("Gnome").unwrap();
+    assert!((gnome.current_exp - 1.115e12).abs() / 1.115e12 < 1e-3);
+    let ff = save.pet_by_name("Fire Fox").unwrap();
+    let swan = save.pet_by_name("Swan").unwrap();
+    assert_eq!(ff.current_exp, swan.current_exp); // same level, same exp state
+    assert!((ff.current_exp - 4.949e9).abs() / 4.949e9 < 1e-3);
+
+    // Working experience in ms: Lamb ≈ 108d12h, Santa ≈ 64d18h at save time
+    // (user readings minus the elapsed 4h50m matched to within seconds).
+    assert_eq!(
+        save.pet_by_name("Lamb").unwrap().working_experience_ms,
+        9_375_772_300
+    );
+    assert_eq!(
+        save.pet_by_name("Santa").unwrap().working_experience_ms,
+        5_597_822_340
+    );
+}
+
+#[test]
+fn partner_days_increment_daily() {
+    let (Some(save1), Some(save2)) = (load_reference_save(), load_second_save()) else {
+        eprintln!("reference saves not present; skipping");
+        return;
+    };
+    // Every partnered pet gained exactly +1 partner day between the saves.
+    for p1 in save1.pets.iter().filter(|p| p.partner_type_id.is_some()) {
+        let p2 = save2.pet_by_name(&p1.name).unwrap();
+        assert_eq!(
+            p2.partner_days,
+            p1.partner_days + 1,
+            "{} partner days",
+            p1.name
+        );
+    }
+}
+
+#[test]
+fn global_trackers_match_exports_and_tooltips() {
+    use save_parser::model::trackers;
+    let (Some(save1), Some(save2)) = (load_reference_save(), load_second_save()) else {
+        eprintln!("reference saves not present; skipping");
+        return;
+    };
+    let t1 = |k| save1.global_tracker(k).unwrap();
+    let t2 = |k| save2.global_tracker(k).unwrap();
+
+    // Main Stats export (save 1): "Chocobear hours: 4,826", "Caterpillar
+    // materials upgraded: 2,865", "Growth from Golden Dragon: 184,999",
+    // "Growth from Bag: 5,483", "Earth Eater Earthlike planets eaten:
+    // 7.308 E+6", "Dungeon Bosses defeated: 2,244", "Crystal Power (4,183)".
+    assert_eq!(t1(trackers::CHOCOBEAR_BANKED_HOURS).floor(), 4826.0);
+    assert_eq!(t1(trackers::CATERPILLAR_MATERIALS_UPGRADED), 2865.0);
+    assert_eq!(t1(trackers::GOLD_DRAGON_BONUS_GROWTH).floor(), 184999.0);
+    assert_eq!(t1(trackers::BAG_BONUS_GROWTH).floor(), 5482.0);
+    assert_eq!(t1(trackers::EARTH_EATER_PLANETS_TOTAL), 7_308_846.0);
+    assert_eq!(t1(trackers::DUNGEON_BOSSES), 2244.0);
+    assert_eq!(t1(trackers::CRYSTAL_POWER), 4183.0);
+
+    // User tooltip readings (after save 2): Meteor 4,572.11 campaign hours,
+    // Serow 7,552 items saved, Mule 124 quests (123 in save 1), Aether 28
+    // boss kills, God Power 863 hours.
+    assert!((t2(trackers::METEOR_CAMPAIGN_HOURS) - 4572.11).abs() < 0.01);
+    assert_eq!(t2(trackers::SEROW_ITEMS_SAVED), 7552.0);
+    assert_eq!(t1(trackers::MULE_QUESTS), 123.0);
+    assert_eq!(t2(trackers::MULE_QUESTS), 124.0);
+    assert_eq!(t2(trackers::AETHER_BOSS_KILLS), 28.0);
+    assert_eq!(t2(trackers::GOD_POWER_CAMPAIGN_HOURS), 863.0);
+
+    // Pandora's feedings counter can be negative (observed after rebirth).
+    assert_eq!(t1(trackers::PANDORA_FEEDINGS), -28.0);
+    assert_eq!(t2(trackers::PANDORA_FEEDINGS), 27.0);
+}
+
+#[test]
 fn raw_tree_keeps_unidentified_fields_reachable() {
     let save = require_save!();
-    // X.v = 10062 — meaning still unknown; the raw tree must keep it visible.
-    let v = save.root.get_path(&["X", "v"]).and_then(|n| n.as_u64());
-    assert_eq!(v, Some(10062));
-    // Unknown per-pet fields stay on the pet's raw node.
-    let cat = save.pet_by_name("Cat").unwrap();
-    assert_eq!(cat.raw.get("H").and_then(|n| n.as_u64()), Some(10920));
+    // X.z — meaning still unknown; the raw tree must keep it visible.
+    let z = save.root.get_path(&["X", "z"]).and_then(|n| n.as_u64());
+    assert_eq!(z, Some(13253888));
+    // Unknown per-pet fields stay on the pet's raw node (Santa t = 4).
+    let santa = save.pet_by_name("Santa").unwrap();
+    assert_eq!(santa.raw.get("t").and_then(|n| n.as_u64()), Some(4));
 }

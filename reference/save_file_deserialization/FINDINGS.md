@@ -88,7 +88,9 @@ team roster:
 | `g` | **normal level** (resets at rebirth) | matches displayed level exactly for all 7 pets checked 2026-06-10 |
 | `j` | **current normal Health** (= 10 × Physical; recomputed live) | Gnome j ↔ displayed Health 36.885e9 / Physical 3.688e9; moved ~+30% between the two saves (Anni Cake accumulation) |
 | `o`,`p`,`q`,`r` | **training-clone stats** (Physical/Mystic/Battle/HP) — a snapshot from when training was last configured | ratios exactly match the user's global per-mille settings (1/556/550) and the HP=10×Physical rule; bit-identical across both saves while `j` moved |
-| `h` | level/exp-state related (likely normal-level exp counter) | identical for same-level pets; static across saves while no pet was training |
+| `h` | **current exp toward the next normal level** | matches in-game "Current exp" exactly (Gnome 1.115e12, Fire Fox/Swan 4.949e9); only moves while training |
+| `G` | **days partnered** | +1 for every partnered pet between the two saves |
+| `H` | **village working experience, in ms** | Lamb 9,375,772,300 ms ↔ ~108d 12h reading (exact to seconds); Santa likewise; explains Cat's old "10920" (≈11 s worked) |
 | `k` | **internal pet type id** — the id used by team/campaign lists | team ids resolve: 89=Salamander, 25=Rudolph, 2=Cat, 0=Mouse, 803=Serow |
 | `l` | unlocked flag | locked pets `False` ✓ export Unlocked column |
 | `m` | timer ms: 86,400,000 (locked) / 34,976,500 (all unlocked pets) | shared countdown — next growth tick? |
@@ -117,6 +119,41 @@ multiplier, open staircase questions), see `normal_stats_investigation.md`.
 
 0=None, 1=Blacksmith, 2=Alchemist, 3=Adventurer, 4=Defender, 5=Supporter,
 6=Rogue, 7=Assassin, 8=Mage.
+
+## `root.x` — the global tracker block
+
+A flat struct of ~360 numeric-keyed counters holding both global statistics
+and the per-pet special trackers shown in pet tooltips. Identified keys are
+in `crates/save-parser/src/model.rs` (`trackers` module), confirmed by
+diffing the two saves against tooltip readings — every user-predicted
+day-over-day delta matched (Meteor `234`: 4548.117 → 4572.111, exactly +24
+campaign hours; Mule `310`: 123 → 124; Chocobear `089`: 4826.09 → 4874.09;
+Serow `324`: 7037 → 7552; …).
+
+Per-pet trackers: 089 Chocobear banked hours, 169 Pandora feedings (observed
+**negative** −28 just after rebirth), 185 Earth Eater planets total, 186
+Aether boss kills (the Aether Ring "+28"), 216 Pignata bashes, 218 God Power
+campaign hours, 234 Meteor campaign hours, 259 Caterpillar materials, 310
+Mule quests, 311 Gold Dragon bonus growth, 324 Serow items saved, 336 Bag
+bonus growth. Globals: 013 AFK clones killed, 049 day-pet-challenge multi,
+071 lucky draws opened, 074 crystal power, 078/079/080 dungeon
+bosses/enemies/rooms, 129 total might.
+
+Not found yet: Anni Cake's current bonus % is stored nowhere obvious —
+candidate `x.138` (a seconds counter: 950.0 h at save 2 vs the 949% reading;
+needs one synchronized reading of bonus% at save time to confirm or kill).
+
+## `X.T` — the crafting roster (23 entries)
+
+One entry per crafting pet: `a` = crafter pet id, `c` = crafting progress
+(float; resets when an item completes), `k` = 0 alchemist / 1 blacksmith.
+Alchemists: `e` = **material id being brewed** (Bee → 166 Honey, Phoenix →
+15 Health Potion, Void → 16 Health Potion X, Supreme Taco & Bunny Girl → 32
+Wise Talisman, …). Blacksmiths: `d` = **equipment type id being forged** —
+in save 2: six smiths on 51 (Magic Stick), one on 54 (Magic Pot), one on 86
+(Ear Muffs), exactly matching the +6/+1/+1 inventory drift observed during
+the manual transcription. Blacksmith `l` = unidentified small id (queue or
+last-forged type?).
 
 ## Equipment struct (`X.R[i]`)
 
