@@ -66,7 +66,7 @@ So: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`.
 | `x` | list of 8 **campaign slots** | `d` = `&`-joined pet ids (10 per slot), `e` = 43,200,000 ms = 12 h, `f` = total bonus, `c` = timestamp, `i` = RNG seed |
 | `y` | pet stones | 267,028 ✓ Main Stats |
 | `P` | list of 3 **active dungeon runs** | `a` = dungeon id (2,3,5), `c` = 43,200,000 ms, `d` = depth-ish, seeds in `e`/`j` |
-| `Q` | list of 69 — **material inventory** (`a`=item id, `b`=count) | id 159 = Strategy Books 2,840 ✓; Ants 192,164 ✓; Acorns 24,727 ✓ |
+| `Q` | list of 69 — **material inventory** (`a`=item id, `b`=count) | export-confirmed: 117=Ant 192,164 ✓, 159=Strategy Book 2,840 ✓, 166=Honey 787 ✓, 174=Acorn 24,727 ✓. Full id→name table (incl. the prior project's identifications: Herb/Iron Ore/…/Soul of Sylph) lives in `crates/save-parser/src/items.rs` |
 | `R` | list of 209 — **owned pet equipment** | see equipment struct |
 | `S` | list of 3 — **dungeon teams** | `a` = 6 pet ids (`&`-joined, matched via pet `k`), `b` = dungeon id, `c` = pending loot (item id+count), `d` = depth, `i` = dungeon name ("Scrapyard", "Water Temp", "Forest") |
 | `T` | list of 23 | ? (per-entry: id-ish `a`, float `c`, nested gear-like `g`) |
@@ -164,9 +164,14 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
   we either keep using the export or reverse the formulas.
 - `X.v` (10,062), `X.z` (13,253,888), `X.T` (23 entries), `X.028` (737 ids),
   pet `t`/`u` — unidentified.
-- Item type id ↔ name table (equipment + materials) — buildable by joining
-  `R`/`Q` against the equips/stats exports systematically; only spot-checked
-  so far.
+- Material id ↔ name: partially solved — `crates/save-parser/src/items.rs`
+  merges the prior project's table with the export-confirmed ids. Still
+  unidentified (nonzero in this save): 16, 17, 21, 31, 32, 130, 160, 164,
+  167, 168; 131–135 are plausibly the five T4 bars (all count 32, right
+  after the T3 bars at 33–37).
+- Equipment *type* id ↔ name (the `R.a` namespace — distinct from materials!)
+  — only spot-checked (21 = Inferno Sword, 51 = Magic Stick); buildable by
+  joining `R` against the Pet Stats export gear strings systematically.
 - The 2 leading junk chars: constant? random? Compare with another save.
 - Re-serialization (writing a save) untested — only needed if we ever want to
   edit saves, which is out of scope for the planner.
