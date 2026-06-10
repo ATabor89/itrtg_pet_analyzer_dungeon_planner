@@ -45,10 +45,10 @@ So: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`.
 | `e` | shadow clones block | `a`=current 10,000,061, `b`=max 10,000,000 ✓ |
 | `g` | god title string | "Strongest Entity in the Universe?" |
 | `h` | creation-adjacent list (28: a=id, b≈9.99M decreasing, c=1) | shape known, meaning not pinned |
-| `i` | **creations** (29) | `i.i` = the Next Ats export's per-creation "next at" values (0, 12000, 12000, 6000, …) ✓ |
+| `i` | **creations** (29, Shadow Clone … Universe — full name table in `items::creation_name`) | `i.i` = the Next Ats "next at" values (Light 12,000, Village 90, Universe 84,500 …) ✓ |
 | `j`,`k` | more building blocks (28/34) | |
-| `D` | **monuments** (9) | `g`\|`h` = Next Ats "next at \| level" pairs exactly (512\|7, 1024\|6, …); live build state: `f`=building flag, `c`=clones allocated, `d`=progress (entry 7 mid-build in save 2) |
-| `V` | **mights** (14) | `m`\|`n` = Next Ats pairs exactly (256\|2 … 64\|3); `e`=True on special mights 8–13 with `g` descending 30…5 and `i/j/k` thresholds |
+| `D` | **monuments** (9, Mighty Statue … White Hole — `items::monument_name`) | `g` = next-at, `h` = **spread ratio** (the spread-clones allocation weight, not a level); live build state: `f`=building, `c`=clones allocated, `d`=progress (Black Hole mid-build with 4M clones in save 2). The paired *upgrade* next-at from the export is stored elsewhere (not in `D`) |
+| `V` | **mights** (14 — `items::might_name`) | `m` = next-at, `n` = **spread ratio**. Ids 8–13 are the special Unleash mights: `e`=True, `g` = base duration in seconds (level adds +1 s: base 30 + level 64 = the 94 s Focused Breathing unleash ✓), `i`/`j`/`k` = HP-recovery/Attack/Mystic effect % (Transformation Aura 200/200/200 ✓). Might *levels* are not in `V` — location unknown |
 | `O`, `009` | statistics mirrors | `O.030` = light clones ✓; spacedim total at `009.e`, light clones again at `009.a` |
 | `024` | quests block | `024.d` = Quest Points (4,553 ✓ s2 export) |
 | `025` | fishing block | `025.a` = Fish Power (1,270,255 ≈ displayed 1.270e6 ✓) |
