@@ -33,8 +33,15 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         13 => "Sacred Stone",
         14 => "Phoenix Feather",
         15 => "Health Potion",
-        19 => "Nothing",
+        // 16/17/19/21 confirmed against the 2026-06-10 full inventory
+        // transcription (counts matched the second save). Note 19 was
+        // "Nothing" in the prior project's table — that was wrong; the
+        // Antidote count (128) matched id 19 exactly, and "Nothing" is 119.
+        16 => "Health Potion X",
+        17 => "Health Potion S",
+        19 => "Antidote",
         20 => "Flying Boots",
+        21 => "Torch",
         22 => "Ginger",
         23 => "Holy Water",
         // -- prior-project, T3 materials (the "Magic" tier) --
@@ -73,15 +80,76 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         147 => "Secrets of the Wind",
         149 => "Soul of Sylph",
         153 => "Ale",
-        // Unidentified ids seen in real inventories (kept here as a worklist):
-        // nonzero in the reference save: 16, 17, 21, 130, 160, 164, 167, 168;
-        // present at count 0: 128, 129, 139, 140, 142–145, 148, 150.
-        // 131–135 are the five T4 materials — the set is known (Mythril,
-        // Ocean Stone, Sun Stone, Sky Stone, Jungle Stone) but all five sit
-        // at count 32 in the reference save, so which id is which is still
-        // ambiguous; left unnamed until a save disambiguates the counts.
+        // Unidentified ids (worklist):
+        // - {130, 160, 164, 167, 168} all sit at count 1 and pair with the
+        //   five singleton inventory items {Not Nothing, Absolutely Nothing,
+        //   Aether Ring +28, Food Journal One, Food Journal Two} — set known,
+        //   per-id assignment unknown (all five predate the first save).
+        // - 131–135 are the five T4 materials {Mythril, Ocean Stone,
+        //   Sun Stone, Sky Stone, Jungle Stone}; still all at count 32 in
+        //   both saves, so per-id assignment remains ambiguous.
+        // - Present at count 0: 128, 129, 139, 140, 142–145, 148, 150.
         // 126–149 look like per-dungeon boss material families (Gnome/earth,
         // fire, wind) — the matching water family is presumably nearby.
+        // Foods and gems are NOT in this namespace: Puny/Strong/Mighty Food
+        // and Chocolate are dedicated save fields (X.c/d/e/v), gems live in
+        // X.002 keyed by element id.
+        _ => return None,
+    })
+}
+
+/// Look up the display name for an equipment *type* id (the `X.R[i].a`
+/// namespace — distinct from material ids).
+///
+/// Derived 2026-06-10 by joining, for every equipped item: the gear name in
+/// the Pet Stats export ↔ the instance id in the Pet Equips export ↔ the
+/// instance→type mapping in the save's `X.R` list. 31 types resolved with
+/// zero conflicting votes; Storm Bow (29) was pinned separately as the only
+/// type whose instance count (3) uniquely matched the inventory
+/// transcription.
+///
+/// Still unidentified (all unequipped): the nine 1-count types
+/// {5, 8, 22, 23, 26, 30, 41, 52, 56} pair with {Iron Pot, Water Spear,
+/// Flood Spear, Leeching Sword, Tree Axe, Hurricane Bow, Flame Armor,
+/// Flood Armor, Tree Bracelet}, and type 44 is {Magic Hammer | Storm Ring}.
+pub fn equipment_type_name(type_id: u32) -> Option<&'static str> {
+    Some(match type_id {
+        // armor
+        3 => "Titanium Armor",
+        12 => "Forest Armor",
+        13 => "Feather Vest",
+        15 => "Hurricane Armor",
+        // weapons
+        18 => "Titanium Sword",
+        21 => "Inferno Sword",
+        29 => "Storm Bow",
+        47 => "Shaping Hammer",
+        50 => "Journeying Stick",
+        51 => "Magic Stick",
+        54 => "Magic Pot",
+        57 => "Ego Sword",
+        60 => "Bursting Knives",
+        79 => "Legendary Hammer", // "Legend Hammer" in the in-game inventory
+        83 => "Exploding Knives",
+        // accessories
+        33 => "Titanium Ring",
+        36 => "Inferno Gloves",
+        39 => "Tsunami Necklace",
+        40 => "Wood Bracelet",
+        45 => "Hurricane Ring",
+        61 => "Alchemist Cape",
+        86 => "Ear Muffs",
+        // 300-series: event/special gear
+        300 => "Candy Cane",
+        301 => "Spectrometers",
+        302 => "Master Gloves",
+        303 => "Learning Coat",
+        304 => "Magic Egg",
+        305 => "Creators Vest",
+        306 => "Godly Hammer",
+        307 => "Merry Mantle",
+        309 => "Growing Love Pendant",
+        311 => "Christmas Boots",
         _ => return None,
     })
 }
@@ -105,14 +173,26 @@ mod tests {
         assert_eq!(material_name(33), Some("Inferno Bar"));
         assert_eq!(material_name(35), Some("Hurricane Bar"));
         assert_eq!(material_name(37), Some("Titanium Bar"));
+        assert_eq!(material_name(19), Some("Antidote")); // not "Nothing"
+        assert_eq!(material_name(21), Some("Torch"));
+        assert_eq!(material_name(16), Some("Health Potion X"));
+        assert_eq!(material_name(17), Some("Health Potion S"));
     }
 
     #[test]
     fn unknown_ids_return_none() {
         assert_eq!(material_name(0), None);
-        assert_eq!(material_name(21), None); // prior project: "Unknown #21"
-        assert_eq!(material_name(130), None);
+        assert_eq!(material_name(130), None); // singleton set, unassigned
         assert_eq!(material_name(134), None); // T4 material, id↔name ambiguous
         assert_eq!(material_name(9999), None);
+    }
+
+    #[test]
+    fn equipment_type_names() {
+        assert_eq!(equipment_type_name(21), Some("Inferno Sword"));
+        assert_eq!(equipment_type_name(51), Some("Magic Stick"));
+        assert_eq!(equipment_type_name(304), Some("Magic Egg"));
+        assert_eq!(equipment_type_name(44), None); // Magic Hammer | Storm Ring
+        assert_eq!(equipment_type_name(5), None); // unequipped singleton set
     }
 }
