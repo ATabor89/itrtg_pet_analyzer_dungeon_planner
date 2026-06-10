@@ -100,12 +100,23 @@ pub fn parse_main_stats(source: &str) -> Result<MainStats, String> {
         fishing_level: count("Fishing Level").map(|v| v as u32),
         stone_campaign_upgrade: map
             .get("Chp Stone Pet improvement")
-            .map(|v| v.eq_ignore_ascii_case("true")),
+            .and_then(|v| parse_bool(v)),
         earth_eater_planets_text: map
             .get("Earth Eater Earthlike planets eaten")
             .map(|v| v.to_string()),
         base_growth_per_hour: count("Base Growth per hour"),
     })
+}
+
+/// Parse a `True`/`False` export value (any case). Returns `None` for anything
+/// else, so a garbled line stays "unparseable" instead of silently reading as
+/// `false` and clobbering a user-set value on import.
+fn parse_bool(s: &str) -> Option<bool> {
+    match s.to_ascii_lowercase().as_str() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
 }
 
 /// Parse an unsigned integer that may be comma-grouped / space-padded. Returns
@@ -156,6 +167,21 @@ mod tests {
         let ms = parse_main_stats("Idling to Rule the Gods - statistics export\n\nNothing: here\n")
             .unwrap();
         assert_eq!(ms, MainStats::default());
+    }
+
+    #[test]
+    fn stone_upgrade_only_parses_recognised_booleans() {
+        let parse = |value: &str| {
+            let src = format!(
+                "Idling to Rule the Gods - statistics export\n\nChp Stone Pet improvement: {value}\n"
+            );
+            parse_main_stats(&src).unwrap().stone_campaign_upgrade
+        };
+        assert_eq!(parse("True"), Some(true));
+        assert_eq!(parse("false"), Some(false));
+        // A garbled value must stay None — Some(false) would overwrite a
+        // user-set true on import.
+        assert_eq!(parse("???"), None);
     }
 
     #[test]
