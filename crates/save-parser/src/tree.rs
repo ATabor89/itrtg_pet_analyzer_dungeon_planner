@@ -216,6 +216,8 @@ impl Node {
     }
 
     /// Parse a leaf like `61&99&82` (or a single `61`) as an integer list.
+    /// All-or-nothing: one unparseable element yields `None` rather than a
+    /// partial list, so callers never see a silently shortened team.
     pub fn as_int_list(&self) -> Option<Vec<u32>> {
         self.as_str()?
             .split('&')
@@ -329,6 +331,27 @@ mod tests {
         let node = parse("a:66841.3595410302;b:7.37927073370121E+185;");
         assert!((node.get("a").unwrap().as_f64().unwrap() - 66841.3595410302).abs() < 1e-9);
         assert!(node.get("b").unwrap().as_f64().unwrap() > 1e185);
+    }
+
+    #[test]
+    fn recursion_depth_is_capped() {
+        // Nest base64 structs past MAX_DEPTH; the parser must degrade to a
+        // leaf instead of recursing forever.
+        let mut text = "a:1;".to_string();
+        for _ in 0..(MAX_DEPTH + 4) {
+            text = format!("a:{};", b64(&text));
+        }
+        let mut node = &parse(&text);
+        let mut depth = 0;
+        while let Some(inner) = node.get("a") {
+            node = inner;
+            depth += 1;
+            if matches!(node, Node::Leaf(_)) {
+                break;
+            }
+        }
+        assert!(matches!(node, Node::Leaf(_)));
+        assert!(depth <= MAX_DEPTH + 1);
     }
 
     #[test]
