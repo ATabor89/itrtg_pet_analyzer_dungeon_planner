@@ -106,11 +106,18 @@ pub struct SavePet {
     /// Partner pet type id (`F`), `None` when 999. Pairs are mutual
     /// (Cat↔Dog, Vampire↔Succubus, ...). Note id 0 (Mouse) is valid.
     pub partner_type_id: Option<u32>,
-    /// Partner-related counter (`G`) — bond level? Only nonzero with partner.
-    pub partner_bond: u64,
+    /// Days partnered (`G`) — incremented by exactly 1 per day for every
+    /// partnered pet (verified across the two reference saves).
+    pub partner_days: u64,
+    /// Current exp toward the next normal level (`h`). Matches the in-game
+    /// "Current exp" display; only moves while the pet trains.
+    pub current_exp: f64,
+    /// Village working experience (`H`), in **milliseconds** of total time
+    /// worked. Matches the in-game working-time display to the second
+    /// (Lamb 9,375,772,300 ms ↔ ~108d 12h).
+    pub working_experience_ms: u64,
     /// The pet's raw node, for the still-unidentified fields
-    /// (`d,e,f,h,n,s,t,u,x,y,z,A–D,H`). `h` is level/exp-state related
-    /// (identical for same-level pets, static while not training).
+    /// (`d,e,f,n,s,t,u,x,y,z,A–D`).
     pub raw: Node,
 }
 
@@ -186,6 +193,57 @@ pub struct CampaignSlot {
     pub duration_ms: u64,
     /// Bonus value (`f`) — semantics not yet pinned down.
     pub bonus: u64,
+}
+
+/// Identified keys in the global tracker block (root `x`), for use with
+/// [`SaveFile::global_tracker`]. All confirmed 2026-06-11 by diffing the two
+/// reference saves against in-game tooltip readings and the Main Stats
+/// exports (each per-pet value matched the user's predicted day-over-day
+/// delta).
+pub mod trackers {
+    // -- per-pet special trackers --
+    /// Chocobear: hours banked for the non-food-campaign bonus.
+    pub const CHOCOBEAR_BANKED_HOURS: &str = "089";
+    /// Pandora's box: feedings counter this rebirth. Observed negative
+    /// (-28) right after a rebirth, so it is not a plain count.
+    pub const PANDORA_FEEDINGS: &str = "169";
+    /// Earth Eater: Earthlike planets eaten, lifetime total.
+    pub const EARTH_EATER_PLANETS_TOTAL: &str = "185";
+    /// Aether: Delirious Essence of the Forgotten kills (the Aether Ring's
+    /// "+N" suffix shows the same number).
+    pub const AETHER_BOSS_KILLS: &str = "186";
+    /// Pignata: times bashed open.
+    pub const PIGNATA_BASHES: &str = "216";
+    /// God Power (pet): hours spent in God Power campaigns.
+    pub const GOD_POWER_CAMPAIGN_HOURS: &str = "218";
+    /// Meteor: total hours spent in campaigns (drives its campaign bonus).
+    pub const METEOR_CAMPAIGN_HOURS: &str = "234";
+    /// Caterpillar: total materials upgraded.
+    pub const CATERPILLAR_MATERIALS_UPGRADED: &str = "259";
+    /// Pack Mule: quests participated in.
+    pub const MULE_QUESTS: &str = "310";
+    /// Gold Dragon: bonus growth granted since July 2024.
+    pub const GOLD_DRAGON_BONUS_GROWTH: &str = "311";
+    /// Serow: total items saved in dungeons.
+    pub const SEROW_ITEMS_SAVED: &str = "324";
+    /// Bag: total bonus growth granted.
+    pub const BAG_BONUS_GROWTH: &str = "336";
+
+    // -- global counters (cross-checked against the Main Stats exports) --
+    /// AFK clones killed (lifetime).
+    pub const AFK_CLONES_KILLED: &str = "013";
+    /// Lucky Draws opened.
+    pub const LUCKY_DRAWS_OPENED: &str = "071";
+    /// Crystal power.
+    pub const CRYSTAL_POWER: &str = "074";
+    /// Dungeon bosses defeated.
+    pub const DUNGEON_BOSSES: &str = "078";
+    /// Dungeon enemies defeated.
+    pub const DUNGEON_ENEMIES: &str = "079";
+    /// Dungeon rooms beaten.
+    pub const DUNGEON_ROOMS: &str = "080";
+    /// Total might.
+    pub const TOTAL_MIGHT: &str = "129";
 }
 
 pub fn element_from_id(id: u32) -> Option<Element> {
@@ -304,6 +362,13 @@ impl SaveFile {
         })
     }
 
+    /// Read a numeric value from the global tracker block (root `x`) — a
+    /// flat struct of numeric-keyed game counters, including the per-pet
+    /// special trackers. See [`trackers`] for the identified keys.
+    pub fn global_tracker(&self, key: &str) -> Option<f64> {
+        self.root.get_path(&["x", key]).and_then(Node::as_f64)
+    }
+
     pub fn pet_by_type_id(&self, type_id: u32) -> Option<&SavePet> {
         self.pets.iter().find(|p| p.type_id == type_id)
     }
@@ -358,7 +423,9 @@ impl SavePet {
             armor_id: w.and_then(|w| nonzero_u32(w, "f")),
             accessory_id: w.and_then(|w| nonzero_u32(w, "g")),
             partner_type_id: partner_raw.filter(|&id| id != PARTNER_NONE),
-            partner_bond: get_u64(node, "G"),
+            partner_days: get_u64(node, "G"),
+            current_exp: get_f64(node, "h"),
+            working_experience_ms: get_u64(node, "H"),
             raw: node.clone(),
         }
     }
