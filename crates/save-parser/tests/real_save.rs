@@ -328,8 +328,9 @@ fn second_save_equipment_type_names_resolve() {
         .unwrap();
     assert_eq!(egg.type_name(), Some("Magic Egg"));
 
-    // Per-type instance counts line up with the inventory transcription
-    // (allowing for items crafted between save and transcription):
+    // Per-type instance counts, asserting only types where the save and the
+    // transcription agree exactly (a few others drifted by items the
+    // blacksmiths crafted between save and transcription):
     let count_of = |name: &str| {
         save.equipment
             .iter()
