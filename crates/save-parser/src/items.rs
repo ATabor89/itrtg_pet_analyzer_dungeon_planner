@@ -154,6 +154,83 @@ pub fn equipment_type_name(type_id: u32) -> Option<&'static str> {
     })
 }
 
+/// Creation name by id (root `i` list order; user-transcribed 2026-06-11,
+/// anchored by Next Ats values: Light 12,000, Village 90, Town 60, Moon 10,
+/// Solar System 5, Galaxy 25, Universe 84,500).
+pub fn creation_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 29] = [
+        "Shadow Clone",
+        "Light",
+        "Stone",
+        "Soil",
+        "Air",
+        "Water",
+        "Plant",
+        "Tree",
+        "Fish",
+        "Animal",
+        "Human",
+        "River",
+        "Mountain",
+        "Forest",
+        "Village",
+        "Town",
+        "Ocean",
+        "Nation",
+        "Continent",
+        "Weather",
+        "Sky",
+        "Night",
+        "Moon",
+        "Planet",
+        "Earthlike Planet",
+        "Sun",
+        "Solar System",
+        "Galaxy",
+        "Universe",
+    ];
+    NAMES.get(id as usize).copied()
+}
+
+/// Monument name by id (root `D` list order; anchored by Next Ats values).
+pub fn monument_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 9] = [
+        "Mighty Statue",
+        "Mystic Garden",
+        "Tomb of Gods",
+        "Everlasting Lighthouse",
+        "Godly Statue",
+        "Pyramids of Power",
+        "Temple of God",
+        "Black Hole",
+        "White Hole",
+    ];
+    NAMES.get(id as usize).copied()
+}
+
+/// Might name by id (root `V` list order). Ids 0–7 are the normal mights;
+/// 8–13 are the special "Unleash Might" abilities whose level adds +1 s to
+/// the base duration.
+pub fn might_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 14] = [
+        "Physical HP +",
+        "Physical Attack +",
+        "Mystic Defense +",
+        "Mystic Regen +",
+        "Battle Might +",
+        "Clones on Divinity +",
+        "Clones on Planet +",
+        "Powersurge +",
+        "Focused Breathing +",
+        "Defensive Aura +",
+        "Offensive Aura +",
+        "Elemental Manipulation",
+        "Mystic Mode +",
+        "Transformation Aura +",
+    ];
+    NAMES.get(id as usize).copied()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
