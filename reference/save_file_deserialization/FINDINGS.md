@@ -62,7 +62,11 @@ So: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`.
 | key | meaning | evidence |
 |-----|---------|----------|
 | `b` | list of 158 pets | count matches Pet Stats export exactly, same order |
-| `v` | 10062 | ? (not total dungeon levels 2,920) |
+| `c` | Puny Food count | 123,548 = inventory transcription exact (2nd save) |
+| `d` | Strong Food count | 16,276 ✓ exact |
+| `e` | Mighty Food count | 7,239 ✓ exact |
+| `v` | Chocolate count | 9,989 ✓ exact (was the "10062 unknown" in save 1) |
+| `002` | **gem inventory**: list of {`a`=element id, `b`=gem level, `c`=count} | all 7 stacks match the transcription exactly; same element ids as pets (0=N,1=F,2=W,3=E,4=Wi) |
 | `x` | list of 8 **campaign slots** | `d` = `&`-joined pet ids (10 per slot), `e` = 43,200,000 ms = 12 h, `f` = total bonus, `c` = timestamp, `i` = RNG seed |
 | `y` | pet stones | 267,028 ✓ Main Stats |
 | `P` | list of 3 **active dungeon runs** | `a` = dungeon id (2,3,5), `c` = 43,200,000 ms, `d` = depth-ish, seeds in `e`/`j` |
@@ -81,8 +85,11 @@ team roster:
 | key | meaning | evidence |
 |-----|---------|----------|
 | `a` | display name (see name mapping below) | |
-| `g` | scales with growth — ? (Gnome 13,724 vs growth 72,630) | |
-| `h`, `j`, `o`, `p`, `q`, `r` | big float accumulators; `r` = 10×`o` exactly | ? |
+| `g` | **normal level** (resets at rebirth) | matches displayed level exactly for all 7 pets checked 2026-06-10 |
+| `j` | **current Physical stat × 10** | Gnome j=36,881,717,678 ↔ displayed 3.688e9; all 6 checked pets match. Mystic/Battle are not stored (they differ from Physical only by Strategy Room ratios) |
+| `o` | stat-related accumulator, meaning TBD | the only independent value behind p/q/r; not proportional to current stats across pets |
+| `p`, `q`, `r` | = 556×`o`, 550×`o`, 10×`o` **exactly** (every pet) | derived, not independent; note 556/550 ≠ the SR physical/mystic ratio |
+| `h` | level/exp-state related | Fire Fox & Swan (same level 2,052) have identical h; not monotonic in level across pets |
 | `k` | **internal pet type id** — the id used by team/campaign lists | team ids resolve: 89=Salamander, 25=Rudolph, 2=Cat, 0=Mouse, 803=Serow |
 | `l` | unlocked flag | locked pets `False` ✓ export Unlocked column |
 | `m` | timer ms: 86,400,000 (locked) / 34,976,500 (all unlocked pets) | shared countdown — next growth tick? |
@@ -93,6 +100,9 @@ team roster:
 | `G` | partner-related counter (bond level?) | only nonzero when F≠999 |
 | `H` | ? (only Cat: 10,920) | |
 | `d`,`e`,`f`,`n`,`s`,`t`,`u`,`x`,`y`,`z`,`A`–`D` | ? | t: Vampire=1, Dog=4, Penguin=7; y: Gnome=14, Salamander=19, Sylph=24 |
+
+For the normal-stats formula work (display-side model, the Anni Cake
+multiplier, open staircase questions), see `normal_stats_investigation.md`.
 
 ### Pet dungeon sub-struct (`w`)
 
@@ -164,20 +174,23 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
   we either keep using the export or reverse the formulas.
 - `X.v` (10,062), `X.z` (13,253,888), `X.T` (23 entries), `X.028` (737 ids),
   pet `t`/`u` — unidentified.
-- Material id ↔ name: partially solved — `crates/save-parser/src/items.rs`
-  merges the prior project's table with export- and user-confirmed ids
-  (31/32 = Lucky/Wise Talisman, 33–37 = the elemental bars: Inferno/
-  Tsunami/Hurricane/Forest/Titanium, pinned by live inventory counts).
-  Tier structure per element: T1/T2 raw materials → T3 "Magic" materials
-  (24–28) → bars (33–37, crafted from T1–T3 + Whetstones + Sacred Stones);
-  T4 materials are 131–135 = {Mythril, Ocean/Sun/Sky/Jungle Stone} but all
-  five sat at count 32, so the id↔name assignment within that set is still
-  ambiguous. Still unidentified (nonzero in this save): 16, 17, 21, 130,
-  160, 164, 167, 168. A fresh save + full inventory transcription is
-  planned, which should disambiguate the T4 set and more.
-- Equipment *type* id ↔ name (the `R.a` namespace — distinct from materials!)
-  — only spot-checked (21 = Inferno Sword, 51 = Magic Stick); buildable by
-  joining `R` against the Pet Stats export gear strings systematically.
+- Material id ↔ name: mostly solved in `crates/save-parser/src/items.rs`
+  (prior-project table + export-confirmed + the 2026-06-10 full inventory
+  transcription: 16/17 = Health Potion X/S, 19 = Antidote — correcting the
+  prior table's "Nothing"; real Nothing is 119 — and 21 = Torch).
+  Remaining: the five count-1 ids {130,160,164,167,168} ↔ {Not Nothing,
+  Absolutely Nothing, Aether Ring +28, Food Journal One, Food Journal Two}
+  (set known, assignment unknown), and the T4 materials 131–135 ↔
+  {Mythril, Ocean/Sun/Sky/Jungle Stone} (all still count 32 in both saves —
+  needs the counts to diverge, e.g. after crafting with one of them).
+- Equipment *type* id ↔ name: solved for everything equipped — 32 types in
+  `items.rs::equipment_type_name`, derived by joining Pet Stats gear strings
+  ↔ Pet Equips instance ids ↔ the save's `R` instance→type map (zero vote
+  conflicts), plus Storm Bow via its unique count. Remaining: the nine
+  unequipped 1-count types {5,8,22,23,26,30,41,52,56} ↔ {Iron Pot, Water
+  Spear, Flood Spear, Leeching Sword, Tree Axe, Hurricane Bow, Flame Armor,
+  Flood Armor, Tree Bracelet}, and 44 = {Magic Hammer | Storm Ring} —
+  equipping any of them once would resolve it.
 - The 2 leading junk chars: constant? random? Compare with another save.
 - Re-serialization (writing a save) untested — only needed if we ever want to
   edit saves, which is out of scope for the planner.
@@ -197,8 +210,13 @@ tree into the typed model there. `cargo run -p save-parser --bin save-dump --
 
 ## Files here
 
-- `ManualSave_2026-06-09.txt` — raw save (input).
+- `ManualSave_2026-06-09.txt` — first raw save (input).
 - `* Export.txt` — same-session in-game exports (ground truth).
-- `expand_save.ps1` — decoder/expander script.
+- `second_save/` — 2026-06-10 save + re-exports + **full manual inventory
+  transcription** (materials, gems, equipment counts) — the richest ground
+  truth so far.
+- `normal_stats_investigation.md` — the normal-stats formula work.
+- `expand_save.ps1` — decoder/expander script (superseded by
+  `save-dump --tree` but kept for history).
 - `save_layer1.txt`, `decompressed.bin`, `save_expanded.txt` — derived
   artifacts (regenerable; the expanded tree is the one to read).
