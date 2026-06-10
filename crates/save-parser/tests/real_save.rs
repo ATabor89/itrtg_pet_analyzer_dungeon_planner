@@ -463,6 +463,11 @@ fn global_trackers_match_exports_and_tooltips() {
     // Pandora's feedings counter can be negative (observed after rebirth).
     assert_eq!(t1(trackers::PANDORA_FEEDINGS), -28.0);
     assert_eq!(t2(trackers::PANDORA_FEEDINGS), 27.0);
+
+    // Anni Cake: displayed bonus % = floor(food-time counter / 3600).
+    // The user read 949% alongside save 2; save 1 would have shown 911%.
+    assert_eq!((t2(trackers::ANNI_CAKE_FOOD_TIME) / 3600.0).floor(), 949.0);
+    assert_eq!((t1(trackers::ANNI_CAKE_FOOD_TIME) / 3600.0).floor(), 911.0);
 }
 
 #[test]
