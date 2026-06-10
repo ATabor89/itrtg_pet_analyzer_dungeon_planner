@@ -16,6 +16,7 @@
 //! kept on [`model::SaveFile`], so gaps can be explored without re-decoding.
 
 pub mod container;
+pub mod items;
 pub mod model;
 pub mod tree;
 

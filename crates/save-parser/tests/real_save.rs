@@ -191,14 +191,17 @@ fn equipment_inventory_resolves_pet_gear() {
 #[test]
 fn materials_match_main_stats_export() {
     let save = require_save!();
-    let find = |id: u32| {
+    let by_name = |name: &str| {
         save.materials
             .iter()
-            .find(|m| m.item_id == id)
+            .find(|m| m.name() == Some(name))
             .map(|m| m.count)
     };
-    // Main Stats export: "Strategy Books: 2,840"
-    assert_eq!(find(159), Some(2840));
+    // All four export-confirmed ids, resolved through the name table:
+    assert_eq!(by_name("Strategy Book"), Some(2840)); // "Strategy Books: 2,840"
+    assert_eq!(by_name("Ant"), Some(192164)); // "Ants: 192,164"
+    assert_eq!(by_name("Honey"), Some(787)); // "Honey: 787"
+    assert_eq!(by_name("Acorn"), Some(24727)); // "Acorns: 24,727"
 }
 
 #[test]
