@@ -28,17 +28,26 @@ and per-stat base = `growth × (1 + inc(L)) / 3`.
 | field | meaning | evidence |
 |---|---|---|
 | `g` | **normal level** | matches displayed level exactly for all 7 pets checked (Gnome 13,724; Anni Cake 10,861; Fire Fox & Swan 2,052; …) |
-| `j` | **current Physical stat × 10** | Gnome j=36,881,717,678 ↔ displayed 3.688e9; matches all 6 pets to display precision |
-| `p` | = 556 × `o` (exact, all pets) | derived, not independent |
-| `q` | = 550 × `o` (exact, all pets) | derived |
-| `r` | = 10 × `o` (exact, all pets) | derived |
-| `o` | unknown accumulator | the only independent value behind p/q/r; **not** proportional to current stats across pets (Fire Fox vs Swan at the same level differ in o/growth ratio), so it likely encodes history (e.g. accumulated stat exp), not a snapshot |
-| `h` | level/exp-state related | Fire Fox and Swan (both level 2,052) have *identical* h = 4,949,217,393.54; not monotonic in level across pets, so not a pure level function — possibly current exp toward next level |
+| `j` | **current normal Health** (= 10 × Physical, "each physical increases 10 Hp") | Gnome j=36,881,717,678 ↔ displayed Health 36.885e9 / Physical 3.688e9; recomputed live (j moved ~+30% in the day between the two saves) |
+| `o` | **training-clone Physical** (snapshot) | with the user's global Physical‰ = 1: o = 1‰ of pet Battle at configuration time. Bit-identical across the two saves while stats grew — a snapshot from when training was last configured |
+| `p` | **training-clone Mystic** = Mystic‰ × o | user's Mystic‰ setting is 556; p = 556×o exactly for every pet |
+| `q` | **training-clone Battle** = Battle‰ × o | user's Battle‰ setting is 550; q = 550×o exactly |
+| `r` | **training-clone HP** = 10 × o | the Health rule (HP = 10 × Physical) applied to the clone |
+| `h` | level/exp-state related | Fire Fox and Swan (both level 2,052) have *identical* h; static across both saves (no pets were training); plausibly the exp counter toward the next normal level |
 
-Notable: p/q = 556/550 = 1.010909… for every pet. This is *not* the
-Strategy Room Physical/Mystic ratio (104/103 = 1.00971), so p and q are not
-simply the current Physical/Mystic stats. The displayed Physical/Mystic
-ratio *does* equal the SR ratio (verified on all pets).
+The clone-stat scale also explains the ~11× gap: o ≈ Battle/(1000 × M) with
+today's M ≈ 11.0 — i.e. the clones were configured right after rebirth when
+the Anni Cake bonus was ≈ 0 (M ≈ 1.05), and the snapshot hasn't been
+re-applied since. Caveats: Mystic‰ is per-mille *of Battle* and Battle‰
+per-mille *of Mystic* per the tooltips — indistinguishable here because this
+account's Mystic = Battle (SR 103/103); also the "half stats" training
+button's effect on these fields is untested.
+
+## Stat → effect relations (in-game tooltips)
+
+- Physical: +10 HP each, +0.01 to the pet physical multiplier.
+- Mystic: +0.5 Defense each, HP recovery, +0.01 to the pet mystic multiplier.
+- Battle: +1 Attack each, +0.01 to the pet battle multiplier.
 
 ## Display-side model (fits to <0.1%)
 
@@ -106,8 +115,12 @@ campaign 465%. Evo bonus: +1.38% × CL to all campaigns if Adventurer.
 ## Open questions
 
 - Exact `inc(L)` staircase boundaries (the <0.5% residual at low levels).
-- Meaning of `o` (and thus p/q/r) and `h`; why the constants 556/550/10.
+- Confirm `h` is the normal-level exp counter (capture a save while a pet is
+  actively training and watch it move).
 - Decompose M exactly (is the 1.05 really the GP stats multi? does Museum or
   ChP contribute?).
 - Mystic/Battle presumably stored nowhere (derived from Physical via SR
-  ratios) — j only covers Physical; verify on an account with asymmetric SR.
+  ratios) — j only covers Health/Physical; verify on an account with
+  asymmetric SR, which would also disambiguate the Mystic‰-of-Battle vs
+  Battle‰-of-Mystic cross-relation in the clone fields.
+- Effect of the training "half stats" button on the stored clone fields.
