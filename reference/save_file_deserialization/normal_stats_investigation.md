@@ -57,17 +57,20 @@ PerStat(Physical) ≈ growth × (1 + inc(L)) / 3 × SR_physical × M
 
 - SR_physical here = 1.04 (user allocated SR level 1's 10% as 104/103/103;
   default is 103/103/103).
-- M = global multiplier ≈ **11.015** for this account, decomposing almost
-  exactly as `(1 + 9.49) × 1.05 = 11.0145`:
-  - Anni Cake's stat boost, "Current Bonus: 949%" (10% + 0.1%×CL per hour in
-    food campaigns, capped 3653%, **resets on rebirth** — so M is
-    rebirth-dependent!). Storage found: global tracker `x.138` holds her
-    accumulated food-campaign time (fractional; 3,419,933.57 at save 2) and
-    the bonus is `floor(x.138/3600)` = 949. The multiplier uses the
-    **floored** value — the raw 949.98% would give M = 11.025, which does
-    not fit; the floored 949% does.
-  - ×1.05 presumed from the GP "stats multi" purchase (Main Stats: "GP spent
-    for stats multi: 2500").
+- M = global multiplier ≈ **11.015** for this account, decomposing as
+  `(1 + AnniCake%) × (1 + PetStatsResearch%)`:
+  - Anni Cake's stat boost, stored directly at **root `033`** as a
+    fractional percent (save 2: 948.969 → displays 949%; save 1: 709.02).
+    10% + 0.1%×CL per hour in food campaigns, capped 3653%, fractional from
+    early-cancelled campaigns, **resets on rebirth** — so M is
+    rebirth-dependent. Only updates when a campaign completes.
+  - ×1.05 = the adventure-mode **Pet Stats research** at level 5
+    ("multiplies the stats your pets gain from growth (not dungeon
+    stats)", +1%/level) — research id 28 in `root.032.H.a`. (Earlier
+    guess of the GP "stats multi" purchase is superseded.)
+  - With the stored values: (1 + 9.48969) × 1.05 = 11.0142 vs measured
+    11.0150–11.0153 — the remaining ~0.007% sits in the `inc(L)` staircase
+    uncertainty (or a floor/rounding step on the bonus before application).
 - Using exact j values from the save, M comes out 11.0150–11.0153 for the
   level-10k+ pets and 11.0166–11.0204 for lower-level pets — i.e. there is a
   small level-dependent residual, meaning the `inc(L)` staircase boundaries
@@ -121,10 +124,9 @@ campaign 465%. Evo bonus: +1.38% × CL to all campaigns if Adventurer.
 - Exact `inc(L)` staircase boundaries (the <0.5% residual at low levels).
 - The "exp to next level" formula (h is the current-exp side; requirements
   observed: level 2,052 → 17.280e9, level 13,724 → 5.169e12).
-- ~~Where Anni Cake's current bonus % lives~~ — solved: `x.138`, see above.
-  Open detail: the counter's exact units (seconds of food-campaign time vs
-  a 10×-scaled variant) — distinguishable by watching the jump when a food
-  campaign of known length completes.
+- ~~Where Anni Cake's current bonus % lives~~ — solved: root `033`,
+  stored directly as a fractional percent. (An earlier `x.138` attribution
+  was a one-save coincidence; see FINDINGS for the lesson.)
 - Decompose M exactly (is the 1.05 really the GP stats multi? does Museum or
   ChP contribute?).
 - Mystic/Battle presumably stored nowhere (derived from Physical via SR
