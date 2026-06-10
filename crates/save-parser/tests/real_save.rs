@@ -16,6 +16,29 @@ fn load_reference_save() -> Option<save_parser::SaveFile> {
     Some(save_parser::parse_save(&raw).expect("reference save should parse"))
 }
 
+/// The second reference save (2026-06-10), captured together with a full
+/// manual inventory transcription — see `second_save/` in the reference dir.
+fn load_second_save() -> Option<save_parser::SaveFile> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../reference/save_file_deserialization/second_save/ManualSave_2026-06-10.txt"
+    );
+    let raw = std::fs::read_to_string(path).ok()?;
+    Some(save_parser::parse_save(&raw).expect("second save should parse"))
+}
+
+macro_rules! require_second_save {
+    () => {
+        match load_second_save() {
+            Some(save) => save,
+            None => {
+                eprintln!("second reference save not present; skipping");
+                return;
+            }
+        }
+    };
+}
+
 macro_rules! require_save {
     () => {
         match load_reference_save() {
@@ -217,6 +240,122 @@ fn campaigns_have_twelve_hour_durations() {
                 "campaign pet id {id} should resolve"
             );
         }
+    }
+}
+
+// ---- Second save (2026-06-10) + inventory transcription cross-checks ----
+
+#[test]
+fn second_save_materials_match_transcription() {
+    let save = require_second_save!();
+    let by_name = |name: &str| {
+        save.materials
+            .iter()
+            .find(|m| m.name() == Some(name))
+            .map(|m| m.count)
+    };
+    // Exact matches with the manual inventory transcription:
+    assert_eq!(by_name("Antidote"), Some(128)); // was wrongly "Nothing" before
+    assert_eq!(by_name("Torch"), Some(2332));
+    assert_eq!(by_name("Health Potion X"), Some(794));
+    assert_eq!(by_name("Health Potion S"), Some(798));
+    assert_eq!(by_name("Nothing"), Some(678)); // id 119
+    assert_eq!(by_name("Glowing Embers"), Some(225));
+    assert_eq!(by_name("Rebirth Bacon"), Some(1935));
+    assert_eq!(by_name("Ale"), Some(2162));
+    assert_eq!(by_name("Flying Boots"), Some(1512));
+    assert_eq!(by_name("Lucky Talisman"), Some(587));
+}
+
+#[test]
+fn second_save_foods_and_chocolate_match_transcription() {
+    let save = require_second_save!();
+    assert_eq!(save.puny_food, 123_548);
+    assert_eq!(save.strong_food, 16_276);
+    assert_eq!(save.mighty_food, 7_239);
+    assert_eq!(save.chocolate, 9_989);
+}
+
+#[test]
+fn second_save_gems_match_transcription() {
+    let save = require_second_save!();
+    let count = |el: Element, lvl: u32| {
+        save.gems
+            .iter()
+            .find(|g| g.element == Some(el) && g.level == lvl)
+            .map(|g| g.count)
+    };
+    assert_eq!(count(Element::Neutral, 1), Some(3796));
+    assert_eq!(count(Element::Fire, 1), Some(2353));
+    assert_eq!(count(Element::Water, 1), Some(2225));
+    assert_eq!(count(Element::Earth, 1), Some(7882));
+    assert_eq!(count(Element::Wind, 1), Some(5220));
+    assert_eq!(count(Element::Water, 10), Some(1));
+    assert_eq!(count(Element::Wind, 10), Some(1));
+}
+
+#[test]
+fn second_save_normal_level_and_physical_stat() {
+    let save = require_second_save!();
+    // User-confirmed displayed values, same day as the save:
+    let gnome = save.pet_by_name("Gnome").unwrap();
+    assert_eq!(gnome.normal_level, 13_724);
+    // Displayed Physical was 3.688e9; the save stores it ×10 in `j`.
+    assert!((gnome.physical_stat - 3.688e9).abs() / 3.688e9 < 1e-3);
+
+    let anni = save.pet_by_name("Anni Cake").unwrap();
+    assert_eq!(anni.normal_level, 10_861);
+
+    // Fire Fox and Swan were both level 2,052.
+    assert_eq!(save.pet_by_name("Fire Fox").unwrap().normal_level, 2052);
+    assert_eq!(save.pet_by_name("Swan").unwrap().normal_level, 2052);
+}
+
+#[test]
+fn second_save_equipment_type_names_resolve() {
+    let save = require_second_save!();
+    // Salamander's weapon is an Inferno Sword (type 21, confirmed earlier).
+    let salamander = save.pet_by_name("Salamander").unwrap();
+    let weapon = save
+        .equipment_by_instance_id(salamander.weapon_id.unwrap())
+        .unwrap();
+    assert_eq!(weapon.type_name(), Some("Inferno Sword"));
+
+    // Pandora's box wears the Magic Egg (type 304).
+    let pandora = save.pet_by_name("Pandora's box").unwrap();
+    let egg = save
+        .equipment_by_instance_id(pandora.weapon_id.unwrap())
+        .unwrap();
+    assert_eq!(egg.type_name(), Some("Magic Egg"));
+
+    // Per-type instance counts line up with the inventory transcription
+    // (allowing for items crafted between save and transcription):
+    let count_of = |name: &str| {
+        save.equipment
+            .iter()
+            .filter(|e| e.type_name() == Some(name))
+            .count()
+    };
+    assert_eq!(count_of("Inferno Sword"), 10);
+    assert_eq!(count_of("Titanium Armor"), 11);
+    assert_eq!(count_of("Storm Bow"), 3);
+}
+
+#[test]
+fn second_save_stat_field_relations_hold() {
+    let save = require_second_save!();
+    // p = 556*o, q = 550*o, r = 10*o — exact for every pet with stats.
+    for pet in &save.pets {
+        let o = pet.raw.get("o").and_then(|n| n.as_f64()).unwrap_or(0.0);
+        if o <= 1.0 {
+            continue; // locked pets sit at o = 1 or 0
+        }
+        let p = pet.raw.get("p").and_then(|n| n.as_f64()).unwrap();
+        let q = pet.raw.get("q").and_then(|n| n.as_f64()).unwrap();
+        let r = pet.raw.get("r").and_then(|n| n.as_f64()).unwrap();
+        assert!((p / o - 556.0).abs() < 1e-6, "{}: p/o = {}", pet.name, p / o);
+        assert!((q / o - 550.0).abs() < 1e-6, "{}: q/o = {}", pet.name, q / o);
+        assert!((r / o - 10.0).abs() < 1e-9, "{}: r/o = {}", pet.name, r / o);
     }
 }
 
