@@ -69,6 +69,13 @@ pub fn parse_export(source: &str) -> anyhow::Result<Vec<ExportPet>> {
 
         // If the pet has a Magic Egg equipped, the export growth already
         // includes the 30% bonus.  Store the true base growth instead.
+        //
+        // Validated in-game (2026-06, Pandora's Box): growth is fractional
+        // internally (base 44334.321…, total 57634.617… = base × 1.3 exactly)
+        // and the export shows the *rounded* total (57,635) — normal rounding,
+        // not floor. So round(export / 1.3) is the right inverse and recovers
+        // base to within ±1; exact recovery would need the save file, and ±1
+        // is noise at campaign magnitudes.
         let has_magic_egg = loadout.weapon.as_ref().is_some_and(|w| w.name == "Magic Egg");
         let growth = if has_magic_egg {
             (growth as f64 / 1.3).round() as u64
@@ -330,6 +337,19 @@ mod tests {
             parse_export(&format!("Name;Element;Growth\n{}\n", line_with_growth("223,132")))
                 .unwrap();
         assert_eq!(pets[0].growth, 223_132);
+    }
+
+    #[test]
+    fn magic_egg_divide_out_matches_the_real_capture() {
+        // Real in-game capture (Pandora's Box, 2026-06): base 44334.321…,
+        // total 57634.617… = base × 1.3 exactly; the export shows 57,635 —
+        // the *rounded* total. round(57635 / 1.3) = 44335 recovers base to
+        // within ±1 (exact recovery is impossible from the export alone:
+        // the true base is fractional).
+        let line = "Pandora's Box;Neutral;57,635;1;None;0;1;1;1;1;0;0;0;0;0;0;Magic Egg, SSS;none;none;Idle;Yes;No;;No";
+        let pets = parse_export(&format!("Name;Element;Growth\n{line}\n")).unwrap();
+        assert!(pets[0].has_magic_egg());
+        assert_eq!(pets[0].growth, 44_335);
     }
 
     #[test]
