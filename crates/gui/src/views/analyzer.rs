@@ -835,23 +835,30 @@ fn show_custom_target(ui: &mut Ui, base: u64, rates: &GrowthRates, input: &mut S
     );
     ui.add_space(2.0);
 
+    // Like the Earth Eater field, accept the forms the game itself displays —
+    // plain, comma-grouped, or scientific notation (5e6, 1.5e9) — and flag
+    // anything unparseable instead of silently mangling it.
+    let invalid = {
+        let t = input.trim();
+        !t.is_empty() && parse_flexible_number(t).is_none()
+    };
     ui.horizontal(|ui| {
         ui.label(RichText::new("Target base growth:").color(style::TEXT_MUTED).size(12.0));
-        ui.add(
-            egui::TextEdit::singleline(input)
-                .desired_width(110.0)
-                .hint_text("e.g. 50000"),
-        );
+        let mut edit = egui::TextEdit::singleline(input)
+            .desired_width(110.0)
+            .hint_text("e.g. 50000 or 5e6");
+        if invalid {
+            edit = edit.text_color(style::WARNING);
+        }
+        ui.add(edit);
+        if invalid {
+            ui.label(RichText::new("✗ can't parse").color(style::WARNING).size(10.0));
+        }
     });
 
-    // Tolerate commas/spaces in the input by keeping only digits.
-    let digits: String = input.chars().filter(|c| c.is_ascii_digit()).collect();
-    let Ok(target) = digits.parse::<u64>() else {
+    let Some(target) = parse_growth_target(input) else {
         return;
     };
-    if target == 0 {
-        return;
-    }
 
     let target_egg = (target as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
     ui.horizontal(|ui| {
@@ -869,6 +876,18 @@ fn show_custom_target(ui: &mut Ui, base: u64, rates: &GrowthRates, input: &mut S
     if base < target {
         show_cap_note(ui, rates, base, target);
     }
+}
+
+/// Parse the growth-target input: anything `parse_flexible_number` accepts,
+/// floored to a whole growth value. `None` for blank, unparseable, or
+/// non-positive input; finite values beyond `u64::MAX` saturate (the `as`
+/// cast) rather than disappearing.
+fn parse_growth_target(input: &str) -> Option<u64> {
+    let v = parse_flexible_number(input)?;
+    if v < 1.0 {
+        return None;
+    }
+    Some(v as u64)
 }
 
 /// Evolution requirements (growth threshold, material, other) plus a
@@ -2281,6 +2300,22 @@ mod tests {
         assert!(applied.is_empty());
         assert_eq!(st.campaign_inputs.ants, 42); // not clobbered
         assert!(st.moai.iter().all(|m| !m.owned)); // default Moai untouched
+    }
+
+    #[test]
+    fn growth_target_accepts_the_forms_the_game_shows() {
+        assert_eq!(parse_growth_target("50000"), Some(50_000));
+        assert_eq!(parse_growth_target("50,000"), Some(50_000));
+        assert_eq!(parse_growth_target("5e6"), Some(5_000_000));
+        assert_eq!(parse_growth_target("1.5e9"), Some(1_500_000_000));
+        assert_eq!(parse_growth_target("3.664 E+9"), Some(3_664_000_000));
+        // Blank / junk / non-positive → no target, calculator hidden.
+        assert_eq!(parse_growth_target(""), None);
+        assert_eq!(parse_growth_target("abc"), None);
+        assert_eq!(parse_growth_target("0"), None);
+        assert_eq!(parse_growth_target("-5"), None);
+        // Finite but beyond u64::MAX saturates instead of vanishing.
+        assert_eq!(parse_growth_target("1e30"), Some(u64::MAX));
     }
 
     #[test]
