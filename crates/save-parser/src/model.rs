@@ -230,6 +230,11 @@ pub struct Creation {
     pub id: u32,
     /// "Next at" clone count (`i`), as shown in the Next Ats export.
     pub next_at: u64,
+    /// Current amount owned (`d`). The Shadow Clone entry equals the
+    /// current clone count (capped at max clones).
+    pub current_amount: f64,
+    /// Clone cost to create one (`e`).
+    pub clone_cost: u64,
 }
 
 /// One monument (root `D[n]`).
@@ -237,8 +242,12 @@ pub struct Creation {
 pub struct Monument {
     /// Monument id (`a`) — resolve with [`crate::items::monument_name`].
     pub id: u32,
-    /// "Next at" clone count for the monument itself (`g`). (The paired
-    /// upgrade's next-at from the export is not stored in this entry.)
+    /// Current level (`b`). Equals `next_at` once the monument has reached
+    /// it (clones then spill to the next thing in the list); diverges while
+    /// building (Black Hole: level 110 vs next-at 140 in save 2).
+    pub level: u64,
+    /// "Next at" level (`g`). (The paired upgrade's next-at/level from the
+    /// export is not stored in this entry — location unknown.)
     pub next_at: u64,
     /// Clone-spread ratio (`h`) used by the spread-clones button.
     pub spread: u32,
@@ -255,7 +264,11 @@ pub struct Monument {
 pub struct Might {
     /// Might id (`a`) — resolve with [`crate::items::might_name`].
     pub id: u32,
-    /// "Next at" clone count (`m`).
+    /// Current level (`b`) — resets each rebirth. The sum across all
+    /// mights is the White Tiger unlock progress (25,000 needed; this
+    /// account: 3,200 ✓ matching the in-game unlock screen).
+    pub level: u64,
+    /// "Next at" level (`m`).
     pub next_at: u64,
     /// Clone-spread ratio (`n`).
     pub spread: u32,
@@ -406,6 +419,9 @@ pub mod trackers {
     pub const SEROW_ITEMS_SAVED: &str = "324";
     /// Bag: total bonus growth granted.
     pub const BAG_BONUS_GROWTH: &str = "336";
+    /// Pet stones bought with Baal Power (global across rebirths) — the
+    /// Vermillion Pheasant unlock progress (10,000 needed).
+    pub const PET_STONES_BAAL_POWER: &str = "270";
     // NOTE: x.138 was briefly misidentified as Anni Cake's bonus because
     // floor(x.138/3600) happened to equal the displayed 949% in save 2 — a
     // genuine coincidence (save 1 disagrees: 911 vs the actual 709). The
@@ -551,6 +567,8 @@ impl SaveFile {
                     .map(|n| Creation {
                         id: get_u32(n, "a"),
                         next_at: get_u64(n, "i"),
+                        current_amount: get_f64(n, "d"),
+                        clone_cost: get_u64(n, "e"),
                     })
                     .collect()
             })
@@ -563,6 +581,7 @@ impl SaveFile {
                     .iter()
                     .map(|n| Monument {
                         id: get_u32(n, "a"),
+                        level: get_u64(n, "b"),
                         next_at: get_u64(n, "g"),
                         spread: get_u32(n, "h"),
                         building: n.get("f").and_then(Node::as_bool).unwrap_or(false),
@@ -580,6 +599,7 @@ impl SaveFile {
                     .iter()
                     .map(|n| Might {
                         id: get_u32(n, "a"),
+                        level: get_u64(n, "b"),
                         next_at: get_u64(n, "m"),
                         spread: get_u32(n, "n"),
                         special: n.get("e").and_then(Node::as_bool).unwrap_or(false),
@@ -629,6 +649,12 @@ impl SaveFile {
     /// special trackers. See [`trackers`] for the identified keys.
     pub fn global_tracker(&self, key: &str) -> Option<f64> {
         self.root.get_path(&["x", key]).and_then(Node::as_f64)
+    }
+
+    /// Sum of all current might levels — the White Tiger unlock progress
+    /// (25,000 combined levels needed in one rebirth).
+    pub fn might_level_total(&self) -> u64 {
+        self.mights.iter().map(|m| m.level).sum()
     }
 
     /// Level of a research by id (0 if absent). See [`researches`] for ids.
