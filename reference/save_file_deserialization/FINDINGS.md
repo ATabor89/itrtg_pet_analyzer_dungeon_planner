@@ -130,23 +130,36 @@ Confirmed (cross-save diff vs the two Main Stats exports):
 | `j` | available GP | 1,297 → 1,662, +365 = GP/h gain between saves ✓ |
 | `v` | total GP spent | 60,852 in both ✓ |
 | `h`, `i` | GP-purchased creating / building speed % | both 45,000 = "45,000 % from god power" in both export speed lines ✓ |
-| `q` | creation count, 0-based | 165 in both saves vs export "Creation Count: 166" |
-| `F` | total might | 100,983 ✓ |
-| `002` | crystal power | 4,183 ✓ |
+| `q` | **creation count from god power** (the milestone-relevant number; export "Creation Count: 166" = base 1 + this; equipped-crystal bonuses are separate) | 165 in both saves ✓ |
+| `F` | total might (lives on its own screen, mirrored here) | 100,983 ✓ |
+| `002` | crystal power (only changes on rebirth — equipped crystals convert then) | 4,183 ✓ |
+| `C` | **statistics multi** — exactly 2^50 = 1.1259e15, matching the displayed "1.125e15 x" | three-way lock with `017`/`019` = 50 doublings × 50 GP = the 2,500 GP spent |
+| `017`, `019` | both exactly 50 = statistics-multi doubling count; which of the two is it (and what the other is) needs a purchase between saves | 2^50 = `C` ✓ |
+| `r`,`s`,`t`,`u` | **unused-GP stat allocation %** (bonus physical/mystic/battle/creating — the four *god* stats, overload #5) | all 25, matching the user's even 25/25/25/25 split; per-field identity unknown until the split is skewed |
+| `y`,`z` | candidate pair: TBS keep-on-rebirth % (user: 80%) | both 80 |
+| `E`,`025` | candidate pair: TBS double-points chance (user: 100%) | both 100 |
+| `D`,`I` | candidate pair: TBS extra white-area pixels (user: 3) | both 3 |
+| `e`,`w` | candidate pair: TBS level-loss-on-miss % (user: 20%) | both 20 |
 | `027` | = `j` + 18 in both saves | GP-adjacent; the constant 18 offset is unexplained |
 | `003` | delta (+21) matches Lucky Draws *opened* delta | absolute value 7,659 ≠ 3,053 though — id unclear |
 | `L`, `S`, `013` | ms timers, all advanced by the same +38.8e6 ms | plausibly time-since-rebirth (~12 h at save 1) |
 | `T`, `012` | 44 → 43, decrementing counter | countdown of something |
-| `C` | exactly 2^50 | some cap constant |
-| `017`, `019` | both exactly 50 — candidate **statistics-multi doubling count** (2,500 GP spent ÷ 50 GP per double = 50; the raw "2500" appears nowhere in the save) | needs a purchase between saves to disambiguate which |
+| booleans (`k,l,o,p,B,G,J,U,V,Y,Z,008,010,011,033,034`) | GP toggle purchases — the user owns pet half stats, Improved 'Next At', Preselect Might (among others); `H`=False/`035`=0 candidates for the unowned Divinity GP buy | not individually mapped |
 
 Note on terminology: the GP "stats multi" purchase doubles the *statistics
 multi* (the rebirth-multiplier input tracked on the statistics page) — it
-has nothing to do with pet stats. Yet another meaning of "stats".
+has nothing to do with pet stats. And the unused-GP allocation boosts the
+four *god* stats. "Stats" now has five meanings in this game.
 
 Other singles found while anchoring exports: `x.k` = rebirths (137),
-`O.030` = light clones (68,581 → 68,681 ✓ both saves). `root.O` appears to
-be another statistics block (spacedim totals etc. nearby in `009`).
+`O.030` = light clones (68,581 → 68,681 ✓ both saves — bought with Baal
+Power, not GP, but mirrored here). `root.O` appears to be another
+statistics block (spacedim totals etc. nearby in `009`).
+
+Cheap disambiguation experiments (each = one action + one save): buy one
+creating-speed or building-speed level → splits `h`/`i`; buy one
+statistics-multi doubling → splits `017`/`019`; skew the GP allocation →
+names `r/s/t/u`; change any TBS setting → splits its candidate pair.
 
 ## `root.x` — the global tracker block
 
