@@ -33,7 +33,7 @@ and per-stat base = `growth × (1 + inc(L)) / 3`.
 | `p` | **training-clone Mystic** = Mystic‰ × o | user's Mystic‰ setting is 556; p = 556×o exactly for every pet |
 | `q` | **training-clone Battle** = Battle‰ × o | user's Battle‰ setting is 550; q = 550×o exactly |
 | `r` | **training-clone HP** = 10 × o | the Health rule (HP = 10 × Physical) applied to the clone |
-| `h` | level/exp-state related | Fire Fox and Swan (both level 2,052) have *identical* h; static across both saves (no pets were training); plausibly the exp counter toward the next normal level |
+| `h` | **current exp toward the next normal level** — confirmed | matches the in-game "Current exp" display exactly (Gnome 1.115e12 ↔ h=1,115,759,884,779; Fire Fox/Swan 4.949e9 ↔ h=4,949,217,393.54). The displayed "exp to next level" (Gnome 5.169e12; FF/Swan 17.280e9) is not stored — derived from level |
 
 The clone-stat scale also explains the ~11× gap: o ≈ Battle/(1000 × M) with
 today's M ≈ 11.0 — i.e. the clones were configured right after rebirth when
@@ -115,8 +115,11 @@ campaign 465%. Evo bonus: +1.38% × CL to all campaigns if Adventurer.
 ## Open questions
 
 - Exact `inc(L)` staircase boundaries (the <0.5% residual at low levels).
-- Confirm `h` is the normal-level exp counter (capture a save while a pet is
-  actively training and watch it move).
+- The "exp to next level" formula (h is the current-exp side; requirements
+  observed: level 2,052 → 17.280e9, level 13,724 → 5.169e12).
+- Where Anni Cake's current bonus % lives (candidate: global tracker
+  `x.138`, a seconds counter reading 950.0 h at save 2 vs the 949% tooltip —
+  needs a synchronized reading).
 - Decompose M exactly (is the 1.05 really the GP stats multi? does Museum or
   ChP contribute?).
 - Mystic/Battle presumably stored nowhere (derived from Physical via SR
