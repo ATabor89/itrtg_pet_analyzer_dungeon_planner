@@ -139,15 +139,17 @@ bonus growth. Globals: 013 AFK clones killed, 049 day-pet-challenge multi,
 071 lucky draws opened, 074 crystal power, 078/079/080 dungeon
 bosses/enemies/rooms, 129 total might.
 
-Anni Cake's bonus (`x.138`, confirmed): the game stores her accumulated
-food-campaign time this rebirth as a fractional counter (early-cancelled
-campaigns leave non-integer residue — same reason Meteor shows 4,572.11) and
-derives the displayed bonus as `floor(x.138 / 3600)`: 3,419,933.57 → 949% ✓
-(save 2, matching the contemporaneous tooltip reading), 3,281,807.02 → 911%
-(save 1). The normal-stats multiplier uses the *floored* percentage — the
-fitted global multi (11.015 ≈ (1 + 9.49) × 1.05) only works with 949, not
-the raw 949.98. The counter only advances when a campaign completes (or is
-cancelled-with-rewards).
+Anni Cake's bonus: stored **directly at root `033`** as a fractional
+percent — save 1: 709.0245829717 (exactly the user's predicted "709%"),
+save 2: 948.969027416145 (displays as 949%), delta ≈ +239.94 = ~24 h of
+food campaigns at 10%/h, fractional residue from early-cancelled campaigns.
+Only advances when a campaign completes (or is cancelled-with-rewards).
+
+⚠ Lesson logged: `x.138` was briefly misidentified as this bonus because
+`floor(x.138/3600)` happened to equal 949 in save 2 — save 1 disproves it
+(911 ≠ 709). A single-save numeric match, even an exact-looking one, is not
+identification; always check both saves. `x.138` is back to unidentified
+(some food/campaign-time-shaped counter).
 
 ## `X.T` — the crafting roster (23 entries)
 
@@ -160,6 +162,17 @@ in save 2: six smiths on 51 (Magic Stick), one on 54 (Magic Pot), one on 86
 (Ear Muffs), exactly matching the +6/+1/+1 inventory drift observed during
 the manual transcription. Blacksmith `l` = unidentified small id (queue or
 last-forged type?).
+
+## `root.032` — adventure mode (partial)
+
+`032.d` = adventure inventory (id, count); `032.c` = adventure gear list;
+`032.H.a` = **researches** (44 entries, id 0 is a placeholder): `a`=id,
+`b`=level, `c`=in-progress flag, `d`=progress, `f`=max level. Ids 1–43
+match the Main Stats export's "Researches" section in order, verified
+43/43; exactly two entries had `c`=1, matching "Research Slots Level: 2".
+Notably **id 28 = Pet Stats** ("multiplies the stats your pets gain from
+growth, not dungeon stats", +1%/level) — at level 5 this is the ×1.05
+factor in the normal-stats global multiplier.
 
 ## Equipment struct (`X.R[i]`)
 
