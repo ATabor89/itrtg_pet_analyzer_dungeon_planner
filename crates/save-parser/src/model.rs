@@ -233,6 +233,14 @@ pub mod trackers {
     pub const SEROW_ITEMS_SAVED: &str = "324";
     /// Bag: total bonus growth granted.
     pub const BAG_BONUS_GROWTH: &str = "336";
+    /// Anni Cake: accumulated food-campaign time this rebirth (a fractional
+    /// counter; early-cancelled campaigns leave non-integer residue). The
+    /// displayed stat bonus is derived from it:
+    /// `bonus% = floor(value / 3600)` — matches both reference saves
+    /// (3,419,933.57 → 949% displayed; 3,281,807.02 → 911%). The stat
+    /// multiplier applies the floored percentage. Resets on rebirth,
+    /// display-capped at 3653%.
+    pub const ANNI_CAKE_FOOD_TIME: &str = "138";
 
     // -- global counters (cross-checked against the Main Stats exports) --
     /// AFK clones killed (lifetime).
