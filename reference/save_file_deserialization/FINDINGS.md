@@ -44,9 +44,14 @@ So: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`.
 | `c` | save unix timestamp (s) | 1781053129 ≈ 2026-06-09; `005` = same in ms |
 | `e` | shadow clones block | `a`=current 10,000,061, `b`=max 10,000,000 ✓ |
 | `g` | god title string | "Strongest Entity in the Universe?" |
-| `h` | creations (28) | |
-| `i` | monuments-ish (29) | |
-| `j`,`k` | more building/might blocks (28/34) | |
+| `h` | creation-adjacent list (28: a=id, b≈9.99M decreasing, c=1) | shape known, meaning not pinned |
+| `i` | **creations** (29) | `i.i` = the Next Ats export's per-creation "next at" values (0, 12000, 12000, 6000, …) ✓ |
+| `j`,`k` | more building blocks (28/34) | |
+| `D` | **monuments** (9) | `g`\|`h` = Next Ats "next at \| level" pairs exactly (512\|7, 1024\|6, …); live build state: `f`=building flag, `c`=clones allocated, `d`=progress (entry 7 mid-build in save 2) |
+| `V` | **mights** (14) | `m`\|`n` = Next Ats pairs exactly (256\|2 … 64\|3); `e`=True on special mights 8–13 with `g` descending 30…5 and `i/j/k` thresholds |
+| `O`, `009` | statistics mirrors | `O.030` = light clones ✓; spacedim total at `009.e`, light clones again at `009.a` |
+| `024` | quests block | `024.d` = Quest Points (4,553 ✓ s2 export) |
+| `025` | fishing block | `025.a` = Fish Power (1,270,255 ≈ displayed 1.270e6 ✓) |
 | `p` | god-power block, see its own section below | `j`=available GP, `v`=GP spent, `F`=total might, `002`=crystal power |
 | `s` | god name | "Shoggoth269" |
 | `y`,`z` | achievements (168 each: flag + id) | |
@@ -160,6 +165,15 @@ Cheap disambiguation experiments (each = one action + one save): buy one
 creating-speed or building-speed level → splits `h`/`i`; buy one
 statistics-multi doubling → splits `017`/`019`; skew the GP allocation →
 names `r/s/t/u`; change any TBS setting → splits its candidate pair.
+
+TBS pair hypothesis (user): the duplicated values could be current/max,
+where max is the GP-purchase cap and current can exceed it via challenge
+point upgrades (e.g. the ChP −1%/level rebirth-level-loss upgrade). The
+user has maxed the GP side, so a GP purchase can't test this — a ChP
+upgrade purchase could. Related idea parked for later: a save *editor*
+(grant GP/ChP/OfP on a backup save, buy things, diff) — requires
+implementing re-serialization, which is untested but is just the container
+steps reversed.
 
 ## `root.x` — the global tracker block
 
