@@ -75,6 +75,12 @@ pub struct SaveFile {
     pub anni_cake_bonus_percent: Option<f64>,
     /// Adventure-mode researches (root `032.H.a`), in id order.
     pub researches: Vec<Research>,
+    /// Creations (root `i`), in id order.
+    pub creations: Vec<Creation>,
+    /// Monuments (root `D`), in id order.
+    pub monuments: Vec<Monument>,
+    /// Mights (root `V`), in id order.
+    pub mights: Vec<Might>,
     /// The full raw tree, for exploring not-yet-identified fields.
     pub root: Node,
 }
@@ -215,6 +221,54 @@ pub struct DungeonTeam {
     pub pet_type_ids: Vec<u32>,
     /// Pending loot as `(item id, count)` pairs (`c`).
     pub loot: Vec<(u32, u64)>,
+}
+
+/// One creation (root `i[n]`).
+#[derive(Debug, Clone, Copy)]
+pub struct Creation {
+    /// Creation id (`a`) — resolve with [`crate::items::creation_name`].
+    pub id: u32,
+    /// "Next at" clone count (`i`), as shown in the Next Ats export.
+    pub next_at: u64,
+}
+
+/// One monument (root `D[n]`).
+#[derive(Debug, Clone, Copy)]
+pub struct Monument {
+    /// Monument id (`a`) — resolve with [`crate::items::monument_name`].
+    pub id: u32,
+    /// "Next at" clone count for the monument itself (`g`). (The paired
+    /// upgrade's next-at from the export is not stored in this entry.)
+    pub next_at: u64,
+    /// Clone-spread ratio (`h`) used by the spread-clones button.
+    pub spread: u32,
+    /// Currently being built (`f`).
+    pub building: bool,
+    /// Clones allocated to the build (`c`).
+    pub clones_allocated: u64,
+    /// Build progress (`d`).
+    pub progress: f64,
+}
+
+/// One might (root `V[n]`).
+#[derive(Debug, Clone, Copy)]
+pub struct Might {
+    /// Might id (`a`) — resolve with [`crate::items::might_name`].
+    pub id: u32,
+    /// "Next at" clone count (`m`).
+    pub next_at: u64,
+    /// Clone-spread ratio (`n`).
+    pub spread: u32,
+    /// True for the special "Unleash Might" abilities (ids 8–13) (`e`).
+    pub special: bool,
+    /// Base unleash duration in seconds (`g`); each might level adds +1 s
+    /// (level 64 Focused Breathing: 30 + 64 = 94 s ✓ in-game).
+    pub base_duration_s: u32,
+    /// Unleash effect percentages (`i`/`j`/`k`): HP recovery / Attack /
+    /// Mystic. Zero for normal mights.
+    pub hp_recovery_pct: u32,
+    pub attack_pct: u32,
+    pub mystic_pct: u32,
 }
 
 /// One adventure-mode research (root `032.H.a[i]`).
@@ -489,6 +543,55 @@ impl SaveFile {
             })
             .unwrap_or_default();
 
+        let creations = root
+            .get("i")
+            .map(|l| {
+                l.list_or_single()
+                    .iter()
+                    .map(|n| Creation {
+                        id: get_u32(n, "a"),
+                        next_at: get_u64(n, "i"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let monuments = root
+            .get("D")
+            .map(|l| {
+                l.list_or_single()
+                    .iter()
+                    .map(|n| Monument {
+                        id: get_u32(n, "a"),
+                        next_at: get_u64(n, "g"),
+                        spread: get_u32(n, "h"),
+                        building: n.get("f").and_then(Node::as_bool).unwrap_or(false),
+                        clones_allocated: get_u64(n, "c"),
+                        progress: get_f64(n, "d"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mights = root
+            .get("V")
+            .map(|l| {
+                l.list_or_single()
+                    .iter()
+                    .map(|n| Might {
+                        id: get_u32(n, "a"),
+                        next_at: get_u64(n, "m"),
+                        spread: get_u32(n, "n"),
+                        special: n.get("e").and_then(Node::as_bool).unwrap_or(false),
+                        base_duration_s: get_u32(n, "g"),
+                        hp_recovery_pct: get_u32(n, "i"),
+                        attack_pct: get_u32(n, "j"),
+                        mystic_pct: get_u32(n, "k"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         Ok(SaveFile {
             saved_at_unix: root.get("c").and_then(Node::as_i64),
             god_name: root.get("s").and_then(Node::as_str).map(str::to_string),
@@ -509,6 +612,9 @@ impl SaveFile {
             creation_count_gp: root.get_path(&["p", "q"]).and_then(Node::as_u64),
             anni_cake_bonus_percent: root.get("033").and_then(Node::as_f64),
             researches,
+            creations,
+            monuments,
+            mights,
             pets,
             equipment,
             materials,
