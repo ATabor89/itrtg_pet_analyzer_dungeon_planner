@@ -672,6 +672,24 @@ fn creations_monuments_mights_match_next_ats_export() {
 }
 
 #[test]
+fn earth_eater_rebirth_counter_tracks_global() {
+    let (Some(save1), Some(save2)) = (load_reference_save(), load_second_save()) else {
+        eprintln!("reference saves not present; skipping");
+        return;
+    };
+    use save_parser::model::trackers;
+    // The per-rebirth counter (root 018) and the lifetime total (x.185)
+    // moved by exactly the same amount between the saves (+42,574).
+    assert_eq!(save1.earth_eater_planets_rebirth, Some(252_878));
+    assert_eq!(save2.earth_eater_planets_rebirth, Some(295_452));
+    let global_delta = save2.global_tracker(trackers::EARTH_EATER_PLANETS_TOTAL).unwrap()
+        - save1.global_tracker(trackers::EARTH_EATER_PLANETS_TOTAL).unwrap();
+    let rebirth_delta = (save2.earth_eater_planets_rebirth.unwrap()
+        - save1.earth_eater_planets_rebirth.unwrap()) as f64;
+    assert_eq!(global_delta, rebirth_delta);
+}
+
+#[test]
 fn raw_tree_keeps_unidentified_fields_reachable() {
     let save = require_save!();
     // X.z — meaning still unknown; the raw tree must keep it visible.
