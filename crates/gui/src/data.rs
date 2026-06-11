@@ -5,7 +5,7 @@ use itrtg_models::dungeon::{
     DungeonRecommendations, DungeonRecommendationsFile, EquipmentCatalog,
 };
 use itrtg_models::planner_config::{PetSpecialInfo, PlannerConfig, PlannerConfigFile};
-use itrtg_models::{parse_main_stats, CampaignOverrides, ExportPet, MainStats, WikiPet};
+use itrtg_models::{parse_main_stats, CampaignBonusRules, ExportPet, MainStats, WikiPet};
 use itrtg_planner::merge::{self, MergedPet};
 
 use crate::platform;
@@ -20,9 +20,10 @@ pub struct DataStore {
     /// from `planner_config.yaml` + `pet_special_info.yaml`.
     pub planner_config: Option<PlannerConfig>,
 
-    /// Curated campaign-bonus overrides (from `campaign_overrides.yaml`). Empty
-    /// if the file is missing/malformed — the parsed baselines still work.
-    pub campaign_overrides: CampaignOverrides,
+    /// Curated campaign-bonus rules (from `campaign_bonuses.yaml`) — the source
+    /// of all static campaign-bonus values. Empty if the file is
+    /// missing/malformed; pets then show raw prose with no structured values.
+    pub campaign_bonuses: CampaignBonusRules,
 
     /// Channel for receiving async wiki fetch results.
     wiki_rx: Option<mpsc::Receiver<Result<Vec<WikiPet>, String>>>,
@@ -52,7 +53,7 @@ impl DataStore {
             merged: Vec::new(),
             dungeon_recs: None,
             planner_config: None,
-            campaign_overrides: CampaignOverrides::default(),
+            campaign_bonuses: CampaignBonusRules::default(),
             wiki_rx: None,
             wiki_loading: false,
             wiki_error: None,
@@ -338,15 +339,15 @@ impl DataStore {
         self.planner_config = Some(PlannerConfig::new(file, special_info));
     }
 
-    /// Load the curated campaign-bonus overrides. A missing/malformed file is a
-    /// warning, not a hard failure — parsed baselines still work, so we keep an
-    /// empty set and log the details.
-    pub fn load_campaign_overrides(&mut self, yaml: &str) {
-        match serde_yaml::from_str::<CampaignOverrides>(yaml) {
-            Ok(ov) => self.campaign_overrides = ov,
+    /// Load the curated campaign-bonus rules. A missing/malformed file is a
+    /// warning, not a hard failure — the app still runs, but pets show raw
+    /// prose with no structured campaign values.
+    pub fn load_campaign_bonuses(&mut self, yaml: &str) {
+        match serde_yaml::from_str::<CampaignBonusRules>(yaml) {
+            Ok(rules) => self.campaign_bonuses = rules,
             Err(e) => {
-                log::warn!("Campaign overrides parse failed: {e}");
-                self.campaign_overrides = CampaignOverrides::default();
+                log::warn!("Campaign bonuses parse failed: {e}");
+                self.campaign_bonuses = CampaignBonusRules::default();
             }
         }
     }
