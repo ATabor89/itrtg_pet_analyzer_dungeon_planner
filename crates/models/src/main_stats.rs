@@ -31,8 +31,9 @@ pub struct MainStats {
     pub goblin_ucc: Option<u32>,
     /// `Overflow Challenges` completed → Goblin's OC evo-bonus term.
     pub goblin_oc: Option<u32>,
-    /// `Ultimate Pet Challenges` completed → the chamber's UPC bonus (`5 ·` this).
-    pub ultimate_pet_challenges: Option<u32>,
+    /// `Ultimate Pet Challenges` as `(done, max)` → the chamber's UPC bonus
+    /// (`5 ·` done, capped 100%).
+    pub ultimate_pet_challenges: Option<(u32, u32)>,
     /// `Patreon Gods Challenges` as `(done, max)` → the chamber's PGC toggle
     /// (all done = a global ×1.5 growth multiplier).
     pub patreon_god_challenges: Option<(u32, u32)>,
@@ -90,7 +91,7 @@ pub fn parse_main_stats(source: &str) -> Result<MainStats, String> {
         challenge_points: count("Challenge Points"),
         goblin_ucc: challenge("Ultimate Challenge Challenges").map(|v| v as u32),
         goblin_oc: challenge("Overflow Challenges").map(|v| v as u32),
-        ultimate_pet_challenges: challenge("Ultimate Pet Challenges").map(|v| v as u32),
+        ultimate_pet_challenges: challenge_pair("Ultimate Pet Challenges"),
         patreon_god_challenges: challenge_pair("Patreon Gods Challenges"),
         day_pet_challenge_multi: map
             .get("Day Pet Challenge highest multi")
@@ -142,7 +143,7 @@ mod tests {
         assert_eq!(ms.challenge_points, Some(721));
         assert_eq!(ms.goblin_ucc, Some(0)); // "0 / 67"
         assert_eq!(ms.goblin_oc, Some(0)); // "0 / 9,999"
-        assert_eq!(ms.ultimate_pet_challenges, Some(8)); // "8 / 20" → UPC 40%
+        assert_eq!(ms.ultimate_pet_challenges, Some((8, 20))); // "8 / 20" → UPC 40%
         assert_eq!(ms.patreon_god_challenges, Some((0, 25))); // "0 / 25" — not complete
         assert_eq!(ms.day_pet_challenge_multi, Some(3.664e9)); // "3.664 E+9"
         assert_eq!(ms.fish_power, Some(1.050e6)); // "1.050 E+6"
