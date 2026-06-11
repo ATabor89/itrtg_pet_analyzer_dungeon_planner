@@ -1,13 +1,11 @@
-//! Curated campaign-bonus overrides.
+//! Curated campaign-bonus rules — the single source of static values.
 //!
-//! Many pets' campaign bonuses can't be parsed from the wiki infobox prose, or
-//! depend on evolution/token state that the infobox doesn't encode (Hedgehog's
-//! token boost, Lizard's evo swap, the per-form elementals, the "greater chance
-//! to find X" prose pets). This file's types describe hand-authored corrections
-//! that are applied *on top of* the parsed static baseline by the planner's
-//! `campaign_bonuses` seam, conditioned on the pet's actual export state.
-//!
-//! Loaded from `data/campaign_overrides.yaml`.
+//! Every pet's static campaign-bonus percentages are hand-authored in
+//! `data/campaign_bonuses.yaml`; the wiki scrape keeps only the raw infobox
+//! prose, for display. Rules are conditioned on the pet's actual export state,
+//! which covers evolution flips, token boosts, and the per-form elementals.
+//! Runtime formulas (Bag, Mermaid, Aether, …) are layered on in code by the
+//! planner's `campaign_bonuses` seam.
 
 use std::collections::BTreeMap;
 
@@ -15,9 +13,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::CampaignType;
 
-/// When an override rule applies, based on the pet's current export state.
+/// When a bonus rule applies, based on the pet's current export state.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OverrideWhen {
+pub enum BonusWhen {
     /// Always applies.
     #[default]
     Always,
@@ -31,14 +29,14 @@ pub enum OverrideWhen {
     NotTokenImproved,
 }
 
-/// One override rule: a condition plus the operations it performs on the
+/// One bonus rule: a condition plus the operations it performs on the
 /// per-campaign map. Within a rule, operations apply in the order
 /// `set_all` → `set` → `add_all` → `add`: absolutes first (broad then
 /// specific), then deltas (broad then specific).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
-pub struct CampaignOverrideRule {
-    pub when: OverrideWhen,
+pub struct CampaignBonusRule {
+    pub when: BonusWhen,
     /// Set every campaign to this value (e.g. "all campaigns -75%").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub set_all: Option<f32>,
@@ -55,13 +53,13 @@ pub struct CampaignOverrideRule {
     pub add: BTreeMap<CampaignType, f32>,
 }
 
-/// All curated overrides, keyed by canonical pet name.
+/// All curated bonus rules, keyed by canonical pet name.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct CampaignOverrides(pub BTreeMap<String, Vec<CampaignOverrideRule>>);
+pub struct CampaignBonusRules(pub BTreeMap<String, Vec<CampaignBonusRule>>);
 
-impl CampaignOverrides {
-    /// Apply this pet's override rules (if any) to its `base` campaign map,
+impl CampaignBonusRules {
+    /// Apply this pet's bonus rules (if any) to its `base` campaign map,
     /// given its current evolution/token state. Rules whose condition doesn't
     /// match are skipped; matching rules apply in file order.
     pub fn apply(
@@ -76,11 +74,11 @@ impl CampaignOverrides {
         };
         for rule in rules {
             let applies = match rule.when {
-                OverrideWhen::Always => true,
-                OverrideWhen::Evolved => evolved,
-                OverrideWhen::Unevolved => !evolved,
-                OverrideWhen::TokenImproved => improved,
-                OverrideWhen::NotTokenImproved => !improved,
+                BonusWhen::Always => true,
+                BonusWhen::Evolved => evolved,
+                BonusWhen::Unevolved => !evolved,
+                BonusWhen::TokenImproved => improved,
+                BonusWhen::NotTokenImproved => !improved,
             };
             if !applies {
                 continue;
@@ -109,16 +107,16 @@ impl CampaignOverrides {
 mod tests {
     use super::*;
 
-    fn overrides_from(yaml: &str) -> CampaignOverrides {
-        serde_yaml::from_str(yaml).expect("override yaml should parse")
+    fn rules_from(yaml: &str) -> CampaignBonusRules {
+        serde_yaml::from_str(yaml).expect("bonus-rule yaml should parse")
     }
 
     #[test]
     fn test_token_improved_add() {
-        let ov = overrides_from(
+        let ov = rules_from(
             "Hedgehog:\n  - when: TokenImproved\n    add: { Growth: 141, Divinity: 141 }\n",
         );
-        // Base from the wiki parse.
+        // Static base, as an earlier Always rule would leave it.
         let base = || BTreeMap::from([(CampaignType::Growth, 25.0), (CampaignType::Divinity, 25.0)]);
 
         // Improved: +141 each.
@@ -135,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_evolved_set_all_flip() {
-        let ov = overrides_from(
+        let ov = rules_from(
             "Nothing (Other):\n  - when: Unevolved\n    set_all: -75\n  - when: Evolved\n    set_all: 75\n",
         );
         // Raw-only pet: empty base.
@@ -150,16 +148,33 @@ mod tests {
     }
 
     #[test]
-    fn test_real_overrides_file_parses() {
-        let yaml = include_str!("../../../data/campaign_overrides.yaml");
-        let ov: CampaignOverrides =
-            serde_yaml::from_str(yaml).expect("campaign_overrides.yaml should parse");
+    fn test_real_bonuses_file_parses() {
+        let yaml = include_str!("../../../data/campaign_bonuses.yaml");
+        let ov: CampaignBonusRules =
+            serde_yaml::from_str(yaml).expect("campaign_bonuses.yaml should parse");
 
-        // Hedgehog's token boost lands on the parsed +25 base.
-        let mut m =
-            BTreeMap::from([(CampaignType::Growth, 25.0), (CampaignType::Divinity, 25.0)]);
+        // Hedgehog's token boost lands on its own +25 static base.
+        let mut m = BTreeMap::new();
         ov.apply("Hedgehog", &mut m, false, true);
         assert_eq!(m.get(&CampaignType::Growth), Some(&166.0));
+        // Not improved: just the base.
+        let mut m = BTreeMap::new();
+        ov.apply("Hedgehog", &mut m, false, false);
+        assert_eq!(m.get(&CampaignType::Growth), Some(&25.0));
+
+        // A plain static pet from the migrated baseline section.
+        let mut m = BTreeMap::new();
+        ov.apply("Dwarf", &mut m, false, false);
+        assert_eq!(m.get(&CampaignType::Food), Some(&151.0));
+        assert_eq!(m.get(&CampaignType::GodPower), Some(&75.0));
+        assert_eq!(m.len(), 2);
+
+        // set_all + set: Goblin's mixed base.
+        let mut m = BTreeMap::new();
+        ov.apply("Goblin", &mut m, false, false);
+        assert_eq!(m.get(&CampaignType::Growth), Some(&-100.0));
+        assert_eq!(m.get(&CampaignType::Divinity), Some(&150.0));
+        assert_eq!(m.get(&CampaignType::Level), Some(&50.0));
 
         // A prose correction with no base.
         let mut m = BTreeMap::new();
@@ -211,7 +226,7 @@ mod tests {
     fn test_add_all_then_add_specific() {
         // Cupid: base +100 Divinity; token-improved adds +30 to all and +20
         // more to Divinity (so +50 there) → Divinity 150, everything else 30.
-        let ov = overrides_from(
+        let ov = rules_from(
             "Cupid:\n  - when: Always\n    set: { Divinity: 100 }\n  - when: TokenImproved\n    add_all: 30\n    add: { Divinity: 20 }\n",
         );
         let mut m = BTreeMap::new();
@@ -229,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_set_correction_and_unknown_pet() {
-        let ov = overrides_from("Cat:\n  - when: Always\n    set: { GodPower: 50 }\n");
+        let ov = rules_from("Cat:\n  - when: Always\n    set: { GodPower: 50 }\n");
         let mut m = BTreeMap::new();
         ov.apply("Cat", &mut m, false, false);
         assert_eq!(m.get(&CampaignType::GodPower), Some(&50.0));
