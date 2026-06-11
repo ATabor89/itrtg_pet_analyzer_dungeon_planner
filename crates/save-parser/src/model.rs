@@ -68,6 +68,11 @@ pub struct SaveFile {
     /// Count" adds the base 1 (and equipped-crystal bonuses are separate).
     /// Milestones key off this from-god-power value.
     pub creation_count_gp: Option<u64>,
+    /// Earth Eater: Earthlike planets eaten *this rebirth* (root `018`),
+    /// at 1/s while eating. Moves in lockstep with the lifetime total at
+    /// `x.185` ([`trackers::EARTH_EATER_PLANETS_TOTAL`]) — identical
+    /// deltas across the reference saves (+42,574).
+    pub earth_eater_planets_rebirth: Option<u64>,
     /// Anni Cake's current stat bonus in percent (root `033`), stored
     /// directly as a fractional float (948.969… displays as 949%). Grows by
     /// 10% (+0.1%×CL when evolved) per hour in food campaigns, fractional
@@ -636,6 +641,7 @@ impl SaveFile {
             light_clones: root.get_path(&["O", "030"]).and_then(Node::as_u64),
             statistics_multi: root.get_path(&["p", "C"]).and_then(Node::as_f64),
             creation_count_gp: root.get_path(&["p", "q"]).and_then(Node::as_u64),
+            earth_eater_planets_rebirth: root.get("018").and_then(Node::as_u64),
             anni_cake_bonus_percent: root.get("033").and_then(Node::as_f64),
             researches,
             creations,
