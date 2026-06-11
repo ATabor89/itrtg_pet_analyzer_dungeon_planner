@@ -169,8 +169,9 @@ impl ChamberState {
         self.hours = src.hours;
         self.max_cycles = src.max_cycles;
         self.pandora_feedings = src.pandora_feedings;
-        // Sanitize like the other loaded indices: done can't exceed max (a
-        // hand-edited value would otherwise apply a huge multiplier).
+        // Sanitize like the other loaded indices: done can't exceed max (for
+        // PGC a hand-edited value would otherwise apply a huge multiplier; for
+        // UPC the % caps anyway, so this just keeps the input range honest).
         self.upc_max = src.upc_max;
         self.upc_done = src.upc_done.min(src.upc_max);
         self.pgc_max = src.pgc_max;
