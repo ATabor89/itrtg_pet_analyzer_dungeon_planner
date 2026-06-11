@@ -298,7 +298,7 @@ pub enum SpecialPet {
     Bag { token_improved: bool },
     /// Nightmare — subtracts `(20 − 0.25·class_level)` points (min 1) from every
     /// **other** chamber pet's campaign bonus. (Its own `+200%` self-boost is part
-    /// of its campaign bonus already, via the curated overrides.)
+    /// of its campaign bonus already, via the curated rules.)
     Nightmare { class_level: u32 },
 }
 

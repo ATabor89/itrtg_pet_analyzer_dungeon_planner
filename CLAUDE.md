@@ -45,9 +45,12 @@ well-tested logic and concise UI code that follows existing patterns.
 - `planner_config.yaml` — class→equipment selection rules (no hardcoded gear
   logic in Rust; tweak here).
 - `pet_special_info.yaml` — per-pet quirks (synergies, locked classes, etc.).
-- `campaign_overrides.yaml` — curated campaign-bonus corrections applied on top
-  of the wiki-parsed baseline (token boosts, evo flips, prose fixes), keyed by
-  pet name. Consumed via `MergedPet::campaign_bonuses`.
+- `campaign_bonuses.yaml` — **the** source of every pet's static campaign-bonus
+  values (hand-curated rules conditioned on evo/token state), keyed by pet
+  name. There is no prose parser — the wiki scrape keeps only raw display
+  text. Runtime formulas live in `apply_campaign_formulas` (planner). The
+  coverage test `test_campaign_bonus_coverage` fails when a new wiki pet needs
+  an entry. Consumed via `MergedPet::campaign_bonuses`.
 - `wiki_pets.yaml` — scraped wiki data (auto-refreshed weekly). Includes
   per-pet `evo_requirements` (growth threshold, material, "other" condition),
   which `wiki-extractor` fills in by crawling each pet's page — see its

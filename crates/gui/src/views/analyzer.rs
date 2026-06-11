@@ -504,7 +504,7 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     campaign_inputs.earth_eater_total_planets =
         parse_flexible_number(&state.earth_eater_planets_text).unwrap_or(0.0).max(0.0) as u64;
     let camp_ctx = CampaignContext {
-        overrides: &data.campaign_overrides,
+        bonuses: &data.campaign_bonuses,
         roster: &data.merged,
         inputs: &campaign_inputs,
         include_equipment: state.include_equipment_bonus,

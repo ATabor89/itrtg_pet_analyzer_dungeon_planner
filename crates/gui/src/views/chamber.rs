@@ -1568,14 +1568,14 @@ mod tests {
 
     #[test]
     fn pgc_completions_scale_total_growth() {
-        use itrtg_models::{CampaignInputs, CampaignOverrides};
+        use itrtg_models::{CampaignBonusRules, CampaignInputs};
 
         let pet = merged("Foo", export_with(1000, 5));
         let roster = vec![pet.clone()];
-        let overrides = CampaignOverrides::default();
+        let bonuses = CampaignBonusRules::default();
         let inputs = CampaignInputs::default();
         let ctx = CampaignContext {
-            overrides: &overrides,
+            bonuses: &bonuses,
             roster: &roster,
             inputs: &inputs,
             include_equipment: true,
@@ -1667,7 +1667,7 @@ mod tests {
 
     #[test]
     fn cl_override_raises_adventurer_growth_bonus() {
-        use itrtg_models::{CampaignInputs, CampaignOverrides, Class};
+        use itrtg_models::{CampaignBonusRules, CampaignInputs, Class};
 
         // An Adventurer's all-campaign bonus is (2 + evo)%·CL; a generic pet has
         // evo 0, so 2%/CL. The override must flow CL through campaign_bonus_for.
@@ -1676,10 +1676,10 @@ mod tests {
         let pet = merged("Advy", adv);
 
         let roster = vec![pet.clone()];
-        let overrides = CampaignOverrides::default();
+        let bonuses = CampaignBonusRules::default();
         let inputs = CampaignInputs::default();
         let ctx = CampaignContext {
-            overrides: &overrides,
+            bonuses: &bonuses,
             roster: &roster,
             inputs: &inputs,
             include_equipment: true,
@@ -1737,16 +1737,16 @@ mod tests {
 
     #[test]
     fn equipping_a_stick_raises_the_growth_bonus() {
-        use itrtg_models::{CampaignInputs, CampaignOverrides};
+        use itrtg_models::{CampaignBonusRules, CampaignInputs};
 
         // A generic pet (no wiki innate, not Adventurer) has a 0% Growth bonus;
         // a Legendary Stick SSS+20 is the cap, +100%.
         let pet = merged("Foo", export_with(1000, 5));
         let roster = vec![pet.clone()];
-        let overrides = CampaignOverrides::default();
+        let bonuses = CampaignBonusRules::default();
         let inputs = CampaignInputs::default();
         let ctx = CampaignContext {
-            overrides: &overrides,
+            bonuses: &bonuses,
             roster: &roster,
             inputs: &inputs,
             include_equipment: true,
@@ -1765,14 +1765,14 @@ mod tests {
 
     #[test]
     fn merry_mantle_adds_then_removing_it_clears_the_bonus() {
-        use itrtg_models::{CampaignInputs, CampaignOverrides};
+        use itrtg_models::{CampaignBonusRules, CampaignInputs};
 
         let pet = merged("Foo", export_with(1000, 5));
         let roster = vec![pet.clone()];
-        let overrides = CampaignOverrides::default();
+        let bonuses = CampaignBonusRules::default();
         let inputs = CampaignInputs::default();
         let ctx = CampaignContext {
-            overrides: &overrides,
+            bonuses: &bonuses,
             roster: &roster,
             inputs: &inputs,
             include_equipment: true,
@@ -1796,14 +1796,14 @@ mod tests {
 
     #[test]
     fn equipping_the_pendant_adds_passive_growth() {
-        use itrtg_models::{CampaignInputs, CampaignOverrides};
+        use itrtg_models::{CampaignBonusRules, CampaignInputs};
 
         let pet = merged("Foo", export_with(1000, 5));
         let roster = vec![pet.clone()];
-        let overrides = CampaignOverrides::default();
+        let bonuses = CampaignBonusRules::default();
         let inputs = CampaignInputs::default();
         let ctx = CampaignContext {
-            overrides: &overrides,
+            bonuses: &bonuses,
             roster: &roster,
             inputs: &inputs,
             include_equipment: true,
