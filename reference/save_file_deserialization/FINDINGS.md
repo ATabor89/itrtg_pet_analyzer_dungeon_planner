@@ -186,7 +186,9 @@ campaign hours; Mule `310`: 123 → 124; Chocobear `089`: 4826.09 → 4874.09;
 Serow `324`: 7037 → 7552; …).
 
 Per-pet trackers: 089 Chocobear banked hours, 169 Pandora feedings (observed
-**negative** −28 just after rebirth), 185 Earth Eater planets total, 186
+**negative** −28 just after rebirth), 185 Earth Eater planets total
+(lifetime; the per-rebirth twin lives at root `018` — identical deltas
+across the saves, +42,574, and the 1/s rate matches the user's timeline), 186
 Aether boss kills (the Aether Ring "+28"), 216 Pignata bashes, 218 God Power
 campaign hours, 234 Meteor campaign hours, 259 Caterpillar materials, 310
 Mule quests, 311 Gold Dragon bonus growth, 324 Serow items saved, 336 Bag
