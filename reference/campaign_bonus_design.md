@@ -6,34 +6,47 @@ feature is structured so later phases don't become a messy refactor.
 ## The seam (anti-refactor guarantee)
 
 All UI (pet card, "Campaign boost" filter, "Sort by bonus") goes through **one**
-method and never reads `WikiPet.campaign_bonus.per_campaign` directly:
+method and never reads the rules/data directly:
 
 ```
 MergedPet::campaign_bonuses() -> BTreeMap<CampaignType, f32>   // crates/planner/src/merge.rs
 MergedPet::campaign_bonus_for(c) -> Option<f32>
 ```
 
-Today it returns the **static parsed baseline** scraped from the wiki. Dynamic
-and conditional adjustments get layered in *inside this method* (it will likely
-gain a `&CampaignContext` argument). Because callers go through the seam, adding
-those adjustments won't disturb the data model, the filter/sort, or the card —
-filter/sort just start reflecting better numbers.
+Static values come from the curated rules in `data/campaign_bonuses.yaml` (via
+`CampaignContext`); dynamic and conditional adjustments are layered in *inside
+this method*. Because callers go through the seam, adding adjustments won't
+disturb the data model, the filter/sort, or the card — filter/sort just start
+reflecting better numbers.
 
 ## Data sources, by pet kind
 
-1. **Static** (≈68 pets) — parsed at scrape time into `per_campaign`
-   (`wiki_pets.yaml`). Done (PR #18). Tuned against `campaign_bonus_survey.tsv`.
-2. **Raw-only** (≈61 pets) — prose/dynamic/conditional the parser bails on. The
-   cleaned `raw` string still displays. These get upgraded by the phases below.
-3. **No bonus** (≈27 pets) — no `CampaignBonus`.
+> **2026-06 refactor:** scrape-time percentage parsing
+> (`parse_campaign_percentages`) was removed. It bifurcated the data — ~70 pets
+> parsed, ~61 hand-curated — and its failure mode was silent (a new phrasing
+> just bailed, or worse, misparsed). Now **all** static values are hand-curated
+> in `data/campaign_bonuses.yaml` (the parsed baselines were migrated in
+> verbatim), the wiki scrape keeps only the raw prose for display, and the
+> planner's `test_campaign_bonus_coverage` fails loudly when a new wiki pet
+> has campaign text but no curated entry / formula / raw-only listing. The data
+> changes rarely (campaign bonuses are effectively never rebalanced), so the
+> steady-state cost is one yaml entry per new pet.
 
-## Dynamic/conditional layer (future phases)
+1. **Curated static** — one or more rules in `campaign_bonuses.yaml`,
+   conditioned on evo/token state.
+2. **Formula** — computed in code (`apply_campaign_formulas`,
+   `CAMPAIGN_FORMULA_PETS`), possibly on top of a curated static base
+   (Goblin, Meteor, Stone/Golem, Cupid).
+3. **Raw-only** — deliberately unstructured prose (random, per-duration,
+   not-yet-built models); listed with reasons in the coverage test.
+4. **No bonus** (≈25 pets) — no `CampaignBonus` at all.
+
+## Dynamic/conditional layer
 
 Two homes, chosen by what each pet actually needs:
 
-- **Declarative overrides → a curated `data/campaign_overrides.yaml`** (hand-
-  authored, like `pet_special_info.yaml`). This is where values the wiki infobox
-  *doesn't* state get defined. Shape: condition + operation, e.g.
+- **Declarative rules → the curated `data/campaign_bonuses.yaml`** (hand-
+  authored, like `pet_special_info.yaml`). Shape: condition + operation, e.g.
   - **Hedgehog** — `on_token_improved: set/add {Growth, Divinity}` (the big
     token boost; applied when `export.improved`). *The infobox only gives the
     +25/+25 base — the boost is defined here.*
@@ -79,9 +92,10 @@ Aether is Phase 3 (formula above). "Elemental" (the pet) is a flat +150 already.
 
 ## Phase status
 
-- [x] **1a** — scrape + conservative parser + data (PR #18).
+- [x] **1a** — scrape + conservative parser + data (PR #18). *(The parser was
+      later removed in favor of full curation — see the refactor note above.)*
 - [x] **1b** — card display, "Campaign boost" filter, "Sort by bonus".
-- [~] **2a** — override mechanism (`campaign_overrides.yaml` + `CampaignContext`
+- [x] **2a** — rule mechanism (now `campaign_bonuses.yaml` + `CampaignContext`
       seam) with a focused high-confidence curated set (Hedgehog token, Nothing/
       Corona evo flips, the clear "more levels / divinity / god power" prose
       corrections). Set-all / set / add ops × Always / Evolved / Unevolved /

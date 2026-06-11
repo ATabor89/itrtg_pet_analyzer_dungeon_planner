@@ -1,0 +1,422 @@
+# =============================================================================
+# Pet campaign bonuses — the single source of static values
+# =============================================================================
+# This file defines every pet's *static* campaign-bonus percentages. The wiki
+# scrape keeps only the raw infobox prose (for display); the numbers live here,
+# hand-curated. Pets whose bonus is a runtime formula (Bag, Mermaid, Aether, …)
+# are computed in code (`apply_campaign_formulas` in the planner) and may have
+# no entry here, or a static part that the formula builds on.
+#
+# A pet missing from this file (and from the formula list) simply shows its raw
+# wiki text with no structured value. The planner's coverage test
+# (`test_campaign_bonus_coverage`) fails when a wiki pet with campaign text is
+# in neither place — that's the prompt to curate a new pet.
+#
+# Keyed by canonical pet name. Each pet has a list of rules; each rule has:
+#   when:    Always | Evolved | Unevolved | TokenImproved | NotTokenImproved
+#   set_all: <number>            # set every campaign to this value
+#   set:     { Campaign: <num> } # set specific campaigns (absolute)
+#   add:     { Campaign: <num> } # add to specific campaigns (delta)
+#   add_all: <number>            # add a delta to every campaign
+# Within a rule, ops apply in order set_all -> set -> add_all -> add.
+# Matching rules apply in file order.
+# Campaigns: Growth, Divinity, Food, Item, Level, Multiplier, GodPower
+# =============================================================================
+
+# =============================================================================
+# Conditional and special-cased pets
+# =============================================================================
+
+# --- Prose "greater chance to find god power" → standard God Power bonus ---
+Cat:
+  - when: Always
+    set: { GodPower: 50 }
+Camel:
+  - when: Always
+    set: { GodPower: 60 }
+Penguin:
+  - when: Always
+    set: { GodPower: 75 }
+
+# --- Prose "gives X% more levels" → standard Level bonus ---
+Pegasus:
+  - when: Always
+    set: { Level: 40 }
+Phoenix:
+  - when: Always
+    set: { Level: 50 }
+Rabbit:
+  - when: Always
+    set: { Level: 35 }
+
+# --- Prose "more divinity / multiplier / rare items" → standard bonus ---
+Cupid:
+  - when: Always
+    set: { Divinity: 100 }
+  # Token-improved: flat +30% to all campaigns, +50% to Divinity. (The separate
+  # per-couple bonus is a roster formula, layered on in code.)
+  - when: TokenImproved
+    add_all: 30
+    add: { Divinity: 20 }
+Snake:
+  - when: Always
+    set: { Divinity: 50 }
+Dragon:
+  - when: Always
+    set: { Multiplier: 100 }
+UFO:
+  - when: Always
+    set: { Multiplier: 75 }
+Eagle:
+  - when: Always
+    set: { Item: 75 }
+# Same phrasing pattern as Eagle/Squirrel/Octopus (confirmed in-game as
+# standard bonuses), though these three weren't individually verified:
+Dog:
+  - when: Always
+    set: { Item: 50, Multiplier: -50 }
+Flying Cloud:
+  - when: Always
+    set: { Item: 100, Multiplier: 50 }
+Doughnut:
+  - when: Always
+    set: { Food: 75 }
+
+# --- Token improvement: Hedgehog's +141% boost to growth & divinity ---
+Hedgehog:
+  - when: Always
+    set: { Growth: 25, Divinity: 25 }
+  - when: TokenImproved
+    add: { Growth: 141, Divinity: 141 }
+
+# --- Evolution-conditional: bonus flips/changes after evolving ---
+Nothing (Other):
+  - when: Unevolved
+    set_all: -75
+  - when: Evolved
+    set_all: 75
+Corona:
+  - when: Unevolved
+    set_all: -30
+  - when: Evolved
+    set_all: -50
+
+# --- All-campaign prose ---
+Pack Mule:
+  - when: Always
+    set_all: -100
+Elemental:
+  - when: Always
+    set_all: 150
+Nightmare:
+  # Its own bonus is +200% to all; the separate "reduces other pets' reward"
+  # malus is a team effect, not part of Nightmare's own campaign bonus.
+  - when: Always
+    set_all: 200
+Slime:
+  - when: Always
+    set_all: 25
+    set: { Level: 20 }
+
+# --- Campaign clauses mixed with non-campaign prose (combat/utility) ---
+Holy ITRTG Book:
+  # The attack-power / crit-immunity text isn't a campaign bonus.
+  - when: Always
+    set: { Divinity: 150, GodPower: 100, Level: 50 }
+Fainting Capra:
+  # The faint/damage-reduction text isn't a campaign bonus.
+  - when: Always
+    set: { Growth: 33, Level: 33, Divinity: 100, Food: -80 }
+Clam:
+  # Event campaigns aren't one of the seven modeled types, so only Item applies.
+  - when: Always
+    set: { Item: 35 }
+
+# --- Food/item-"finding" prose pets (confirmed in-game as standard bonuses) ---
+Mouse:
+  # Evolve bonus flips the food penalty: -50% -> +50% (infobox documents this).
+  - when: Unevolved
+    set: { Food: -50 }
+  - when: Evolved
+    set: { Food: 50 }
+Robot:
+  # Also has a campaign anti-synergy with Thunder Ball (for a future simulator).
+  - when: Always
+    set: { Food: 100, Growth: 100 }
+Squirrel:
+  - when: Always
+    set: { Food: 75 }
+Goat:
+  - when: Always
+    set: { Food: -100, Item: 100 }
+Octopus:
+  - when: Always
+    set: { Food: 100, GodPower: -80 }
+Mole:
+  - when: Always
+    set: { Food: -50 }
+Rudolph:
+  - when: Always
+    set: { Item: 35, Food: 35 }
+# Pumpkin: no inherent campaign bonus (it finds chocolate) — left raw-only.
+
+# --- Per-form / pre-evo vs post-evo ---
+Baby Carno:
+  - when: Unevolved
+    set: { Level: 50, Food: -300, Multiplier: 50, Item: -150 }
+  - when: Evolved
+    set: { Level: 75, Multiplier: 150, Item: -250 }
+
+# --- Elemental quest progression (all campaigns) ---
+# All-or-nothing approximation: unevolved -> worst (base) stage, evolved -> best
+# (final) stage, since evolving requires full upgrades. Intermediate stages
+# (shown in comments) can't yet be told apart from the export; revisit once we
+# can read a pet's upgrade stage. Aether is a formula (Delirious-Essence-fights
+# input + a growth/elementals-unlocked term).
+Gnome:
+  # Stages: -200 -> -100 -> 0 -> 100
+  - when: Unevolved
+    set_all: -200
+  - when: Evolved
+    set_all: 100
+Salamander:
+  # Stages: -197 -> -58 -> -9 -> 40 -> 89
+  - when: Unevolved
+    set_all: -197
+  - when: Evolved
+    set_all: 89
+Sylph:
+  # Stages: -150 -> -100 -> -50 -> 25 -> 75
+  - when: Unevolved
+    set_all: -150
+  - when: Evolved
+    set_all: 75
+Undine:
+  # Stages: -111 -> -66 -> -11 -> 11 -> 66 -> 111
+  - when: Unevolved
+    set_all: -111
+  - when: Evolved
+    set_all: 111
+
+# --- Stone/Golem: flat +100% all campaigns once evolved ---
+# Unevolved it ramps with growth (-100% + 20% per 5000 growth, 0% at 25000) —
+# a code formula; only the evolved flat value is defined here. The 1500-CP
+# campaign upgrade (+100% all) is also a code formula off its input checkbox.
+Stone/Golem:
+  - when: Evolved
+    set_all: 100
+
+# --- Static bases that code formulas build on ---
+Goblin:
+  # Infobox base. UCCs add +1%/each to every campaign (cap 75) in code; its
+  # dynamic Adventurer evo bonus (Overflow Challenges) is in class_campaign_bonus.
+  - when: Always
+    set_all: 50
+    set: { Growth: -100, Item: -100, Divinity: 150 }
+Meteor:
+  # Static fallback; the code formula replaces it with 25 + campaign_hours^0.42.
+  - when: Always
+    set_all: 25
+
+# =============================================================================
+# Plain static bonuses (one unconditional rule per pet)
+# =============================================================================
+# Values transcribed from each pet's wiki infobox "Campaign Bonus" row
+# (formerly parsed at scrape time). Alphabetical.
+
+Anni Cake:
+  - when: Always
+    set: { Food: 365, Multiplier: 365 }
+Ape:
+  - when: Always
+    set: { Growth: 100 }
+Archer:
+  - when: Always
+    set: { Divinity: 75, Item: 50 }
+Azure Dragon:
+  - when: Always
+    set: { Level: 371, Multiplier: -35 }
+Bat:
+  - when: Always
+    set: { Growth: 66, Food: 125, Level: 66 }
+Big Burger:
+  - when: Always
+    set: { Food: 333, Level: 222, Multiplier: 111 }
+Black Tortoise:
+  - when: Always
+    set: { Level: -63, Multiplier: 79 }
+Bunny Girl:
+  - when: Always
+    set: { Growth: 77, Item: 77 }
+Cardboardbox:
+  - when: Always
+    set: { Item: -50, GodPower: 30 }
+Caterpillar:
+  - when: Always
+    set: { Level: 75, Multiplier: 25 }
+Cherub:
+  - when: Always
+    set: { Divinity: 100, Item: 50 }
+Crocodile:
+  - when: Always
+    set: { Growth: -25, Food: -90, Item: 69 }
+Dark Gift:
+  - when: Always
+    set_all: -100
+    set: { Divinity: -500, GodPower: -500 }
+Decorator Crab:
+  - when: Always
+    set: { Item: 35 }
+Dorgegebelle:
+  - when: Always
+    set: { Growth: 108, Food: -108 }
+Duragizer:
+  - when: Always
+    set_all: 22
+Dwarf:
+  - when: Always
+    set: { Food: 151, GodPower: 75 }
+Egg/Chicken:
+  - when: Always
+    set: { Growth: 10, Item: 10 }
+Elf:
+  - when: Always
+    set: { Food: 150, Item: 75 }
+Fairy:
+  - when: Always
+    set: { Item: 50 }
+Fool:
+  - when: Always
+    set: { Growth: 7, Divinity: 70, Food: 7, GodPower: 70 }
+God Power (Pet):
+  - when: Always
+    set: { GodPower: 50 }
+Hermit Crab:
+  - when: Always
+    set: { Multiplier: 50 }
+Honeybadger:
+  - when: Always
+    set: { Food: 300 }
+Hwangeum Pig:
+  - when: Always
+    set: { Item: 80, GodPower: -42 }
+Hydra:
+  - when: Always
+    set: { Item: 25, Multiplier: 200 }
+Koi:
+  - when: Always
+    set: { Growth: 45, Item: 45 }
+Llysnafedda:
+  - when: Always
+    set: { Growth: -25, Food: -150, Item: -100, Level: 100, Multiplier: 50 }
+Lucky Coin:
+  - when: Always
+    set: { Food: 777, Item: 7, GodPower: 77 }
+Monk:
+  - when: Always
+    set_all: 10
+Mysterious Egg:
+  - when: Always
+    set: { Level: 100 }
+Oni:
+  - when: Always
+    set: { Growth: 150, Item: 150 }
+Otter:
+  - when: Always
+    set: { Growth: 75, Multiplier: 125 }
+Panda:
+  - when: Always
+    set: { Food: 300 }
+Pixie Goatmother:
+  - when: Always
+    set: { Divinity: 50, Food: -200, Item: 50, GodPower: 33 }
+Portal:
+  - when: Always
+    set: { Divinity: 77 }
+Question:
+  - when: Always
+    set: { Divinity: 42, Food: 42, Level: 42, Multiplier: 42, GodPower: 42 }
+Raven:
+  - when: Always
+    set: { Item: 60 }
+Rose:
+  - when: Always
+    set: { Level: 37, Multiplier: 22, GodPower: 58 }
+Santa:
+  - when: Always
+    set: { Food: 50, Item: 50 }
+Seal:
+  - when: Always
+    set: { Multiplier: 55, GodPower: 40 }
+Serow:
+  - when: Always
+    set: { Food: 150, Item: 50, Level: -50, Multiplier: -75 }
+Shadow Clone:
+  - when: Always
+    set: { Level: 25 }
+Shark:
+  - when: Always
+    set: { Growth: 100 }
+Skeleton:
+  - when: Always
+    set: { Food: 250 }
+Sniper:
+  - when: Always
+    set: { Divinity: 50, Level: 100 }
+Sphinx:
+  - when: Always
+    set: { Growth: 37.5, Level: 75, Multiplier: 75 }
+Stale Tortilla/Taco:
+  - when: Always
+    set: { Food: -30 }
+Strategist:
+  - when: Always
+    set: { Divinity: 75, Food: 75 }
+Student:
+  - when: Always
+    set: { Growth: 99 }
+Swan:
+  - when: Always
+    set: { Divinity: 55 }
+Tanuki:
+  - when: Always
+    set_all: 22
+Tenko:
+  - when: Always
+    set: { Growth: 55, Divinity: 108, Item: -108, GodPower: 55 }
+Thunder Ball/Raiju:
+  - when: Always
+    set: { Growth: 80, Divinity: 80, Item: 40 }
+Tödlicher Löffel:
+  - when: Always
+    set: { Food: 420 }
+Vaccina:
+  - when: Always
+    set: { Divinity: 150 }
+Valkyrie:
+  - when: Always
+    set: { Growth: 35, Level: 50, Multiplier: 100 }
+Vampire:
+  - when: Always
+    set: { Growth: 69, Divinity: 1, Food: 337, Multiplier: 42, GodPower: 90.01 }
+Vermilion Pheasant:
+  - when: Always
+    set: { Growth: -86, Item: 69 }
+Vesuvius:
+  - when: Always
+    set: { Growth: -50, Item: 65, GodPower: 65 }
+Whale:
+  - when: Always
+    set: { Growth: 35, Divinity: 75, Level: 35 }
+White Tiger:
+  - when: Always
+    set: { Food: -95, GodPower: 99 }
+Witch:
+  - when: Always
+    set: { Divinity: -666, Food: 666, Multiplier: 66 }
+Wizard:
+  - when: Always
+    set: { Divinity: -50, Multiplier: 75 }
+Wolpertinger:
+  - when: Always
+    set: { Item: 21, Multiplier: 21, GodPower: 21 }

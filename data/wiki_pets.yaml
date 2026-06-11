@@ -81,9 +81,6 @@
     other: Title has to be Chicken God/Goddess (flee from an UBv2 to get it)
   campaign_bonus:
     raw: Egg has +10% in item campaigns, +10% in growth campaigns.
-    per_campaign:
-      Growth: 10.0
-      Item: 10.0
 - name: Armadillo
   wiki_url: https://itrtg.wiki.gg/wiki/Armadillo
   element: Earth
@@ -184,8 +181,6 @@
     other: 10 Godly Liquid
   campaign_bonus:
     raw: It has a 50% bonus to item campaign.
-    per_campaign:
-      Item: 50.0
 - name: Dragon
   wiki_url: https://itrtg.wiki.gg/wiki/Dragon
   element: Fire
@@ -239,8 +234,6 @@
     other: All pets 5000+ total growth
   campaign_bonus:
     raw: Shark has +100% in growth campaigns.
-    per_campaign:
-      Growth: 100.0
 - name: Octopus
   wiki_url: https://itrtg.wiki.gg/wiki/Octopus
   element: Water
@@ -275,10 +268,6 @@
     other: Defeat a total of 2000 dungeon bosses
   campaign_bonus:
     raw: It has +35% in growth campaigns, +50% in level campaigns, +100% in multiplier campaigns.
-    per_campaign:
-      Growth: 35.0
-      Level: 50.0
-      Multiplier: 100.0
 - name: Slime
   wiki_url: https://itrtg.wiki.gg/wiki/Slime
   element: Water
@@ -313,10 +302,6 @@
     other: Have a level 20 Ultimate Crystal (not consumed)
   campaign_bonus:
     raw: Whale has +75% in divinity campaigns, +35% in level campaigns, +35% in growth campaigns.
-    per_campaign:
-      Growth: 35.0
-      Divinity: 75.0
-      Level: 35.0
 - name: Hydra
   wiki_url: https://itrtg.wiki.gg/wiki/Hydra
   element: Water
@@ -334,9 +319,6 @@
     other: Pet Rebirth Multiplier of 5000%
   campaign_bonus:
     raw: Hydra has +25% in item campaigns, +200% in multiplier campaigns.
-    per_campaign:
-      Item: 25.0
-      Multiplier: 200.0
 - name: Pandora's Box
   wiki_url: https://itrtg.wiki.gg/wiki/Pandora's_Box
   element: Neutral
@@ -373,10 +355,6 @@
     other: Do a total damage of 77,777,777 in dungeons (You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: It has +7% in item campaigns, +77% in godpower campaigns, +777% in food campaigns.
-    per_campaign:
-      Food: 777.0
-      Item: 7.0
-      GodPower: 77.0
 - name: Balrog
   wiki_url: https://itrtg.wiki.gg/wiki/Balrog
   element: Fire
@@ -443,10 +421,6 @@
     other: Stun at least 3333 enemies with it.
   campaign_bonus:
     raw: Crocodile has -90% in food campaigns, -25% in growth campaigns, +69% in item campaigns.
-    per_campaign:
-      Growth: -25.0
-      Food: -90.0
-      Item: 69.0
 - name: Big Burger
   wiki_url: https://itrtg.wiki.gg/wiki/Big_Burger
   element: Water
@@ -464,10 +438,6 @@
     other: Give it 999,999 Mighty Food
   campaign_bonus:
     raw: +333% (Food), +222%(Level), +111%(Multiplier)
-    per_campaign:
-      Food: 333.0
-      Level: 222.0
-      Multiplier: 111.0
 - name: Oni
   wiki_url: https://itrtg.wiki.gg/wiki/Oni
   element: Fire
@@ -485,9 +455,6 @@
     other: Defeat P.Baal v222
   campaign_bonus:
     raw: +150% to Growth and Item Camps
-    per_campaign:
-      Growth: 150.0
-      Item: 150.0
 - name: Bug
   wiki_url: https://itrtg.wiki.gg/wiki/Bug
   element: Fire
@@ -583,8 +550,6 @@
     other: Equip a level 20 Ultimate Crystal, have a 5000/1000 Temple of God (You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: It has +100% in growth campaigns.
-    per_campaign:
-      Growth: 100.0
 - name: Flying Cloud
   wiki_url: https://itrtg.wiki.gg/wiki/Flying_Cloud
   element: Wind
@@ -640,8 +605,6 @@
     other: Have at least 25 God Power Challenges completed.
   campaign_bonus:
     raw: +50% in godpower campaigns
-    per_campaign:
-      GodPower: 50.0
 - name: Turtle
   wiki_url: https://itrtg.wiki.gg/wiki/Turtle
   element: Earth
@@ -741,14 +704,6 @@
     other: Finish the Questline (You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: All Campaigns -200%
-    per_campaign:
-      Growth: -200.0
-      Divinity: -200.0
-      Food: -200.0
-      Item: -200.0
-      Level: -200.0
-      Multiplier: -200.0
-      GodPower: -200.0
 - name: Salamander
   wiki_url: https://itrtg.wiki.gg/wiki/Salamander
   element: Fire
@@ -783,14 +738,6 @@
     other: Finish the Questline (You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: All Campaigns -150%
-    per_campaign:
-      Growth: -150.0
-      Divinity: -150.0
-      Food: -150.0
-      Item: -150.0
-      Level: -150.0
-      Multiplier: -150.0
-      GodPower: -150.0
 - name: Aether
   wiki_url: https://itrtg.wiki.gg/wiki/Aether
   element: Neutral
@@ -944,9 +891,6 @@
     other: Give her 100 x nothing
   campaign_bonus:
     raw: It has +50% in item campaigns, +50% in food campaigns.
-    per_campaign:
-      Food: 50.0
-      Item: 50.0
 - name: Elf
   wiki_url: https://itrtg.wiki.gg/wiki/Elf
   element: Wind
@@ -964,9 +908,6 @@
     other: Have at least 10% of her unique crafting bonus from equip.
   campaign_bonus:
     raw: It has +150% in food campaigns, +75% in item campaigns.
-    per_campaign:
-      Food: 150.0
-      Item: 75.0
 - name: Pumpkin
   wiki_url: https://itrtg.wiki.gg/wiki/Pumpkin
   element: Fire
@@ -1035,12 +976,6 @@
     other: 1 Universe
   campaign_bonus:
     raw: Question has +42% in divinity campaigns, food campaigns, godpower campaigns, level campaigns and multiplier campaigns.
-    per_campaign:
-      Divinity: 42.0
-      Food: 42.0
-      Level: 42.0
-      Multiplier: 42.0
-      GodPower: 42.0
 - name: Chocobear
   wiki_url: https://itrtg.wiki.gg/wiki/Chocobear
   element: Earth
@@ -1075,10 +1010,6 @@
     other: Give it 100 Magic Herbs
   campaign_bonus:
     raw: +37% level, +22% multiplier, +58% godpower
-    per_campaign:
-      Level: 37.0
-      Multiplier: 22.0
-      GodPower: 58.0
 - name: Doughnut
   wiki_url: https://itrtg.wiki.gg/wiki/Doughnut
   element: Earth
@@ -1149,8 +1080,6 @@
     other: Total Pet Mystic multiplier > 2 million %
   campaign_bonus:
     raw: It has +50% in multiplier campaigns.
-    per_campaign:
-      Multiplier: 50.0
 - name: Hedgehog
   wiki_url: https://itrtg.wiki.gg/wiki/Hedgehog
   element: Fire
@@ -1168,9 +1097,6 @@
     other: 1e19 divinity
   campaign_bonus:
     raw: Hedgehog has +25% in divinity campaigns, +25% in growth campaigns.
-    per_campaign:
-      Growth: 25.0
-      Divinity: 25.0
 - name: Phoenix
   wiki_url: https://itrtg.wiki.gg/wiki/Phoenix
   element: Fire
@@ -1207,9 +1133,6 @@
     other: All monuments and upgrades except Black Hole at 666/666 or more.
   campaign_bonus:
     raw: -50% in divinity campaigns, +75% in multiplier campaigns.
-    per_campaign:
-      Divinity: -50.0
-      Multiplier: 75.0
 - name: Pegasus
   wiki_url: https://itrtg.wiki.gg/wiki/Pegasus
   element: Wind
@@ -1244,8 +1167,6 @@
     other: Have 1000 Herbs (they'll be consumed)
   campaign_bonus:
     raw: Panda has +300% in food campaigns.
-    per_campaign:
-      Food: 300.0
 - name: UFO
   wiki_url: https://itrtg.wiki.gg/wiki/UFO
   element: Neutral
@@ -1299,9 +1220,6 @@
     other: Have at least 35 evolved pets.
   campaign_bonus:
     raw: It has +75% in growth campaigns, +125% in multiplier campaigns.
-    per_campaign:
-      Growth: 75.0
-      Multiplier: 125.0
 - name: FSM
   wiki_url: https://itrtg.wiki.gg/wiki/FSM
   element: Wind
@@ -1351,8 +1269,6 @@
     other: Have Corona evolved and at least 100 Cure Potions
   campaign_bonus:
     raw: It has +150% in divinity campaigns.
-    per_campaign:
-      Divinity: 150.0
 - name: Corona
   wiki_url: https://itrtg.wiki.gg/wiki/Corona
   element: Wind
@@ -1421,14 +1337,6 @@
     other: Give it 100 health potion S.
   campaign_bonus:
     raw: +22% to all non-event campaigns
-    per_campaign:
-      Growth: 22.0
-      Divinity: 22.0
-      Food: 22.0
-      Item: 22.0
-      Level: 22.0
-      Multiplier: 22.0
-      GodPower: 22.0
 - name: Seal
   wiki_url: https://itrtg.wiki.gg/wiki/Seal
   element: Water
@@ -1446,9 +1354,6 @@
     other: Finish a Day Pet Challenge while Seal having the highest stats
   campaign_bonus:
     raw: It has +40% in godpower campaigns, +55% in multiplier campaigns.
-    per_campaign:
-      Multiplier: 55.0
-      GodPower: 40.0
 - name: Raven
   wiki_url: https://itrtg.wiki.gg/wiki/Raven
   element: Wind
@@ -1466,8 +1371,6 @@
     other: Have it equipped with Bursting Knives SSS+20
   campaign_bonus:
     raw: It has +60% in item campaigns.
-    per_campaign:
-      Item: 60.0
 - name: Hourglass
   wiki_url: https://itrtg.wiki.gg/wiki/Hourglass
   element: Wind
@@ -1502,9 +1405,6 @@
     other: Equip a Hurricane Bow SSS +20 (20) and consume another one (This also needs to be a SSS+20 (20)).
   campaign_bonus:
     raw: +75% divinity, +50% item
-    per_campaign:
-      Divinity: 75.0
-      Item: 50.0
 - name: Thunder Ball/Raiju
   wiki_url: https://itrtg.wiki.gg/wiki/Thunder_Ball/Raiju
   element: Wind
@@ -1522,10 +1422,6 @@
     other: Have 1billion% creating multiplier (RTI(∞) Tab) from pets
   campaign_bonus:
     raw: It has +80% in growth campaigns, +40% in item campaigns, +80% in divinity campaigns.
-    per_campaign:
-      Growth: 80.0
-      Divinity: 80.0
-      Item: 40.0
 - name: Bottle
   wiki_url: https://itrtg.wiki.gg/wiki/Bottle
   element: Fire
@@ -1575,8 +1471,6 @@
     other: Have 2 million combined pet levels
   campaign_bonus:
     raw: +100% in level campaigns
-    per_campaign:
-      Level: 100.0
 - name: Succubus
   wiki_url: https://itrtg.wiki.gg/wiki/Succubus
   element: Fire
@@ -1643,8 +1537,6 @@
     other: Give it 500 God Power and 10 septillion Divinity*
   campaign_bonus:
     raw: +77% to Divinity campaigns.
-    per_campaign:
-      Divinity: 77.0
 - name: Cardboardbox
   wiki_url: https://itrtg.wiki.gg/wiki/Cardboardbox
   element: Wind
@@ -1662,9 +1554,6 @@
     other: Kill every D3 boss at least once with it in the team.
   campaign_bonus:
     raw: +30% God Power campaign and -50% Item campaign
-    per_campaign:
-      Item: -50.0
-      GodPower: 30.0
 - name: Unicorn
   wiki_url: https://itrtg.wiki.gg/wiki/Unicorn
   element: Neutral
@@ -1699,8 +1588,6 @@
     other: Give it one of each fire, water, earth and wind T3 materials.
   campaign_bonus:
     raw: It has a -30% in food campaigns.
-    per_campaign:
-      Food: -30.0
 - name: Witch
   wiki_url: https://itrtg.wiki.gg/wiki/Witch
   element: Water
@@ -1718,10 +1605,6 @@
     other: Give her 25 Ocean Stones.
   campaign_bonus:
     raw: She has -666% in divinity campaigns, +666% in food campaigns, and +66% in multiplier campaigns.
-    per_campaign:
-      Divinity: -666.0
-      Food: 666.0
-      Multiplier: 66.0
 - name: Sloth
   wiki_url: https://itrtg.wiki.gg/wiki/Sloth
   element: Earth
@@ -1788,10 +1671,6 @@
     other: Get a total of 7500 growth from dungeon.(The tooltip only needs to show 3750 as Vesuvius gives half the growth it receives in dungeon at CL0.)
   campaign_bonus:
     raw: It has -50% in growth campaigns, +65% in item campaigns, and +65% in godpower campaigns.
-    per_campaign:
-      Growth: -50.0
-      Item: 65.0
-      GodPower: 65.0
 - name: Swan
   wiki_url: https://itrtg.wiki.gg/wiki/Swan
   element: Water
@@ -1809,8 +1688,6 @@
     other: Give it 1 million Fishing Power. (See Fishing Pond)
   campaign_bonus:
     raw: It has +55% in divinity campaigns.
-    per_campaign:
-      Divinity: 55.0
 - name: Void
   wiki_url: https://itrtg.wiki.gg/wiki/Void
   element: Neutral
@@ -1891,14 +1768,6 @@
     other: Create 1e12 (1 trillion) stones in one rebirth.
   campaign_bonus:
     raw: All campaigns +25%.
-    per_campaign:
-      Growth: 25.0
-      Divinity: 25.0
-      Food: 25.0
-      Item: 25.0
-      Level: 25.0
-      Multiplier: 25.0
-      GodPower: 25.0
 - name: Sphinx
   wiki_url: https://itrtg.wiki.gg/wiki/Sphinx
   element: Earth
@@ -1916,10 +1785,6 @@
     other: All pets level 3500+ and a total of 100+ class levels between all pets.
   campaign_bonus:
     raw: It has +37.5% in growth campaign, +75% in level campaign, and +75% in multiplier campaign.
-    per_campaign:
-      Growth: 37.5
-      Level: 75.0
-      Multiplier: 75.0
 - name: Alien
   wiki_url: https://itrtg.wiki.gg/wiki/Alien
   element: Water
@@ -1952,10 +1817,6 @@
     other: Give it a SSS Legendary Hammer. The hammer is consumed. (You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: It has +66% in growth campaigns, +66% in level campaigns, +125% in food campaigns.
-    per_campaign:
-      Growth: 66.0
-      Food: 125.0
-      Level: 66.0
 - name: Flying Eyeball
   wiki_url: https://itrtg.wiki.gg/wiki/Flying_Eyeball
   element: Wind
@@ -2020,9 +1881,6 @@
     other: Have at least 50% bonus to HP from Dojo.
   campaign_bonus:
     raw: +100% in divinity campaigns, +50% in item campaigns.
-    per_campaign:
-      Divinity: 100.0
-      Item: 50.0
 - name: Tödlicher Löffel
   wiki_url: https://itrtg.wiki.gg/wiki/Tödlicher_Löffel
   element: Neutral
@@ -2040,8 +1898,6 @@
     other: Give it 666 Shiny Stones and 1 of each T4 material
   campaign_bonus:
     raw: Tödlicher has +420% to food campaigns
-    per_campaign:
-      Food: 420.0
 - name: Goblin
   wiki_url: https://itrtg.wiki.gg/wiki/Goblin
   element: Earth
@@ -2059,14 +1915,6 @@
     other: Do 25 Overflow Challenges. (Not mentioned in the tooltip, but you cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: -100% for growth and item camps, +150% for divinity camps and +50% for all other camps.
-    per_campaign:
-      Growth: -100.0
-      Divinity: 150.0
-      Food: 50.0
-      Item: -100.0
-      Level: 50.0
-      Multiplier: 50.0
-      GodPower: 50.0
 - name: Koi
   wiki_url: https://itrtg.wiki.gg/wiki/Koi
   element: Water
@@ -2084,9 +1932,6 @@
     other: Unlock the Midlife Pond in Fishing (Requires level 15 fishing).
   campaign_bonus:
     raw: +45% growth and item camps.
-    per_campaign:
-      Growth: 45.0
-      Item: 45.0
 - name: Decorator Crab
   wiki_url: https://itrtg.wiki.gg/wiki/Decorator_Crab
   element: Water
@@ -2104,8 +1949,6 @@
     other: Give it 2000 Shiny Stones.
   campaign_bonus:
     raw: +35% item camps.
-    per_campaign:
-      Item: 35.0
 - name: Dwarf
   wiki_url: https://itrtg.wiki.gg/wiki/Dwarf
   element: Fire
@@ -2123,9 +1966,6 @@
     other: Give it a total of 100 level 13 gems on hand. The gems are consumed.
   campaign_bonus:
     raw: +151% food camp, +75% godpower camp.
-    per_campaign:
-      Food: 151.0
-      GodPower: 75.0
 - name: Caterpillar
   wiki_url: https://itrtg.wiki.gg/wiki/Caterpillar
   element: Wind
@@ -2143,9 +1983,6 @@
     other: Give it an extra 250 Special Wood.
   campaign_bonus:
     raw: +75% level camp, +25% multiplier camp.
-    per_campaign:
-      Level: 75.0
-      Multiplier: 25.0
 - name: Bunny Girl
   wiki_url: https://itrtg.wiki.gg/wiki/Bunny_Girl
   element: Neutral
@@ -2163,9 +2000,6 @@
     other: Give her 777 Lucky Talismans.
   campaign_bonus:
     raw: +77% item camp and +77% growth camp.
-    per_campaign:
-      Growth: 77.0
-      Item: 77.0
 - name: Elemental
   wiki_url: https://itrtg.wiki.gg/wiki/Elemental_(Pet)
   element: Neutral
@@ -2215,8 +2049,6 @@
     other: Create 1 billion Shadow Clones in the current rebirth (your max count can be lower).
   campaign_bonus:
     raw: It has +25% in Level campaign.
-    per_campaign:
-      Level: 25.0
 - name: Sniper
   wiki_url: https://itrtg.wiki.gg/wiki/Sniper
   element: Wind
@@ -2234,9 +2066,6 @@
     other: Have at least 50% attack in the Dojo
   campaign_bonus:
     raw: It has +100% in level campaigns and +50% in divinity campaigns.
-    per_campaign:
-      Divinity: 50.0
-      Level: 100.0
 - name: White Tiger
   wiki_url: https://itrtg.wiki.gg/wiki/White_Tiger
   element: Wind
@@ -2254,9 +2083,6 @@
     other: Have Hurricane Armor, Bow and Ring equipped.(not consumed)
   campaign_bonus:
     raw: White tiger has -95% food campaign, +99% godpower campaign.
-    per_campaign:
-      Food: -95.0
-      GodPower: 99.0
 - name: Black Tortoise
   wiki_url: https://itrtg.wiki.gg/wiki/Black_Tortoise
   element: Water
@@ -2274,9 +2100,6 @@
     other: Have Tsunami Armor, Spear, and Necklace equipped. (not consumed)
   campaign_bonus:
     raw: Black Tortoise has -63% level campaign, +79% multiplier campaign.
-    per_campaign:
-      Level: -63.0
-      Multiplier: 79.0
 - name: Azure Dragon
   wiki_url: https://itrtg.wiki.gg/wiki/Azure_Dragon
   element: Earth
@@ -2294,9 +2117,6 @@
     other: Have Forest Armor, Axe, and Bracelet equipped. (not consumed)
   campaign_bonus:
     raw: Azure Dragon has +371% level campaign, -35% multiplier campaign.
-    per_campaign:
-      Level: 371.0
-      Multiplier: -35.0
 - name: Vermilion Pheasant
   wiki_url: https://itrtg.wiki.gg/wiki/Vermilion_Pheasant
   element: Fire
@@ -2314,9 +2134,6 @@
     other: Have Inferno Armor, Sword, and Gloves equipped. (not consumed)
   campaign_bonus:
     raw: Vermilion Pheasant has +69% item campaign, -86% growth campaign.
-    per_campaign:
-      Growth: -86.0
-      Item: 69.0
 - name: Tenko
   wiki_url: https://itrtg.wiki.gg/wiki/Tenko
   element: Neutral
@@ -2334,11 +2151,6 @@
     other: Have her in divinity campaigns for a total 1000 hours.
   campaign_bonus:
     raw: Tenko has +108% divinity campaign, +55% godpower campaign, +55% growth campaign, -108% item campaign.
-    per_campaign:
-      Growth: 55.0
-      Divinity: 108.0
-      Item: -108.0
-      GodPower: 55.0
 - name: Vampire
   wiki_url: https://itrtg.wiki.gg/wiki/Vampire
   element: Fire
@@ -2356,12 +2168,6 @@
     other: Give her 1000 monster blood
   campaign_bonus:
     raw: +69% in Growth Campaigns, +1% in Divinity Campaigns, +337% in Food Campaigns, +42% in Multiplier Campaigns, +90.01% in God Power Campaigns
-    per_campaign:
-      Growth: 69.0
-      Divinity: 1.0
-      Food: 337.0
-      Multiplier: 42.0
-      GodPower: 90.01
 - name: Strategist
   wiki_url: https://itrtg.wiki.gg/wiki/Strategist
   element: Neutral
@@ -2379,9 +2185,6 @@
     other: Give it 25000 Strategy Books
   campaign_bonus:
     raw: +75% food and +75% divinity campaign
-    per_campaign:
-      Divinity: 75.0
-      Food: 75.0
 - name: Mermaid
   wiki_url: https://itrtg.wiki.gg/wiki/Mermaid
   element: Water
@@ -2416,14 +2219,6 @@
     other: Have her meditate for 240 hours in the Dojo.
   campaign_bonus:
     raw: +10% all campaigns.
-    per_campaign:
-      Growth: 10.0
-      Divinity: 10.0
-      Food: 10.0
-      Item: 10.0
-      Level: 10.0
-      Multiplier: 10.0
-      GodPower: 10.0
 - name: Honeybadger
   wiki_url: https://itrtg.wiki.gg/wiki/Honeybadger
   element: Earth
@@ -2441,8 +2236,6 @@
     other: Give it a full set of SSS+20 Jungle equip
   campaign_bonus:
     raw: +300% food campaign.
-    per_campaign:
-      Food: 300.0
 - name: Hamster
   wiki_url: https://itrtg.wiki.gg/wiki/Hamster
   element: Earth
@@ -2492,9 +2285,6 @@
     other: Give it 3653 puny food, strong food, mighty food, and chocolate.
   campaign_bonus:
     raw: +365% in food campaigns, +365% in multiplier campaigns
-    per_campaign:
-      Food: 365.0
-      Multiplier: 365.0
 - name: Llysnafedda
   wiki_url: https://itrtg.wiki.gg/wiki/Llysnafedda
   element: Water
@@ -2512,12 +2302,6 @@
     other: Defeat 10 Million Shadow Clones with It
   campaign_bonus:
     raw: Llysnafedda has a -25% bonus to Growth campaigns, -100% bonus to Item campaigns, -150% bonus in Food Campaigns, +100% bonus in Level Campaigns, and +50% bonus in Multiplier Campaigns
-    per_campaign:
-      Growth: -25.0
-      Food: -150.0
-      Item: -100.0
-      Level: 100.0
-      Multiplier: 50.0
 - name: Serow
   wiki_url: https://itrtg.wiki.gg/wiki/Serow
   element: Wind
@@ -2537,11 +2321,6 @@
     other: Serow needs to save you at least 1000 items in dungeons.
   campaign_bonus:
     raw: Serow has +150% in Food Campaigns, +50% in Item Campaigns, -75% in Multiplier Campaigns, -50% in Level Campaigns
-    per_campaign:
-      Food: 150.0
-      Item: 50.0
-      Level: -50.0
-      Multiplier: -75.0
 - name: Aurelius
   wiki_url: https://itrtg.wiki.gg/wiki/Aurelius
   element: Neutral
@@ -2589,8 +2368,6 @@
     other: Clear each D4-0 or higher (with 60 or more rooms) with it in party.
   campaign_bonus:
     raw: Student has +99% in growth campaigns.
-    per_campaign:
-      Growth: 99.0
 - name: Hwangeum Pig
   wiki_url: https://itrtg.wiki.gg/wiki/Hwangeum_Pig
   element: Earth
@@ -2608,9 +2385,6 @@
     other: Give it 4269 god power.
   campaign_bonus:
     raw: Hwangeum Pig has -42% in godpower campaigns, +80% in item campaigns.
-    per_campaign:
-      Item: 80.0
-      GodPower: -42.0
 - name: Lamb
   wiki_url: https://itrtg.wiki.gg/wiki/Lamb
   element: Earth
@@ -2643,14 +2417,6 @@
     other: Give 50 of each T1 Material to it.
   campaign_bonus:
     raw: 22% All Camps
-    per_campaign:
-      Growth: 22.0
-      Divinity: 22.0
-      Food: 22.0
-      Item: 22.0
-      Level: 22.0
-      Multiplier: 22.0
-      GodPower: 22.0
 - name: Nugget
   wiki_url: https://itrtg.wiki.gg/wiki/Nugget
   element: Neutral
@@ -2713,11 +2479,6 @@
     other: Give it a full set of SSS T4+20 Wind Equipment
   campaign_bonus:
     raw: +33% Godpower, +50% Item, +50% divinity, -200% Food
-    per_campaign:
-      Divinity: 50.0
-      Food: -200.0
-      Item: 50.0
-      GodPower: 33.0
 - name: Fainting Capra
   wiki_url: https://itrtg.wiki.gg/wiki/Fainting_Capra
   element: Water
@@ -2752,10 +2513,6 @@
     other: Give it 1000 Ale. This will not count towards its special ability.
   campaign_bonus:
     raw: +21% (Godpower), +21% (Item), +21% (Multiplier)
-    per_campaign:
-      Item: 21.0
-      Multiplier: 21.0
-      GodPower: 21.0
 - name: Skeleton
   wiki_url: https://itrtg.wiki.gg/wiki/Skeleton
   element: Neutral
@@ -2773,8 +2530,6 @@
     other: Have Pumpkin evolved
   campaign_bonus:
     raw: +250% (Food)
-    per_campaign:
-      Food: 250.0
 - name: Bear
   wiki_url: https://itrtg.wiki.gg/wiki/Bear
   element: Fire
@@ -2809,14 +2564,6 @@
     other: Give it 10k God Power, 75k Baal Power, and have it spend 150 Hours in Divinity and GP Camps.
   campaign_bonus:
     raw: -500% (Divinity and God Power), -100% (All Other Camps)
-    per_campaign:
-      Growth: -100.0
-      Divinity: -500.0
-      Food: -100.0
-      Item: -100.0
-      Level: -100.0
-      Multiplier: -100.0
-      GodPower: -500.0
 - name: Dorgegebelle
   wiki_url: https://itrtg.wiki.gg/wiki/Dorgegebelle
   element: Water
@@ -2834,9 +2581,6 @@
     other: Rebirth it having an empty hunger bar 6 times
   campaign_bonus:
     raw: -108% (Food), +108% (Growth)
-    per_campaign:
-      Growth: 108.0
-      Food: -108.0
 - name: Nothing (Other)
   wiki_url: https://itrtg.wiki.gg/wiki/Nothing_(Other)
   element: Neutral
@@ -2871,11 +2615,6 @@
     other: Have 999 Fools Coins. (You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: It has +70% in divinity campaigns, +7% in food campaigns, +70% in godpower campaigns and +7% in growth campaigns.
-    per_campaign:
-      Growth: 7.0
-      Divinity: 70.0
-      Food: 7.0
-      GodPower: 70.0
 - name: Feather Pile/Owl
   wiki_url: https://itrtg.wiki.gg/wiki/Feather_Pile/Owl
   element: Neutral
