@@ -628,6 +628,14 @@ fn creations_monuments_mights_match_next_ats_export() {
     assert_eq!(save.creations[24].current_amount, 0.0);
     assert_eq!(save.creations[1].clone_cost, 1000); // Light
 
+    // g = total created (user mouseovers): Earthlike Planet exactly 3,893
+    // (frozen — divinity auto-buys don't count as creating); Shadow Clones
+    // 38.595M at save vs 38.826M read ~10h later; Galaxy 980k at save vs
+    // ~1.097M read later while actively building.
+    assert_eq!(save.creations[24].created, 3893.0);
+    assert_eq!(save.creations[0].created, 38_595_493.0);
+    assert!(save.creations[27].created > 9.0e5 && save.creations[27].created < 1.097e6);
+
     // Mights: m|n = "next at | spread"; specials carry base duration and
     // effect percentages (level 64 + base 30 = the 94 s Focused Breathing
     // unleash observed in-game).
