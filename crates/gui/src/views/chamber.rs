@@ -41,8 +41,13 @@ pub struct ChamberState {
     /// Pandora's Box feedings — drives its campaign-total bonus. (The feeding
     /// behaviour over many rounds is still being pinned down; this is the hook.)
     pub pandora_feedings: u32,
-    /// UPC bonus % (`5 · Ultimate Pet Challenges`). Manual for now.
-    pub upc_pct: f64,
+    /// Ultimate Pet Challenges completed — each adds +5% to every pet's
+    /// campaign contribution (capped at 100%). Auto-filled from a Main-stats
+    /// export.
+    pub upc_done: u32,
+    /// Total Ultimate Pet Challenges available (the export's `/ <max>` side —
+    /// 20 today; drives the input's range).
+    pub upc_max: u32,
     /// Patreon God Challenges completed — +1% growth per completion, doubled
     /// once all are done (24/25 → ×1.24, 25/25 → ×1.50; stacks with the Magic
     /// Egg). Auto-filled from a Main-stats export.
@@ -133,7 +138,8 @@ impl Default for ChamberState {
             hours: 12,
             max_cycles: 5_000,
             pandora_feedings: 0,
-            upc_pct: 0.0,
+            upc_done: 0,
+            upc_max: 20,
             pgc_done: 0,
             pgc_max: 25,
             food_choice: 4, // Chocolate
@@ -163,9 +169,10 @@ impl ChamberState {
         self.hours = src.hours;
         self.max_cycles = src.max_cycles;
         self.pandora_feedings = src.pandora_feedings;
-        self.upc_pct = src.upc_pct;
         // Sanitize like the other loaded indices: done can't exceed max (a
         // hand-edited value would otherwise apply a huge multiplier).
+        self.upc_max = src.upc_max;
+        self.upc_done = src.upc_done.min(src.upc_max);
         self.pgc_max = src.pgc_max;
         self.pgc_done = src.pgc_done.min(src.pgc_max);
         self.food_choice = src.food_choice.min(FOODS.len() - 1);
@@ -189,7 +196,8 @@ impl ChamberState {
             hours: self.hours,
             max_cycles: self.max_cycles,
             pandora_feedings: self.pandora_feedings,
-            upc_pct: self.upc_pct,
+            upc_done: self.upc_done,
+            upc_max: self.upc_max,
             pgc_done: self.pgc_done,
             pgc_max: self.pgc_max,
             food_choice: self.food_choice,
@@ -207,15 +215,15 @@ impl ChamberState {
         };
     }
 
-    /// Auto-fill the chamber's global inputs from a Main-stats export: UPC bonus
-    /// (`5 ·` challenges, capped 100%), the PGC completion count, the DPC food
-    /// multiplier, and Fish Power / Fishing Level. Returns the filled field
-    /// labels for the import status.
+    /// Auto-fill the chamber's global inputs from a Main-stats export: the UPC
+    /// and PGC completion counts, the DPC food multiplier, and Fish Power /
+    /// Fishing Level. Returns the filled field labels for the import status.
     pub fn apply_main_stats(&mut self, ms: &itrtg_models::MainStats) -> Vec<&'static str> {
         let mut filled = Vec::new();
-        if let Some(upc) = ms.ultimate_pet_challenges {
-            self.upc_pct = (5.0 * upc as f64).min(100.0);
-            filled.push("UPC %");
+        if let Some((done, max)) = ms.ultimate_pet_challenges {
+            self.upc_done = done;
+            self.upc_max = max;
+            filled.push("UPC");
         }
         if let Some((done, max)) = ms.patreon_god_challenges {
             self.pgc_done = done;
@@ -240,6 +248,11 @@ impl ChamberState {
     /// The global PGC growth multiplier (×1 with no completions).
     fn pgc_mult(&self) -> f64 {
         pgc_growth_mult(self.pgc_done, self.pgc_max)
+    }
+
+    /// The UPC campaign bonus %: `5 ·` completions, capped at 100%.
+    fn upc_pct(&self) -> f64 {
+        (5.0 * self.upc_done as f64).min(100.0)
     }
 
     /// The DPC food boost %: `log2(highest pet multiplier)`, capped at 100%. 0 when
@@ -389,9 +402,14 @@ pub fn show(
         ui.label(RichText::new("Hours:").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::DragValue::new(&mut state.hours).range(1..=12));
         ui.separator();
-        ui.label(RichText::new("UPC %:").color(style::TEXT_MUTED).size(12.0));
-        ui.add(egui::DragValue::new(&mut state.upc_pct).range(0.0..=100.0).speed(1.0))
-            .on_hover_text("5 × Ultimate Pet Challenges completed. Auto-filled when you import a Main-stats export.");
+        ui.label(RichText::new("UPC:").color(style::TEXT_MUTED).size(12.0))
+            .on_hover_text("Ultimate Pet Challenges completed — each adds +5% to every pet's campaign contribution (capped at 100%). Auto-filled when you import a Main-stats export.");
+        ui.add(egui::DragValue::new(&mut state.upc_done).range(0..=state.upc_max));
+        ui.label(
+            RichText::new(format!("/ {}  \u{2B62} +{:.0}%", state.upc_max, state.upc_pct()))
+                .color(style::TEXT_MUTED)
+                .size(11.0),
+        );
         ui.separator();
         ui.label(RichText::new("PGC:").color(style::TEXT_MUTED).size(12.0))
             .on_hover_text("Patreon God Challenges completed — +1% growth per completion, doubled once all are done (24/25 → ×1.24, 25/25 → ×1.50). Stacks with the Magic Egg. Auto-filled when you import a Main-stats export.");
@@ -597,7 +615,7 @@ pub fn show(
                 &mut roster,
                 &ChamberRun {
                     hours: state.hours,
-                    upc_pct: state.upc_pct,
+                    upc_pct: state.upc_pct(),
                     max_cycles: state.max_cycles,
                     stop_at_targets: state.run_until_targets,
                     skip_first_cycle_passive: state.exported_after_campaign,
@@ -1474,25 +1492,29 @@ mod tests {
         use itrtg_models::MainStats;
         let mut state = ChamberState::default();
         let filled = state.apply_main_stats(&MainStats {
-            ultimate_pet_challenges: Some(8), // 5 × 8 = 40%
+            ultimate_pet_challenges: Some((8, 20)), // 5 × 8 = 40%
             day_pet_challenge_multi: Some(3.664e9),
             fish_power: Some(1.05e6),
             fishing_level: Some(14),
             ..Default::default()
         });
-        assert_eq!(filled, vec!["UPC %", "DPC multi", "Fish Power", "Fishing level"]);
-        assert_eq!(state.upc_pct, 40.0);
+        assert_eq!(filled, vec!["UPC", "DPC multi", "Fish Power", "Fishing level"]);
+        assert_eq!((state.upc_done, state.upc_max), (8, 20));
+        assert_eq!(state.upc_pct(), 40.0);
         assert_eq!(state.dpc_highest_multi, 3.664e9);
         assert_eq!(state.fish_power, 1.05e6);
         assert_eq!(state.fishing_level, 14);
 
-        // UPC caps at 100%.
-        state.apply_main_stats(&MainStats { ultimate_pet_challenges: Some(30), ..Default::default() });
-        assert_eq!(state.upc_pct, 100.0);
+        // The derived bonus caps at 100% even past 20 completions.
+        state.apply_main_stats(&MainStats {
+            ultimate_pet_challenges: Some((30, 30)),
+            ..Default::default()
+        });
+        assert_eq!(state.upc_pct(), 100.0);
         // An empty export fills nothing and leaves values untouched.
-        state.upc_pct = 12.0;
+        state.upc_done = 3;
         assert!(state.apply_main_stats(&MainStats::default()).is_empty());
-        assert_eq!(state.upc_pct, 12.0);
+        assert_eq!(state.upc_done, 3);
 
         // PGC fills both the completed count and the max.
         let filled = state

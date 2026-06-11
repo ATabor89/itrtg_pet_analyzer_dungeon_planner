@@ -47,8 +47,9 @@ The chamber lives in two files plus supporting data:
 - **Rebirth-relative effects** — **fishing** food boost (decays over the first
   30 h) and **Pandora feedings** (accumulate, reset each rebirth).
 - **Food auto-compute** — `BASE_FOOD × (1 + DPC%)`, fishing layered on in the sim.
-- **Main-stats auto-fill** — UPC, PGC done/max, DPC multi, Fish Power, Fishing
-  Level.
+- **Main-stats auto-fill** — UPC done/max, PGC done/max, DPC multi, Fish Power,
+  Fishing Level. (UPC is entered as a completion count like PGC; the view
+  derives the % — `5 ·` done, capped 100% — and hands it to the engine.)
 - **PGC** — the Patreon-God-Challenge growth multiplier (`pgc_growth_mult`:
   **+1% per completion, doubled once all are complete** — 24/25 → ×1.24 but
   25/25 → ×1.50) folds into each pet's `growth_multiplier` (stacks with the
