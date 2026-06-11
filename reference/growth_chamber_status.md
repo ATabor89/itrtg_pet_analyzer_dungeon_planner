@@ -24,7 +24,9 @@ The chamber lives in two files plus supporting data:
 - **`crates/planner/src/merge.rs`** — `campaign_bonus_for` (each pet's per-campaign
   bonus = innate + equipment + class), `event_equip_bonus`, `stick_bonus`, the
   Adventurer evo-bonus table, and the curated overrides.
-- **`data/campaign_overrides.yaml`** — e.g. Nightmare's `set_all: 200`.
+- **`data/campaign_bonuses.yaml`** — e.g. Nightmare's `set_all: 200`. (Since the
+  2026-06 refactor this file defines *all* static campaign bonuses; the wiki
+  scrape keeps only raw prose.)
 
 ## What's implemented (and validated)
 
@@ -95,10 +97,11 @@ The chamber lives in two files plus supporting data:
   rebirth's first 30 h, evaluated at the cycle midpoint. **Only applies with
   rebirths modelled.**
 - **Pandora feedings** accumulate `+floor(hours/3)` per cycle (bonus caps at 20),
-  reset at each rebirth start; the input is the *starting* count. Pandora's own
-  **+200%** is in `campaign_overrides.yaml` (`set_all: 200`), not a special.
+  reset at each rebirth start; the input is the *starting* count.
 - **Nightmare malus** is **subtractive**: `(20 − 0.25·CL)` points off every *other*
   chamber pet's bonus, floored at 1. Implemented from the wiki — see open items.
+  Nightmare's *own* **+200%** comes from `campaign_bonuses.yaml` (`set_all: 200`),
+  not a special.
 - **Rebirth assumption:** simulate **from the start of a rebirth** (fishing at
   full, Pandora at the entered count). Cycle 0 is a full cycle.
 
