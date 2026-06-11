@@ -3,8 +3,9 @@ use std::cell::RefCell;
 use eframe::egui::{self, Color32, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::{
-    parse_flexible_number, CampaignInputs, CampaignType, Class, Dungeon, Element, MainStats,
-    MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass, UnlockCondition, VillageJob,
+    parse_flexible_number, CampaignInputs, CampaignType, Class, Dungeon, Element,
+    GrowthRequirement, MainStats, MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass,
+    UnlockCondition, VillageJob,
 };
 use itrtg_planner::growth::{format_duration, CapRelation, GrowthRates};
 use itrtg_planner::merge::{CampaignContext, EvoReadiness, MergedPet};
@@ -890,6 +891,27 @@ fn parse_growth_target(input: &str) -> Option<u64> {
     Some(v as u64)
 }
 
+/// The "more growth to threshold" line for a pet that can't evolve yet, given
+/// its *base* growth (export growth is always stored as true base). For
+/// total-growth thresholds the Magic Egg's +30% lowers the bar, so the smaller
+/// egg-assisted remainder is shown alongside; base-growth thresholds (Baby
+/// Carno) ignore the egg, so only the base figure appears — labelled as such.
+fn growth_needed_text(req: &GrowthRequirement, base_growth: u64) -> String {
+    let needed = (req.value() - base_growth as i64).max(0) as u64;
+    if !req.magic_egg_counts() {
+        return format!("{} more base growth to threshold", format_number(needed));
+    }
+    // With an egg the threshold is met at base = ceil(threshold / 1.3) — same
+    // arithmetic as the ETA estimate below.
+    let egg_target = (req.value().max(0) as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
+    let needed_egg = egg_target.saturating_sub(base_growth);
+    format!(
+        "{} more growth to threshold ({} with Magic Egg)",
+        format_number(needed),
+        format_number(needed_egg)
+    )
+}
+
 /// Evolution requirements (growth threshold, material, other) plus a
 /// readiness badge and time-to-grow estimate for unevolved pets. No-op for pets
 /// without scraped evo data.
@@ -962,9 +984,8 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
             }
             EvoReadiness::NotYet => {
                 if let Some(export) = &pet.export {
-                    let needed = (req.growth.value() - export.growth as i64).max(0);
                     ui.label(
-                        RichText::new(format!("{} more growth to threshold", format_number(needed as u64)))
+                        RichText::new(growth_needed_text(&req.growth, export.growth))
                             .color(style::TEXT_MUTED)
                             .size(12.0),
                     );
@@ -2325,5 +2346,30 @@ mod tests {
         assert!(st.moai.iter().all(|m| !m.owned)); // 1 ≠ 2 → leave Moai alone
         st.apply_main_stats(&MainStats { base_growth_per_hour: Some(2), ..Default::default() });
         assert!(st.moai.iter().all(|m| m.owned && m.level == 20));
+    }
+
+    #[test]
+    fn growth_needed_shows_egg_assisted_remainder_for_total_thresholds() {
+        // Egg target is ceil(13_000 / 1.3) = 10_000.
+        assert_eq!(
+            growth_needed_text(&GrowthRequirement::Total(13_000), 2_889),
+            "10,111 more growth to threshold (7,111 with Magic Egg)"
+        );
+        // Already past the egg-assisted bar (rounding edge): clamps to 0
+        // instead of going negative.
+        assert_eq!(
+            growth_needed_text(&GrowthRequirement::Total(13_000), 11_000),
+            "2,000 more growth to threshold (0 with Magic Egg)"
+        );
+    }
+
+    #[test]
+    fn growth_needed_omits_egg_for_base_thresholds() {
+        // Baby Carno's threshold is checked against base growth, so the egg
+        // figure must not appear.
+        assert_eq!(
+            growth_needed_text(&GrowthRequirement::Base(300_000), 100_000),
+            "200,000 more base growth to threshold"
+        );
     }
 }
