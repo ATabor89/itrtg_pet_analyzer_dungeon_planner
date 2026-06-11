@@ -56,9 +56,9 @@ impl App {
             data.load_planner_config(&cfg_yaml, &info_yaml);
         }
 
-        // Load curated campaign-bonus overrides
-        if let Some(ov_yaml) = platform::load_campaign_overrides() {
-            data.load_campaign_overrides(&ov_yaml);
+        // Load curated campaign-bonus rules
+        if let Some(rules_yaml) = platform::load_campaign_bonuses() {
+            data.load_campaign_bonuses(&rules_yaml);
         }
 
         // Load wiki pet data from YAML (baked on WASM, from disk on native)
@@ -386,7 +386,7 @@ impl eframe::App for App {
                     .unwrap_or(0.0)
                     .max(0.0) as u64;
                     let ctx = CampaignContext {
-                        overrides: &self.data.campaign_overrides,
+                        bonuses: &self.data.campaign_bonuses,
                         roster: &self.data.merged,
                         inputs: &inputs,
                         include_equipment: true,

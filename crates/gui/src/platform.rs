@@ -45,11 +45,11 @@ pub fn load_pet_special_info() -> Option<String> {
     )
 }
 
-/// Load the curated campaign-bonus overrides YAML.
-pub fn load_campaign_overrides() -> Option<String> {
+/// Load the curated campaign-bonus rules YAML.
+pub fn load_campaign_bonuses() -> Option<String> {
     load_game_data(
-        "data/campaign_overrides.yaml",
-        include_str!("../../../data/campaign_overrides.yaml"),
+        "data/campaign_bonuses.yaml",
+        include_str!("../../../data/campaign_bonuses.yaml"),
     )
 }
 
