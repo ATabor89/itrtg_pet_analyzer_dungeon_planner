@@ -233,6 +233,11 @@ pub struct Creation {
     /// Current amount owned (`d`). The Shadow Clone entry equals the
     /// current clone count (capped at max clones).
     pub current_amount: f64,
+    /// Total created (`g`) — matches the in-game mouseover. Counts actual
+    /// creation only: divinity-bought copies do **not** increment it
+    /// (which is why it can sit frozen while the creation is consumed and
+    /// re-bought continuously).
+    pub created: f64,
     /// Clone cost to create one (`e`).
     pub clone_cost: u64,
 }
@@ -568,6 +573,7 @@ impl SaveFile {
                         id: get_u32(n, "a"),
                         next_at: get_u64(n, "i"),
                         current_amount: get_f64(n, "d"),
+                        created: get_f64(n, "g"),
                         clone_cost: get_u64(n, "e"),
                     })
                     .collect()
