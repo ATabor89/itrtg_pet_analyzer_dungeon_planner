@@ -891,6 +891,19 @@ fn parse_growth_target(input: &str) -> Option<u64> {
     Some(v as u64)
 }
 
+/// The threshold value shown on the "Growth:" row. For total-growth
+/// thresholds the egg-assisted target — the base growth at which equipping a
+/// Magic Egg clears the bar — is shown alongside, as the number to actually
+/// aim for. Base-growth thresholds (Baby Carno) show the bare figure.
+fn growth_threshold_text(req: &GrowthRequirement) -> String {
+    let threshold = req.value().max(0) as u64;
+    if !req.magic_egg_counts() {
+        return format_number(threshold);
+    }
+    let egg_target = (threshold as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
+    format!("{} ({} with Magic Egg)", format_number(threshold), format_number(egg_target))
+}
+
 /// The "more growth to threshold" line for a pet that can't evolve yet, given
 /// its *base* growth (export growth is always stored as true base). For
 /// total-growth thresholds the Magic Egg's +30% lowers the bar, so the smaller
@@ -943,7 +956,7 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
             };
             ui.label(RichText::new(label).color(style::TEXT_MUTED).size(12.0));
             ui.label(
-                RichText::new(format_number(req.growth.value().max(0) as u64))
+                RichText::new(growth_threshold_text(&req.growth))
                     .color(style::TEXT_NORMAL)
                     .size(12.0)
                     .family(egui::FontFamily::Monospace),
@@ -2361,6 +2374,17 @@ mod tests {
             growth_needed_text(&GrowthRequirement::Total(13_000), 11_000),
             "2,000 more growth to threshold (0 with Magic Egg)"
         );
+    }
+
+    #[test]
+    fn growth_threshold_shows_egg_target_only_when_the_egg_counts() {
+        // ceil(13_000 / 1.3) = 10_000 — the base growth to aim for.
+        assert_eq!(
+            growth_threshold_text(&GrowthRequirement::Total(13_000)),
+            "13,000 (10,000 with Magic Egg)"
+        );
+        // Base-growth thresholds (Baby Carno): no egg target.
+        assert_eq!(growth_threshold_text(&GrowthRequirement::Base(300_000)), "300,000");
     }
 
     #[test]
