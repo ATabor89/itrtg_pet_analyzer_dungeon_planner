@@ -12,7 +12,7 @@ The chamber lives in two files plus supporting data:
   `apply_growth_specials` (Pandora/Bag layer), `pandora_pct`,
   `fishing_boost_pct` + `fishing_decay`, `nightmare_malus`, `rebirth_schedule`,
   and the types `ChamberRun`, `ChamberPet`, `ChamberCycle`, `ChamberResult`,
-  `GrowthBreakdown`, `SpecialPet`.
+  `GrowthBreakdown`, `SpecialTotals`, `SpecialPet`.
 - **`crates/gui/src/views/chamber.rs`** — the view. `ChamberState` (persisted
   inputs), `show`, `chamber_pet`/`build_roster` (roster → sim bridge),
   `effective_export`/overrides (what-if editing), the pet cards, the run report,
@@ -41,7 +41,10 @@ The chamber lives in two files plus supporting data:
   live through a synthetic export (`effective_export` → `campaign_bonus_for`); no
   engine change. "Refresh from export" reverts.
 - **Growth breakdown** — each pet's gain split into campaign / passive / feeding /
-  Gold Dragon (sums to the total gain; total terms).
+  Gold Dragon (sums to the total gain; total terms). Plus run totals for the
+  special abilities (`ChamberResult.specials`: Pandora's deposit boost, Bag's
+  gifts, pre-token steal) — a sub-attribution *within* the campaign figures,
+  shown as the report's "specials" line.
 - **Rebirths** — `rebirth_schedule` runs full cycles + one shorter remainder cycle
   per rebirth (a campaign can't span a rebirth). Decimal length, Hours/Days/Weeks.
 - **Rebirth-relative effects** — **fishing** food boost (decays over the first
