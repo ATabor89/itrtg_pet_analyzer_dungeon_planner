@@ -19,7 +19,7 @@ use itrtg_planner::campaign::{
     simulate_growth_chamber, ChamberPet, ChamberResult, ChamberRun, SpecialPet,
 };
 use itrtg_planner::growth::GrowthRates;
-use itrtg_planner::merge::{CampaignContext, MergedPet};
+use itrtg_planner::merge::{CampaignBonusBreakdown, CampaignContext, MergedPet};
 use serde::{Deserialize, Serialize};
 
 use crate::data::DataStore;
@@ -344,16 +344,13 @@ fn chamber_pet(
     let growth_multiplier =
         if export.has_magic_egg() { MAGIC_EGG_GROWTH_MULT } else { 1.0 } * state.pgc_mult();
     // Recompute the Growth bonus from the *effective* export so loadout/CL edits
-    // show live. With no override this is the unedited export, so the result
-    // matches `pet.campaign_bonus_for` exactly; only build the synthetic pet (and
-    // clone the wiki) when an override is actually in play.
-    let bonus = if state.overrides.contains_key(&pet.name) {
-        let synth =
-            MergedPet { name: pet.name.clone(), wiki: pet.wiki.clone(), export: Some(export.clone()) };
-        synth.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0)
-    } else {
-        pet.campaign_bonus_for(CampaignType::Growth, ctx).unwrap_or(0.0)
-    };
+    // show live. Goes through the same breakdown seam the card's source line
+    // uses, so the total and its split can never disagree.
+    let bonus = growth_bonus_breakdown(pet, ctx, state)
+        .total()
+        .get(&CampaignType::Growth)
+        .copied()
+        .unwrap_or(0.0);
     let mut passive = rates.moai_per_hour;
     // The pendant is just the equipped accessory — no separate toggle.
     if export.loadout.accessory.as_ref().is_some_and(|a| a.name == "Growing Love Pendant") {
@@ -378,6 +375,27 @@ fn chamber_pet(
         in_chamber: state.chamber.iter().any(|n| n == &pet.name),
         special,
     })
+}
+
+/// The pet's Growth-bonus source split (innate / class / equipment), computed
+/// from the same override-aware effective export as the rest of the card. With
+/// no override this is just the pet's own breakdown; the synthetic pet (and the
+/// wiki clone) is only built when an override is actually in play.
+fn growth_bonus_breakdown(
+    pet: &MergedPet,
+    ctx: &CampaignContext,
+    state: &ChamberState,
+) -> CampaignBonusBreakdown {
+    if state.overrides.contains_key(&pet.name) {
+        let synth = MergedPet {
+            name: pet.name.clone(),
+            wiki: pet.wiki.clone(),
+            export: effective_export(pet, state),
+        };
+        synth.campaign_bonus_breakdown(ctx)
+    } else {
+        pet.campaign_bonus_breakdown(ctx)
+    }
 }
 
 pub fn show(
@@ -731,8 +749,10 @@ fn show_pet_cards(
                 // The card shows (and edits) the *effective* export: the live
                 // export with any per-pet override applied.
                 let eff = effective_export(pet, state);
-                let natural =
-                    show_pet_card(ui, state, name, &cp, eff.as_ref(), pad_to, nightmare_malus);
+                let breakdown = growth_bonus_breakdown(pet, ctx, state);
+                let natural = show_pet_card(
+                    ui, state, name, &cp, &breakdown, eff.as_ref(), pad_to, nightmare_malus,
+                );
                 row_max = row_max.max(natural);
             }
         });
@@ -807,11 +827,14 @@ fn show_ghost_card(ui: &mut egui::Ui, name: &str, reason: &str) -> bool {
 /// `pad_to` is the row's tallest natural content height (from last frame); the
 /// card pads itself up to it so its row stays flush. Returns this card's own
 /// natural content height (pre-padding) so the caller can track the row max.
+#[allow(clippy::too_many_arguments)]
 fn show_pet_card(
     ui: &mut egui::Ui,
     state: &mut ChamberState,
     name: &str,
     cp: &ChamberPet,
+    // The Growth bonus split by source; `cp.campaign_bonus_pct` is its total.
+    breakdown: &CampaignBonusBreakdown,
     export: Option<&itrtg_models::ExportPet>,
     pad_to: f32,
     // Nightmare's malus (points) if he's in the chamber. Subtracted from every
@@ -866,6 +889,27 @@ fn show_pet_card(
                     .color(style::TEXT_NORMAL)
                     .size(11.0),
                 );
+                // Where the bonus comes from — only when a flat layer (class /
+                // equipment) contributes; otherwise the bonus *is* the innate.
+                if breakdown.class.is_some() || breakdown.equipment.is_some() {
+                    let innate = breakdown
+                        .innate
+                        .get(&CampaignType::Growth)
+                        .copied()
+                        .unwrap_or(0.0);
+                    let mut parts = vec![format!("innate {innate:+.0}")];
+                    if let Some(v) = breakdown.class {
+                        parts.push(format!("class {v:+.0}"));
+                    }
+                    if let Some(v) = breakdown.equipment {
+                        parts.push(format!("equip {v:+.0}"));
+                    }
+                    ui.label(
+                        RichText::new(parts.join("  ·  "))
+                            .color(style::TEXT_MUTED)
+                            .size(10.0),
+                    );
+                }
                 // Why the bonus is reduced (only on the affected pets).
                 if !is_nightmare
                     && let Some(m) = nightmare_malus
