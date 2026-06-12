@@ -408,11 +408,8 @@ fn chamber_pet(
     // Recompute the Growth bonus from the *effective* export so loadout/CL edits
     // show live. Goes through the same breakdown seam the card's source line
     // uses, so the total and its split can never disagree.
-    let bonus = growth_bonus_breakdown(pet, ctx, state)
-        .total()
-        .get(&CampaignType::Growth)
-        .copied()
-        .unwrap_or(0.0);
+    let bd = growth_bonus_breakdown(pet, ctx, state);
+    let bonus = bd.total().get(&CampaignType::Growth).copied().unwrap_or(0.0);
     let mut passive = rates.moai_per_hour;
     // The pendant is just the equipped accessory — no separate toggle.
     if export.loadout.accessory.as_ref().is_some_and(|a| a.name == "Growing Love Pendant") {
@@ -420,7 +417,13 @@ fn chamber_pet(
     }
     let special = match pet.name.as_str() {
         "Pandora's Box" => Some(SpecialPet::Pandora { feedings: state.pandora_feedings }),
-        "Bag" => Some(SpecialPet::Bag { token_improved: export.improved }),
+        // The flat layers of Bag's Growth bonus (equipment + class) ride along;
+        // the sim re-evaluates his innate lowest-growth term each cycle, since
+        // the global lowest pet keeps growing during the run.
+        "Bag" => Some(SpecialPet::Bag {
+            token_improved: export.improved,
+            flat_bonus_pct: bd.equipment.unwrap_or(0.0) + bd.class.unwrap_or(0.0),
+        }),
         // Reduces every other chamber pet's campaign bonus by (20 − 0.25·CL) pts.
         "Nightmare" => Some(SpecialPet::Nightmare { class_level: export.class_level }),
         _ => None,
