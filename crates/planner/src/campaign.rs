@@ -438,6 +438,25 @@ impl GrowthBreakdown {
     }
 }
 
+/// Run totals for the special pets' Growth abilities, in **total** terms (like
+/// [`GrowthBreakdown`]). These are a sub-attribution *within* the per-pet
+/// `campaign` figures — Pandora's boost lands in each recipient's deposit and
+/// Bag's gift in the global lowest pet's campaign income — not a fifth source.
+/// All 0 when the special pet isn't in the chamber.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SpecialTotals {
+    /// Extra deposit from Pandora's Box's boost: Σ over cycles of
+    /// `base · pandora_pct/100`, scaled by each recipient's multiplier.
+    pub pandora_bonus: f64,
+    /// Bag's gifts to the global lowest pet (gross), scaled by each target's
+    /// multiplier. The target is often benched — outside the chamber report.
+    pub bag_gift: f64,
+    /// What a **pre-token** Bag stole from recipients' deposits to fund the
+    /// gifts (0 for a token-improved Bag, whose gift is free). In the stolen
+    /// pets' (the recipients') multiplier terms.
+    pub bag_stolen: f64,
+}
+
 /// Outcome of a chamber simulation.
 #[derive(Debug, Clone)]
 pub struct ChamberResult {
@@ -451,6 +470,8 @@ pub struct ChamberResult {
     /// Growth gained per pet split by source, in the input order (parallel to
     /// `final_growth`).
     pub breakdown: Vec<(String, GrowthBreakdown)>,
+    /// Run totals of the special pets' abilities (within the campaign figures).
+    pub specials: SpecialTotals,
 }
 
 /// Tick one round of between-campaign growth into every pet — passive
@@ -559,6 +580,8 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
     let mut trace: Vec<ChamberCycle> = Vec::new();
     // Growth gained per pet, split by source (total terms). Parallel to `pets`.
     let mut breakdown = vec![GrowthBreakdown::default(); pets.len()];
+    // Run totals of the special pets' abilities (total terms).
+    let mut special_totals = SpecialTotals::default();
 
     // Pandora's running feeding count: seeds from her entered value, climbs as she
     // is fed each cycle (the bonus caps at 20 feedings), and resets each rebirth.
@@ -699,11 +722,20 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
             tick_passive_and_feeding(pets, &mut breakdown, passive_hours, feedings, fishing_mult);
             pets[recipient].growth += recipient_deposit;
             breakdown[recipient].campaign += recipient_deposit * pets[recipient].growth_multiplier;
+            // Pandora's share of the deposit, beyond the base campaign total.
+            special_totals.pandora_bonus +=
+                (specials.recipient_gain - base) * pets[recipient].growth_multiplier;
             if bag_fraction > 0.0 {
                 pets[global_lowest].growth += specials.bag_gift;
                 breakdown[global_lowest].campaign +=
                     specials.bag_gift * pets[global_lowest].growth_multiplier;
                 cycle_record.bag_gift = Some((global_lowest, specials.bag_gift));
+                special_totals.bag_gift +=
+                    specials.bag_gift * pets[global_lowest].growth_multiplier;
+                if bag_steals {
+                    special_totals.bag_stolen +=
+                        specials.bag_gift * pets[recipient].growth_multiplier;
+                }
             }
             cycle_record.recipient = recipient;
             cycle_record.recipient_gain = recipient_deposit;
@@ -734,6 +766,7 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                 trace,
                 final_growth: pets.iter().map(|p| (p.name.clone(), p.growth * p.growth_multiplier)).collect(),
                 breakdown: pets.iter().zip(&breakdown).map(|(p, b)| (p.name.clone(), b.clone())).collect(),
+                specials: special_totals,
             };
         }
     }
@@ -744,6 +777,7 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
         trace,
         final_growth: pets.iter().map(|p| (p.name.clone(), p.growth * p.growth_multiplier)).collect(),
         breakdown: pets.iter().zip(&breakdown).map(|(p, b)| (p.name.clone(), b.clone())).collect(),
+        specials: special_totals,
     }
 }
 
@@ -1192,6 +1226,50 @@ mod tests {
         let (bag_target, bag_amount) = result.trace[0].bag_gift.expect("Bag gift recorded");
         assert_eq!(bag_target, 10, "Bag's gift goes to Wolf, not the recipient");
         assert!((bag_amount - 76.18).abs() < 0.2, "Bag gift {bag_amount}");
+
+        // The run totals attribute the special abilities: Pandora's boost is the
+        // deposit beyond the base (≈1523.6 − 1062.29 ≈ 461.3) and Bag's gift is
+        // gross; token-improved means nothing was stolen.
+        let sp = result.specials;
+        assert!((sp.pandora_bonus - 461.3).abs() < 3.0, "Pandora bonus {}", sp.pandora_bonus);
+        assert!((sp.bag_gift - 76.18).abs() < 0.2, "Bag gift total {}", sp.bag_gift);
+        assert_eq!(sp.bag_stolen, 0.0, "token-improved Bag steals nothing");
+    }
+
+    #[test]
+    fn special_totals_track_a_pre_token_bag_steal_and_scale_by_multiplier() {
+        let mk = |name: &str, growth: f64, mult: f64, in_chamber: bool, special| ChamberPet {
+            name: name.into(),
+            growth,
+            growth_multiplier: mult,
+            campaign_bonus_pct: 0.0,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber,
+            special,
+        };
+        // R is the chamber recipient; the benched egg pet (×1.3) is the global
+        // lowest, so Bag's gift lands there and the total scales by its multiplier.
+        let mut pets = vec![
+            mk("R", 10_000.0, 1.0, true, None),
+            mk("Bag", 50_000.0, 1.0, true, Some(SpecialPet::Bag { token_improved: false })),
+            mk("C", 60_000.0, 1.0, true, None),
+            mk("EggLow", 1_000.0, 1.3, false, None),
+        ];
+        let r = simulate_growth_chamber(&mut pets, &ChamberRun::default());
+        let cyc = &r.trace[0];
+        assert_eq!(cyc.recipient, 0);
+        let base: f64 = cyc.contributions.iter().map(|(_, a)| a).sum();
+        // No Pandora: the boost is exactly 0 and the gift is 10% of the base.
+        let sp = r.specials;
+        assert_eq!(sp.pandora_bonus, 0.0);
+        let gift_base = 0.10 * base;
+        assert!((sp.bag_gift - gift_base * 1.3).abs() < 1e-9, "gift in the target's total terms");
+        // Pre-token: the gift is stolen from the recipient's deposit (mult 1.0).
+        assert!((sp.bag_stolen - gift_base).abs() < 1e-9, "stolen {}", sp.bag_stolen);
+        assert!((cyc.recipient_gain - (base - gift_base)).abs() < 1e-9);
     }
 
     /// SECOND real run (`reference/real_growth_campaign/`): a 12 h chamber where
