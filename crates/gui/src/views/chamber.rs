@@ -513,7 +513,7 @@ pub fn show(
             if ui
                 .small_button("Reset to import")
                 .on_hover_text(
-                    "Discard edits — reset UPC, PGC, DPC multi, Fish Power and Fishing level to the last Main-stats import",
+                    "Discard edits — reset UPC, PGC, DPC multi, Fish Power and Fishing level to their imported Main-stats values",
                 )
                 .clicked()
             {
