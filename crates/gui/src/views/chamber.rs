@@ -1448,6 +1448,32 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                 );
             }
 
+            // The special pets' share of the campaign income — not a fifth
+            // source. Pandora's boost is inside the "by source" campaign figure
+            // (its recipients are chamber pets); Bag's gift counts toward its
+            // *target's* campaign income, which is outside this report whenever
+            // the global lowest pet is benched (the usual case).
+            let sp = &result.specials;
+            if sp.pandora_bonus > 0.0 || sp.bag_gift > 0.0 {
+                let mut parts = Vec::new();
+                if sp.pandora_bonus > 0.0 {
+                    parts.push(format!("Pandora's Box +{:.0} to recipients", sp.pandora_bonus));
+                }
+                if sp.bag_gift > 0.0 {
+                    let stolen =
+                        if sp.bag_stolen > 0.0 { " (stolen from deposits)" } else { "" };
+                    parts.push(format!("Bag +{:.0} gifted to the lowest{stolen}", sp.bag_gift));
+                }
+                ui.label(
+                    RichText::new(format!("  specials — {}", parts.join("  ·  ")))
+                        .color(style::ACCENT)
+                        .size(11.0),
+                )
+                .on_hover_text(
+                    "Bonus growth from the special pets' abilities, not a fifth source. Pandora's Box boosts each cycle's recipient deposit — included in the campaign figures above. Bag gifts a share to the global lowest-growth pet, counted in that pet's campaign income — outside this report when the pet is benched.",
+                );
+            }
+
             for (name, start, final_g) in rows {
                 let delta = final_g - start;
                 let avg_contrib =
@@ -1727,6 +1753,7 @@ mod tests {
                 "A".into(),
                 GrowthBreakdown { campaign: 100.0, passive: 8.0, feeding: 0.0, gold_dragon: 0.0 },
             )],
+            specials: Default::default(),
         };
         // Window = min(2 × chamber size, n/2) = 2: campaign (30+40)/2 = 35,
         // plus passive 8/4 = 2 → 37/cycle. The whole-run average is only
