@@ -1053,8 +1053,9 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
 /// per-campaign chips (highest first). No-op only when the pet has neither.
 fn show_campaign_section(ui: &mut Ui, pet: &MergedPet, camp_ctx: &CampaignContext) {
     let raw = pet.wiki.as_ref().and_then(|w| w.campaign_bonus.as_ref()).map(|cb| &cb.raw);
-    // Effective per-campaign values (baseline + overrides).
-    let map = pet.campaign_bonuses(camp_ctx);
+    // Effective per-campaign values (baseline + overrides), split by source.
+    let breakdown = pet.campaign_bonus_breakdown(camp_ctx);
+    let map = breakdown.total();
     // An override-only pet may have a map without wiki prose, so show the
     // section whenever either side has something.
     if raw.is_none() && map.is_empty() {
@@ -1074,7 +1075,7 @@ fn show_campaign_section(ui: &mut Ui, pet: &MergedPet, camp_ctx: &CampaignContex
         ui.label(RichText::new(raw).color(style::TEXT_NORMAL).size(11.0));
     }
 
-    // Per-campaign chips, highest first.
+    // Per-campaign total chips, highest first.
     if !map.is_empty() {
         let mut entries: Vec<(CampaignType, f32)> = map.into_iter().collect();
         entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -1087,6 +1088,50 @@ fn show_campaign_section(ui: &mut Ui, pet: &MergedPet, camp_ctx: &CampaignContex
                         .size(11.0),
                 );
             }
+        });
+    }
+
+    // Source split — only when a flat layer (class/equipment) is folded into the
+    // totals above; with neither, the totals *are* the innate values.
+    if breakdown.class.is_some() || breakdown.equipment.is_some() {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new("innate:").color(style::TEXT_MUTED).size(10.0));
+            if breakdown.innate.is_empty() {
+                ui.label(RichText::new("none").color(style::TEXT_MUTED).size(10.0));
+            } else {
+                let mut entries: Vec<(CampaignType, f32)> =
+                    breakdown.innate.iter().map(|(&c, &v)| (c, v)).collect();
+                entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                for (c, v) in entries {
+                    ui.label(
+                        RichText::new(format!("{}: {v:+}%", campaign_label(c)))
+                            .color(style::TEXT_MUTED)
+                            .size(10.0),
+                    );
+                }
+            }
+        });
+        ui.horizontal_wrapped(|ui| {
+            if let Some(v) = breakdown.class {
+                ui.label(
+                    RichText::new(format!("class: {v:+}%"))
+                        .color(style::TEXT_MUTED)
+                        .size(10.0),
+                );
+            }
+            if let Some(v) = breakdown.equipment {
+                ui.label(
+                    RichText::new(format!("equipment: {v:+}%"))
+                        .color(style::TEXT_MUTED)
+                        .size(10.0),
+                );
+            }
+            ui.label(
+                RichText::new("(to every campaign)")
+                    .color(style::TEXT_MUTED)
+                    .italics()
+                    .size(10.0),
+            );
         });
     }
 }

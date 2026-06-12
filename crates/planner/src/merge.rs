@@ -38,6 +38,38 @@ pub struct CampaignContext<'a> {
     pub include_class: bool,
 }
 
+/// A pet's effective campaign bonus split by source, so the UI can show where
+/// each total comes from. Produced by [`MergedPet::campaign_bonus_breakdown`];
+/// [`Self::total`] reassembles the per-campaign totals the rest of the app uses.
+#[derive(Debug, Clone, Default)]
+pub struct CampaignBonusBreakdown {
+    /// The pet's own per-campaign values: the curated rules in
+    /// `campaign_bonuses.yaml` plus its dynamic formulas (Bag, Mermaid, …).
+    pub innate: BTreeMap<CampaignType, f32>,
+    /// Flat all-campaign boost from equipped campaign gear (sticks, event
+    /// items). `None` when the context's equipment layer is off or the loadout
+    /// has no contributing gear.
+    pub equipment: Option<f32>,
+    /// Flat all-campaign Adventurer class bonus. `None` when the context's
+    /// class layer is off or the pet isn't currently an Adventurer.
+    pub class: Option<f32>,
+}
+
+impl CampaignBonusBreakdown {
+    /// Per-campaign totals: innate plus the flat layers, which apply to every
+    /// campaign (so an active layer creates entries even where innate has none).
+    pub fn total(&self) -> BTreeMap<CampaignType, f32> {
+        let mut map = self.innate.clone();
+        if self.equipment.is_some() || self.class.is_some() {
+            let flat = self.equipment.unwrap_or(0.0) + self.class.unwrap_or(0.0);
+            for c in CampaignType::ALL {
+                *map.entry(c).or_insert(0.0) += flat;
+            }
+        }
+        map
+    }
+}
+
 /// Round a percentage to 2 decimal places. Dynamic campaign formulas produce
 /// long fractions (e.g. `growth^0.4`); the game displays two decimals.
 fn round2(x: f64) -> f32 {
@@ -335,41 +367,42 @@ impl MergedPet {
     /// layered on top in code. Callers go through this method, so they won't
     /// change when the numbers get richer.
     pub fn campaign_bonuses(&self, ctx: &CampaignContext) -> BTreeMap<CampaignType, f32> {
-        let mut map = BTreeMap::new();
+        self.campaign_bonus_breakdown(ctx).total()
+    }
+
+    /// The same effective bonuses as [`Self::campaign_bonuses`], but split by
+    /// source (innate / equipment / class) so the UI can show the full picture.
+    /// `campaign_bonuses` is this breakdown's `total()`, so the two can never
+    /// disagree.
+    pub fn campaign_bonus_breakdown(&self, ctx: &CampaignContext) -> CampaignBonusBreakdown {
+        let mut innate = BTreeMap::new();
         let improved = self.export.as_ref().is_some_and(|e| e.improved);
-        ctx.bonuses.apply(&self.name, &mut map, self.is_evolved(), improved);
-        self.apply_campaign_formulas(&mut map, ctx);
+        ctx.bonuses.apply(&self.name, &mut innate, self.is_evolved(), improved);
+        self.apply_campaign_formulas(&mut innate, ctx);
 
         // Optional equipment layer — campaign-boost gear across all three slots,
         // additive to all campaigns.
-        if ctx.include_equipment
-            && let Some(export) = self.export.as_ref()
-        {
-            let total: f32 = [
-                &export.loadout.weapon,
-                &export.loadout.armor,
-                &export.loadout.accessory,
-            ]
-            .into_iter()
-            .flatten()
-            .filter_map(item_campaign_bonus)
-            .sum();
-            if total != 0.0 {
-                for c in CampaignType::ALL {
-                    *map.entry(c).or_insert(0.0) += total;
-                }
-            }
-        }
+        let equipment = if ctx.include_equipment {
+            self.export.as_ref().and_then(|export| {
+                let total: f32 = [
+                    &export.loadout.weapon,
+                    &export.loadout.armor,
+                    &export.loadout.accessory,
+                ]
+                .into_iter()
+                .flatten()
+                .filter_map(item_campaign_bonus)
+                .sum();
+                (total != 0.0).then_some(total)
+            })
+        } else {
+            None
+        };
 
         // Optional class layer — Adventurer's campaign bonus, additive to all.
-        if ctx.include_class
-            && let Some(bonus) = self.class_campaign_bonus(ctx)
-        {
-            for c in CampaignType::ALL {
-                *map.entry(c).or_insert(0.0) += bonus;
-            }
-        }
-        map
+        let class = if ctx.include_class { self.class_campaign_bonus(ctx) } else { None };
+
+        CampaignBonusBreakdown { innate, equipment, class }
     }
 
     /// The all-campaign bonus from an Adventurer's class, or `None` if the pet
@@ -1468,6 +1501,57 @@ mod tests {
         for name in RAW_ONLY {
             assert!(names.contains(name), "RAW_ONLY entry '{name}' is not a wiki pet");
         }
+    }
+
+    #[test]
+    fn test_campaign_bonus_breakdown_splits_sources() {
+        // A curated +50 Growth innate, an Adventurer at CL10 (class +20 to all),
+        // and an SSS+20 Legendary Stick (equipment +100 to all).
+        let rules: CampaignBonusRules =
+            serde_yaml::from_str("Robot:\n  - when: Always\n    set: { Growth: 50 }\n").unwrap();
+        let inputs = CampaignInputs::default();
+        let mut e = make_export_pet("Robot", Element::Neutral, Some(Class::Adventurer));
+        e.class_level = 10;
+        e.loadout.weapon = Some(Equipment {
+            name: "Legendary Stick".to_string(),
+            upgrade_level: Some(20),
+            quality: Quality::SSS,
+            enchant_level: None,
+            gem: None,
+            gem_level: None,
+        });
+        let pet = MergedPet { name: "Robot".into(), wiki: None, export: Some(e) };
+
+        let on = CampaignContext { bonuses: &rules, roster: &[], inputs: &inputs, include_equipment: true, include_class: true };
+        let bd = pet.campaign_bonus_breakdown(&on);
+        assert_eq!(bd.innate.get(&CampaignType::Growth), Some(&50.0));
+        assert_eq!(bd.innate.get(&CampaignType::Food), None);
+        assert_eq!(bd.equipment, Some(100.0));
+        assert_eq!(bd.class, Some(20.0));
+        // The flat layers apply to every campaign; innate only where curated.
+        let total = bd.total();
+        assert_eq!(total.get(&CampaignType::Growth), Some(&170.0));
+        assert_eq!(total.get(&CampaignType::Food), Some(&120.0));
+        // The totals are exactly what `campaign_bonuses` reports.
+        assert_eq!(total, pet.campaign_bonuses(&on));
+
+        // Layers toggled off → no equipment/class parts, totals are innate only.
+        let off = CampaignContext { bonuses: &rules, roster: &[], inputs: &inputs, include_equipment: false, include_class: false };
+        let bd = pet.campaign_bonus_breakdown(&off);
+        assert_eq!(bd.equipment, None);
+        assert_eq!(bd.class, None);
+        assert_eq!(bd.total(), bd.innate);
+
+        // Layers on but nothing to add (no gear, not an Adventurer) → still None,
+        // so the UI knows there's no split to show.
+        let plain = MergedPet {
+            name: "Robot".into(),
+            wiki: None,
+            export: Some(make_export_pet("Robot", Element::Neutral, Some(Class::Mage))),
+        };
+        let bd = plain.campaign_bonus_breakdown(&on);
+        assert_eq!(bd.equipment, None);
+        assert_eq!(bd.class, None);
     }
 
     #[test]
