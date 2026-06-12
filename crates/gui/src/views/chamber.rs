@@ -319,7 +319,7 @@ fn build_roster(
 /// and CL here means every downstream read (Magic Egg multiplier, pendant
 /// passive, and the recomputed Growth bonus) reflects the edits, with no engine
 /// change: the bonus is recomputed by feeding this synthetic export back through
-/// the existing [`MergedPet::campaign_bonus_for`] seam.
+/// the existing [`MergedPet::campaign_bonus_breakdown`] seam.
 fn effective_export(pet: &MergedPet, state: &ChamberState) -> Option<ExportPet> {
     let base = pet.export.as_ref()?;
     let mut eff = base.clone();
