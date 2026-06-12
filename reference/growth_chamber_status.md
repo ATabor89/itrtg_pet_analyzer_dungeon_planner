@@ -37,6 +37,19 @@ The chamber lives in two files plus supporting data:
 - **Special pets** — **Pandora** (boosts the recipient's deposit by its
   growth/feeding %), **Bag** (gifts the global-lowest pet; token-improved = free
   5%, pre-token = steals 10%), **Nightmare** (subtractive team malus).
+  **Bag's Growth bonus is dynamic:** his innate term (lowest unlocked pet's
+  growth^0.4, cap 100% — `bag_lowest_pct`) is re-evaluated **each cycle** from
+  the roster's end-of-run growth, because the run itself raises the lowest pet
+  (his gifts, feeding, and disproportionate passive — e.g. a pendant on a
+  freshly-unlocked pet). The equipment/class layers ride along statically via
+  `SpecialPet::Bag::flat_bonus_pct` (split out by the GUI bridge from the
+  breakdown). Note the sim's lowest uses **total** growth (consistent with
+  every other completion-time read), while the roster-time static value in
+  `merge.rs` uses base export growth. The bases differ when the lowest pet
+  carries an egg — and, since PGC multiplies *every* pet, whenever PGC > 0 at
+  all; growth^0.4 is nonlinear, so a large PGC visibly inflates the sim's term
+  vs the card's. Whether the game's own formula reads base or boosted growth is
+  unvalidated (same gap as open item 1b).
 - **What-if editing** — per-pet override of equipment + CL on the card, recomputed
   live through a synthetic export (`effective_export` → `campaign_bonus_for`); no
   engine change. "Refresh from export" reverts.
@@ -151,7 +164,12 @@ Roughly highest-leverage first. Each has enough context to start cold.
 7. **Limited-item caps (phase 3).** At most ~2 of Magic Egg / Growing Love Pendant
    / each event piece across chambers (generalize the old `pendant < 2` gate).
    Spec is fuzzy — "how many you own" isn't cleanly in the export. Low priority.
-8. **Fresh-rebirth validation of fishing/Pandora.** Both modelled from tooltips;
+8. **Other dynamic bonuses.** Bag's lowest-growth bonus is re-evaluated per
+   cycle (see above), but **Mermaid**'s −(own growth/1000)% malus is still the
+   static roster-time value — over a long sim her growth rises and the malus
+   should deepen. Only matters if Mermaid is ever simulated in a chamber
+   (unlikely: she's a negative-bonus pet). Same shape as the Bag fix if needed.
+9. **Fresh-rebirth validation of fishing/Pandora.** Both modelled from tooltips;
    a real fresh-rebirth capture (fishing is dormant for the player now — rebirth
    too old) would confirm them.
 
