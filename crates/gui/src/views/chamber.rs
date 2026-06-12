@@ -1448,8 +1448,11 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                 );
             }
 
-            // The special pets' share of the campaign income (already inside the
-            // campaign figures above, not a fifth source).
+            // The special pets' share of the campaign income — not a fifth
+            // source. Pandora's boost is inside the "by source" campaign figure
+            // (its recipients are chamber pets); Bag's gift counts toward its
+            // *target's* campaign income, which is outside this report whenever
+            // the global lowest pet is benched (the usual case).
             let sp = &result.specials;
             if sp.pandora_bonus > 0.0 || sp.bag_gift > 0.0 {
                 let mut parts = Vec::new();
@@ -1467,7 +1470,7 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                         .size(11.0),
                 )
                 .on_hover_text(
-                    "Bonus growth from the special pets' abilities, already counted inside the campaign figures: Pandora's Box boosts each cycle's recipient deposit; Bag gifts a share to the global lowest-growth pet — often a benched pet outside this report.",
+                    "Bonus growth from the special pets' abilities, not a fifth source. Pandora's Box boosts each cycle's recipient deposit — included in the campaign figures above. Bag gifts a share to the global lowest-growth pet, counted in that pet's campaign income — outside this report when the pet is benched.",
                 );
             }
 
