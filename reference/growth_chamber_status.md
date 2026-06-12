@@ -45,8 +45,11 @@ The chamber lives in two files plus supporting data:
   `SpecialPet::Bag::flat_bonus_pct` (split out by the GUI bridge from the
   breakdown). Note the sim's lowest uses **total** growth (consistent with
   every other completion-time read), while the roster-time static value in
-  `merge.rs` uses base export growth — they only differ when the lowest pet
-  carries an egg/PGC multiplier.
+  `merge.rs` uses base export growth. The bases differ when the lowest pet
+  carries an egg — and, since PGC multiplies *every* pet, whenever PGC > 0 at
+  all; growth^0.4 is nonlinear, so a large PGC visibly inflates the sim's term
+  vs the card's. Whether the game's own formula reads base or boosted growth is
+  unvalidated (same gap as open item 1b).
 - **What-if editing** — per-pet override of equipment + CL on the card, recomputed
   live through a synthetic export (`effective_export` → `campaign_bonus_for`); no
   engine change. "Refresh from export" reverts.
