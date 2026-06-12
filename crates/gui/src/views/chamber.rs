@@ -89,6 +89,10 @@ pub struct ChamberState {
     /// means "use the live export as-is". Seeded from the export on first edit;
     /// the card's "Refresh from export" button drops the entry to revert.
     pub overrides: BTreeMap<String, PetOverride>,
+    /// Snapshot of the global inputs as last auto-filled from a Main-stats
+    /// export. Powers the global "Reset to import" button — shown when any of
+    /// the imported inputs has been edited away from its snapshot value.
+    pub imported: ImportedStats,
 
     /// Pet-picker search filter — ephemeral.
     #[serde(skip)]
@@ -119,6 +123,23 @@ pub struct PetOverride {
     pub loadout: Loadout,
     /// Effective class level (overrides the export's CL).
     pub class_level: u32,
+}
+
+/// The chamber inputs a Main-stats import auto-fills, as last imported.
+/// `None` per field = that field has never been imported (so user edits to it
+/// can't "deviate" and don't trigger the reset button). Kept up to date by
+/// [`ChamberState::apply_main_stats`]; later imports only overwrite the fields
+/// they carry, matching how the fill itself works.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImportedStats {
+    /// `(done, max)` Ultimate Pet Challenges.
+    pub upc: Option<(u32, u32)>,
+    /// `(done, max)` Patreon God Challenges.
+    pub pgc: Option<(u32, u32)>,
+    pub dpc_highest_multi: Option<f64>,
+    pub fish_power: Option<f64>,
+    pub fishing_level: Option<u32>,
 }
 
 /// Food types, lowest→highest growth.
@@ -153,6 +174,7 @@ impl Default for ChamberState {
             fish_power: 0.0,
             fishing_level: 0,
             overrides: BTreeMap::new(),
+            imported: ImportedStats::default(),
             search: String::new(),
             result: None,
             last_starts: BTreeMap::new(),
@@ -187,6 +209,7 @@ impl ChamberState {
         self.fish_power = src.fish_power;
         self.fishing_level = src.fishing_level;
         self.overrides = src.overrides.clone();
+        self.imported = src.imported.clone();
     }
 
     pub fn write_into(&self, state: &mut crate::state::AppState) {
@@ -212,6 +235,7 @@ impl ChamberState {
             fish_power: self.fish_power,
             fishing_level: self.fishing_level,
             overrides: self.overrides.clone(),
+            imported: self.imported.clone(),
             ..Default::default()
         };
     }
@@ -224,26 +248,64 @@ impl ChamberState {
         if let Some((done, max)) = ms.ultimate_pet_challenges {
             self.upc_done = done;
             self.upc_max = max;
+            self.imported.upc = Some((done, max));
             filled.push("UPC");
         }
         if let Some((done, max)) = ms.patreon_god_challenges {
             self.pgc_done = done;
             self.pgc_max = max;
+            self.imported.pgc = Some((done, max));
             filled.push("PGC");
         }
         if let Some(multi) = ms.day_pet_challenge_multi {
             self.dpc_highest_multi = multi;
+            self.imported.dpc_highest_multi = Some(multi);
             filled.push("DPC multi");
         }
         if let Some(fp) = ms.fish_power {
             self.fish_power = fp;
+            self.imported.fish_power = Some(fp);
             filled.push("Fish Power");
         }
         if let Some(level) = ms.fishing_level {
             self.fishing_level = level;
+            self.imported.fishing_level = Some(level);
             filled.push("Fishing level");
         }
         filled
+    }
+
+    /// True when any global input auto-filled from a Main-stats import has been
+    /// edited away from its imported value. Never-imported fields don't count.
+    fn deviates_from_import(&self) -> bool {
+        self.imported.upc.is_some_and(|v| v != (self.upc_done, self.upc_max))
+            || self.imported.pgc.is_some_and(|v| v != (self.pgc_done, self.pgc_max))
+            || self.imported.dpc_highest_multi.is_some_and(|v| v != self.dpc_highest_multi)
+            || self.imported.fish_power.is_some_and(|v| v != self.fish_power)
+            || self.imported.fishing_level.is_some_and(|v| v != self.fishing_level)
+    }
+
+    /// Restore every imported global input to its imported value (the global
+    /// counterpart of a card's "Refresh from export"). Never-imported fields
+    /// keep their current values.
+    fn reset_to_import(&mut self) {
+        if let Some((done, max)) = self.imported.upc {
+            self.upc_done = done;
+            self.upc_max = max;
+        }
+        if let Some((done, max)) = self.imported.pgc {
+            self.pgc_done = done;
+            self.pgc_max = max;
+        }
+        if let Some(multi) = self.imported.dpc_highest_multi {
+            self.dpc_highest_multi = multi;
+        }
+        if let Some(fp) = self.imported.fish_power {
+            self.fish_power = fp;
+        }
+        if let Some(level) = self.imported.fishing_level {
+            self.fishing_level = level;
+        }
     }
 
     /// The global PGC growth multiplier (×1 with no completions).
@@ -442,6 +504,22 @@ pub fn show(
         ui.label(RichText::new("Pandora feedings:").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20))
             .on_hover_text("Pandora's starting feeding count. It climbs as she's fed each cycle (bonus caps at 20) and resets at the start of each rebirth.");
+        // Global counterpart of a card's "Refresh from export": shown when any
+        // input auto-filled from a Main-stats import (UPC / PGC / DPC multi /
+        // Fish Power / Fishing level) has been edited away from it.
+        if state.deviates_from_import() {
+            ui.separator();
+            ui.label(RichText::new("edited").color(style::WARNING).size(10.0));
+            if ui
+                .small_button("Reset to import")
+                .on_hover_text(
+                    "Discard edits — reset UPC, PGC, DPC multi, Fish Power and Fishing level to the last Main-stats import",
+                )
+                .clicked()
+            {
+                state.reset_to_import();
+            }
+        }
     });
 
     // --- Food (per-feeding growth, fed to every pet) ---
@@ -1566,6 +1644,46 @@ mod tests {
             .apply_main_stats(&MainStats { patreon_god_challenges: Some((24, 25)), ..Default::default() });
         assert_eq!(filled, vec!["PGC"]);
         assert_eq!((state.pgc_done, state.pgc_max), (24, 25));
+    }
+
+    #[test]
+    fn reset_to_import_restores_only_imported_inputs() {
+        use itrtg_models::MainStats;
+        // Nothing imported yet: edits never count as deviating.
+        let mut state = ChamberState { upc_done: 7, ..ChamberState::default() };
+        assert!(!state.deviates_from_import());
+
+        state.apply_main_stats(&MainStats {
+            ultimate_pet_challenges: Some((8, 20)),
+            fish_power: Some(1.05e6),
+            ..Default::default()
+        });
+        assert!(!state.deviates_from_import());
+
+        // Drift two imported fields → deviates; reset restores both.
+        state.upc_done = 3;
+        state.fish_power = 0.0;
+        assert!(state.deviates_from_import());
+        state.reset_to_import();
+        assert_eq!((state.upc_done, state.upc_max), (8, 20));
+        assert_eq!(state.fish_power, 1.05e6);
+        assert!(!state.deviates_from_import());
+
+        // A never-imported field (PGC here) neither deviates nor gets clobbered.
+        state.pgc_done = 10;
+        assert!(!state.deviates_from_import());
+        state.reset_to_import();
+        assert_eq!(state.pgc_done, 10);
+
+        // A later partial import refreshes only its own field's snapshot — the
+        // Fish Power baseline survives and still catches drift.
+        state.apply_main_stats(&MainStats {
+            ultimate_pet_challenges: Some((9, 20)),
+            ..Default::default()
+        });
+        assert_eq!(state.imported.fish_power, Some(1.05e6));
+        state.fish_power = 1.0;
+        assert!(state.deviates_from_import());
     }
 
     #[test]
