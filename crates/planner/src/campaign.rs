@@ -288,14 +288,25 @@ pub fn apply_growth_specials(base_total: f64, pandora_pct: f64, bag_fraction: f6
 }
 
 /// A chamber pet's special-pet behaviour in the Growth campaign.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SpecialPet {
     /// Pandora's Box — scales the campaign total by its growth/feeding bonus,
     /// boosting what the recipient gains.
     Pandora { feedings: u32 },
     /// Bag — gifts to the **global** lowest-growth pet. Token-improved gives a
     /// free 5%; pre-token steals 10% from the campaign.
-    Bag { token_improved: bool },
+    Bag {
+        token_improved: bool,
+        /// The layers of Bag's Growth bonus that *don't* track the lowest pet
+        /// (equipment + class), in percent. His innate term ([`bag_lowest_pct`]:
+        /// the lowest pet's growth^0.4, capped 100%) is recomputed **each
+        /// cycle** from the roster's end-of-run growth — the run itself raises
+        /// the lowest pet (gifts, feeding, and disproportionate passive like a
+        /// pendant on a fresh pet), so a static bonus goes stale. Bag's
+        /// `campaign_bonus_pct` is ignored by the sim in favour of
+        /// `flat_bonus_pct + bag_lowest_pct(...)`.
+        flat_bonus_pct: f32,
+    },
     /// Nightmare — subtracts `(20 − 0.25·class_level)` points (min 1) from every
     /// **other** chamber pet's campaign bonus. (Its own `+200%` self-boost is part
     /// of its campaign bonus already, via the curated rules.)
@@ -355,6 +366,14 @@ pub fn rebirth_schedule(cycle_hours: u32, rebirth_hours: u32) -> Vec<u32> {
 fn pandora_pct(growth: f64, feedings: u32) -> f64 {
     let rate = (if growth < 100_000.0 { 3.0 } else { 4.0 }) + (feedings as f64 * 0.1).min(2.0);
     growth.min(100_000.0) / 5_000.0 * rate
+}
+
+/// The innate term of Bag's Growth bonus %: the lowest pet's growth^0.4, capped
+/// at 100% (which it hits exactly at 100k growth). Same formula as the static
+/// roster-time version in `merge::apply_campaign_formulas`; the sim re-evaluates
+/// it per cycle with the *current* lowest growth.
+pub fn bag_lowest_pct(lowest_growth: f64) -> f64 {
+    lowest_growth.max(0.0).powf(0.4).min(100.0)
 }
 
 // =============================================================================
@@ -650,6 +669,24 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                 }
             });
 
+            // The global lowest pet by end-of-run growth, across the whole
+            // roster (usually benched). It is both Bag's gift target and the
+            // input to his dynamic bonus below.
+            let global_lowest = (0..pets.len())
+                .min_by(|&a, &b| {
+                    end_total(&pets[a])
+                        .partial_cmp(&end_total(&pets[b]))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .expect("non-empty roster");
+            // Bag's innate Growth bonus tracks that lowest pet's growth — a
+            // moving target the run itself raises (his gifts, feeding, and
+            // disproportionate passive like a pendant on a fresh pet). A static
+            // bonus would go stale, so re-evaluate it each cycle from
+            // end-of-run growth like every other completion-time read; only
+            // the equipment/class layers (`flat_bonus_pct`) stay fixed.
+            let bag_bonus_pct = |flat: f32| flat + bag_lowest_pct(end_total(&pets[global_lowest])) as f32;
+
             // Base total + recipient from the Growth campaign over the chamber. The
             // f64 growth truncates to u64 for the log term — lossy by design,
             // negligible at real magnitudes.
@@ -662,11 +699,17 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                     // `end_total`.
                     growth: (pets[i].growth * pets[i].growth_multiplier) as u64,
                     stats: None,
-                    campaign_bonus_pct: match nightmare {
-                        Some((nm, malus)) if i != nm => {
-                            pets[i].campaign_bonus_pct - malus as f32
+                    campaign_bonus_pct: {
+                        let bonus = match pets[i].special {
+                            Some(SpecialPet::Bag { flat_bonus_pct, .. }) => {
+                                bag_bonus_pct(flat_bonus_pct)
+                            }
+                            _ => pets[i].campaign_bonus_pct,
+                        };
+                        match nightmare {
+                            Some((nm, malus)) if i != nm => bonus - malus as f32,
+                            _ => bonus,
                         }
-                        _ => pets[i].campaign_bonus_pct,
                     },
                     passive_per_hour: pets[i].passive_per_hour * pets[i].growth_multiplier,
                 })
@@ -691,7 +734,7 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                         // Use the running feeding count, not the static seed.
                         pandora = pandora_pct(end_total(&pets[i]), pandora_feedings);
                     }
-                    Some(SpecialPet::Bag { token_improved }) => {
+                    Some(SpecialPet::Bag { token_improved, .. }) => {
                         bag_fraction = if token_improved { 0.05 } else { 0.10 };
                         bag_steals = !token_improved;
                     }
@@ -708,17 +751,9 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                 specials.recipient_gain
             };
 
-            // Bag's gift goes to the global lowest pet (end-of-run growth), across
-            // the whole roster — usually a benched pet, possibly the recipient.
-            let global_lowest = (0..pets.len())
-                .min_by(|&a, &b| {
-                    end_total(&pets[a])
-                        .partial_cmp(&end_total(&pets[b]))
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
-                .expect("non-empty roster");
-
             // Realise growth: passive + feeding into all, then the deposits.
+            // (Bag's gift goes to `global_lowest`, computed above — usually a
+            // benched pet, possibly the recipient.)
             tick_passive_and_feeding(pets, &mut breakdown, passive_hours, feedings, fishing_mult);
             pets[recipient].growth += recipient_deposit;
             breakdown[recipient].campaign += recipient_deposit * pets[recipient].growth_multiplier;
@@ -1180,7 +1215,13 @@ mod tests {
         let data: [(&str, f64, f32, bool, Option<SpecialPet>); 11] = [
             ("Otter", 55_266.0, 154.0, true, None), // recipient (chamber min)
             ("Cupid", 55_338.0, 184.0, true, None),
-            ("Bag", 55_468.0, 115.51, true, Some(SpecialPet::Bag { token_improved: true })),
+            // The in-game 115.51 included the innate lowest-growth term (from
+            // Wolf, the global lowest at 10,956); the sim recomputes that term
+            // each cycle, so the constructed flat layer is the remainder.
+            ("Bag", 55_468.0, 115.51, true, Some(SpecialPet::Bag {
+                token_improved: true,
+                flat_bonus_pct: 115.51 - bag_lowest_pct(10_956.0) as f32,
+            })),
             ("Hedgehog", 55_565.0, 222.76, true, None),
             ("Thunder Ball", 55_661.0, 481.0, true, None),
             ("Meteor", 55_856.0, 139.61, true, None),
@@ -1254,7 +1295,7 @@ mod tests {
         // lowest, so Bag's gift lands there and the total scales by its multiplier.
         let mut pets = vec![
             mk("R", 10_000.0, 1.0, true, None),
-            mk("Bag", 50_000.0, 1.0, true, Some(SpecialPet::Bag { token_improved: false })),
+            mk("Bag", 50_000.0, 1.0, true, Some(SpecialPet::Bag { token_improved: false, flat_bonus_pct: 0.0 })),
             mk("C", 60_000.0, 1.0, true, None),
             mk("EggLow", 1_000.0, 1.3, false, None),
         ];
@@ -1313,7 +1354,13 @@ mod tests {
         // contribution formula `(log15(g) − 1.75) · 1.4 · 12 · (1 + bonus/100)`,
         // so this exercises the egg fix + special-pet layer, not the bonus calc.
         let mut pets = vec![
-            mk("Bag", 55_678.0, 116.0, 1.0, Some(SpecialPet::Bag { token_improved: true })),
+            // Bag is the recipient here (contributes 0), so his bonus is moot;
+            // the flat layer still backs out the innate term (he is the global
+            // lowest himself) for fidelity with the captured 116.0.
+            mk("Bag", 55_678.0, 116.0, 1.0, Some(SpecialPet::Bag {
+                token_improved: true,
+                flat_bonus_pct: 116.0 - bag_lowest_pct(55_678.0) as f32,
+            })),
             mk("Hedgehog", 55_775.0, 222.57, 1.0, None),
             mk("Thunder Ball/Raiju", 55_871.0, 480.86, 1.0, None),
             mk("Meteor", 56_066.0, 139.58, 1.0, None),
@@ -1347,6 +1394,65 @@ mod tests {
             (cyc.recipient_gain - 1678.4).abs() < 3.0,
             "Bag deposit {:.2}, game 1678.4",
             cyc.recipient_gain
+        );
+    }
+
+    /// The user-reported edge case: a freshly-unlocked pet (the global lowest)
+    /// wearing a Growing Love Pendant grows disproportionately fast in the
+    /// background, and Bag's Growth bonus tracks its growth. The bonus must use
+    /// the pet's **end-of-run** growth each cycle (the campaign is computed at
+    /// completion) and climb cycle over cycle — not stay frozen at the
+    /// roster-time value.
+    #[test]
+    fn bag_bonus_tracks_the_lowest_pets_growth_per_cycle() {
+        let mk = |name: &str, growth: f64, passive: f64, in_chamber: bool, special| ChamberPet {
+            name: name.into(),
+            growth,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0,
+            passive_per_hour: passive,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber,
+            special,
+        };
+        let mut pets = vec![
+            mk("R", 10_000.0, 0.0, true, None), // chamber recipient — contributes 0
+            mk("Bag", 50_000.0, 0.0, true,
+                Some(SpecialPet::Bag { token_improved: true, flat_bonus_pct: 0.0 })),
+            // Benched, global lowest, pendant: +200/h on top of nothing else.
+            mk("Fresh", 1_000.0, 200.0, false, None),
+        ];
+        let r = simulate_growth_chamber(&mut pets, &ChamberRun { max_cycles: 2, ..Default::default() });
+        let bag_contrib =
+            |c: &ChamberCycle| c.contributions.iter().find(|(i, _)| *i == 1).unwrap().1;
+        // Bag is the sole contributor: contribution = (log15(g) − 1.75) · 12 ·
+        // (1 + bonus/100), with his bonus from Fresh's growth.
+        let term = (log_base(50_000.0, 15.0) - 1.75) * 12.0;
+
+        // Cycle 0: Fresh ends the run at 1,000 + 200·12 = 3,400 — the bonus uses
+        // that (≈25.96%), not the starting 1,000 (≈15.85%).
+        let expected0 = term * (1.0 + bag_lowest_pct(3_400.0) as f32 as f64 / 100.0);
+        assert!(
+            (bag_contrib(&r.trace[0]) - expected0).abs() < 1e-3,
+            "cycle 0: {} vs {expected0} (passive must be applied before the bonus)",
+            bag_contrib(&r.trace[0])
+        );
+
+        // Cycle 1: Fresh has banked cycle 0's passive and Bag's gift, plus this
+        // cycle's passive — the bonus climbs with it.
+        let gift0 = r.trace[0].bag_gift.expect("gift to the global lowest").1;
+        let fresh_end1 = 1_000.0 + 2_400.0 + gift0 + 2_400.0;
+        let expected1 = term * (1.0 + bag_lowest_pct(fresh_end1) as f32 as f64 / 100.0);
+        assert!(
+            (bag_contrib(&r.trace[1]) - expected1).abs() < 1e-3,
+            "cycle 1: {} vs {expected1}",
+            bag_contrib(&r.trace[1])
+        );
+        assert!(
+            bag_contrib(&r.trace[1]) > bag_contrib(&r.trace[0]),
+            "Bag's contribution climbs as the lowest pet grows"
         );
     }
 
