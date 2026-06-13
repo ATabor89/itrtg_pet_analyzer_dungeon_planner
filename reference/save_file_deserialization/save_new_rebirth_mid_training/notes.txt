@@ -1,0 +1,93 @@
+First Save:
+
+This was 5-7 minutes into the rebirth, I believe.
+
+All three Divinity Generator (DivGen) upgrades were at level 81 at the time of the save.
+
+In SpaceDim, Quantum Genesis was level 2, Dyson Harvester was level 22, and Fustion Torch was likely in the teens. All Light Clones should have been allocated to Fusion Torch.
+
+Here are the SpaceDim elements and information in the order that they appear in-game. Note that although I did not include a Next Ats export in this directory, I have not changed any of the values from the export we already have.
+
+Controlled Entropy: Next At 120, Spread 20
+Quantum Genesis: 240, 19
+Fusion Torch: 128, 18
+Fusion Retrofitting: 128, 17
+Dyson Harvester: 1334, 16
+Hive Mind: 480, 15
+Timeline Manipulation: 480, 14
+Assembly Matrix: 240, 13
+Wormhole Network: 1200, 12
+Dimension Beamer: 80, 11
+Focusing Amplifier: 120, 10
+Expanded Awareness: 240, 9
+Recursive Memory: 240, 8
+Gene Splicing: 240, 7
+Hyperlane Engine: 0, 6
+Substrate Analysis: 0, 5
+Sentient Lattice: 0, 4
+Matter Compiler: 0, 3
+Symbiotic Link: 0, 2
+Self Replicating AI: 0, 1
+
+Current defeated God was P. Baal 43.
+
+Logging individual training values for pets is too difficult because it moves too quickly. The number of clones allocated to any given pet would be below 5,000 at the time of the save. Pets who are crafting or working in the Pet Village do not train, so they will have no clones allocated.
+
+Creation data should already be parsed, but I believe the last created item was Plent, with 8 created.
+
+Might does not unlock until ~1h35m into a rebirth, so no levels have been gained yet.
+
+All five TBS (The Baal Slayer) levels are at 126. Critical chance is 100%, Critical Damage is 604%, and Score is 1008.
+
+3/10 Challenge dungeons available. Note that the cap can increase above 10, but I have yet to increase it.
+
+One thread to pull on is Fairy's armor. Her Titanium Armor is currently being worked on by Hermit Crab. He's embedding a level 10 water gem into her armor. I just did a pet export about ten minutes after starting these notes, so at least ten minutes after the save. The raw numbers in there may not match, but you will notice that Fairy shows no armor. Perhaps we can find the thread that ties what Hermit Crab is working on to who has it equipped, because there is a link. When you look at Fairy's page in-game, you see a little 'x' on her Armor slot and mousing over that will tell you the blacksmith that is working on the equipment. When the work is done, it automatically goes back onto her, even if she's in a dungeon. Thus, there must be something that links these together.
+
+I believe I had 0 Baal Power, as I already spent it. I'm going to make a second save with some changes, and will be sure to have some unspent Baal Power.
+
+As of now, I have also yet to upgrade Creation Speed (CS) or Building Speed (BS). In the second save, I will upgrade BS to 50,000 and leave CS at 45,000.
+
+As of the first save, all four of my unused GP allocations are still set to 25. I will change these as well.
+
+Second Save:
+
+This was around 30-35 minutes into the rebirth.
+
+I now have 334 unspent Baal Power.
+
+I have upgraded BS to 50,000 and left CS at 45,000.
+
+I have now defeated through P. Baal 48.
+
+I have now used one challenge dungeon attempt, leaving me with 2/10.
+
+I have equipped a Storm Ring and Flame Armor on Bag. I have equipped Flood Armor and a Wood Bracelet on Cupid. I have equipped a Feather Vest and a Tree Bracelet on Meteor. I have equipped a Water Spear on Nugget.
+
+I have changed unused god power allocations to 25% physical, 21% mystic, 22% battle, and 27% creating.
+
+Training is still ongoing.
+
+DivGen upgrades are all 188.
+
+Fusion Torch is level 70. Here are the full SpaceDim levels:
+
+Controlled Entropy: 5
+Quantum Genesis: 6
+Fusion Torch: 70
+Fusion Retrofitting: 5
+Dyson Harvester: 23
+Hive Mind: 4
+Timeline Manipulation: 4
+Assembly Matrix: 4
+Wormhole Network: 0
+Dimension Beamer: 0
+Focusing Amplifier: 0
+Expanded Awareness: 0
+Recursive Memory: 0
+Gene Splicing: 0
+Hyperlane Engine: 0
+Substrate Analysis: 0
+Sentient Lattice: 0
+Matter Compiler: 0
+Symbiotic Link: 0
+Self Replicating AI: 0
