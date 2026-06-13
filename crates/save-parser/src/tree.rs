@@ -31,8 +31,9 @@ pub enum Node {
 }
 
 /// Maximum recursion depth (nested base64 layers). The real save nests ~6
-/// deep; this is purely a safety net against pathological input.
-const MAX_DEPTH: usize = 32;
+/// deep; this is purely a safety net against pathological input. Shared with
+/// the lossless [`crate::raw`] serializer so both layers agree on the bound.
+pub(crate) const MAX_DEPTH: usize = 32;
 
 /// Parse serialized tree plaintext into a [`Node`].
 pub fn parse(text: &str) -> Node {
@@ -84,7 +85,7 @@ fn parse_value(text: &str, depth: usize) -> Node {
 }
 
 /// Does `part` start with a `key:`? Returns the key length if so.
-fn key_len(part: &str) -> Option<usize> {
+pub(crate) fn key_len(part: &str) -> Option<usize> {
     let colon = part.find(':')?;
     if (1..=4).contains(&colon) && part[..colon].bytes().all(|b| b.is_ascii_alphanumeric()) {
         Some(colon)
@@ -93,11 +94,11 @@ fn key_len(part: &str) -> Option<usize> {
     }
 }
 
-fn is_bare_key(part: &str) -> bool {
+pub(crate) fn is_bare_key(part: &str) -> bool {
     (1..=4).contains(&part.len()) && part.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 
-fn looks_like_struct(text: &str) -> bool {
+pub(crate) fn looks_like_struct(text: &str) -> bool {
     // First `;`-segment must start with `key:`.
     let first = text.split(';').next().unwrap_or("");
     key_len(first).is_some()
@@ -130,7 +131,7 @@ fn split_fields(text: &str) -> Vec<(&str, String)> {
 
 /// Decode `s` as base64 if it plausibly is a nested payload: minimum length,
 /// strict charset, valid UTF-8, and no control characters.
-fn try_base64_text(s: &str) -> Option<String> {
+pub(crate) fn try_base64_text(s: &str) -> Option<String> {
     if s.len() < 8 || !s.len().is_multiple_of(4) {
         return None;
     }

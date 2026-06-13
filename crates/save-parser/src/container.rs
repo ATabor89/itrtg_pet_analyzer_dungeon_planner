@@ -12,7 +12,7 @@
 use anyhow::{Context, bail, ensure};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64;
-use std::io::Read;
+use std::io::{Read, Write};
 
 /// Decode the outer container layers, yielding the serialized tree plaintext.
 /// Upper bound on the decompressed payload. Real saves are ~300 KB of
@@ -20,7 +20,19 @@ use std::io::Read;
 /// bomb into a clean error instead of a giant allocation.
 const MAX_DECOMPRESSED_LEN: usize = 64 * 1024 * 1024;
 
-pub fn decode_to_plaintext(raw: &str) -> anyhow::Result<String> {
+/// The plaintext tree plus the leading junk characters that preceded the
+/// base64 container (`V2` in every observed save). [`encode_container`] needs
+/// the prefix to reproduce a loadable save, so [`decode_container`] preserves
+/// it rather than discarding it the way [`decode_to_plaintext`] does.
+#[derive(Debug, Clone)]
+pub struct DecodedContainer {
+    pub prefix: String,
+    pub plaintext: String,
+}
+
+/// Decode the outer container, returning both the plaintext tree and the
+/// leading junk characters (so the save can be faithfully re-encoded).
+pub fn decode_container(raw: &str) -> anyhow::Result<DecodedContainer> {
     // Keep only ASCII non-whitespace: the container is ASCII base64, and
     // dropping anything else (e.g. a UTF-8 BOM from a text editor) both
     // tolerates re-saved files and keeps the byte-offset slicing below safe.
@@ -33,7 +45,7 @@ pub fn decode_to_plaintext(raw: &str) -> anyhow::Result<String> {
     // clean base64 blob (0) or other small offsets in case the prefix length
     // is not fixed. A candidate only counts if it base64-decodes *and* the
     // payload carries the gzip magic where we expect it.
-    let mut bytes = None;
+    let mut found = None;
     for skip in [2usize, 0, 1, 3] {
         if skip >= compact.len() {
             continue;
@@ -43,11 +55,11 @@ pub fn decode_to_plaintext(raw: &str) -> anyhow::Result<String> {
             && decoded[4] == 0x1f
             && decoded[5] == 0x8b
         {
-            bytes = Some(decoded);
+            found = Some((compact[..skip].to_string(), decoded));
             break;
         }
     }
-    let Some(bytes) = bytes else {
+    let Some((prefix, bytes)) = found else {
         bail!("not a recognized save container (no length-prefixed gzip payload found)");
     };
 
@@ -79,23 +91,59 @@ pub fn decode_to_plaintext(raw: &str) -> anyhow::Result<String> {
     let plain_bytes = B64
         .decode(inner.trim())
         .context("inner base64 layer failed to decode")?;
-    String::from_utf8(plain_bytes).context("plaintext tree is not valid UTF-8")
+    let plaintext = String::from_utf8(plain_bytes).context("plaintext tree is not valid UTF-8")?;
+    Ok(DecodedContainer { prefix, plaintext })
+}
+
+/// Re-encode a plaintext tree into the outer container format, prepending the
+/// given junk `prefix` (use the one [`decode_container`] returned).
+///
+/// This is the exact inverse of the decode steps: base64 the plaintext, gzip
+/// it, prepend a little-endian u32 length of the *base64* layer, base64 the
+/// result, then prepend the junk prefix. The gzip layer is not guaranteed to
+/// be byte-identical to the game's original (compressors differ), but the game
+/// re-imports by decoding, not by byte comparison, so a semantically faithful
+/// container loads correctly.
+pub fn encode_container(plaintext: &str, prefix: &str) -> String {
+    let inner = B64.encode(plaintext.as_bytes());
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    gz.write_all(inner.as_bytes())
+        .expect("writing to an in-memory gzip buffer cannot fail");
+    let gzipped = gz
+        .finish()
+        .expect("finishing an in-memory gzip buffer cannot fail");
+    let mut payload = (inner.len() as u32).to_le_bytes().to_vec();
+    payload.extend_from_slice(&gzipped);
+    format!("{prefix}{}", B64.encode(payload))
+}
+
+pub fn decode_to_plaintext(raw: &str) -> anyhow::Result<String> {
+    Ok(decode_container(raw)?.plaintext)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
 
     /// Re-encode plaintext the way the game does, prepending `junk`.
     fn encode(plaintext: &str, junk: &str) -> String {
-        let inner = B64.encode(plaintext.as_bytes());
-        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-        gz.write_all(inner.as_bytes()).unwrap();
-        let gzipped = gz.finish().unwrap();
-        let mut payload = (inner.len() as u32).to_le_bytes().to_vec();
-        payload.extend_from_slice(&gzipped);
-        format!("{junk}{}", B64.encode(payload))
+        encode_container(plaintext, junk)
+    }
+
+    #[test]
+    fn decode_container_preserves_the_junk_prefix() {
+        let text = "a:1;b:2;";
+        let decoded = decode_container(&encode(text, "V2")).unwrap();
+        assert_eq!(decoded.prefix, "V2");
+        assert_eq!(decoded.plaintext, text);
+    }
+
+    #[test]
+    fn container_round_trips_through_encode() {
+        let text = "a:1;b:Hello;c:66841.3595410302;";
+        let decoded = decode_container(&encode(text, "V2")).unwrap();
+        let reencoded = encode_container(&decoded.plaintext, &decoded.prefix);
+        assert_eq!(decode_to_plaintext(&reencoded).unwrap(), text);
     }
 
     #[test]
