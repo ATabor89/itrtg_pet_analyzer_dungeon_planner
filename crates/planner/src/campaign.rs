@@ -596,6 +596,17 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
     // Per-pet "already reached" flags, keyed by index (not name — pets can share
     // a name, which would otherwise break the stop condition).
     let mut done = vec![false; pets.len()];
+    // Pets that already sit at or above their target before any cycle runs:
+    // record them at cycle 0 so the report flags "already above target" rather
+    // than implying they grew into it over the first cycle.
+    for i in 0..pets.len() {
+        if let Some(t) = pets[i].target
+            && pets[i].growth * pets[i].growth_multiplier >= t
+        {
+            done[i] = true;
+            reached.push((pets[i].name.clone(), 0));
+        }
+    }
     let mut trace: Vec<ChamberCycle> = Vec::new();
     // Growth gained per pet, split by source (total terms). Parallel to `pets`.
     let mut breakdown = vec![GrowthBreakdown::default(); pets.len()];
@@ -1051,6 +1062,49 @@ mod tests {
         );
         assert_eq!(result.reached.len(), 2); // both, despite the shared name
         assert!(result.cycles < 1000); // stopped early, didn't spin to the cap
+    }
+
+    #[test]
+    fn chamber_flags_pet_already_above_target_at_cycle_zero() {
+        // A pet that already sits above its target before the run is recorded at
+        // cycle 0 — it didn't grow into the target over the first cycle.
+        let mut pets = vec![
+            ChamberPet { name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "Already".into(), growth: 5_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
+        ];
+        let result = simulate_growth_chamber(
+            &mut pets,
+            &ChamberRun { max_cycles: 1000, stop_at_targets: true, ..Default::default() },
+        );
+        assert_eq!(
+            result.reached.iter().find(|(n, _)| n == "Already").map(|(_, c)| *c),
+            Some(0),
+            "a pet already above its target is recorded at cycle 0",
+        );
+    }
+
+    #[test]
+    fn chamber_respects_growth_multiplier_for_already_above_target() {
+        // The pre-run check compares total growth (base × multiplier), matching
+        // the in-loop check — a pet whose *total* clears the target counts even
+        // when its base is below it.
+        let mut pets = vec![
+            ChamberPet { name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "Multi".into(), growth: 1_500.0, growth_multiplier: 2.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
+        ];
+        let result = simulate_growth_chamber(
+            &mut pets,
+            &ChamberRun { max_cycles: 1000, stop_at_targets: true, ..Default::default() },
+        );
+        // base 1500 < 2000 but total 3000 ≥ 2000, so it's already above.
+        assert_eq!(
+            result.reached.iter().find(|(n, _)| n == "Multi").map(|(_, c)| *c),
+            Some(0),
+        );
     }
 
     #[test]
