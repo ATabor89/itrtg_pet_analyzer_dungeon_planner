@@ -768,6 +768,16 @@ fn divinity_generator_upgrades_match_notes() {
     };
     assert_eq!(levels(&rb1), vec![81, 81, 81]);
     assert_eq!(levels(&rb2), vec![188, 188, 188]);
+    // Per-track multipliers (1, 2, 2) and ids (0, 1, 2) are stable.
+    let upgrades = &rb2.divinity_generator.as_ref().unwrap().upgrades;
+    assert_eq!(
+        upgrades.iter().map(|u| u.id).collect::<Vec<_>>(),
+        vec![0, 1, 2]
+    );
+    assert_eq!(
+        upgrades.iter().map(|u| u.multiplier).collect::<Vec<_>>(),
+        vec![1, 2, 2]
+    );
 }
 
 #[test]
