@@ -1,93 +1,122 @@
-First Save:
+# New-rebirth capture — 2026-06-13
 
-This was 5-7 minutes into the rebirth, I believe.
+Two saves from a FRESH rebirth (so per-rebirth counters are near their floor),
+captured with deliberate state changes between them for field disambiguation.
+Files: ManualSave_2026-06-13.txt (save 1), ManualSave_2026-06-13-second.txt
+(save 2), pet_export_1.txt (export taken ~10 min after save 1).
 
-All three Divinity Generator (DivGen) upgrades were at level 81 at the time of the save.
+Ids/levels below are in-game ground truth at the moment of each save — use them
+to pin save fields by cross-save diff.
 
-In SpaceDim, Quantum Genesis was level 2, Dyson Harvester was level 22, and Fustion Torch was likely in the teens. All Light Clones should have been allocated to Fusion Torch.
+## Save 1 — 5–7 min into the rebirth
 
-Here are the SpaceDim elements and information in the order that they appear in-game. Note that although I did not include a Next Ats export in this directory, I have not changed any of the values from the export we already have.
+Defeated god:        P. Baal 43
+Baal Power:          0 unspent (already spent it)
+DivGen upgrades:     all three at level 81
+Creation Speed (CS): not yet upgraded
+Building Speed (BS): not yet upgraded
+GP allocations:      all four still 25 / 25 / 25 / 25 (even split)
+Might:               not unlocked yet (unlocks ~1h35m into a rebirth — no
+                     levels gained; might levels should read 0/floor)
+Challenge dungeons:  3/10 available (cap can rise above 10; not yet raised)
+Last creation:       Plent, 8 created (creation data already parsed)
 
-Controlled Entropy: Next At 120, Spread 20
-Quantum Genesis: 240, 19
-Fusion Torch: 128, 18
-Fusion Retrofitting: 128, 17
-Dyson Harvester: 1334, 16
-Hive Mind: 480, 15
-Timeline Manipulation: 480, 14
-Assembly Matrix: 240, 13
-Wormhole Network: 1200, 12
-Dimension Beamer: 80, 11
-Focusing Amplifier: 120, 10
-Expanded Awareness: 240, 9
-Recursive Memory: 240, 8
-Gene Splicing: 240, 7
-Hyperlane Engine: 0, 6
-Substrate Analysis: 0, 5
-Sentient Lattice: 0, 4
-Matter Compiler: 0, 3
-Symbiotic Link: 0, 2
-Self Replicating AI: 0, 1
+### SpaceDim — order as shown in-game (Next At, Spread)
+Note: no Next Ats export in this dir; values unchanged from the existing
+Next Ats export. Quantum Genesis lvl 2, Dyson Harvester lvl 22, Fusion Torch
+~teens at save 1; all Light Clones allocated to Fusion Torch.
 
-Current defeated God was P. Baal 43.
+| Element                | Next At | Spread |
+|------------------------|---------|--------|
+| Controlled Entropy     | 120     | 20     |
+| Quantum Genesis        | 240     | 19     |
+| Fusion Torch           | 128     | 18     |
+| Fusion Retrofitting    | 128     | 17     |
+| Dyson Harvester        | 1334    | 16     |
+| Hive Mind              | 480     | 15     |
+| Timeline Manipulation  | 480     | 14     |
+| Assembly Matrix        | 240     | 13     |
+| Wormhole Network       | 1200    | 12     |
+| Dimension Beamer       | 80      | 11     |
+| Focusing Amplifier     | 120     | 10     |
+| Expanded Awareness     | 240     | 9      |
+| Recursive Memory       | 240     | 8      |
+| Gene Splicing          | 240     | 7      |
+| Hyperlane Engine       | 0       | 6      |
+| Substrate Analysis     | 0       | 5      |
+| Sentient Lattice       | 0       | 4      |
+| Matter Compiler        | 0       | 3      |
+| Symbiotic Link         | 0       | 2      |
+| Self Replicating AI    | 0       | 1      |
 
-Logging individual training values for pets is too difficult because it moves too quickly. The number of clones allocated to any given pet would be below 5,000 at the time of the save. Pets who are crafting or working in the Pet Village do not train, so they will have no clones allocated.
+### TBS (The Baal Slayer)
+All five TBS levels: 126
+Critical chance: 100%   Critical damage: 604%   Score: 1008
 
-Creation data should already be parsed, but I believe the last created item was Plent, with 8 created.
+## Save 2 — 30–35 min into the rebirth
 
-Might does not unlock until ~1h35m into a rebirth, so no levels have been gained yet.
+Deltas vs save 1 (the deliberate changes for disambiguation):
 
-All five TBS (The Baal Slayer) levels are at 126. Critical chance is 100%, Critical Damage is 604%, and Score is 1008.
+Defeated god:        P. Baal 48  (was 43)
+Baal Power:          334 unspent (was 0)
+Building Speed (BS): upgraded to 50,000  (was un-upgraded)
+Creation Speed (CS): left at 45,000      (NOTE: save-1 line says "not yet
+                     upgraded"; here CS reads 45,000 — treat 45,000 as the
+                     baseline-from-GP value, BS as the changed one)
+GP allocations:      25% physical / 21% mystic / 22% battle / 27% creating
+                     (was 25/25/25/25 — skews r/s/t/u so each can be named)
+Challenge dungeons:  2/10 available (used one attempt; was 3/10)
+DivGen upgrades:     all 188 (was 81)
+Might:               still not unlocked (no levels)
 
-3/10 Challenge dungeons available. Note that the cap can increase above 10, but I have yet to increase it.
+### Equipment changes (newly equipped this save — for blacksmith/equip link)
+| Pet    | Equipped                          |
+|--------|-----------------------------------|
+| Bag    | Storm Ring, Flame Armor           |
+| Cupid  | Flood Armor, Wood Bracelet        |
+| Meteor | Feather Vest, Tree Bracelet       |
+| Nugget | Water Spear                       |
 
-One thread to pull on is Fairy's armor. Her Titanium Armor is currently being worked on by Hermit Crab. He's embedding a level 10 water gem into her armor. I just did a pet export about ten minutes after starting these notes, so at least ten minutes after the save. The raw numbers in there may not match, but you will notice that Fairy shows no armor. Perhaps we can find the thread that ties what Hermit Crab is working on to who has it equipped, because there is a link. When you look at Fairy's page in-game, you see a little 'x' on her Armor slot and mousing over that will tell you the blacksmith that is working on the equipment. When the work is done, it automatically goes back onto her, even if she's in a dungeon. Thus, there must be something that links these together.
+(Several of these are the previously-unresolved 1-count equipment types in
+FINDINGS — equipping them should now disambiguate type ids: Storm Ring vs
+Magic Hammer at type 44, plus Flame Armor 52, Flood Armor 56, Tree Bracelet
+41, Water Spear 8.)
 
-I believe I had 0 Baal Power, as I already spent it. I'm going to make a second save with some changes, and will be sure to have some unspent Baal Power.
+### SpaceDim levels at save 2 (Fusion Torch now 70)
+| Element                | Level |
+|------------------------|-------|
+| Controlled Entropy     | 5     |
+| Quantum Genesis        | 6     |
+| Fusion Torch           | 70    |
+| Fusion Retrofitting    | 5     |
+| Dyson Harvester        | 23    |
+| Hive Mind              | 4     |
+| Timeline Manipulation  | 4     |
+| Assembly Matrix        | 4     |
+| Wormhole Network       | 0     |
+| Dimension Beamer       | 0     |
+| Focusing Amplifier     | 0     |
+| Expanded Awareness     | 0     |
+| Recursive Memory       | 0     |
+| Gene Splicing          | 0     |
+| Hyperlane Engine       | 0     |
+| Substrate Analysis     | 0     |
+| Sentient Lattice       | 0     |
+| Matter Compiler        | 0     |
+| Symbiotic Link         | 0     |
+| Self Replicating AI    | 0     |
 
-As of now, I have also yet to upgrade Creation Speed (CS) or Building Speed (BS). In the second save, I will upgrade BS to 50,000 and leave CS at 45,000.
+## Training (both saves)
+Training is ongoing in both saves. Per-pet clone counts move too fast to log
+by hand; at save time any trained pet has < 5,000 clones allocated. Pets that
+are CRAFTING or WORKING IN THE PET VILLAGE do not train → 0 clones allocated.
 
-As of the first save, all four of my unused GP allocations are still set to 25. I will change these as well.
-
-Second Save:
-
-This was around 30-35 minutes into the rebirth.
-
-I now have 334 unspent Baal Power.
-
-I have upgraded BS to 50,000 and left CS at 45,000.
-
-I have now defeated through P. Baal 48.
-
-I have now used one challenge dungeon attempt, leaving me with 2/10.
-
-I have equipped a Storm Ring and Flame Armor on Bag. I have equipped Flood Armor and a Wood Bracelet on Cupid. I have equipped a Feather Vest and a Tree Bracelet on Meteor. I have equipped a Water Spear on Nugget.
-
-I have changed unused god power allocations to 25% physical, 21% mystic, 22% battle, and 27% creating.
-
-Training is still ongoing.
-
-DivGen upgrades are all 188.
-
-Fusion Torch is level 70. Here are the full SpaceDim levels:
-
-Controlled Entropy: 5
-Quantum Genesis: 6
-Fusion Torch: 70
-Fusion Retrofitting: 5
-Dyson Harvester: 23
-Hive Mind: 4
-Timeline Manipulation: 4
-Assembly Matrix: 4
-Wormhole Network: 0
-Dimension Beamer: 0
-Focusing Amplifier: 0
-Expanded Awareness: 0
-Recursive Memory: 0
-Gene Splicing: 0
-Hyperlane Engine: 0
-Substrate Analysis: 0
-Sentient Lattice: 0
-Matter Compiler: 0
-Symbiotic Link: 0
-Self Replicating AI: 0
+## Thread to chase — blacksmith ↔ equipped-pet link
+At save 1, Fairy's Titanium Armor is being worked on by Hermit Crab (embedding
+a level-10 water gem). In pet_export_1.txt (taken ~10 min after save 1) Fairy
+shows NO armor — the piece is off her while in the smith. In-game her Armor
+slot shows an 'x'; mousing over it names the smith. When work finishes the
+armor auto-returns to her even if she is in a dungeon. So there is a stored
+link between (blacksmith crafting entry) ↔ (the equipment instance) ↔ (the pet
+who owns/equips it). Find what ties X.T blacksmith entries to the owning pet /
+equip instance. (Blacksmith `l` in X.T is an unidentified small id — candidate.)
