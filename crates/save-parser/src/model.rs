@@ -86,6 +86,24 @@ pub struct SaveFile {
     pub monuments: Vec<Monument>,
     /// Mights (root `V`), in id order.
     pub mights: Vec<Might>,
+    /// SpaceDim / Light-Dimension elements (root `009.b`), in display order.
+    pub spacedim: Vec<SpaceDimElement>,
+    /// Divinity Generator (root `K`): the running divinity total and its
+    /// three upgrade tracks. `None` if the block is absent.
+    pub divinity_generator: Option<DivinityGenerator>,
+    /// Unspent Baal Power (root `T.h`) — the Baal Slayer currency.
+    pub baal_power: Option<u64>,
+    /// Current god number (root `P.c`): the P. Baal the player is now
+    /// fighting, which is one past the highest one defeated. See
+    /// [`SaveFile::pbaal_defeated`].
+    pub current_god_number: Option<u32>,
+    /// GP-purchased creating-speed % (root `p.h`).
+    pub gp_creating_speed_pct: Option<u64>,
+    /// GP-purchased building-speed % (root `p.i`).
+    pub gp_building_speed_pct: Option<u64>,
+    /// Unused-GP god-stat allocation split (root `p.r/s/t/u`). `None` if the
+    /// god-power block is absent.
+    pub gp_allocation: Option<GpAllocation>,
     /// The full raw tree, for exploring not-yet-identified fields.
     pub root: Node,
 }
@@ -292,6 +310,74 @@ pub struct Might {
     pub hp_recovery_pct: u32,
     pub attack_pct: u32,
     pub mystic_pct: u32,
+}
+
+/// One SpaceDim / Light-Dimension element (root `009.b[i]`).
+///
+/// SpaceDim levels reset each rebirth. The list is in the in-game display
+/// order, and `id` (1-based) *is* that order — resolve a name with
+/// [`SpaceDimElement::name`] / [`crate::items::spacedim_name`]. Decoded
+/// 2026-06-13: the levels/next-at/spread match the player's notes exactly
+/// (Fusion Torch level 18→70, Dyson 22→23, Quantum Genesis 2→6).
+#[derive(Debug, Clone, Copy)]
+pub struct SpaceDimElement {
+    /// Element id = display order, 1 (Controlled Entropy) … 20 (Self
+    /// Replicating AI) (`a`).
+    pub id: u32,
+    /// Light clones allocated to this element (`b`); only the actively-fed
+    /// element is nonzero.
+    pub clones: u64,
+    /// Current level (`c`).
+    pub level: u64,
+    /// "Next at" clone count (`d`).
+    pub next_at: u64,
+    /// Accumulated clones toward the next level (`e`).
+    pub progress: f64,
+    /// Clone-spread priority (`f`), the 20…1 value shown in-game.
+    pub spread: u32,
+}
+
+impl SpaceDimElement {
+    /// Display name from the id table, if recognized.
+    pub fn name(&self) -> Option<&'static str> {
+        crate::items::spacedim_name(self.id)
+    }
+}
+
+/// The Divinity Generator (root `K`). Decoded 2026-06-13: the three upgrade
+/// levels moved 81 → 188 together between that day's two saves.
+#[derive(Debug, Clone)]
+pub struct DivinityGenerator {
+    /// Running divinity total (`K.g`); a very large float.
+    pub total: f64,
+    /// The three upgrade tracks (`K.l`), in id order.
+    pub upgrades: Vec<DivinityUpgrade>,
+}
+
+/// One Divinity Generator upgrade (`K.l[i]`).
+#[derive(Debug, Clone, Copy)]
+pub struct DivinityUpgrade {
+    /// Upgrade id (`a`), 0–2.
+    pub id: u32,
+    /// Current level (`b`).
+    pub level: u64,
+    /// Per-level multiplier (`g`): 1, 2, 2 for the three tracks.
+    pub multiplier: u64,
+}
+
+/// Unused-GP god-stat allocation split (root `p.r/s/t/u`), in percent.
+/// Resolved 2026-06-13 by skewing the in-game split to 25/21/22/27 and
+/// watching `r/s/t/u` follow.
+#[derive(Debug, Clone, Copy)]
+pub struct GpAllocation {
+    /// `p.r` — bonus physical god-stat %.
+    pub physical: u32,
+    /// `p.s` — bonus mystic god-stat %.
+    pub mystic: u32,
+    /// `p.t` — bonus battle god-stat %.
+    pub battle: u32,
+    /// `p.u` — bonus creating god-stat %.
+    pub creating: u32,
 }
 
 /// One adventure-mode research (root `032.H.a[i]`).
@@ -623,6 +709,47 @@ impl SaveFile {
             })
             .unwrap_or_default();
 
+        let spacedim = root
+            .get_path(&["009", "b"])
+            .map(|l| {
+                l.list_or_single()
+                    .iter()
+                    .map(|n| SpaceDimElement {
+                        id: get_u32(n, "a"),
+                        clones: get_u64(n, "b"),
+                        level: get_u64(n, "c"),
+                        next_at: get_u64(n, "d"),
+                        progress: get_f64(n, "e"),
+                        spread: get_u32(n, "f"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let divinity_generator = root.get("K").map(|k| DivinityGenerator {
+            total: k.get("g").and_then(Node::as_f64).unwrap_or(0.0),
+            upgrades: k
+                .get("l")
+                .map(|l| {
+                    l.list_or_single()
+                        .iter()
+                        .map(|n| DivinityUpgrade {
+                            id: get_u32(n, "a"),
+                            level: get_u64(n, "b"),
+                            multiplier: get_u64(n, "g"),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        });
+
+        let gp_allocation = root.get("p").map(|p| GpAllocation {
+            physical: get_u32(p, "r"),
+            mystic: get_u32(p, "s"),
+            battle: get_u32(p, "t"),
+            creating: get_u32(p, "u"),
+        });
+
         Ok(SaveFile {
             saved_at_unix: root.get("c").and_then(Node::as_i64),
             god_name: root.get("s").and_then(Node::as_str).map(str::to_string),
@@ -647,6 +774,13 @@ impl SaveFile {
             creations,
             monuments,
             mights,
+            spacedim,
+            divinity_generator,
+            baal_power: root.get_path(&["T", "h"]).and_then(Node::as_u64),
+            current_god_number: root.get_path(&["P", "c"]).and_then(Node::as_u32),
+            gp_creating_speed_pct: root.get_path(&["p", "h"]).and_then(Node::as_u64),
+            gp_building_speed_pct: root.get_path(&["p", "i"]).and_then(Node::as_u64),
+            gp_allocation,
             pets,
             equipment,
             materials,
@@ -690,6 +824,18 @@ impl SaveFile {
         self.equipment
             .iter()
             .find(|e| e.instance_id == instance_id)
+    }
+
+    /// Highest P. Baal defeated. The save stores the *current* target
+    /// ([`current_god_number`](Self::current_god_number) = `P.c`), which is
+    /// one past the highest defeated, so this subtracts 1. `None` if absent.
+    pub fn pbaal_defeated(&self) -> Option<u32> {
+        self.current_god_number.map(|c| c.saturating_sub(1))
+    }
+
+    /// A SpaceDim element by its 1-based display id (1 = Controlled Entropy).
+    pub fn spacedim_by_id(&self, id: u32) -> Option<&SpaceDimElement> {
+        self.spacedim.iter().find(|e| e.id == id)
     }
 }
 

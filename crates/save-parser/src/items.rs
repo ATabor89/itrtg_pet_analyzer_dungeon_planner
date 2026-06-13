@@ -240,6 +240,40 @@ pub fn might_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// SpaceDim / Light-Dimension element name by its 1-based display id
+/// (root `009.b[i].a`), in the in-game list order. Transcribed from the
+/// player's 2026-06-13 notes (the Next-At/Spread columns anchor the order).
+pub fn spacedim_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 20] = [
+        "Controlled Entropy",
+        "Quantum Genesis",
+        "Fusion Torch",
+        "Fusion Retrofitting",
+        "Dyson Harvester",
+        "Hive Mind",
+        "Timeline Manipulation",
+        "Assembly Matrix",
+        "Wormhole Network",
+        "Dimension Beamer",
+        "Focusing Amplifier",
+        "Expanded Awareness",
+        "Recursive Memory",
+        "Gene Splicing",
+        "Hyperlane Engine",
+        "Substrate Analysis",
+        "Sentient Lattice",
+        "Matter Compiler",
+        "Symbiotic Link",
+        "Self Replicating AI",
+    ];
+    // ids are 1-based in the save (the list has no id-0 element).
+    if id >= 1 && (id as usize) <= NAMES.len() {
+        Some(NAMES[id as usize - 1])
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,5 +319,15 @@ mod tests {
         assert_eq!(equipment_type_name(8), Some("Flood Armor"));
         assert_eq!(equipment_type_name(22), Some("Water Spear"));
         assert_eq!(equipment_type_name(41), Some("Tree Bracelet"));
+    }
+
+    #[test]
+    fn spacedim_names() {
+        // 1-based ids in display order.
+        assert_eq!(spacedim_name(1), Some("Controlled Entropy"));
+        assert_eq!(spacedim_name(3), Some("Fusion Torch"));
+        assert_eq!(spacedim_name(20), Some("Self Replicating AI"));
+        assert_eq!(spacedim_name(0), None); // no id-0 element
+        assert_eq!(spacedim_name(21), None);
     }
 }
