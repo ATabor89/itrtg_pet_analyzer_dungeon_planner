@@ -793,6 +793,98 @@ fn baal_power_and_current_god_match_notes() {
     assert_eq!(rb2.pbaal_defeated(), Some(48));
 }
 
+// ---- Re-serialization round-trips (feat/save-reserialization) ----
+
+/// Every reference save, by relative path under the save-deserialization dir.
+/// These drive the round-trip tests below; absent files are skipped.
+const ALL_SAVE_PATHS: &[&str] = &[
+    "ManualSave_2026-06-09.txt",
+    "second_save/ManualSave_2026-06-10.txt",
+    "save_day_six_mid_training/ManualSave_2026-06-12.txt",
+    "save_new_rebirth_mid_training/ManualSave_2026-06-13.txt",
+    "save_new_rebirth_mid_training/ManualSave_2026-06-13-second.txt",
+];
+
+fn read_raw_save(rel: &str) -> Option<String> {
+    let path = format!(
+        "{}/../../reference/save_file_deserialization/{rel}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::read_to_string(path).ok()
+}
+
+/// Report the first byte at which `a` and `b` differ, with a little context,
+/// so a 300 KB round-trip mismatch points straight at the offending field
+/// instead of dumping the whole tree.
+fn first_divergence(a: &str, b: &str) -> Option<String> {
+    if a == b {
+        return None;
+    }
+    let ab = a.as_bytes();
+    let bb = b.as_bytes();
+    let at = ab.iter().zip(bb).position(|(x, y)| x != y).unwrap_or(ab.len().min(bb.len()));
+    let lo = at.saturating_sub(40);
+    let win = |s: &str, len: usize| {
+        let hi = (at + 40).min(len);
+        // Slice on byte indices that may land mid-char; lossy is fine for a
+        // diagnostic window.
+        String::from_utf8_lossy(&s.as_bytes()[lo..hi]).into_owned()
+    };
+    Some(format!(
+        "diverge at byte {at} (len orig {} vs reser {})\n  orig:  …{}…\n  reser: …{}…",
+        a.len(),
+        b.len(),
+        win(a, a.len()),
+        win(b, b.len()),
+    ))
+}
+
+#[test]
+fn tree_serialize_round_trips_every_real_save() {
+    let mut checked = 0;
+    for rel in ALL_SAVE_PATHS {
+        let Some(raw) = read_raw_save(rel) else {
+            continue;
+        };
+        let plaintext = save_parser::container::decode_to_plaintext(&raw)
+            .unwrap_or_else(|e| panic!("{rel} should decode: {e}"));
+        let tree = save_parser::raw::parse(&plaintext);
+        let reserialized = tree.serialize();
+        if let Some(diff) = first_divergence(&plaintext, &reserialized) {
+            panic!("{rel} tree round-trip failed:\n{diff}");
+        }
+        checked += 1;
+    }
+    if checked == 0 {
+        eprintln!("no reference saves present; skipping");
+    }
+}
+
+#[test]
+fn container_round_trips_every_real_save() {
+    let mut checked = 0;
+    for rel in ALL_SAVE_PATHS {
+        let Some(raw) = read_raw_save(rel) else {
+            continue;
+        };
+        let decoded = save_parser::container::decode_container(&raw)
+            .unwrap_or_else(|e| panic!("{rel} should decode: {e}"));
+        // The observed prefix is always "V2"; re-encoding must restore it.
+        assert_eq!(decoded.prefix, "V2", "{rel} junk prefix");
+        // Re-encode and decode again: the gzip layer is not byte-identical to
+        // the game's, but decoding our container must reproduce the plaintext.
+        let reencoded =
+            save_parser::container::encode_container(&decoded.plaintext, &decoded.prefix);
+        let roundtrip = save_parser::container::decode_to_plaintext(&reencoded)
+            .unwrap_or_else(|e| panic!("{rel} should re-decode: {e}"));
+        assert_eq!(roundtrip, decoded.plaintext, "{rel} container round-trip");
+        checked += 1;
+    }
+    if checked == 0 {
+        eprintln!("no reference saves present; skipping");
+    }
+}
+
 #[test]
 fn gp_allocation_and_speeds_match_notes() {
     let (rb1, rb2) = require_rebirth_saves!();

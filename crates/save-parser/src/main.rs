@@ -3,16 +3,27 @@
 //!
 //! Usage:
 //!   save-dump <save-file> [--tree]
+//!   save-dump <save-file> --reencode <out-file>
+//!
+//! `--reencode` decodes the save and writes a faithfully re-serialized copy
+//! (parse → lossless `raw` tree → serialize → container). It performs **no**
+//! redaction — it exists to confirm the game accepts a round-tripped save
+//! before the redaction step is built on top.
 
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let tree_mode = args.iter().any(|a| a == "--tree");
+    let reencode_out = args
+        .iter()
+        .position(|a| a == "--reencode")
+        .and_then(|i| args.get(i + 1).cloned());
     let path = match args.iter().find(|a| !a.starts_with("--")) {
         Some(p) => p.clone(),
         None => {
             eprintln!("Usage: save-dump <save-file> [--tree]");
+            eprintln!("       save-dump <save-file> --reencode <out-file>");
             return ExitCode::FAILURE;
         }
     };
@@ -24,6 +35,39 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+
+    if let Some(out) = reencode_out {
+        let decoded = match save_parser::container::decode_container(&raw) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("Failed to decode save: {e:#}");
+                return ExitCode::FAILURE;
+            }
+        };
+        let reserialized = save_parser::raw::parse(&decoded.plaintext).serialize();
+        if reserialized != decoded.plaintext {
+            // The round-trip tests guard this, but never write a save we know
+            // diverges from the original tree.
+            eprintln!(
+                "Refusing to write: re-serialized tree differs from the original \
+                 ({} vs {} bytes). This is a bug in the serializer.",
+                reserialized.len(),
+                decoded.plaintext.len()
+            );
+            return ExitCode::FAILURE;
+        }
+        let encoded = save_parser::container::encode_container(&reserialized, &decoded.prefix);
+        if let Err(e) = std::fs::write(&out, &encoded) {
+            eprintln!("Failed to write {out}: {e}");
+            return ExitCode::FAILURE;
+        }
+        eprintln!(
+            "Wrote re-encoded save to {out} ({} chars). Tree round-trips exactly; \
+             gzip layer differs from the original but decodes to identical plaintext.",
+            encoded.len()
+        );
+        return ExitCode::SUCCESS;
+    }
 
     if tree_mode {
         let plaintext = match save_parser::container::decode_to_plaintext(&raw) {
