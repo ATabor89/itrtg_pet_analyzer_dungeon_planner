@@ -491,6 +491,56 @@ pub struct ChamberResult {
     pub breakdown: Vec<(String, GrowthBreakdown)>,
     /// Run totals of the special pets' abilities (within the campaign figures).
     pub specials: SpecialTotals,
+    /// Per in-chamber pet, its total-growth trajectory over the run. Lets the
+    /// report re-classify an *edited* target against this completed run with no
+    /// re-simulation (already-above / reached-at-cycle-N / not-reached). The
+    /// run's own `reached` is the snapshot for the targets set at run time; this
+    /// is the raw trajectory those (and any later) targets are read against.
+    pub tracks: Vec<GrowthTrack>,
+}
+
+/// One in-chamber pet's **total**-growth trajectory across a chamber run: its
+/// growth before the first cycle (`start`), then after each cycle (`per_cycle`,
+/// parallel to [`ChamberResult::trace`]). In total terms (base × multiplier),
+/// matching the target comparison the sim itself uses, so a target classified
+/// here lands exactly where a re-run would have recorded it.
+#[derive(Debug, Clone)]
+pub struct GrowthTrack {
+    pub name: String,
+    /// Total growth before the first cycle ran.
+    pub start: f64,
+    /// Total growth at the end of each cycle.
+    pub per_cycle: Vec<f64>,
+}
+
+/// Where a target lands relative to a [`GrowthTrack`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetStatus {
+    /// Already at or above the target before any cycle ran.
+    AlreadyAbove,
+    /// First reached at the end of this 1-based cycle.
+    Reached(u32),
+    /// Never reached within the run.
+    NotReached,
+}
+
+impl GrowthTrack {
+    /// Classify `target` against this run's trajectory — the same logic the sim
+    /// applies live (start check, then the first cycle whose end clears it).
+    /// `Reached(n)` uses the same 1-based numbering as the run's `reached`
+    /// snapshot, and `AlreadyAbove` mirrors its cycle-0 case, so re-deriving a
+    /// run-time target here agrees with what the sim recorded.
+    pub fn status(&self, target: f64) -> TargetStatus {
+        if self.start >= target {
+            return TargetStatus::AlreadyAbove;
+        }
+        for (i, &g) in self.per_cycle.iter().enumerate() {
+            if g >= target {
+                return TargetStatus::Reached(i as u32 + 1);
+            }
+        }
+        TargetStatus::NotReached
+    }
 }
 
 /// Tick one round of between-campaign growth into every pet — passive
@@ -608,6 +658,18 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
         }
     }
     let mut trace: Vec<ChamberCycle> = Vec::new();
+    // Total-growth trajectory of each in-chamber pet, captured before the loop
+    // (start) and appended after every cycle. `track_idx` maps each track back
+    // to its roster index so the per-cycle push reads the right pet.
+    let track_idx: Vec<usize> = (0..pets.len()).filter(|&i| pets[i].in_chamber).collect();
+    let mut tracks: Vec<GrowthTrack> = track_idx
+        .iter()
+        .map(|&i| GrowthTrack {
+            name: pets[i].name.clone(),
+            start: pets[i].growth * pets[i].growth_multiplier,
+            per_cycle: Vec::new(),
+        })
+        .collect();
     // Growth gained per pet, split by source (total terms). Parallel to `pets`.
     let mut breakdown = vec![GrowthBreakdown::default(); pets.len()];
     // Run totals of the special pets' abilities (total terms).
@@ -794,6 +856,10 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
         // Advance the rebirth clock (drives the fishing-boost decay).
         rebirth_elapsed += cycle_hours as f64;
         trace.push(cycle_record);
+        // Snapshot each in-chamber pet's total growth at this cycle's end.
+        for (track, &i) in tracks.iter_mut().zip(&track_idx) {
+            track.per_cycle.push(pets[i].growth * pets[i].growth_multiplier);
+        }
 
         // Record any targeted pet that crossed its target this cycle (by index).
         for i in 0..pets.len() {
@@ -813,6 +879,7 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                 final_growth: pets.iter().map(|p| (p.name.clone(), p.growth * p.growth_multiplier)).collect(),
                 breakdown: pets.iter().zip(&breakdown).map(|(p, b)| (p.name.clone(), b.clone())).collect(),
                 specials: special_totals,
+                tracks,
             };
         }
     }
@@ -824,6 +891,7 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
         final_growth: pets.iter().map(|p| (p.name.clone(), p.growth * p.growth_multiplier)).collect(),
         breakdown: pets.iter().zip(&breakdown).map(|(p, b)| (p.name.clone(), b.clone())).collect(),
         specials: special_totals,
+        tracks,
     }
 }
 
@@ -1105,6 +1173,47 @@ mod tests {
             result.reached.iter().find(|(n, _)| n == "Multi").map(|(_, c)| *c),
             Some(0),
         );
+    }
+
+    #[test]
+    fn growth_track_reclassifies_targets_without_rerun() {
+        // One in-chamber pet that grows steadily. After the run, the same track
+        // classifies any target — including ones never set at run time — into
+        // already-above / reached-at-cycle-N / not-reached.
+        let mut pets = vec![ChamberPet {
+            name: "Solo".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None,
+        }];
+        let result = simulate_growth_chamber(
+            &mut pets,
+            &ChamberRun { hours: 10, max_cycles: 5, stop_at_targets: false, ..Default::default() },
+        );
+        let track = result.tracks.iter().find(|t| t.name == "Solo").expect("track recorded");
+        // 100/hr × 10 h = +1000 per cycle, no campaign (always its own recipient).
+        assert_eq!(track.start, 1_000.0);
+        assert_eq!(track.per_cycle, vec![2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0]);
+        assert_eq!(track.status(500.0), TargetStatus::AlreadyAbove);
+        assert_eq!(track.status(1_000.0), TargetStatus::AlreadyAbove);
+        assert_eq!(track.status(3_000.0), TargetStatus::Reached(2));
+        assert_eq!(track.status(3_500.0), TargetStatus::Reached(3));
+        assert_eq!(track.status(99_000.0), TargetStatus::NotReached);
+    }
+
+    #[test]
+    fn growth_track_only_covers_in_chamber_pets() {
+        let mut pets = vec![
+            ChamberPet { name: "In".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
+            ChamberPet { name: "Bench".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: false, special: None },
+        ];
+        let result = simulate_growth_chamber(
+            &mut pets,
+            &ChamberRun { max_cycles: 3, ..Default::default() },
+        );
+        assert!(result.tracks.iter().any(|t| t.name == "In"));
+        assert!(!result.tracks.iter().any(|t| t.name == "Bench"));
     }
 
     #[test]
