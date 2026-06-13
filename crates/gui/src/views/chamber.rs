@@ -16,7 +16,7 @@ use itrtg_models::{
     pgc_growth_mult, CampaignType, Equipment, ExportPet, Loadout, Quality, MAGIC_EGG_GROWTH_MULT,
 };
 use itrtg_planner::campaign::{
-    simulate_growth_chamber, ChamberPet, ChamberResult, ChamberRun, SpecialPet,
+    simulate_growth_chamber, ChamberPet, ChamberResult, ChamberRun, SpecialPet, TargetStatus,
 };
 use itrtg_planner::growth::GrowthRates;
 use itrtg_planner::merge::{CampaignBonusBreakdown, CampaignContext, MergedPet};
@@ -1358,12 +1358,24 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
         .show(ui, |ui| {
             // Actual elapsed hours summed from the (possibly varying) cycle lengths.
             let total_hours: u32 = result.trace.iter().map(|c| c.hours).sum();
+            // Count targets reached against the *live* target values, re-derived
+            // from each pet's recorded trajectory — so editing a target updates
+            // the tally without a re-run (already-above counts as reached).
+            let reached_count = result
+                .tracks
+                .iter()
+                .filter(|t| {
+                    state.targets.get(&t.name).is_some_and(|&target| {
+                        !matches!(t.status(target as f64), TargetStatus::NotReached)
+                    })
+                })
+                .count();
             ui.label(
                 RichText::new(format!(
                     "Ran {} cycles ({}) — {} target(s) reached.  (by growth gained)",
                     result.cycles,
                     fmt_hours(total_hours),
-                    result.reached.len()
+                    reached_count
                 ))
                 .color(style::TEXT_BRIGHT)
                 .size(12.0),
@@ -1485,40 +1497,51 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                 let delta = final_g - start;
                 let avg_contrib =
                     contrib.get(name.as_str()).copied().unwrap_or(0.0) / result.cycles.max(1) as f64;
-                let reached = result.reached.iter().find(|(n, _)| n == name);
-                let (status, color) = match (reached, state.targets.get(name)) {
-                    // Cycle 0 means the pet was already at/above its target before
-                    // the run — it didn't grow into it.
-                    (Some((_, 0)), _) => {
-                        ("\u{2713} already above target".to_string(), style::SUCCESS)
-                    }
-                    (Some((_, cycle)), _) => {
-                        // Elapsed hours = sum of the first `cycle` cycle lengths.
-                        let h: u32 = result.trace.iter().take(*cycle as usize).map(|c| c.hours).sum();
-                        (format!("\u{2713} target at cycle {cycle} ({})", fmt_hours(h)), style::SUCCESS)
-                    }
-                    (None, Some(t)) => {
-                        // Linear-extrapolate from this pet's *recent* growth/cycle
-                        // (rewards trend up, so the whole-run average lands late) to
-                        // estimate when it would reach the target (total from the run
-                        // start, so it lines up with the reached pets above).
-                        let per_cycle = recent_rate_per_cycle(result, name)
-                            .unwrap_or(delta / result.cycles.max(1) as f64);
-                        let remaining = *t as f64 - final_g;
-                        if per_cycle > 0.0 && remaining > 0.0 {
-                            let more = (remaining / per_cycle).ceil();
-                            let avg_cycle_h = total_hours as f64 / result.cycles.max(1) as f64;
-                            let eta_h = (total_hours as f64 + more * avg_cycle_h).min(u32::MAX as f64);
-                            let est_cycle = result.cycles as f64 + more;
-                            (
-                                format!("{final_g:.0}/{t} — est. cycle ~{est_cycle:.0} ({})", fmt_hours(eta_h as u32)),
-                                style::WARNING,
-                            )
-                        } else {
-                            (format!("{final_g:.0}/{t} (not reached)"), style::WARNING)
+                // Classify the *live* target against this pet's recorded
+                // trajectory, so editing the target updates the row immediately —
+                // no re-run needed (membership/bonuses stay frozen; only the
+                // target↔trajectory comparison is re-derived).
+                let track = result.tracks.iter().find(|t| &t.name == name);
+                let (status, color) = match (state.targets.get(name), track) {
+                    (None, _) => (String::new(), style::TEXT_MUTED),
+                    (Some(&t), Some(tr)) => match tr.status(t as f64) {
+                        // Already at/above the target before the run — didn't grow
+                        // into it.
+                        TargetStatus::AlreadyAbove => {
+                            ("\u{2713} already above target".to_string(), style::SUCCESS)
                         }
+                        TargetStatus::Reached(cycle) => {
+                            // Elapsed hours = sum of the first `cycle` cycle lengths.
+                            let h: u32 = result.trace.iter().take(cycle as usize).map(|c| c.hours).sum();
+                            (format!("\u{2713} target at cycle {cycle} ({})", fmt_hours(h)), style::SUCCESS)
+                        }
+                        TargetStatus::NotReached => {
+                            // Linear-extrapolate from this pet's *recent* growth/cycle
+                            // (rewards trend up, so the whole-run average lands late) to
+                            // estimate when it would reach the target (total from the run
+                            // start, so it lines up with the reached pets above).
+                            let per_cycle = recent_rate_per_cycle(result, name)
+                                .unwrap_or(delta / result.cycles.max(1) as f64);
+                            let remaining = t as f64 - final_g;
+                            if per_cycle > 0.0 && remaining > 0.0 {
+                                let more = (remaining / per_cycle).ceil();
+                                let avg_cycle_h = total_hours as f64 / result.cycles.max(1) as f64;
+                                let eta_h = (total_hours as f64 + more * avg_cycle_h).min(u32::MAX as f64);
+                                let est_cycle = result.cycles as f64 + more;
+                                (
+                                    format!("{final_g:.0}/{t} — est. cycle ~{est_cycle:.0} ({})", fmt_hours(eta_h as u32)),
+                                    style::WARNING,
+                                )
+                            } else {
+                                (format!("{final_g:.0}/{t} (not reached)"), style::WARNING)
+                            }
+                        }
+                    },
+                    // Target set on a pet that wasn't in this run (no trajectory to
+                    // read) — prompt a re-run rather than guess.
+                    (Some(&t), None) => {
+                        (format!("{final_g:.0}/{t} — run to evaluate"), style::WARNING)
                     }
-                    (None, None) => (String::new(), style::TEXT_MUTED),
                 };
                 ui.label(
                     RichText::new(format!(
@@ -1766,6 +1789,7 @@ mod tests {
                 GrowthBreakdown { campaign: 100.0, passive: 8.0, feeding: 0.0, gold_dragon: 0.0 },
             )],
             specials: Default::default(),
+            tracks: vec![],
         };
         // Window = min(2 × chamber size, n/2) = 2: campaign (30+40)/2 = 35,
         // plus passive 8/4 = 2 → 37/cycle. The whole-run average is only
