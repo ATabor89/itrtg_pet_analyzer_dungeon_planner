@@ -227,27 +227,27 @@ impl Raw {
         }
     }
 
-    /// Replace a top-level struct field's value with the given scalar text,
-    /// returning the previous value's serialized form. Returns `None` if this
-    /// is not a struct or the key is absent. Used by redaction to overwrite
+    /// Replace a struct field's value with the given scalar text, returning
+    /// the previous value's serialized form. Used by redaction to overwrite
     /// identity fields in place without disturbing field order or any other
-    /// bytes. Empty fields (`k:;` / `k;`) are left as empty fields.
+    /// bytes.
+    ///
+    /// Returns `None` if this is not a struct, the key is absent, or the field
+    /// is empty (`k:;` / `k;`) — i.e. only a non-empty value is replaced, and a
+    /// `Some` return means a byte change actually happened.
     pub fn set_scalar(&mut self, key: &str, value: &str) -> Option<String> {
         let Raw::Struct(fields) = self else {
             return None;
         };
         let (_, field) = fields.iter_mut().find(|(k, _)| k == key)?;
-        let prev = match field {
-            Field::Value(v) => v.serialize(),
-            Field::EmptyColon | Field::EmptyBare => String::new(),
-        };
         match field {
-            // Preserve the empty spelling; redacting an already-empty field is
-            // a no-op on the bytes.
-            Field::EmptyColon | Field::EmptyBare => {}
-            Field::Value(v) => *v = Raw::Scalar(value.to_string()),
+            Field::EmptyColon | Field::EmptyBare => None,
+            Field::Value(v) => {
+                let prev = v.serialize();
+                *v = Raw::Scalar(value.to_string());
+                Some(prev)
+            }
         }
-        Some(prev)
     }
 }
 
