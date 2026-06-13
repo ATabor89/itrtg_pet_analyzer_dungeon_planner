@@ -49,7 +49,11 @@ So: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`.
 | `j`,`k` | building blocks (28/34); `j.b` = decreasing thresholds (deltas −500·n), parallel in shape to `h` — **not** the monument upgrades | |
 | `D` | **monuments** (9, Mighty Statue … White Hole — `items::monument_name`) | `b` = **current level** (equals next-at once reached — clones spill onward; Black Hole mid-build: level 110 vs next-at 140 ✓ user expectation), `g` = next-at, `h` = spread ratio; `f`=building, `c`=clones allocated, `d`=progress. Monument *upgrade* levels/next-ats are stored elsewhere — still unlocated |
 | `V` | **mights** (14 — `items::might_name`) | `b` = **current level** (specials all 64 = the user's "at level 64" ✓; Σ levels = 3,200 = the in-game White Tiger unlock progress ✓ — 25,000 needed, resets per rebirth), `m` = next-at, `n` = spread ratio. Specials 8–13: `e`=True, `g` = base unleash duration (+1 s/level: 30+64 = 94 s ✓), `i`/`j`/`k` = HP-recovery/Attack/Mystic % (Transformation Aura 200/200/200 ✓). "Total Might" (100,983) is the all-rebirths global at `x.129`/`p.F` |
-| `O`, `009` | statistics mirrors | `O.030` = light clones ✓; spacedim total at `009.e`, light clones again at `009.a` |
+| `O` | statistics mirror | `O.030` = light clones ✓ |
+| `009` | **SpaceDim** (Light Dimension) | `009.a` = light clones (= the count allocated to the one active element); `009.b` = the 20-element list (see its section); `009.e` = spacedim total. Per-element levels confirmed against the 2026-06-13 notes (Fusion Torch 18→70, Dyson 22→23, Quantum Genesis 2→6) |
+| `K` | **Divinity Generator** | `K.g` = total divinity (huge double); `K.l` = list of 3 upgrades, `b` = level (all three 81→188 between the 2026-06-13 saves ✓), `c` = cost-ish, `d` = accumulator, `g` = multiplier (1/2/2) |
+| `P` | **current god fight** (≠ `X.P` active dungeon runs) | `P.c` = current god number = highest **P. Baal defeated + 1** (44→49 as the user went from "defeated 43" to "defeated 48" ✓); `P.b` = that god's HP-scale double (grows ~10× per few gods), `P.d` = `P.b`/10 |
+| `T` | **Baal Slayer block** | `T.h` = **unspent Baal Power** (0→334 ✓); `T.f` = list of 5 staggered countdown timers (1 h apart); `T.k` = list of 5 TBS tracks; see open items |
 | `024` | quests block | `024.d` = Quest Points (4,553 ✓ s2 export) |
 | `025` | fishing block | `025.a` = Fish Power (1,270,255 ≈ displayed 1.270e6 ✓) |
 | `p` | god-power block, see its own section below | `j`=available GP, `v`=GP spent, `F`=total might, `002`=crystal power |
@@ -134,18 +138,19 @@ Confirmed (cross-save diff vs the two Main Stats exports):
 |---|---|---|
 | `j` | available GP | 1,297 → 1,662, +365 = GP/h gain between saves ✓ |
 | `v` | total GP spent | 60,852 in both ✓ |
-| `h`, `i` | GP-purchased creating / building speed % | both 45,000 = "45,000 % from god power" in both export speed lines ✓ |
+| `h` | GP-purchased **creating** speed % | 45,000 in both 2026-06-13 saves (CS left untouched) |
+| `i` | GP-purchased **building** speed % | 45,000 → 50,000 exactly as the user upgraded BS (and only BS) between the 2026-06-13 saves — disambiguates `h`=creating from `i`=building |
 | `q` | **creation count from god power** (the milestone-relevant number; export "Creation Count: 166" = base 1 + this; equipped-crystal bonuses are separate) | 165 in both saves ✓ |
 | `F` | total might (lives on its own screen, mirrored here) | 100,983 ✓ |
 | `002` | crystal power (only changes on rebirth — equipped crystals convert then) | 4,183 ✓ |
 | `C` | **statistics multi** — exactly 2^50 = 1.1259e15, matching the displayed "1.125e15 x" | three-way lock with `017`/`019` = 50 doublings × 50 GP = the 2,500 GP spent |
 | `017`, `019` | both exactly 50 = statistics-multi doubling count; which of the two is it (and what the other is) needs a purchase between saves | 2^50 = `C` ✓ |
-| `r`,`s`,`t`,`u` | **unused-GP stat allocation %** (bonus physical/mystic/battle/creating — the four *god* stats, overload #5) | all 25, matching the user's even 25/25/25/25 split; per-field identity unknown until the split is skewed |
+| `r`,`s`,`t`,`u` | **unused-GP stat allocation %** = **physical / mystic / battle / creating** respectively | resolved 2026-06-13: the user skewed the split to 25/21/22/27 (physical/mystic/battle/creating) and the fields moved to `r`=25, `s`=21, `t`=22, `u`=27 ✓ |
 | `y`,`z` | candidate pair: TBS keep-on-rebirth % (user: 80%) | both 80 |
 | `E`,`025` | candidate pair: TBS double-points chance (user: 100%) | both 100 |
 | `D`,`I` | candidate pair: TBS extra white-area pixels (user: 3) | both 3 |
 | `e`,`w` | candidate pair: TBS level-loss-on-miss % (user: 20%) | both 20 |
-| `027` | = `j` + 18 in both saves | GP-adjacent; the constant 18 offset is unexplained |
+| `027` | **identity unknown** — the "= `j` + 18" claim was a two-save coincidence (2026-06-13: `027`=62→67 while `j`=2931→1511, so `027` ≠ `j`+18). It moved +5, same delta as the P. Baal kills (43→48), but its absolute (62/67) doesn't match a Baal count and `P.c` already tracks that cleanly — so leave unidentified, don't repeat the x.138 mistake | |
 | `003` | delta (+21) matches Lucky Draws *opened* delta | absolute value 7,659 ≠ 3,053 though — id unclear |
 | `L`, `S`, `013` | ms timers, all advanced by the same +38.8e6 ms | plausibly time-since-rebirth (~12 h at save 1) |
 | `T`, `012` | 44 → 43, decrementing counter | countdown of something |
@@ -220,6 +225,32 @@ in save 2: six smiths on 51 (Magic Stick), one on 54 (Magic Pot), one on 86
 the manual transcription. Blacksmith `l` = unidentified small id (queue or
 last-forged type?).
 
+### Gem-embed tasks carry the owner-pet link (2026-06-13)
+
+A blacksmith *embedding a gem into an already-equipped item* is structurally
+different from forging a new one, and that entry is where the
+blacksmith↔owning-pet link lives. Worked example: at the 2026-06-13 save 1
+Hermit Crab (pet id 35) was embedding a level-10 water gem into **Fairy's**
+Titanium Armor:
+
+```
+a = 35            crafter pet id (Hermit Crab)
+c = 1496524.85    crafting progress
+g = { … h = 767 } the equipment INSTANCE being modified (Fairy's armor, id 767)
+k = 4             OWNER pet type id (Fairy's k = 4) — the link
+l = 4             (same; owner again)
+n = { a = 2, b = 10 }   the gem: a = element (2 = Water), b = level (10)
+```
+
+So while an item is in the smith it is **checked out of `X.R`** (instance 767
+has no standalone `X.R` entry in this save — it is held inside the `g`
+substruct of the crafting entry) and the pet's slot reads empty (Fairy's
+`w.f` = 0). The game re-equips it on completion because the crafting entry
+stores the owner: `k` = the owner pet's type id. This is why `k` here is 4
+(Fairy) rather than the 0/1 alchemist/blacksmith flag that every *forging*
+entry carries — for a forge the new item just goes to inventory, so no owner
+is recorded and `k` is free to mean the class flag. `n` = the gem being set.
+
 ## `root.032` — adventure mode (partial)
 
 `032.d` = adventure inventory (id, count); `032.c` = adventure gear list;
@@ -230,6 +261,36 @@ match the Main Stats export's "Researches" section in order, verified
 Notably **id 28 = Pet Stats** ("multiplies the stats your pets gain from
 growth, not dungeon stats", +1%/level) — at level 5 this is the ×1.05
 factor in the normal-stats global multiplier.
+
+## `root.009` — SpaceDim / Light Dimension (decoded 2026-06-13)
+
+`009.a` = light clones (whatever is allocated to the active element). `009.b`
+= the **20-element list**, in the in-game display order:
+
+| key | meaning |
+|-----|---------|
+| `a` | element id = display order (1 = Controlled Entropy … 20 = Self Replicating AI) |
+| `b` | light clones allocated to this element (only the active one is nonzero) |
+| `c` | **level** |
+| `d` | **next-at** (clones to next level) |
+| `e` | progress / accumulated clones toward next level |
+| `f` | **spread** (the 20…1 priority value shown in-game) |
+
+Verified end-to-end against the 2026-06-13 notes: save 1 Quantum Genesis
+`c`=2, Fusion Torch `c`=18 (b=70,362 — all light clones), Dyson `c`=22; save 2
+Fusion Torch `c`=70, Dyson 23, Quantum Genesis 6, etc. — and every `d`/`f`
+matches the notes' Next-At/Spread columns. Levels reset per rebirth.
+
+## `root.T` — Baal Slayer (decoded 2026-06-13)
+
+The Baal Slayer (TBS) block. Confirmed: `T.h` = **unspent Baal Power**
+(0 → 334 between the two 2026-06-13 saves ✓). `T.f` = list of 5 entries with
+`d` = a staggered countdown timer (1 h / 3,600,000 ms apart; all decrement in
+real time). `T.k` = list of 5 TBS tracks (`a`=100, `b`={39,27,25,21,16},
+`c`=1..5, `i`={18,18,18,27,27}) — these did **not** move between the saves and
+do **not** equal the displayed "all five levels 126", so the on-screen TBS
+levels / crit-chance 100% / crit-damage 604% / score 1008 are not these raw
+`k` fields (likely derived, or stored elsewhere — still open).
 
 ## Equipment struct (`X.R[i]`)
 
@@ -295,14 +356,18 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
   (set known, assignment unknown), and the T4 materials 131–135 ↔
   {Mythril, Ocean/Sun/Sky/Jungle Stone} (all still count 32 in both saves —
   needs the counts to diverge, e.g. after crafting with one of them).
-- Equipment *type* id ↔ name: solved for everything equipped — 32 types in
-  `items.rs::equipment_type_name`, derived by joining Pet Stats gear strings
-  ↔ Pet Equips instance ids ↔ the save's `R` instance→type map (zero vote
-  conflicts), plus Storm Bow via its unique count. Remaining: the nine
-  unequipped 1-count types {5,8,22,23,26,30,41,52,56} ↔ {Iron Pot, Water
-  Spear, Flood Spear, Leeching Sword, Tree Axe, Hurricane Bow, Flame Armor,
-  Flood Armor, Tree Bracelet}, and 44 = {Magic Hammer | Storm Ring} —
-  equipping any of them once would resolve it.
+- Equipment *type* id ↔ name: solved for everything equipped, derived by
+  joining Pet Stats gear strings ↔ Pet Equips instance ids ↔ the save's `R`
+  instance→type map (zero vote conflicts). 2026-06-13 the user equipped five
+  of the previously-ambiguous types in-game and read them off save 2's
+  instance→type map: **5 = Flame Armor, 8 = Flood Armor, 22 = Water Spear,
+  41 = Tree Bracelet, 44 = Storm Ring** (resolving the 44 = {Magic Hammer |
+  Storm Ring} tie). Now in `items.rs::equipment_type_name`. Still ambiguous:
+  {23,26,30,52,56} ↔ {Iron Pot, Flood Spear, Leeching Sword, Tree Axe,
+  Hurricane Bow} (set known, assignment unknown) — equip one to resolve.
+- Challenge dungeons "available" (3/10 → 2/10 after using one attempt
+  2026-06-13) is **not** a stored integer — no field went 3→2. It is computed
+  (regen timer + used-counter), like an energy bar. Not yet located.
 - The 2 leading junk chars: constant? random? Compare with another save.
 - Re-serialization (writing a save) untested — only needed if we ever want to
   edit saves, which is out of scope for the planner.

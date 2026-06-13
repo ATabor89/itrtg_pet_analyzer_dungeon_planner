@@ -1,0 +1,123 @@
+# New-rebirth capture — 2026-06-13
+
+Two saves from a FRESH rebirth (so per-rebirth counters are near their floor),
+captured with deliberate state changes between them for field disambiguation.
+Files: ManualSave_2026-06-13.txt (save 1), ManualSave_2026-06-13-second.txt
+(save 2), pet_export_1.txt (export taken ~10 min after save 1).
+
+Ids/levels below are in-game ground truth at the moment of each save — use them
+to pin save fields by cross-save diff.
+
+## Save 1 — 5–7 min into the rebirth
+
+Defeated god:        P. Baal 43
+Baal Power:          0 unspent (already spent it)
+DivGen upgrades:     all three at level 81
+Creation Speed (CS): not yet upgraded
+Building Speed (BS): not yet upgraded
+GP allocations:      all four still 25 / 25 / 25 / 25 (even split)
+Might:               not unlocked yet (unlocks ~1h35m into a rebirth — no
+                     levels gained; might levels should read 0/floor)
+Challenge dungeons:  3/10 available (cap can rise above 10; not yet raised)
+Last creation:       Plent, 8 created (creation data already parsed)
+
+### SpaceDim — order as shown in-game (Next At, Spread)
+Note: no Next Ats export in this dir; values unchanged from the existing
+Next Ats export. Quantum Genesis lvl 2, Dyson Harvester lvl 22, Fusion Torch
+~teens at save 1; all Light Clones allocated to Fusion Torch.
+
+| Element                | Next At | Spread |
+|------------------------|---------|--------|
+| Controlled Entropy     | 120     | 20     |
+| Quantum Genesis        | 240     | 19     |
+| Fusion Torch           | 128     | 18     |
+| Fusion Retrofitting    | 128     | 17     |
+| Dyson Harvester        | 1334    | 16     |
+| Hive Mind              | 480     | 15     |
+| Timeline Manipulation  | 480     | 14     |
+| Assembly Matrix        | 240     | 13     |
+| Wormhole Network       | 1200    | 12     |
+| Dimension Beamer       | 80      | 11     |
+| Focusing Amplifier     | 120     | 10     |
+| Expanded Awareness     | 240     | 9      |
+| Recursive Memory       | 240     | 8      |
+| Gene Splicing          | 240     | 7      |
+| Hyperlane Engine       | 0       | 6      |
+| Substrate Analysis     | 0       | 5      |
+| Sentient Lattice       | 0       | 4      |
+| Matter Compiler        | 0       | 3      |
+| Symbiotic Link         | 0       | 2      |
+| Self Replicating AI    | 0       | 1      |
+
+### TBS (The Baal Slayer)
+All five TBS levels: 126
+Critical chance: 100%   Critical damage: 604%   Score: 1008
+
+## Save 2 — 30–35 min into the rebirth
+
+Deltas vs save 1 (the deliberate changes for disambiguation):
+
+Defeated god:        P. Baal 48  (was 43)
+Baal Power:          334 unspent (was 0)
+Building Speed (BS): upgraded to 50,000  (was un-upgraded)
+Creation Speed (CS): left at 45,000      (NOTE: save-1 line says "not yet
+                     upgraded"; here CS reads 45,000 — treat 45,000 as the
+                     baseline-from-GP value, BS as the changed one)
+GP allocations:      25% physical / 21% mystic / 22% battle / 27% creating
+                     (was 25/25/25/25 — skews r/s/t/u so each can be named)
+Challenge dungeons:  2/10 available (used one attempt; was 3/10)
+DivGen upgrades:     all 188 (was 81)
+Might:               still not unlocked (no levels)
+
+### Equipment changes (newly equipped this save — for blacksmith/equip link)
+| Pet    | Equipped                          |
+|--------|-----------------------------------|
+| Bag    | Storm Ring, Flame Armor           |
+| Cupid  | Flood Armor, Wood Bracelet        |
+| Meteor | Feather Vest, Tree Bracelet       |
+| Nugget | Water Spear                       |
+
+(These resolve previously-ambiguous equipment type ids. Read from save 2's
+instance→type map: Flame Armor = 5, Flood Armor = 8, Water Spear = 22,
+Tree Bracelet = 41, Storm Ring = 44 (resolves the Magic Hammer|Storm Ring
+tie). Independently re-confirmed the already-known Feather Vest = 13 and
+Wood Bracelet = 40. Recorded in crates/save-parser/src/items.rs.)
+
+### SpaceDim levels at save 2 (Fusion Torch now 70)
+| Element                | Level |
+|------------------------|-------|
+| Controlled Entropy     | 5     |
+| Quantum Genesis        | 6     |
+| Fusion Torch           | 70    |
+| Fusion Retrofitting    | 5     |
+| Dyson Harvester        | 23    |
+| Hive Mind              | 4     |
+| Timeline Manipulation  | 4     |
+| Assembly Matrix        | 4     |
+| Wormhole Network       | 0     |
+| Dimension Beamer       | 0     |
+| Focusing Amplifier     | 0     |
+| Expanded Awareness     | 0     |
+| Recursive Memory       | 0     |
+| Gene Splicing          | 0     |
+| Hyperlane Engine       | 0     |
+| Substrate Analysis     | 0     |
+| Sentient Lattice       | 0     |
+| Matter Compiler        | 0     |
+| Symbiotic Link         | 0     |
+| Self Replicating AI    | 0     |
+
+## Training (both saves)
+Training is ongoing in both saves. Per-pet clone counts move too fast to log
+by hand; at save time any trained pet has < 5,000 clones allocated. Pets that
+are CRAFTING or WORKING IN THE PET VILLAGE do not train → 0 clones allocated.
+
+## Thread to chase — blacksmith ↔ equipped-pet link
+At save 1, Fairy's Titanium Armor is being worked on by Hermit Crab (embedding
+a level-10 water gem). In pet_export_1.txt (taken ~10 min after save 1) Fairy
+shows NO armor — the piece is off her while in the smith. In-game her Armor
+slot shows an 'x'; mousing over it names the smith. When work finishes the
+armor auto-returns to her even if she is in a dungeon. So there is a stored
+link between (blacksmith crafting entry) ↔ (the equipment instance) ↔ (the pet
+who owns/equips it). Find what ties X.T blacksmith entries to the owning pet /
+equip instance. (Blacksmith `l` in X.T is an unidentified small id — candidate.)
