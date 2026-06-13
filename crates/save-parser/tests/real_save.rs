@@ -27,6 +27,35 @@ fn load_second_save() -> Option<save_parser::SaveFile> {
     Some(save_parser::parse_save(&raw).expect("second save should parse"))
 }
 
+/// The two 2026-06-13 saves: a fresh rebirth captured ~5 min in (`rb1`) and
+/// again ~30 min in (`rb2`), with deliberate in-game changes between them.
+/// Used to confirm the SpaceDim / Divinity Generator / Baal / GP-allocation
+/// decodes — see FINDINGS.md and the directory's `notes.txt`.
+fn load_rebirth_saves() -> Option<(save_parser::SaveFile, save_parser::SaveFile)> {
+    let dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../reference/save_file_deserialization/save_new_rebirth_mid_training/"
+    );
+    let rb1 = std::fs::read_to_string(format!("{dir}ManualSave_2026-06-13.txt")).ok()?;
+    let rb2 = std::fs::read_to_string(format!("{dir}ManualSave_2026-06-13-second.txt")).ok()?;
+    Some((
+        save_parser::parse_save(&rb1).expect("rebirth save 1 should parse"),
+        save_parser::parse_save(&rb2).expect("rebirth save 2 should parse"),
+    ))
+}
+
+macro_rules! require_rebirth_saves {
+    () => {
+        match load_rebirth_saves() {
+            Some(saves) => saves,
+            None => {
+                eprintln!("2026-06-13 rebirth saves not present; skipping");
+                return;
+            }
+        }
+    };
+}
+
 macro_rules! require_second_save {
     () => {
         match load_second_save() {
@@ -698,4 +727,79 @@ fn raw_tree_keeps_unidentified_fields_reachable() {
     // Unknown per-pet fields stay on the pet's raw node (Santa t = 4).
     let santa = save.pet_by_name("Santa").unwrap();
     assert_eq!(santa.raw.get("t").and_then(|n| n.as_u64()), Some(4));
+}
+
+#[test]
+fn spacedim_levels_match_notes() {
+    let (rb1, rb2) = require_rebirth_saves!();
+    // Full 20-element list, in display order; id is 1-based.
+    assert_eq!(rb1.spacedim.len(), 20);
+    assert_eq!(rb1.spacedim[0].id, 1);
+    assert_eq!(rb1.spacedim[0].name(), Some("Controlled Entropy"));
+    assert_eq!(rb1.spacedim[2].name(), Some("Fusion Torch"));
+    // The notes' levels: Quantum Genesis (id 2), Fusion Torch (3), Dyson
+    // Harvester (5) — save 1 then save 2.
+    assert_eq!(rb1.spacedim_by_id(2).unwrap().level, 2);
+    assert_eq!(rb1.spacedim_by_id(3).unwrap().level, 18);
+    assert_eq!(rb1.spacedim_by_id(5).unwrap().level, 22);
+    assert_eq!(rb2.spacedim_by_id(2).unwrap().level, 6);
+    assert_eq!(rb2.spacedim_by_id(3).unwrap().level, 70);
+    assert_eq!(rb2.spacedim_by_id(5).unwrap().level, 23);
+    // All light clones sit on the actively-fed Fusion Torch; next-at / spread
+    // are stored per element.
+    let torch = rb2.spacedim_by_id(3).unwrap();
+    assert_eq!(torch.next_at, 128);
+    assert_eq!(torch.spread, 18);
+    assert!(torch.clones > 0);
+}
+
+#[test]
+fn divinity_generator_upgrades_match_notes() {
+    let (rb1, rb2) = require_rebirth_saves!();
+    // All three DivGen upgrades moved 81 -> 188 together.
+    let levels = |s: &save_parser::SaveFile| -> Vec<u64> {
+        s.divinity_generator
+            .as_ref()
+            .unwrap()
+            .upgrades
+            .iter()
+            .map(|u| u.level)
+            .collect()
+    };
+    assert_eq!(levels(&rb1), vec![81, 81, 81]);
+    assert_eq!(levels(&rb2), vec![188, 188, 188]);
+}
+
+#[test]
+fn baal_power_and_current_god_match_notes() {
+    let (rb1, rb2) = require_rebirth_saves!();
+    // Unspent Baal Power: spent (0) -> 334 after the Baal Slayer ran.
+    assert_eq!(rb1.baal_power, Some(0));
+    assert_eq!(rb2.baal_power, Some(334));
+    // Current god is one past the highest P. Baal defeated (43 -> 48).
+    assert_eq!(rb1.current_god_number, Some(44));
+    assert_eq!(rb2.current_god_number, Some(49));
+    assert_eq!(rb1.pbaal_defeated(), Some(43));
+    assert_eq!(rb2.pbaal_defeated(), Some(48));
+}
+
+#[test]
+fn gp_allocation_and_speeds_match_notes() {
+    let (rb1, rb2) = require_rebirth_saves!();
+    // Even 25/25/25/25 split -> skewed 25/21/22/27 (phys/mys/bat/creating).
+    let a1 = rb1.gp_allocation.unwrap();
+    assert_eq!(
+        (a1.physical, a1.mystic, a1.battle, a1.creating),
+        (25, 25, 25, 25)
+    );
+    let a2 = rb2.gp_allocation.unwrap();
+    assert_eq!(
+        (a2.physical, a2.mystic, a2.battle, a2.creating),
+        (25, 21, 22, 27)
+    );
+    // Only Building Speed changed (45,000 -> 50,000); Creating Speed held.
+    assert_eq!(rb1.gp_building_speed_pct, Some(45_000));
+    assert_eq!(rb2.gp_building_speed_pct, Some(50_000));
+    assert_eq!(rb1.gp_creating_speed_pct, Some(45_000));
+    assert_eq!(rb2.gp_creating_speed_pct, Some(45_000));
 }
