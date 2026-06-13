@@ -19,6 +19,8 @@ pub mod container;
 pub mod formulas;
 pub mod items;
 pub mod model;
+pub mod raw;
+pub mod redact;
 pub mod tree;
 
 pub use model::SaveFile;

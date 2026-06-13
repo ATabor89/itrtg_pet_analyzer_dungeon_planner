@@ -9,3 +9,9 @@
 /reference/save_file_deserialization/decompressed.bin
 /reference/save_file_deserialization/save_layer1.txt
 /reference/save_file_deserialization/save_expanded.txt
+
+# Re-encoded saves from `save-dump --reencode` — these are unredacted real
+# saves (they carry the player's Steam id / account names), produced only for
+# the game-load test. Never commit them.
+/reference/save_file_deserialization/reencode_test*.txt
+**/reencode_*.txt
