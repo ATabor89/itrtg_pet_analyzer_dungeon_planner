@@ -1,0 +1,4 @@
+# Git hooks are shell scripts run via sh/bash; CRLF line endings make them
+# fail with "bad interpreter" on Git for Windows. Force LF regardless of
+# core.autocrlf.
+.githooks/** text eol=lf

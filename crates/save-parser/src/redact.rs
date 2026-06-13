@@ -1,9 +1,9 @@
 //! Redaction of personally-identifying fields from a save's lossless tree.
 //!
 //! The repo is public and the committed reference saves embed real PII — the
-//! player's Steam id, account names, and a god name that is the user's email
-//! handle. All of it sits at the *root* of the tree (verified against every
-//! reference save; nothing is mirrored inside a nested base64 block), so
+//! player's Steam id, account login name, Steam persona/display names, and the
+//! in-game god name. All of it sits at the *root* of the tree (verified against
+//! every reference save; nothing is mirrored inside a nested base64 block), so
 //! redaction is a handful of in-place [`Raw::set_scalar`] calls that leave
 //! every other byte untouched.
 //!
@@ -15,14 +15,19 @@ use crate::raw::Raw;
 
 /// Root struct keys that hold identity / account data, paired with the
 /// placeholder each is replaced with. The Steam id placeholder keeps the
-/// 17-digit numeric shape; the rest are obvious sentinels.
+/// 17-digit numeric shape and the guest id its `a_` prefix; the rest are
+/// obvious sentinels.
+///
+/// Field meanings were confirmed with the player: `W` is the in-game god name,
+/// `s` is the linked Steam/Kongregate account login (these two were originally
+/// mislabeled), and `002`/`004` are the Steam persona / display name.
 pub const IDENTITY_FIELDS: &[(&str, &str)] = &[
-    ("s", "RedactedGod"),             // god name (was the player's email handle)
-    ("W", "RedactedPlayer"),          // player name
+    ("W", "RedactedGod"),             // in-game god (deity) name
+    ("s", "RedactedAccount"),         // linked Steam/Kongregate account login
     ("001", "00000000000000000"),     // Steam id64
-    ("002", "RedactedAccount"),       // account name
+    ("002", "RedactedName"),          // Steam persona name
     ("003", "a_0000000000000000000"), // account / guest id
-    ("004", "Redacted Name"),         // display name
+    ("004", "Redacted Name"),         // Steam display name
 ];
 
 /// One field that redaction changed.
@@ -92,7 +97,9 @@ mod tests {
         // Untouched fields survive verbatim, in place.
         assert_eq!(root.get("c").unwrap(), &Raw::Scalar("1781053129".into()));
         assert_eq!(root.get("005").unwrap(), &Raw::Scalar("123".into()));
-        assert_eq!(root.get("s").unwrap(), &Raw::Scalar("RedactedGod".into()));
+        // `W` is the god name, `s` the account login (corrected semantics).
+        assert_eq!(root.get("W").unwrap(), &Raw::Scalar("RedactedGod".into()));
+        assert_eq!(root.get("s").unwrap(), &Raw::Scalar("RedactedAccount".into()));
     }
 
     #[test]
