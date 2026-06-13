@@ -77,10 +77,11 @@ Might:               still not unlocked (no levels)
 | Meteor | Feather Vest, Tree Bracelet       |
 | Nugget | Water Spear                       |
 
-(Several of these are the previously-unresolved 1-count equipment types in
-FINDINGS — equipping them should now disambiguate type ids: Storm Ring vs
-Magic Hammer at type 44, plus Flame Armor 52, Flood Armor 56, Tree Bracelet
-41, Water Spear 8.)
+(These resolve previously-ambiguous equipment type ids. Read from save 2's
+instance→type map: Flame Armor = 5, Flood Armor = 8, Water Spear = 22,
+Tree Bracelet = 41, Storm Ring = 44 (resolves the Magic Hammer|Storm Ring
+tie). Independently re-confirmed the already-known Feather Vest = 13 and
+Wood Bracelet = 40. Recorded in crates/save-parser/src/items.rs.)
 
 ### SpaceDim levels at save 2 (Fusion Torch now 70)
 | Element                | Level |
