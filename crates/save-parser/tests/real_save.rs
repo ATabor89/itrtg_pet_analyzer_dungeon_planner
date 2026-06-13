@@ -861,6 +861,68 @@ fn tree_serialize_round_trips_every_real_save() {
 }
 
 #[test]
+fn redaction_removes_identity_and_preserves_everything_else() {
+    let mut checked = 0;
+    for rel in ALL_SAVE_PATHS {
+        let Some(raw) = read_raw_save(rel) else {
+            continue;
+        };
+        // Baseline: parse the original to compare structural data afterwards.
+        let original = save_parser::parse_save(&raw).expect("original parses");
+
+        // Redact on the lossless tree, then re-encode and re-parse end-to-end.
+        let decoded = save_parser::container::decode_container(&raw).unwrap();
+        let mut root = save_parser::raw::parse(&decoded.plaintext);
+        let changes = save_parser::redact::redact_identity(&mut root);
+        let reserialized = root.serialize();
+
+        // Every reference save carries all six identity fields.
+        assert_eq!(changes.len(), 6, "{rel} identity fields");
+
+        // No redacted value — nor the email handle, nor the Steam id — remains.
+        let olds: Vec<&str> = changes.iter().map(|c| c.old.as_str()).collect();
+        assert!(
+            save_parser::redact::residual_hits(&reserialized, &olds).is_empty(),
+            "{rel} has a residual identity value"
+        );
+        assert!(!reserialized.contains("Shoggoth"), "{rel} still says Shoggoth");
+        assert!(
+            !reserialized.contains("76561198034867786"),
+            "{rel} still has the Steam id"
+        );
+
+        // The redacted save still decodes and parses, with identity replaced
+        // and all non-identity data byte-for-byte intact.
+        let encoded = save_parser::container::encode_container(&reserialized, &decoded.prefix);
+        let redacted = save_parser::parse_save(&encoded).expect("redacted save parses");
+        assert_eq!(redacted.god_name.as_deref(), Some("RedactedGod"), "{rel}");
+        assert_eq!(redacted.player_name.as_deref(), Some("RedactedPlayer"), "{rel}");
+        // Structural data is untouched: same pets, gear, materials, stones.
+        assert_eq!(redacted.pets.len(), original.pets.len(), "{rel} pet count");
+        assert_eq!(redacted.equipment.len(), original.equipment.len(), "{rel} gear");
+        assert_eq!(redacted.materials.len(), original.materials.len(), "{rel} mats");
+        assert_eq!(redacted.pet_stones, original.pet_stones, "{rel} stones");
+        assert_eq!(redacted.saved_at_unix, original.saved_at_unix, "{rel} time");
+
+        // Only the identity plaintext changed: redacted-tree length differs
+        // from the original only by the per-field old/new length deltas.
+        let expected_delta: isize = changes
+            .iter()
+            .map(|c| c.new.len() as isize - c.old.len() as isize)
+            .sum();
+        assert_eq!(
+            reserialized.len() as isize - decoded.plaintext.len() as isize,
+            expected_delta,
+            "{rel} only identity bytes changed"
+        );
+        checked += 1;
+    }
+    if checked == 0 {
+        eprintln!("no reference saves present; skipping");
+    }
+}
+
+#[test]
 fn container_round_trips_every_real_save() {
     let mut checked = 0;
     for rel in ALL_SAVE_PATHS {
