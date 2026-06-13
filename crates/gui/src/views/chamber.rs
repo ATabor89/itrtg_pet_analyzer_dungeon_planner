@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::data::DataStore;
 use crate::style;
+use super::widgets::DragValueExt;
 
 /// Persisted growth-chamber configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -484,11 +485,11 @@ pub fn show(
     // --- Global run parameters ---
     ui.horizontal(|ui| {
         ui.label(RichText::new("Hours:").color(style::TEXT_MUTED).size(12.0));
-        ui.add(egui::DragValue::new(&mut state.hours).range(1..=12));
+        ui.add(egui::DragValue::new(&mut state.hours).range(1..=12).clearable());
         ui.separator();
         ui.label(RichText::new("UPC:").color(style::TEXT_MUTED).size(12.0))
             .on_hover_text("Ultimate Pet Challenges completed — each adds +5% to every pet's campaign contribution (capped at 100%). Auto-filled when you import a Main-stats export.");
-        ui.add(egui::DragValue::new(&mut state.upc_done).range(0..=state.upc_max));
+        ui.add(egui::DragValue::new(&mut state.upc_done).range(0..=state.upc_max).clearable());
         ui.label(
             RichText::new(format!("/ {}  \u{2B62} +{:.0}%", state.upc_max, state.upc_pct()))
                 .color(style::TEXT_MUTED)
@@ -497,7 +498,7 @@ pub fn show(
         ui.separator();
         ui.label(RichText::new("PGC:").color(style::TEXT_MUTED).size(12.0))
             .on_hover_text("Patreon God Challenges completed — +1% growth per completion, doubled once all are done (24/25 → ×1.24, 25/25 → ×1.50). Stacks with the Magic Egg. Auto-filled when you import a Main-stats export.");
-        ui.add(egui::DragValue::new(&mut state.pgc_done).range(0..=state.pgc_max));
+        ui.add(egui::DragValue::new(&mut state.pgc_done).range(0..=state.pgc_max).clearable());
         ui.label(
             RichText::new(format!("/ {}  \u{2B62} ×{:.2} growth", state.pgc_max, state.pgc_mult()))
                 .color(style::TEXT_MUTED)
@@ -505,7 +506,7 @@ pub fn show(
         );
         ui.separator();
         ui.label(RichText::new("Pandora feedings:").color(style::TEXT_MUTED).size(12.0));
-        ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20))
+        ui.add(egui::DragValue::new(&mut state.pandora_feedings).range(0..=20).clearable())
             .on_hover_text("Pandora's starting feeding count. It climbs as she's fed each cycle (bonus caps at 20) and resets at the start of each rebirth.");
         // Global counterpart of a card's "Refresh from export": shown when any
         // input auto-filled from a Main-stats import (UPC / PGC / DPC multi /
@@ -556,7 +557,8 @@ pub fn show(
             egui::DragValue::new(&mut state.dpc_highest_multi)
                 .range(0.0..=1e18)
                 .speed(1e5)
-                .max_decimals(0),
+                .max_decimals(0)
+                .clearable(),
         );
         ui.label(
             RichText::new(format!("⭢ +{:.2}% to food", state.dpc_boost_pct()))
@@ -598,7 +600,8 @@ pub fn show(
                 egui::DragValue::new(&mut state.rebirth_value)
                     .range(0.1..=100_000.0)
                     .speed(0.25)
-                    .max_decimals(2),
+                    .max_decimals(2)
+                    .clearable(),
             );
             let unit = REBIRTH_UNITS.get(state.rebirth_unit).map_or("Hours", |&(l, _)| l);
             egui::ComboBox::from_id_salt("rebirth_unit").selected_text(unit).show_ui(ui, |ui| {
@@ -646,11 +649,12 @@ pub fn show(
             egui::DragValue::new(&mut state.fish_power)
                 .range(0.0..=1e15)
                 .speed(1000.0)
-                .max_decimals(0),
+                .max_decimals(0)
+                .clearable(),
         );
         ui.label(RichText::new("Fishing level:").color(style::TEXT_MUTED).size(12.0))
             .on_hover_text("Milestones: +10% at level 15, another +10% at 27.");
-        ui.add(egui::DragValue::new(&mut state.fishing_level).range(0..=100));
+        ui.add(egui::DragValue::new(&mut state.fishing_level).range(0..=100).clearable());
         let boost = state.fishing_boost();
         if boost > 0.0 {
             let (text, color) = if state.rebirth_enabled {
@@ -665,7 +669,7 @@ pub fn show(
     // --- Run mode + actions ---
     ui.horizontal(|ui| {
         ui.label(RichText::new("Max cycles:").color(style::TEXT_MUTED).size(12.0));
-        ui.add(egui::DragValue::new(&mut state.max_cycles).range(1..=1_000_000).speed(50.0));
+        ui.add(egui::DragValue::new(&mut state.max_cycles).range(1..=1_000_000).speed(50.0).clearable());
         ui.separator();
         ui.checkbox(
             &mut state.run_until_targets,
@@ -1011,7 +1015,7 @@ fn show_pet_card(
                     if let Some(e) = export {
                         let mut cl = e.class_level;
                         if ui
-                            .add(egui::DragValue::new(&mut cl).range(0..=200).speed(1.0))
+                            .add(egui::DragValue::new(&mut cl).range(0..=200).speed(1.0).clearable())
                             .on_hover_text("Class level — drives the Adventurer campaign bonus")
                             .changed()
                         {
@@ -1044,7 +1048,7 @@ fn show_pet_card(
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("target:").color(style::TEXT_MUTED).size(10.0));
                     let mut target = state.targets.get(name).copied().unwrap_or(0);
-                    if ui.add(egui::DragValue::new(&mut target).speed(100.0)).changed() {
+                    if ui.add(egui::DragValue::new(&mut target).speed(100.0).clearable()).changed() {
                         if target == 0 {
                             state.targets.remove(name);
                         } else {
@@ -1215,7 +1219,7 @@ fn weapon_editor(ui: &mut egui::Ui, state: &mut ChamberState, name: &str, eff: &
                 });
             ui.label(RichText::new("+").color(style::TEXT_MUTED).size(10.0));
             let mut up = w.upgrade_level.unwrap_or(0);
-            if ui.add(egui::DragValue::new(&mut up).range(0..=20).speed(1.0)).changed()
+            if ui.add(egui::DragValue::new(&mut up).range(0..=20).speed(1.0).clearable()).changed()
                 && let Some(e) = override_mut(state, name, eff).loadout.weapon.as_mut()
             {
                 e.upgrade_level = Some(up);
@@ -1483,6 +1487,11 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                     contrib.get(name.as_str()).copied().unwrap_or(0.0) / result.cycles.max(1) as f64;
                 let reached = result.reached.iter().find(|(n, _)| n == name);
                 let (status, color) = match (reached, state.targets.get(name)) {
+                    // Cycle 0 means the pet was already at/above its target before
+                    // the run — it didn't grow into it.
+                    (Some((_, 0)), _) => {
+                        ("\u{2713} already above target".to_string(), style::SUCCESS)
+                    }
                     (Some((_, cycle)), _) => {
                         // Elapsed hours = sum of the first `cycle` cycle lengths.
                         let h: u32 = result.trace.iter().take(*cycle as usize).map(|c| c.hours).sum();

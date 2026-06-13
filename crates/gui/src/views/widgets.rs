@@ -97,6 +97,30 @@ pub fn recommended_class_label(ui: &mut Ui, rec: &RecommendedClass) {
     }
 }
 
+/// Extension methods for [`egui::DragValue`].
+pub trait DragValueExt {
+    /// Treat an empty/blank field as `0` instead of reverting to the prior
+    /// value. By default a `DragValue` keeps its old value when the edited text
+    /// fails to parse, and an empty string never parses — so clearing the field
+    /// and committing (Enter / focus-out) silently reverts. Apply this to the
+    /// "0 = none/cleared" fields (growth targets, rebirth value, …) so the
+    /// clear-with-backspace workflow actually clears them.
+    ///
+    /// egui still re-clamps the parsed value to the field's `range`, so on a
+    /// field whose range excludes 0 (e.g. `1..=12`) clearing lands on the range
+    /// minimum rather than 0 — still better than the stuck revert.
+    fn clearable(self) -> Self;
+}
+
+impl DragValueExt for egui::DragValue<'_> {
+    fn clearable(self) -> Self {
+        self.custom_parser(|s| {
+            let t = s.trim();
+            if t.is_empty() { Some(0.0) } else { t.parse().ok() }
+        })
+    }
+}
+
 /// Status indicator dot.
 pub fn status_dot(ui: &mut Ui, active: bool) {
     let color = if active { style::SUCCESS } else { Color32::from_rgb(0x44, 0x44, 0x55) };
