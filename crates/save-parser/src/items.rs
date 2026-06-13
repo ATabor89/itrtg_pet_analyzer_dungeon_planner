@@ -108,20 +108,27 @@ pub fn material_name(id: u32) -> Option<&'static str> {
 /// type whose instance count (3) uniquely matched the inventory
 /// transcription.
 ///
-/// Still unidentified (all unequipped): the nine 1-count types
-/// {5, 8, 22, 23, 26, 30, 41, 52, 56} pair with {Iron Pot, Water Spear,
-/// Flood Spear, Leeching Sword, Tree Axe, Hurricane Bow, Flame Armor,
-/// Flood Armor, Tree Bracelet}, and type 44 is {Magic Hammer | Storm Ring}.
+/// 2026-06-13 the user equipped five formerly-ambiguous types in-game and
+/// read them off save 2's instance→type map: 5 = Flame Armor, 8 = Flood Armor,
+/// 22 = Water Spear, 41 = Tree Bracelet, 44 = Storm Ring (resolving the old
+/// 44 = {Magic Hammer | Storm Ring} tie).
+///
+/// Still unidentified (all unequipped 1-count types):
+/// {23, 26, 30, 52, 56} pair with {Iron Pot, Flood Spear, Leeching Sword,
+/// Tree Axe, Hurricane Bow} — equip one in-game to resolve.
 pub fn equipment_type_name(type_id: u32) -> Option<&'static str> {
     Some(match type_id {
         // armor
         3 => "Titanium Armor",
+        5 => "Flame Armor",  // equipped on Bag 2026-06-13 (instance 7)
+        8 => "Flood Armor",  // equipped on Cupid 2026-06-13 (instance 10)
         12 => "Forest Armor",
         13 => "Feather Vest",
         15 => "Hurricane Armor",
         // weapons
         18 => "Titanium Sword",
         21 => "Inferno Sword",
+        22 => "Water Spear",  // equipped on Nugget 2026-06-13 (instance 122)
         29 => "Storm Bow",
         47 => "Shaping Hammer",
         50 => "Journeying Stick",
@@ -136,6 +143,8 @@ pub fn equipment_type_name(type_id: u32) -> Option<&'static str> {
         36 => "Inferno Gloves",
         39 => "Tsunami Necklace",
         40 => "Wood Bracelet",
+        41 => "Tree Bracelet",  // equipped on Meteor 2026-06-13 (instance 3)
+        44 => "Storm Ring",     // equipped on Bag 2026-06-13 (instance 173); resolves the Magic Hammer|Storm Ring tie
         45 => "Hurricane Ring",
         61 => "Alchemist Cape",
         86 => "Ear Muffs",
@@ -269,7 +278,12 @@ mod tests {
         assert_eq!(equipment_type_name(21), Some("Inferno Sword"));
         assert_eq!(equipment_type_name(51), Some("Magic Stick"));
         assert_eq!(equipment_type_name(304), Some("Magic Egg"));
-        assert_eq!(equipment_type_name(44), None); // Magic Hammer | Storm Ring
-        assert_eq!(equipment_type_name(5), None); // unequipped singleton set
+        // Resolved 2026-06-13 by equipping each in-game and reading the
+        // instance→type map (Bag/Cupid/Meteor/Nugget).
+        assert_eq!(equipment_type_name(44), Some("Storm Ring")); // was Magic Hammer | Storm Ring
+        assert_eq!(equipment_type_name(5), Some("Flame Armor"));
+        assert_eq!(equipment_type_name(8), Some("Flood Armor"));
+        assert_eq!(equipment_type_name(22), Some("Water Spear"));
+        assert_eq!(equipment_type_name(41), Some("Tree Bracelet"));
     }
 }
