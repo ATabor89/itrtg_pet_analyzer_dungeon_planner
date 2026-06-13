@@ -57,11 +57,11 @@ So: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`.
 | `024` | quests block | `024.d` = Quest Points (4,553 ✓ s2 export) |
 | `025` | fishing block | `025.a` = Fish Power (1,270,255 ≈ displayed 1.270e6 ✓) |
 | `p` | god-power block, see its own section below | `j`=available GP, `v`=GP spent, `F`=total might, `002`=crystal power |
-| `s` | god name | "Shoggoth269" |
+| `s` | **linked account login name** (Steam/Kongregate) — NOT the god name | player-confirmed; redacted in committed saves |
 | `y`,`z` | achievements (168 each: flag + id) | |
-| `W` | player name | "ShoggothUnknown" |
+| `W` | **in-game god (deity) name** | player-confirmed; redacted in committed saves |
 | `X` | **the whole pet system** | see below |
-| `Z`,`001..006` | Steam id, account names, server timestamps | |
+| `Z` (bool), `001`=Steam id64, `002`=Steam persona name, `003`=account/guest id (`a_…`), `004`=Steam display name, `005`=save ms-timestamp, `006`=init log | identity in `001..004` redacted in committed saves; `005`/`006` kept | player-confirmed |
 
 (Unlabeled root keys not yet investigated: `a`,`b`,`d` big doubles, `A`,`B`,`D`,
 `K`,`O`,`P`,`Q`,`S`,`T`,`V` blocks, etc.)
@@ -391,6 +391,23 @@ The 2026-06-13 decodes are promoted into the typed `SaveFile`: `spacedim`
 `current_god_number` (+ `pbaal_defeated()`), `gp_creating_speed_pct` /
 `gp_building_speed_pct`, and `gp_allocation` (`GpAllocation`). The two
 rebirth saves are regression-tested in `tests/real_save.rs`.
+
+## Re-serialization and redaction
+
+`container::encode_container` + the lossless `raw` module (`raw::Raw`) invert
+the decode so a save can be re-serialized exactly (round-trip verified on
+every reference save; the game accepts a re-encoded save). Note the analytic
+`tree::Node` is intentionally lossy — empty fields `k:;` and bare `k;` both
+become `Leaf("")`, and real saves use both — so `raw`, not `Node`, is what
+round-trips.
+
+**The committed `ManualSave_*.txt` here are REDACTED** (`save-dump --redact`):
+the repo is public, so the root identity fields are replaced with placeholders
+(`W`→god name, `s`→account login, `001`=Steam id, `002`/`004`=Steam
+persona/display name, `003`=guest id). Structural data is byte-for-byte
+unchanged, so all the cross-checks above still hold. The
+`committed_saves_contain_no_identity` test guards this. For format work that
+needs the original identity values, use your own local (un-redacted) save.
 
 ## Files here
 
