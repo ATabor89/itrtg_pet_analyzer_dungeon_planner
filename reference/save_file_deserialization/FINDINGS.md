@@ -385,6 +385,13 @@ the exports — when a field meaning gets identified, promote it from the raw
 tree into the typed model there. `cargo run -p save-parser --bin save-dump --
 <save> [--tree]` replaces `expand_save.ps1` for exploration.
 
+The 2026-06-13 decodes are promoted into the typed `SaveFile`: `spacedim`
+(`Vec<SpaceDimElement>`, with `spacedim_by_id` / `SpaceDimElement::name`),
+`divinity_generator` (`DivinityGenerator` + `DivinityUpgrade`), `baal_power`,
+`current_god_number` (+ `pbaal_defeated()`), `gp_creating_speed_pct` /
+`gp_building_speed_pct`, and `gp_allocation` (`GpAllocation`). The two
+rebirth saves are regression-tested in `tests/real_save.rs`.
+
 ## Files here
 
 - `ManualSave_2026-06-09.txt` — first raw save (input).
