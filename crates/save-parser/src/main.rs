@@ -23,12 +23,14 @@ fn main() -> ExitCode {
     };
     let reencode_out = arg_after("--reencode");
     let redact_out = arg_after("--redact");
+    let check_mode = args.iter().any(|a| a == "--check");
     let path = match args.iter().find(|a| !a.starts_with("--")) {
         Some(p) => p.clone(),
         None => {
             eprintln!("Usage: save-dump <save-file> [--tree]");
             eprintln!("       save-dump <save-file> --reencode <out-file>");
             eprintln!("       save-dump <save-file> --redact <out-file>");
+            eprintln!("       save-dump <save-file> --check   (exit 1 if not redacted)");
             return ExitCode::FAILURE;
         }
     };
@@ -72,6 +74,30 @@ fn main() -> ExitCode {
             encoded.len()
         );
         return ExitCode::SUCCESS;
+    }
+
+    if check_mode {
+        // Decode and ask redaction what it *would* change. Anything non-empty
+        // means an identity field still holds a real (non-placeholder) value,
+        // i.e. the save is not redacted. This deliberately hardcodes no PII.
+        let plaintext = match save_parser::container::decode_to_plaintext(&raw) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("Failed to decode {path}: {e:#}");
+                return ExitCode::FAILURE;
+            }
+        };
+        let mut root = save_parser::raw::parse(&plaintext);
+        let pending = save_parser::redact::redact_identity(&mut root);
+        if pending.is_empty() {
+            return ExitCode::SUCCESS;
+        }
+        let keys: Vec<&str> = pending.iter().map(|c| c.key.as_str()).collect();
+        eprintln!(
+            "{path}: NOT redacted — identity field(s) {keys:?} still hold real values. \
+             Run: save-dump <save> --redact <out>"
+        );
+        return ExitCode::FAILURE;
     }
 
     if let Some(out) = redact_out {
@@ -134,9 +160,9 @@ fn main() -> ExitCode {
     };
 
     println!(
-        "Save for {} / god {} (unix {})",
-        save.player_name.as_deref().unwrap_or("?"),
+        "Save for god {} / account {} (unix {})",
         save.god_name.as_deref().unwrap_or("?"),
+        save.account_name.as_deref().unwrap_or("?"),
         save.saved_at_unix.unwrap_or(0),
     );
     println!(

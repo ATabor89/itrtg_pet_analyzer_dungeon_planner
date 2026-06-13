@@ -20,10 +20,14 @@ const PARTNER_NONE: u32 = 999;
 pub struct SaveFile {
     /// Unix timestamp (seconds) the save was written (root `c`).
     pub saved_at_unix: Option<i64>,
-    /// God name (root `s`).
+    /// In-game god (deity) name — the name the player gave their god (root
+    /// `W`, e.g. "RedactedGod").
     pub god_name: Option<String>,
-    /// Player/account name (root `W`).
-    pub player_name: Option<String>,
+    /// Linked platform account login name (root `s`) — the Steam/Kongregate
+    /// account the save is tied to, *not* the god name. (Earlier mislabeled as
+    /// the god name; corrected after the player confirmed the in-game god name
+    /// is the `W` value and `s` is their account login.)
+    pub account_name: Option<String>,
     /// Pet stones (root `X.y`).
     pub pet_stones: Option<u64>,
     /// Pet food counts (root `X.c`/`X.d`/`X.e`) and chocolate (root `X.v`).
@@ -752,8 +756,8 @@ impl SaveFile {
 
         Ok(SaveFile {
             saved_at_unix: root.get("c").and_then(Node::as_i64),
-            god_name: root.get("s").and_then(Node::as_str).map(str::to_string),
-            player_name: root.get("W").and_then(Node::as_str).map(str::to_string),
+            god_name: root.get("W").and_then(Node::as_str).map(str::to_string),
+            account_name: root.get("s").and_then(Node::as_str).map(str::to_string),
             pet_stones: x.get("y").and_then(Node::as_u64),
             puny_food: get_u64(x, "c"),
             strong_food: get_u64(x, "d"),
