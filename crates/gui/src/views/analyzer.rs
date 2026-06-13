@@ -15,6 +15,7 @@ use crate::data::DataStore;
 use crate::state::AppState;
 use crate::style;
 use super::widgets;
+use super::widgets::DragValueExt;
 
 // =============================================================================
 // Filter enums
@@ -1242,7 +1243,7 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
                 // Level only matters (and is editable) once owned.
                 ui.add_enabled(
                     m.owned,
-                    egui::DragValue::new(&mut m.level).range(1..=20).prefix("Lv "),
+                    egui::DragValue::new(&mut m.level).range(1..=20).prefix("Lv ").clearable(),
                 );
                 let per_hr = if m.owned { (m.level as f64 * 0.05).min(1.0) } else { 0.0 };
                 ui.label(
@@ -1260,7 +1261,8 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
             ui.add(
                 egui::DragValue::new(&mut state.global_growth_target)
                     .speed(100.0)
-                    .range(0..=1_000_000_000),
+                    .range(0..=1_000_000_000)
+                    .clearable(),
             )
             .on_hover_text("Base growth target for the 'time to target' sort (0 = unset)");
         });
@@ -1323,7 +1325,7 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
             ($label:expr, $field:expr, $pet:expr) => {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new($label).color(style::TEXT_MUTED).size(12.0));
-                    ui.add(egui::DragValue::new($field).speed(1.0));
+                    ui.add(egui::DragValue::new($field).speed(1.0).clearable());
                     ui.label(RichText::new($pet).color(style::TEXT_MUTED).size(10.0));
                 });
             };
