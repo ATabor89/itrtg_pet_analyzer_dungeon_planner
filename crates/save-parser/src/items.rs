@@ -108,10 +108,14 @@ pub fn material_name(id: u32) -> Option<&'static str> {
 /// type whose instance count (3) uniquely matched the inventory
 /// transcription.
 ///
-/// Still unidentified (all unequipped): the nine 1-count types
-/// {5, 8, 22, 23, 26, 30, 41, 52, 56} pair with {Iron Pot, Water Spear,
-/// Flood Spear, Leeching Sword, Tree Axe, Hurricane Bow, Flame Armor,
-/// Flood Armor, Tree Bracelet}, and type 44 is {Magic Hammer | Storm Ring}.
+/// 2026-06-13 the user equipped five formerly-ambiguous types in-game and
+/// read them off save 2's instance→type map: 5 = Flame Armor, 8 = Flood Armor,
+/// 22 = Water Spear, 41 = Tree Bracelet, 44 = Storm Ring (resolving the old
+/// 44 = {Magic Hammer | Storm Ring} tie).
+///
+/// Still unidentified (all unequipped 1-count types):
+/// {23, 26, 30, 52, 56} pair with {Iron Pot, Flood Spear, Leeching Sword,
+/// Tree Axe, Hurricane Bow} — equip one in-game to resolve.
 pub fn equipment_type_name(type_id: u32) -> Option<&'static str> {
     Some(match type_id {
         // armor
