@@ -327,10 +327,10 @@ mod tests {
 
     #[test]
     fn set_scalar_replaces_value_in_place() {
-        let mut r = parse("s:Shoggoth269;W:ShoggothUnknown;c:1;");
+        let mut r = parse("s:TestAccount;W:TestGod;c:1;");
         let prev = r.set_scalar("s", "REDACTED").unwrap();
-        assert_eq!(prev, "Shoggoth269");
-        assert_eq!(r.serialize(), "s:REDACTED;W:ShoggothUnknown;c:1;");
+        assert_eq!(prev, "TestAccount");
+        assert_eq!(r.serialize(), "s:REDACTED;W:TestGod;c:1;");
         assert_eq!(r.set_scalar("missing", "x"), None);
     }
 }

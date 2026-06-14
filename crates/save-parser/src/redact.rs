@@ -77,22 +77,24 @@ mod tests {
 
     #[test]
     fn redacts_known_root_identity_fields() {
-        let plaintext = "s:Shoggoth269;W:ShoggothUnknown;c:1781053129;\
-                         001:76561198034867786;002:ShoggothUnknown;\
-                         003:a_3391713700228783307;004:Shoggoth Unknown;005:123;";
+        // Synthetic, non-real fixture data (shaped like the real fields).
+        let plaintext = "s:TestAccount;W:TestGod;c:1781053129;\
+                         001:99999999999999999;002:TestPersona;\
+                         003:a_9999999999999999999;004:Test Display;005:123;";
         let mut root = raw::parse(plaintext);
         let changes = redact_identity(&mut root);
 
         // All six identity fields changed; the timestamp `c`/`005` did not.
         assert_eq!(changes.len(), 6);
-        assert!(changes.iter().any(|c| c.key == "001" && c.old == "76561198034867786"));
+        assert!(changes.iter().any(|c| c.key == "001" && c.old == "99999999999999999"));
 
         let out = root.serialize();
-        // Every redacted value is gone, including the partial "Shoggoth".
+        // Every redacted value is gone.
         let olds: Vec<&str> = changes.iter().map(|c| c.old.as_str()).collect();
         assert!(residual_hits(&out, &olds).is_empty());
-        assert!(!out.contains("Shoggoth"));
-        assert!(!out.contains("76561198034867786"));
+        assert!(!out.contains("TestGod"));
+        assert!(!out.contains("TestAccount"));
+        assert!(!out.contains("99999999999999999"));
 
         // Untouched fields survive verbatim, in place.
         assert_eq!(root.get("c").unwrap(), &Raw::Scalar("1781053129".into()));
@@ -105,7 +107,7 @@ mod tests {
     #[test]
     fn redaction_is_idempotent_and_skips_absent_fields() {
         // Only `s` present; the rest are absent and must be skipped silently.
-        let mut root = raw::parse("s:Shoggoth269;c:1;");
+        let mut root = raw::parse("s:TestAccount;c:1;");
         assert_eq!(redact_identity(&mut root).len(), 1);
         // Running again finds nothing new to change.
         assert!(redact_identity(&mut root).is_empty());

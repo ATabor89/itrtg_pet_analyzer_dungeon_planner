@@ -866,26 +866,20 @@ fn tree_serialize_round_trips_every_real_save() {
 
 /// Regression guard: the committed reference saves must stay redacted. (That
 /// redaction actually *removes* real identity values is proven by the
-/// synthetic unit tests in `save_parser::redact`; here there is no real PII
-/// left to remove.)
+/// synthetic unit tests in `save_parser::redact`.) Deliberately hardcodes no
+/// real identity values — it relies on redaction being a no-op on an
+/// already-redacted save, so it can never itself leak PII.
 #[test]
 fn committed_saves_contain_no_identity() {
-    let needles = ["Shoggoth", "76561198034867786", "a_3391713700228783307"];
     let mut checked = 0;
     for rel in ALL_SAVE_PATHS {
         let Some(raw) = read_raw_save(rel) else {
             continue;
         };
-        // Fully expand the tree (recursively decodes nested base64) and assert
-        // no identity string survives anywhere.
         let plaintext = save_parser::container::decode_to_plaintext(&raw).unwrap();
-        let expanded = save_parser::tree::parse(&plaintext).dump();
-        for needle in needles {
-            assert!(!expanded.contains(needle), "{rel} still contains {needle:?}");
-        }
 
-        // Re-running redaction is a no-op: the identity fields already hold the
-        // placeholders, so nothing is reported as changed.
+        // Re-running redaction must be a no-op: every identity field already
+        // holds its placeholder. A real value slipping in returns non-empty.
         let mut root = save_parser::raw::parse(&plaintext);
         assert!(
             save_parser::redact::redact_identity(&mut root).is_empty(),
