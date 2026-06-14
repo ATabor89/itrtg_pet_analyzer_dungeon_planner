@@ -21,7 +21,7 @@ pub struct SaveFile {
     /// Unix timestamp (seconds) the save was written (root `c`).
     pub saved_at_unix: Option<i64>,
     /// In-game god (deity) name — the name the player gave their god (root
-    /// `W`, e.g. "RedactedGod").
+    /// `W`; reads `RedactedGod` in the committed, redacted fixtures).
     pub god_name: Option<String>,
     /// Linked platform account login name (root `s`) — the Steam/Kongregate
     /// account the save is tied to, *not* the god name. (Earlier mislabeled as
