@@ -79,6 +79,41 @@ cargo clippy --workspace --all-targets
 - For solver/equipment changes, add unit tests in the same file. Reproduce
   reported bugs as a failing test first, then fix.
 
+## Save-file privacy — NEVER commit a raw save
+
+This repo is **public**, and a raw ITRTG save embeds the player's Steam id,
+account/persona names, and god name inside `base64(gzip(base64(...)))` (root
+fields `s`, `W`, `001`–`004`). The committed saves in
+`reference/save_file_deserialization/` are **redacted fixtures** with those
+fields replaced by placeholders (`RedactedGod`/`RedactedAccount`/zeros). Their
+structural data is intact, so all cross-checks still hold.
+
+When adding a new save, **redact it before committing**:
+
+```
+cargo run -p save-parser --bin save-dump -- <raw-save> --redact <out-file>
+```
+
+This writes a redacted copy and refuses if any identity value would survive.
+Commit the **redacted** output, never the raw save. (Also scrub the god name
+from any `Main Stats Export.txt` header you add, and never paste a real
+Steam id / handle into source or tests — use synthetic fixtures.)
+
+Guard rails:
+
+- **Pre-commit hook** (`.githooks/pre-commit`) blocks committing an
+  un-redacted `ManualSave*.txt`. Enable it once per clone:
+  `git config core.hooksPath .githooks`. It runs `save-dump --check` on each
+  staged save.
+- `save-dump --check <save>` exits non-zero if a save still holds real
+  identity values (it hardcodes no PII — it just asks whether redaction would
+  change anything).
+- `save-dump --reencode <out>` produces a faithful, un-redacted round-trip
+  (for a game-load test); its output is gitignored — do not commit it.
+
+For format work that needs the real values, use your own local (un-redacted)
+save and keep it out of the repo.
+
 ## Workflow conventions (the user relies on these)
 
 1. **Never commit directly to `main`.** Branch first: `feat/<short-name>` (or
