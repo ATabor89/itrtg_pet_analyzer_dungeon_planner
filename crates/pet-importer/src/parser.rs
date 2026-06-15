@@ -104,6 +104,103 @@ pub fn parse_export(source: &str) -> anyhow::Result<Vec<ExportPet>> {
     Ok(pets)
 }
 
+/// One member of a dungeon team: the raw pet name as it appears in the export
+/// (space-stripped, e.g. `"MistSphere"`) and its in-game slot (1–6, where 1–3
+/// is the front row and 4–6 the back row).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DungeonTeamMember {
+    pub name: String,
+    pub slot: u8,
+}
+
+/// One team from a "Dungeon Teams" game export, identified by its ordinal
+/// index (0-based, as the game numbers them) and its members.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DungeonTeam {
+    pub index: u8,
+    pub members: Vec<DungeonTeamMember>,
+}
+
+/// Parse the in-game "Dungeon Teams" export.
+///
+/// Format (whitespace/newlines between the sentinels are ignored — the game
+/// sometimes wraps the payload onto its own line, sometimes inlines it):
+///
+/// ```text
+/// ---DungeonTeamsStart---0:Succubus=1,Egg=2,...,;1:Penguin=1,...,;---DungeonTeamsEnd---
+/// ```
+///
+/// Each `;`-separated segment is `index:Pet=Slot,Pet=Slot,...` with a trailing
+/// comma before the `;`. Pet names carry no spaces, so all whitespace inside
+/// the payload is insignificant and stripped. Slots must be 1–6, a team may
+/// hold at most 6 members, and no two members of a team may share a slot.
+pub fn parse_dungeon_teams(source: &str) -> anyhow::Result<Vec<DungeonTeam>> {
+    const START: &str = "---DungeonTeamsStart---";
+    const END: &str = "---DungeonTeamsEnd---";
+
+    let start = source
+        .find(START)
+        .ok_or_else(|| anyhow::anyhow!("Missing '{START}' marker"))?;
+    let after_start = start + START.len();
+    let end = source[after_start..]
+        .find(END)
+        .map(|e| after_start + e)
+        .ok_or_else(|| anyhow::anyhow!("Missing '{END}' marker"))?;
+
+    // Strip all whitespace (incl. the newline the game may insert between the
+    // start sentinel and the payload). Pet names never contain spaces.
+    let payload: String = source[after_start..end]
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+
+    let mut teams = Vec::new();
+    for segment in payload.split(';') {
+        if segment.is_empty() {
+            continue; // trailing empty segment after the final ';'
+        }
+        let (index_str, members_str) = segment
+            .split_once(':')
+            .ok_or_else(|| anyhow::anyhow!("Team segment missing ':' separator: '{segment}'"))?;
+        let index: u8 = index_str
+            .parse()
+            .map_err(|_| anyhow::anyhow!("Invalid team index '{index_str}'"))?;
+
+        let mut members = Vec::new();
+        let mut seen_slots = Vec::new();
+        for pair in members_str.split(',') {
+            if pair.is_empty() {
+                continue; // trailing comma before ';'
+            }
+            let (name, slot_str) = pair
+                .split_once('=')
+                .ok_or_else(|| anyhow::anyhow!("Member missing '=' separator: '{pair}'"))?;
+            if name.is_empty() {
+                anyhow::bail!("Empty pet name in team {index}");
+            }
+            let slot: u8 = slot_str
+                .parse()
+                .map_err(|_| anyhow::anyhow!("Invalid slot '{slot_str}' for '{name}'"))?;
+            if !(1..=6).contains(&slot) {
+                anyhow::bail!("Slot {slot} for '{name}' out of range (must be 1–6)");
+            }
+            if seen_slots.contains(&slot) {
+                anyhow::bail!("Team {index} has two pets in slot {slot}");
+            }
+            seen_slots.push(slot);
+            members.push(DungeonTeamMember { name: name.to_string(), slot });
+        }
+        // Unique slots in 1–6 already cap a team at 6 members, so no separate
+        // count check is needed.
+        teams.push(DungeonTeam { index, members });
+    }
+
+    if teams.is_empty() {
+        anyhow::bail!("No teams found in export");
+    }
+    Ok(teams)
+}
+
 fn parse_element(s: &str) -> Element {
     match s.trim() {
         "Fire" => Element::Fire,
@@ -496,5 +593,68 @@ mod tests {
     fn test_parse_signed_negative() {
         assert_eq!(parse_signed("-50"), -50);
         assert_eq!(parse_signed("2,053"), 2053);
+    }
+
+    // -- Dungeon Teams export -------------------------------------------------
+
+    const SAMPLE_TEAMS: &str = "---DungeonTeamsStart---\n0:Reindeer=5,Dog=3,Dragon=6,Egg=2,Salamander=4,Succubus=1,;1:Penguin=1,Clam=2,Frog=4,Rabbit=6,Fairy=5,Whale=3,;2:Cat=1,Armadillo=3,Sylph=6,Squirrel=5,MistSphere=4,Serow=2,;---DungeonTeamsEnd---";
+
+    #[test]
+    fn dungeon_teams_parses_sample_with_newline_after_sentinel() {
+        let teams = parse_dungeon_teams(SAMPLE_TEAMS).unwrap();
+        assert_eq!(teams.len(), 3);
+        assert_eq!(teams[0].index, 0);
+        assert_eq!(teams[0].members.len(), 6);
+        // Order is as-listed in the export (not sorted by slot).
+        assert_eq!(
+            teams[0].members[0],
+            DungeonTeamMember { name: "Reindeer".into(), slot: 5 }
+        );
+        assert_eq!(
+            teams[2].members[4],
+            DungeonTeamMember { name: "MistSphere".into(), slot: 4 }
+        );
+    }
+
+    #[test]
+    fn dungeon_teams_parses_fully_inline() {
+        // The user can paste the whole thing on one line with no newline.
+        let inline = "---DungeonTeamsStart---0:Succubus=1,Egg=2,;1:Cat=1,;---DungeonTeamsEnd---";
+        let teams = parse_dungeon_teams(inline).unwrap();
+        assert_eq!(teams.len(), 2);
+        assert_eq!(teams[1].members, vec![DungeonTeamMember { name: "Cat".into(), slot: 1 }]);
+    }
+
+    #[test]
+    fn dungeon_teams_rejects_missing_markers() {
+        assert!(parse_dungeon_teams("0:Cat=1,;").is_err());
+        assert!(parse_dungeon_teams("---DungeonTeamsStart---0:Cat=1,;").is_err());
+    }
+
+    #[test]
+    fn dungeon_teams_rejects_bad_slot() {
+        let zero = "---DungeonTeamsStart---0:Cat=0,;---DungeonTeamsEnd---";
+        let seven = "---DungeonTeamsStart---0:Cat=7,;---DungeonTeamsEnd---";
+        let nan = "---DungeonTeamsStart---0:Cat=x,;---DungeonTeamsEnd---";
+        assert!(parse_dungeon_teams(zero).is_err());
+        assert!(parse_dungeon_teams(seven).is_err());
+        assert!(parse_dungeon_teams(nan).is_err());
+    }
+
+    #[test]
+    fn dungeon_teams_rejects_duplicate_slot() {
+        let dup = "---DungeonTeamsStart---0:Cat=1,Dog=1,;---DungeonTeamsEnd---";
+        assert!(parse_dungeon_teams(dup).is_err());
+    }
+
+    #[test]
+    fn dungeon_teams_allows_empty_and_partial_teams() {
+        // A team can have fewer than 6 members; an empty payload between ';'
+        // yields an empty team rather than an error.
+        let partial = "---DungeonTeamsStart---0:Cat=1,Dog=2,;1:;---DungeonTeamsEnd---";
+        let teams = parse_dungeon_teams(partial).unwrap();
+        assert_eq!(teams.len(), 2);
+        assert_eq!(teams[0].members.len(), 2);
+        assert!(teams[1].members.is_empty());
     }
 }

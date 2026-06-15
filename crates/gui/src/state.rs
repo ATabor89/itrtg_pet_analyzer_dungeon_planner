@@ -26,6 +26,11 @@ pub struct AppState {
     pub inventory: BTreeMap<String, u8>,
     pub equipment_standards: BTreeMap<Dungeon, EquipmentStandardOverride>,
     pub constraints: ConstraintsState,
+    /// Remembered mapping from a "Dungeon Teams" export's team ordinal (0-based,
+    /// as the game numbers them) to the dungeon the user assigned it to. Used to
+    /// pre-fill the team→dungeon choices on re-import; the export itself carries
+    /// no dungeon identity.
+    pub team_dungeons: BTreeMap<u8, Dungeon>,
     /// User overrides for dungeon-event coverage checks. Only stores
     /// deviations from each event's default (optional events default to
     /// disabled, normal events to enabled), so the file stays minimal.
