@@ -16,7 +16,8 @@ use itrtg_models::{
     pgc_growth_mult, CampaignType, Equipment, ExportPet, Loadout, Quality, MAGIC_EGG_GROWTH_MULT,
 };
 use itrtg_planner::campaign::{
-    simulate_growth_chamber, ChamberPet, ChamberResult, ChamberRun, SpecialPet, TargetStatus,
+    simulate_growth_chamber, ChamberClass, ChamberPet, ChamberResult, ChamberRun, SpecialPet,
+    TargetStatus,
 };
 use itrtg_planner::growth::GrowthRates;
 use itrtg_planner::merge::{CampaignBonusBreakdown, CampaignContext, MergedPet};
@@ -86,6 +87,12 @@ pub struct ChamberState {
     pub fish_power: f64,
     /// Fishing level — adds the +10% milestones (at 15 and 27) to the boost.
     pub fishing_level: u32,
+    /// Multiplier on Adventurer campaign class XP — the "pet stone / ChP
+    /// Adventurer-XP" purchases applied after the base formula. `1.0` = none;
+    /// `0.0` turns class-level modelling off entirely. The pet-stone component is
+    /// save-file-only (no export carries it), so this is a manual input.
+    #[serde(default = "default_adv_xp_mult")]
+    pub adv_xp_mult: f64,
     /// Per-pet what-if overrides (canonical name → tweaked loadout + CL). Absent
     /// means "use the live export as-is". Seeded from the export on first edit;
     /// the card's "Refresh from export" button drops the entry to revert.
@@ -143,6 +150,13 @@ pub struct ImportedStats {
     pub fishing_level: Option<u32>,
 }
 
+/// Serde default for [`ChamberState::adv_xp_mult`] — 1.0 (no purchases), so an
+/// older persisted state that predates the field models class XP at the base
+/// rate rather than disabling it (which 0.0 would do).
+fn default_adv_xp_mult() -> f64 {
+    1.0
+}
+
 /// Food types, lowest→highest growth.
 pub const FOODS: [&str; 5] = ["Free", "Puny", "Strong", "Mighty", "Chocolate"];
 
@@ -174,6 +188,7 @@ impl Default for ChamberState {
             rebirth_unit: 0, // Hours
             fish_power: 0.0,
             fishing_level: 0,
+            adv_xp_mult: 1.0,
             overrides: BTreeMap::new(),
             imported: ImportedStats::default(),
             search: String::new(),
@@ -429,6 +444,16 @@ fn chamber_pet(
         "Nightmare" => Some(SpecialPet::Nightmare { class_level: export.class_level }),
         _ => None,
     };
+    // Class-XP state — only Adventurers earn campaign class XP. The per-level
+    // slope (2 + evo) comes from the same merge seam the bonus split uses, so the
+    // mid-run level-ups raise the bonus by exactly what the card would show. The
+    // starting level/exp come from the (override-aware) effective export; exp is
+    // 0 until a save import populates it.
+    let class = pet.adventurer_per_level_bonus(ctx).map(|per_cl| ChamberClass {
+        level: export.class_level,
+        exp: export.class_exp,
+        bonus_per_cl: per_cl,
+    });
     Some(ChamberPet {
         name: pet.name.clone(),
         growth,
@@ -440,6 +465,7 @@ fn chamber_pet(
         target: state.targets.get(&pet.name).map(|&t| t as f64),
         in_chamber: state.chamber.iter().any(|n| n == &pet.name),
         special,
+        class,
     })
 }
 
@@ -671,6 +697,18 @@ pub fn show(
         ui.label(RichText::new("Max cycles:").color(style::TEXT_MUTED).size(12.0));
         ui.add(egui::DragValue::new(&mut state.max_cycles).range(1..=1_000_000).speed(50.0).clearable());
         ui.separator();
+        ui.label(RichText::new("Adventurer XP ×:").color(style::TEXT_MUTED).size(12.0))
+            .on_hover_text(
+                "Multiplier on Adventurer campaign class XP (pet-stone / ChP Adventurer-XP purchases). Base XP per cycle is 250·(1 + total growth/20000)·hours. 1.0 = no purchases; 0 turns class-level modelling off.",
+            );
+        ui.add(
+            egui::DragValue::new(&mut state.adv_xp_mult)
+                .range(0.0..=1000.0)
+                .speed(0.1)
+                .max_decimals(2)
+                .clearable(),
+        );
+        ui.separator();
         ui.checkbox(
             &mut state.run_until_targets,
             RichText::new("Stop early when all targets reached").size(12.0),
@@ -725,6 +763,7 @@ pub fn show(
                     skip_first_cycle_passive: state.exported_after_campaign,
                     rebirth_hours: state.rebirth_enabled.then(|| state.rebirth_total_hours()),
                     fishing_boost_pct: state.fishing_boost(),
+                    adv_xp_mult: state.adv_xp_mult,
                 },
             ));
         }
@@ -1562,6 +1601,24 @@ fn show_results(ui: &mut egui::Ui, state: &ChamberState) {
                         .size(10.0),
                     );
                 }
+                // Class progression (Adventurers only). Show the level move and the
+                // XP earned; highlight when the pet actually leveled.
+                if let Some(cp) = result.class_progress.iter().find(|c| &c.name == name) {
+                    let leveled = cp.end_level > cp.start_level;
+                    let level_txt = if leveled {
+                        format!("CL {} \u{2B62} {}", cp.start_level, cp.end_level)
+                    } else {
+                        format!("CL {}", cp.end_level)
+                    };
+                    ui.label(
+                        RichText::new(format!(
+                            "      class — {level_txt}  (+{:.0} class XP, {:.0} toward next)",
+                            cp.exp_gained, cp.final_exp
+                        ))
+                        .color(if leveled { style::SUCCESS } else { style::TEXT_MUTED })
+                        .size(10.0),
+                    );
+                }
             }
         });
 }
@@ -1791,6 +1848,7 @@ mod tests {
             )],
             specials: Default::default(),
             tracks: vec![],
+            class_progress: vec![],
         };
         // Window = min(2 × chamber size, n/2) = 2: campaign (30+40)/2 = 35,
         // plus passive 8/4 = 2 → 37/cycle. The whole-run average is only
