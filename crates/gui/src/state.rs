@@ -82,6 +82,12 @@ pub struct ForcedEntry {
     pub pet: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dungeon: Option<Dungeon>,
+    /// Exact party slot to pin the pet to, as the in-game slot number 1–6
+    /// (1–3 front row, 4–6 back row). Only meaningful when `dungeon` is set;
+    /// `None` lets the solver pick the best-fitting open slot. Older saved
+    /// states without this field load as `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slot: Option<u8>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
