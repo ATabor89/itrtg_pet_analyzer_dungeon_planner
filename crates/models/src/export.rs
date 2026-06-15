@@ -33,6 +33,13 @@ pub struct ExportPet {
     /// None means unevolved.
     pub class: Option<Class>,
     pub class_level: u32,
+    /// Class experience accumulated toward the next class level. The normal pet
+    /// stats export does **not** carry this — only a full save-file import can
+    /// supply it — so it defaults to 0 for export-sourced and pre-existing
+    /// persisted pets. The Growth Chamber sim uses it as the starting point for
+    /// per-cycle Adventurer class-XP accrual; see `reference/growth_chamber_status.md`.
+    #[serde(default)]
+    pub class_exp: f64,
     pub combat_stats: CombatStats,
     pub elemental_affinities: ElementalAffinities,
     pub loadout: Loadout,
@@ -95,5 +102,30 @@ mod tests {
         assert!(close(pgc_growth_mult(25, 25), 1.50));
         // No challenges known at all → no bonus (and no spurious doubling).
         assert!(close(pgc_growth_mult(0, 0), 1.0));
+    }
+
+    /// A persisted pet from before `class_exp` existed (e.g. an older
+    /// `app_state.yaml`) must still load, defaulting the field to 0.
+    #[test]
+    fn class_exp_defaults_to_zero_when_absent() {
+        let yaml = r#"
+export_name: Cupid
+element: Fire
+growth: 57018
+dungeon_level: 20
+class: Adventurer
+class_level: 10
+combat_stats: { hp: 1, attack: 1, defense: 1, speed: 1 }
+elemental_affinities: { water: 0, fire: 0, wind: 0, earth: 0, dark: 0, light: 0 }
+loadout: { weapon: null, armor: null, accessory: null }
+action: Idle
+unlocked: true
+improved: false
+other: null
+has_partner: false
+"#;
+        let pet: ExportPet = serde_yaml::from_str(yaml).expect("deserializes without class_exp");
+        assert_eq!(pet.class_exp, 0.0);
+        assert_eq!(pet.class_level, 10);
     }
 }
