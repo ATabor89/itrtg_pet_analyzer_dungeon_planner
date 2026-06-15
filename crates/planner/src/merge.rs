@@ -717,6 +717,7 @@ mod tests {
             dungeon_level: 10,
             class,
             class_level: 5,
+            class_exp: 0.0,
             combat_stats: CombatStats { hp: 100, attack: 50, defense: 30, speed: 40 },
             elemental_affinities: ElementalAffinities {
                 water: 0, fire: 0, wind: 0, earth: 0, dark: 0, light: 0,

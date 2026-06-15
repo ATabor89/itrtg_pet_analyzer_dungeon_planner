@@ -1087,6 +1087,7 @@ accessories:
             dungeon_level: 20,
             class,
             class_level: 10,
+            class_exp: 0.0,
             combat_stats: CombatStats {
                 hp: 500, attack: 200, defense: 100, speed: 150,
             },
