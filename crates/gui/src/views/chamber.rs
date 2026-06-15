@@ -1640,6 +1640,7 @@ mod tests {
             dungeon_level: 1,
             class: None,
             class_level: cl,
+            class_exp: 0.0,
             combat_stats: CombatStats { hp: 1, attack: 1, defense: 1, speed: 1 },
             elemental_affinities: ElementalAffinities {
                 water: 0,

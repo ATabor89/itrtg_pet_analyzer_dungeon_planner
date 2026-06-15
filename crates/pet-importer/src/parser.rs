@@ -90,6 +90,9 @@ pub fn parse_export(source: &str) -> anyhow::Result<Vec<ExportPet>> {
             dungeon_level,
             class,
             class_level,
+            // The pet stats export has no class-exp column; only a full save
+            // import can supply it. Default to 0 here.
+            class_exp: 0.0,
             combat_stats,
             elemental_affinities,
             loadout,
