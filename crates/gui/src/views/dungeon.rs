@@ -610,6 +610,17 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 state.constraints_status = None;
             }
 
+            // Export → in-game Dungeon Teams format (from the solved plans)
+            if ui
+                .button(RichText::new("\u{1F4E4} Export Teams").size(11.0))
+                .on_hover_text(
+                    "Copy the planned teams to the clipboard in the in-game Dungeon Teams format",
+                )
+                .clicked()
+            {
+                export_dungeon_teams_to_clipboard(state);
+            }
+
             // Status flash from last import/export
             if let Some((msg, is_err)) = &state.constraints_status {
                 let color = if *is_err { style::ERROR } else { style::SUCCESS };
@@ -1043,52 +1054,116 @@ fn export_constraints_to_clipboard(state: &mut DungeonState) {
     };
 
     match serde_yaml::to_string(&export) {
-        Ok(yaml) => {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                match arboard::Clipboard::new().and_then(|mut cb| cb.set_text(&yaml)) {
-                    Ok(()) => {
-                        state.constraints_status =
-                            Some(("Copied to clipboard".to_string(), false));
-                    }
-                    Err(e) => {
-                        state.constraints_status =
-                            Some((format!("Clipboard error: {e}"), true));
-                    }
-                }
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                if let Some(window) = web_sys::window() {
-                    let clipboard = window.navigator().clipboard();
-                    let promise = clipboard.write_text(&yaml);
-                    // Await the clipboard Promise so we don't claim success
-                    // on a rejected write. The success/failure status can't
-                    // easily be communicated back to DungeonState from the
-                    // async closure (no channel wired up), so we set an
-                    // optimistic message and log failures. In practice
-                    // writeText rarely fails — it runs on a user gesture in
-                    // a secure context (GitHub Pages).
-                    state.constraints_status =
-                        Some(("Copied to clipboard".to_string(), false));
-                    wasm_bindgen_futures::spawn_local(async move {
-                        if wasm_bindgen_futures::JsFuture::from(promise)
-                            .await
-                            .is_err()
-                        {
-                            log::warn!("WASM clipboard write_text rejected");
-                        }
-                    });
-                } else {
-                    state.constraints_status =
-                        Some(("Clipboard not available".to_string(), true));
-                }
-            }
-        }
+        Ok(yaml) => copy_to_clipboard(&yaml, &mut state.constraints_status),
         Err(e) => {
             state.constraints_status = Some((format!("Serialize error: {e}"), true));
         }
     }
+}
+
+/// Copy `text` to the system clipboard (native) or the browser clipboard
+/// (wasm), reporting the outcome into `status` as `(message, is_error)`.
+fn copy_to_clipboard(text: &str, status: &mut Option<(String, bool)>) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        match arboard::Clipboard::new().and_then(|mut cb| cb.set_text(text)) {
+            Ok(()) => *status = Some(("Copied to clipboard".to_string(), false)),
+            Err(e) => *status = Some((format!("Clipboard error: {e}"), true)),
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(window) = web_sys::window() {
+            let clipboard = window.navigator().clipboard();
+            let promise = clipboard.write_text(text);
+            // Set an optimistic status and log failures — the success/failure
+            // can't easily be routed back to DungeonState from the async
+            // closure, and writeText rarely fails on a user gesture in a
+            // secure context (GitHub Pages).
+            *status = Some(("Copied to clipboard".to_string(), false));
+            wasm_bindgen_futures::spawn_local(async move {
+                if wasm_bindgen_futures::JsFuture::from(promise).await.is_err() {
+                    log::warn!("WASM clipboard write_text rejected");
+                }
+            });
+        } else {
+            *status = Some(("Clipboard not available".to_string(), true));
+        }
+    }
+}
+
+/// Export the planner's solved teams to the clipboard in the in-game
+/// "Dungeon Teams" import format, so the user can push a planned comp back
+/// into the game.
+fn export_dungeon_teams_to_clipboard(state: &mut DungeonState) {
+    let has_team = state.plans.iter().any(|p| {
+        p.assignments
+            .iter()
+            .any(|a| matches!(a.assignment, Assignment::Filled { .. }))
+    });
+    if !has_team {
+        state.constraints_status =
+            Some(("No teams to export — run the planner first".to_string(), true));
+        return;
+    }
+    let text = build_dungeon_teams_export(&state.plans);
+    copy_to_clipboard(&text, &mut state.constraints_status);
+}
+
+/// The name the game uses for a pet in its exports (space-stripped, e.g.
+/// "MistSphere"). Falls back to the canonical name with spaces removed for the
+/// (practically impossible) case of an assigned pet without export data.
+fn team_export_name(pet: &itrtg_planner::merge::MergedPet) -> String {
+    pet.export
+        .as_ref()
+        .map(|e| e.export_name.clone())
+        .unwrap_or_else(|| pet.name.replace(' ', ""))
+}
+
+/// Build the in-game "Dungeon Teams" import string from the solved plans. One
+/// team per plan, in planner order; the per-plan member lists are extracted
+/// here (filtering empty slots) and handed to `format_dungeon_teams`.
+fn build_dungeon_teams_export(plans: &[DungeonPlan]) -> String {
+    let teams: Vec<Vec<(String, u8)>> = plans
+        .iter()
+        .map(|plan| {
+            plan.assignments
+                .iter()
+                .filter_map(|a| match &a.assignment {
+                    Assignment::Filled { pet, .. } => {
+                        Some((team_export_name(pet), (a.position + 1) as u8))
+                    }
+                    Assignment::Empty { .. } => None,
+                })
+                .collect()
+        })
+        .collect();
+    format_dungeon_teams(&teams)
+}
+
+/// Format already-collected teams into the game's import string. Teams with no
+/// members (a planned dungeon the solver couldn't fill) are skipped, and the
+/// rest are numbered contiguously from 0 in order — the number is the team's
+/// position among the teams in use, NOT tied to any dungeon. Members are
+/// emitted in slot order as `<name>=<slot>,` with the game's trailing comma.
+fn format_dungeon_teams(teams: &[Vec<(String, u8)>]) -> String {
+    let mut out = String::from("---DungeonTeamsStart---\n");
+    let mut team_index = 0u8;
+    for team in teams {
+        if team.is_empty() {
+            continue;
+        }
+        let mut members = team.clone();
+        members.sort_by_key(|(_, slot)| *slot);
+        out.push_str(&format!("{team_index}:"));
+        for (name, slot) in &members {
+            out.push_str(&format!("{name}={slot},"));
+        }
+        out.push(';');
+        team_index += 1;
+    }
+    out.push_str("---DungeonTeamsEnd---");
+    out
 }
 
 /// Import dialog window for pasting constraints YAML.
@@ -2994,6 +3069,64 @@ mod tests {
         assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepWater"));
         assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepAny"));
         assert_eq!(forced_pets.len(), 3);
+    }
+
+    #[test]
+    fn export_numbers_teams_contiguously_skipping_empty() {
+        // Three plans where the middle one has no assigned pets. The teams in
+        // use must be numbered 0 and 1 (contiguous) — NOT 0 and 2. This is the
+        // crux: the team number is the position among in-use teams, never tied
+        // to the dungeon's enum position.
+        let teams = vec![
+            vec![("Succubus".to_string(), 1u8), ("Gnome".to_string(), 6u8)],
+            vec![], // a planned dungeon the solver couldn't fill
+            vec![("Cat".to_string(), 1u8)],
+        ];
+        let out = format_dungeon_teams(&teams);
+        assert_eq!(
+            out,
+            "---DungeonTeamsStart---\n0:Succubus=1,Gnome=6,;1:Cat=1,;---DungeonTeamsEnd---"
+        );
+    }
+
+    #[test]
+    fn export_emits_members_in_slot_order() {
+        // Members given out of slot order are emitted sorted by slot.
+        let teams = vec![vec![
+            ("Back".to_string(), 6u8),
+            ("Front".to_string(), 1u8),
+            ("Mid".to_string(), 3u8),
+        ]];
+        let out = format_dungeon_teams(&teams);
+        assert_eq!(
+            out,
+            "---DungeonTeamsStart---\n0:Front=1,Mid=3,Back=6,;---DungeonTeamsEnd---"
+        );
+    }
+
+    #[test]
+    fn export_round_trips_through_the_parser() {
+        // What we emit must parse back to the same teams (the import path is the
+        // contract the game's importer also follows).
+        let teams = vec![
+            vec![("Succubus".to_string(), 1u8), ("Egg".to_string(), 2u8)],
+            vec![("MistSphere".to_string(), 4u8)],
+        ];
+        let out = format_dungeon_teams(&teams);
+        let parsed = pet_importer::parser::parse_dungeon_teams(&out).unwrap();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].index, 0);
+        assert_eq!(parsed[0].members.len(), 2);
+        assert_eq!(parsed[1].index, 1);
+        assert_eq!(parsed[1].members[0].name, "MistSphere");
+        assert_eq!(parsed[1].members[0].slot, 4);
+    }
+
+    #[test]
+    fn export_of_all_empty_teams_has_no_team_segments() {
+        let teams = vec![vec![], vec![]];
+        let out = format_dungeon_teams(&teams);
+        assert_eq!(out, "---DungeonTeamsStart---\n---DungeonTeamsEnd---");
     }
 
     #[test]
