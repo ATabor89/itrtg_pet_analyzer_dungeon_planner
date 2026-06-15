@@ -417,6 +417,43 @@ pub struct ChamberPet {
     pub in_chamber: bool,
     /// Special-pet behaviour, if any (Pandora's Box / Bag).
     pub special: Option<SpecialPet>,
+    /// Class-experience state, present only for pets that earn **campaign** class
+    /// XP (i.e. Adventurers — see `reference/pet_class_and_combat_mechanics.md`).
+    /// `None` for everyone else. The sim accrues XP into it each cycle and levels
+    /// the pet up in place; see [`ChamberClass`].
+    pub class: Option<ChamberClass>,
+}
+
+/// A chamber pet's class-experience state for the duration of a run. Only
+/// Adventurers (the pets that gain class XP from campaigns) carry one. The run
+/// mutates it in place — `exp` accrues each cycle, and crossing a level
+/// threshold raises `level` and adds `bonus_per_cl` to the pet's
+/// `campaign_bonus_pct` — but it is a **snapshot**: nothing is written back to
+/// the export, so a pet that levels up in a run starts the next run unchanged.
+#[derive(Debug, Clone, Default)]
+pub struct ChamberClass {
+    /// Current class level. Starts at the export's CL; rises during the run.
+    pub level: u32,
+    /// Class experience **toward the next level** (residual, matching the save's
+    /// `w.d.c` semantics — it resets on level-up, it is not cumulative).
+    pub exp: f64,
+    /// Campaign-bonus percentage points gained per class level for this pet —
+    /// `2 + evo` (the Adventurer base plus the pet's Adventurer evo bonus). Added
+    /// to `campaign_bonus_pct` on each level-up so later cycles reflect it.
+    pub bonus_per_cl: f32,
+}
+
+/// Class experience required to advance **from** `level` to `level + 1`:
+/// `1000 + 2000·level²` (with 1,000 to recover CL 1 from a drained CL 0). From
+/// the wiki "Experience level tables"; the twin in `save-parser`'s `formulas`
+/// module is verified to the digit against in-game displays (CL 25 → 1,251,000).
+pub fn class_exp_to_next(level: u32) -> f64 {
+    if level == 0 {
+        1000.0
+    } else {
+        let l = level as f64;
+        1000.0 + 2000.0 * l * l
+    }
 }
 
 /// Per-cycle record for the chamber trace.
@@ -497,6 +534,23 @@ pub struct ChamberResult {
     /// run's own `reached` is the snapshot for the targets set at run time; this
     /// is the raw trajectory those (and any later) targets are read against.
     pub tracks: Vec<GrowthTrack>,
+    /// Per in-chamber Adventurer, how its class level/exp moved over the run.
+    /// Only pets that earn campaign class XP (carry a [`ChamberClass`]) appear.
+    pub class_progress: Vec<ClassProgress>,
+}
+
+/// One in-chamber Adventurer's class progression across a run, for the report.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassProgress {
+    pub name: String,
+    /// Class level before the first cycle.
+    pub start_level: u32,
+    /// Class level after the run.
+    pub end_level: u32,
+    /// Total class XP accrued over the run (across all level-ups).
+    pub exp_gained: f64,
+    /// Class XP toward the next level at the run's end (residual).
+    pub final_exp: f64,
 }
 
 /// One in-chamber pet's **total**-growth trajectory across a chamber run: its
@@ -595,6 +649,11 @@ pub struct ChamberRun {
     /// the first 30 h of each rebirth. 0 = none. Only applies when rebirths are
     /// modelled (it's a rebirth-relative effect).
     pub fishing_boost_pct: f64,
+    /// Global multiplier on Adventurer campaign class XP — the "pet stone / ChP
+    /// Adventurer-XP" purchases applied after the base formula. `1.0` = no
+    /// purchases; **`0.0` disables class-XP modelling entirely** (no accrual, no
+    /// level-ups). Only pets carrying a [`ChamberClass`] accrue XP regardless.
+    pub adv_xp_mult: f64,
 }
 
 impl Default for ChamberRun {
@@ -607,6 +666,7 @@ impl Default for ChamberRun {
             skip_first_cycle_passive: false,
             rebirth_hours: None,
             fishing_boost_pct: 0.0,
+            adv_xp_mult: 1.0,
         }
     }
 }
@@ -633,6 +693,7 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
         skip_first_cycle_passive,
         rebirth_hours,
         fishing_boost_pct,
+        adv_xp_mult,
     } = *run;
     let base_hours = hours.clamp(1, 12);
     // Per-cycle hours, repeating over a rebirth (`None` ⭢ uniform). Each entry is
@@ -674,6 +735,30 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
     let mut breakdown = vec![GrowthBreakdown::default(); pets.len()];
     // Run totals of the special pets' abilities (total terms).
     let mut special_totals = SpecialTotals::default();
+    // Class-level snapshot at the run's start + the XP each pet accrues over the
+    // run, both parallel to `pets`. Only Adventurers (those carrying a
+    // `ChamberClass`) ever change. Used to build `class_progress` at the end.
+    let start_class_levels: Vec<u32> =
+        pets.iter().map(|p| p.class.as_ref().map_or(0, |c| c.level)).collect();
+    let mut class_exp_gained = vec![0.0_f64; pets.len()];
+    // Build the per-pet class-progression report from the start snapshot and the
+    // run-end state. A plain fn-style closure (captures nothing) so it can be
+    // called at both the early-return and final result sites without borrowing
+    // the mutable accumulators.
+    let make_class_progress = |pets: &[ChamberPet], start: &[u32], gained: &[f64]| -> Vec<ClassProgress> {
+        (0..pets.len())
+            .filter(|&i| pets[i].in_chamber)
+            .filter_map(|i| {
+                pets[i].class.as_ref().map(|c| ClassProgress {
+                    name: pets[i].name.clone(),
+                    start_level: start[i],
+                    end_level: c.level,
+                    exp_gained: gained[i],
+                    final_exp: c.exp,
+                })
+            })
+            .collect()
+    };
 
     // Pandora's running feeding count: seeds from her entered value, climbs as she
     // is fed each cycle (the bonus caps at 20 feedings), and resets each rebirth.
@@ -795,6 +880,41 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                 chamber_idx.iter().zip(contribs).map(|(&i, c)| (i, c)).collect();
             let recipient = chamber_idx[recipient_sub];
 
+            // Accrue Adventurer campaign class XP, then apply any level-ups — done
+            // *before* the deposit/feeding, on each pet's pre-deposit **total**
+            // growth (`end_total`, the same value the campaign formula reads).
+            // Validated: XP tracks pre-campaign growth — the recipient earns the
+            // least class XP despite its big deposit landing the same cycle (see
+            // `reference/real_growth_campaign/2_in_game_results.txt`). A level-up's
+            // higher bonus therefore only takes effect from the *next* cycle.
+            // Caveat: the bump lands on `campaign_bonus_pct`, which Bag (reads
+            // `flat_bonus_pct`) and Nightmare (reads its export CL) don't use for
+            // their special term — so a special pet's mid-run level-up shows in the
+            // report but doesn't raise its special bonus. Regular contributors are
+            // unaffected.
+            if adv_xp_mult > 0.0 {
+                for &i in &chamber_idx {
+                    let Some(per_cl) = pets[i].class.as_ref().map(|c| c.bonus_per_cl) else {
+                        continue;
+                    };
+                    let basis = end_total(&pets[i]);
+                    let gained = 250.0 * (1.0 + basis / 20_000.0) * cycle_hours as f64 * adv_xp_mult;
+                    class_exp_gained[i] += gained;
+                    let pet = &mut pets[i];
+                    let c = pet.class.as_mut().expect("checked Some above");
+                    c.exp += gained;
+                    let mut levels = 0u32;
+                    while c.exp >= class_exp_to_next(c.level) {
+                        c.exp -= class_exp_to_next(c.level);
+                        c.level += 1;
+                        levels += 1;
+                    }
+                    // `c`'s borrow ends here (its last use is the loop), so the
+                    // disjoint `campaign_bonus_pct` field is free to update.
+                    pet.campaign_bonus_pct += per_cl * levels as f32;
+                }
+            }
+
             // Special-pet parameters, read from the in-chamber pets. Assumes at
             // most one Pandora and one Bag (the game has one of each); with
             // duplicates the last in roster order wins.
@@ -880,6 +1000,7 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                 breakdown: pets.iter().zip(&breakdown).map(|(p, b)| (p.name.clone(), b.clone())).collect(),
                 specials: special_totals,
                 tracks,
+                class_progress: make_class_progress(pets, &start_class_levels, &class_exp_gained),
             };
         }
     }
@@ -892,6 +1013,7 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
         breakdown: pets.iter().zip(&breakdown).map(|(p, b)| (p.name.clone(), b.clone())).collect(),
         specials: special_totals,
         tracks,
+        class_progress: make_class_progress(pets, &start_class_levels, &class_exp_gained),
     }
 }
 
@@ -957,7 +1079,7 @@ mod tests {
 
     #[test]
     fn chamber_recipient_never_loses_growth_to_a_negative_contributor() {
-        let chamber = |name: &str, growth: f64, bonus: f32| ChamberPet {
+        let chamber = |name: &str, growth: f64, bonus: f32| ChamberPet { class: None,
             name: name.into(),
             growth,
             growth_multiplier: 1.0,
@@ -1074,11 +1196,11 @@ mod tests {
     fn chamber_rushes_a_new_pet_to_its_target() {
         // A new low-growth pet stays the recipient while two residents feed it.
         let mut pets = vec![
-            ChamberPet { name: "Resident1".into(), growth: 200_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "Resident1".into(), growth: 200_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "Resident2".into(), growth: 210_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "Resident2".into(), growth: 210_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "NewPet".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "NewPet".into(), growth: 1_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(
@@ -1099,9 +1221,9 @@ mod tests {
         // Two near-equal pets: whoever is fed leaps ahead, so the recipient flips
         // each cycle — the rotation that cycles a settled chamber.
         let mut pets = vec![
-            ChamberPet { name: "A".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "A".into(), growth: 1_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "B".into(), growth: 1_001.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "B".into(), growth: 1_001.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(
@@ -1117,11 +1239,11 @@ mod tests {
         // Two targeted pets that share a name must both be recorded (dedup is by
         // index, not name) so the stop condition can fire.
         let mut pets = vec![
-            ChamberPet { name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "Dup".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "Dup".into(), growth: 1_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
-            ChamberPet { name: "Dup".into(), growth: 1_500.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "Dup".into(), growth: 1_500.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(
@@ -1137,9 +1259,9 @@ mod tests {
         // A pet that already sits above its target before the run is recorded at
         // cycle 0 — it didn't grow into the target over the first cycle.
         let mut pets = vec![
-            ChamberPet { name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "Already".into(), growth: 5_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "Already".into(), growth: 5_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(
@@ -1159,9 +1281,9 @@ mod tests {
         // the in-loop check — a pet whose *total* clears the target counts even
         // when its base is below it.
         let mut pets = vec![
-            ChamberPet { name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "Feeder".into(), growth: 500_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 0.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "Multi".into(), growth: 1_500.0, growth_multiplier: 2.0,
+            ChamberPet { class: None, name: "Multi".into(), growth: 1_500.0, growth_multiplier: 2.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: Some(2_000.0), in_chamber: true, special: None },
         ];
         let result = simulate_growth_chamber(
@@ -1180,7 +1302,7 @@ mod tests {
         // One in-chamber pet that grows steadily. After the run, the same track
         // classifies any target — including ones never set at run time — into
         // already-above / reached-at-cycle-N / not-reached.
-        let mut pets = vec![ChamberPet {
+        let mut pets = vec![ChamberPet { class: None,
             name: "Solo".into(), growth: 1_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0,
             gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None,
@@ -1203,9 +1325,9 @@ mod tests {
     #[test]
     fn growth_track_only_covers_in_chamber_pets() {
         let mut pets = vec![
-            ChamberPet { name: "In".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "In".into(), growth: 1_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: true, special: None },
-            ChamberPet { name: "Bench".into(), growth: 1_000.0, growth_multiplier: 1.0,
+            ChamberPet { class: None, name: "Bench".into(), growth: 1_000.0, growth_multiplier: 1.0,
             campaign_bonus_pct: 0.0, passive_per_hour: 100.0, food_per_feeding: 0.0, gold_dragon_per_feeding: 0.0, target: None, in_chamber: false, special: None },
         ];
         let result = simulate_growth_chamber(
@@ -1220,7 +1342,7 @@ mod tests {
     fn chamber_passive_growth_ticks_per_hour() {
         // One pet, no campaign contribution (it's always the recipient and the
         // only pet, so total is 0), only passive growth: +100/hr × 12h × 2 cycles.
-        let mut pets = vec![ChamberPet {
+        let mut pets = vec![ChamberPet { class: None,
             name: "Solo".into(),
             growth: 0.0,
             growth_multiplier: 1.0,
@@ -1242,7 +1364,7 @@ mod tests {
 
     #[test]
     fn chamber_feeding_growth_ticks_per_cycle() {
-        let solo = |food: f64| ChamberPet {
+        let solo = |food: f64| ChamberPet { class: None,
             name: "Solo".into(),
             growth: 0.0,
             growth_multiplier: 1.0,
@@ -1272,7 +1394,7 @@ mod tests {
 
     #[test]
     fn chamber_egg_recipient_total_jumps_by_reward_times_multiplier() {
-        let pet = |name: &str, base: f64, mult: f64| ChamberPet {
+        let pet = |name: &str, base: f64, mult: f64| ChamberPet { class: None,
             name: name.into(),
             growth: base,
             growth_multiplier: mult,
@@ -1298,7 +1420,7 @@ mod tests {
 
     #[test]
     fn chamber_records_per_cycle_contributions() {
-        let pet = |name: &str, g: f64| ChamberPet {
+        let pet = |name: &str, g: f64| ChamberPet { class: None,
             name: name.into(),
             growth: g,
             growth_multiplier: 1.0,
@@ -1396,7 +1518,7 @@ mod tests {
         ];
         let mut pets: Vec<ChamberPet> = data
             .iter()
-            .map(|&(name, growth, bonus, in_chamber, special)| ChamberPet {
+            .map(|&(name, growth, bonus, in_chamber, special)| ChamberPet { class: None,
                 name: name.into(),
                 growth,
                 growth_multiplier: 1.0,
@@ -1442,7 +1564,7 @@ mod tests {
 
     #[test]
     fn special_totals_track_a_pre_token_bag_steal_and_scale_by_multiplier() {
-        let mk = |name: &str, growth: f64, mult: f64, in_chamber: bool, special| ChamberPet {
+        let mk = |name: &str, growth: f64, mult: f64, in_chamber: bool, special| ChamberPet { class: None,
             name: name.into(),
             growth,
             growth_multiplier: mult,
@@ -1500,7 +1622,7 @@ mod tests {
         // importer stores (total / mult for an egg pet). The campaign reads
         // `growth · mult`, recovering the in-game total — no double egg.
         let mk = |name: &str, total: f64, bonus: f32, mult: f64, special: Option<SpecialPet>| {
-            ChamberPet {
+            ChamberPet { class: None,
                 name: name.into(),
                 growth: total / mult,
                 growth_multiplier: mult,
@@ -1568,7 +1690,7 @@ mod tests {
     /// roster-time value.
     #[test]
     fn bag_bonus_tracks_the_lowest_pets_growth_per_cycle() {
-        let mk = |name: &str, growth: f64, passive: f64, in_chamber: bool, special| ChamberPet {
+        let mk = |name: &str, growth: f64, passive: f64, in_chamber: bool, special| ChamberPet { class: None,
             name: name.into(),
             growth,
             growth_multiplier: 1.0,
@@ -1621,7 +1743,7 @@ mod tests {
 
     #[test]
     fn breakdown_splits_growth_by_source_and_sums_to_gain() {
-        let mk = |name: &str, growth: f64| ChamberPet {
+        let mk = |name: &str, growth: f64| ChamberPet { class: None,
             name: name.into(),
             growth,
             growth_multiplier: 1.0,
@@ -1667,7 +1789,7 @@ mod tests {
     fn skip_first_cycle_passive_drops_exactly_one_round_of_passive() {
         // A lone pet is the recipient and contributes nothing, so its growth comes
         // purely from passive — isolating the toggle's effect.
-        let mk = || ChamberPet {
+        let mk = || ChamberPet { class: None,
             name: "P".into(),
             growth: 1_000.0,
             growth_multiplier: 1.0,
@@ -1699,7 +1821,7 @@ mod tests {
 
     #[test]
     fn nightmare_subtracts_its_malus_from_other_pets_only() {
-        let mk = |name: &str, growth: f64, bonus: f32, special: Option<SpecialPet>| ChamberPet {
+        let mk = |name: &str, growth: f64, bonus: f32, special: Option<SpecialPet>| ChamberPet { class: None,
             name: name.into(),
             growth,
             growth_multiplier: 1.0,
@@ -1753,7 +1875,7 @@ mod tests {
     fn rebirth_shortens_the_last_cycle_of_each_rebirth() {
         // A lone pet (recipient, contributes nothing) so growth = passive only,
         // making the per-cycle hours directly observable.
-        let mk = || ChamberPet {
+        let mk = || ChamberPet { class: None,
             name: "P".into(),
             growth: 1_000.0,
             growth_multiplier: 1.0,
@@ -1782,7 +1904,7 @@ mod tests {
     // growth (and thus the per-5k term) stays fixed — isolating the feeding count.
     // The implied Pandora % each cycle is `recipient_gain / base − 1`.
     fn pandora_accumulation_pets(start: u32) -> Vec<ChamberPet> {
-        let mk = |name: &str, growth: f64, special: Option<SpecialPet>| ChamberPet {
+        let mk = |name: &str, growth: f64, special: Option<SpecialPet>| ChamberPet { class: None,
             name: name.into(),
             growth,
             growth_multiplier: 1.0,
@@ -1852,7 +1974,7 @@ mod tests {
         // Lone pet (recipient, no campaign), so growth is feeding only and the
         // boost is directly observable. 6 h cycles, 30 h rebirth → [6×5]; midpoints
         // 3/9/15/21/27 h → decay 0.9/0.7/0.5/0.3/0.1. Feeding/cycle = 2 × food 10.
-        let mk = || ChamberPet {
+        let mk = || ChamberPet { class: None,
             name: "P".into(),
             growth: 1_000.0,
             growth_multiplier: 1.0,
@@ -1891,5 +2013,146 @@ mod tests {
             &ChamberRun { hours: 6, max_cycles: 5, fishing_boost_pct: 100.0, ..Default::default() },
         );
         assert!((r_norb.breakdown[0].1.feeding - 100.0).abs() < 1e-6, "no rebirths ⭢ no fishing");
+    }
+
+    // --- Class experience / class levels ---
+
+    #[test]
+    fn class_exp_thresholds_match_the_wiki_table() {
+        // Twin of save-parser's verified `class_exp_to_next`; 1000 + 2000·level².
+        assert_eq!(class_exp_to_next(0), 1_000.0);
+        assert_eq!(class_exp_to_next(1), 3_000.0);
+        assert_eq!(class_exp_to_next(24), 1_153_000.0);
+        assert_eq!(class_exp_to_next(25), 1_251_000.0);
+    }
+
+    /// An Adventurer in a chamber accrues `250·(1 + total/20000)·hours·mult`
+    /// class XP per cycle, levels up on crossing the threshold, and the level-up
+    /// raises its campaign bonus by `bonus_per_cl`.
+    #[test]
+    fn adventurer_accrues_class_xp_and_levels_up() {
+        let mut pets = vec![ChamberPet {
+            name: "Adv".into(),
+            growth: 20_000.0,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 10.0,
+            passive_per_hour: 0.0, // so the XP basis is exactly the growth
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+            class: Some(ChamberClass { level: 1, exp: 0.0, bonus_per_cl: 2.0 }),
+        }];
+        let r = simulate_growth_chamber(
+            &mut pets,
+            &ChamberRun { hours: 12, max_cycles: 1, ..Default::default() },
+        );
+        // XP = 250·(1 + 20000/20000)·12·1 = 6000. From CL1 (needs 3000 to CL2;
+        // CL2 needs 9000) → ends CL2 with 3000 toward the next.
+        let cp = &r.class_progress[0];
+        assert_eq!(cp.name, "Adv");
+        assert_eq!(cp.start_level, 1);
+        assert_eq!(cp.end_level, 2);
+        assert!((cp.exp_gained - 6_000.0).abs() < 1e-9, "{}", cp.exp_gained);
+        assert!((cp.final_exp - 3_000.0).abs() < 1e-9, "{}", cp.final_exp);
+        // One level → +2.0 to the campaign bonus.
+        assert!((pets[0].campaign_bonus_pct - 12.0).abs() < 1e-6, "{}", pets[0].campaign_bonus_pct);
+    }
+
+    /// XP is computed on **pre-deposit** growth: the lowest-growth pet is the
+    /// recipient (gets the whole deposit) yet — because its pre-campaign growth
+    /// is lowest — earns the least class XP. Mirrors the validated real run.
+    #[test]
+    fn class_xp_uses_pre_deposit_growth_recipient_earns_least() {
+        let mk = |name: &str, growth: f64| ChamberPet {
+            name: name.into(),
+            growth,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 50.0,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+            class: Some(ChamberClass { level: 5, exp: 0.0, bonus_per_cl: 2.0 }),
+        };
+        // "Low" is the recipient (lowest growth) and receives the deposit.
+        let mut pets = vec![mk("Low", 50_000.0), mk("High", 57_000.0)];
+        let r = simulate_growth_chamber(
+            &mut pets,
+            &ChamberRun { upc_pct: 40.0, hours: 12, max_cycles: 1, ..Default::default() },
+        );
+        let xp = |n: &str| r.class_progress.iter().find(|c| c.name == n).unwrap().exp_gained;
+        assert!(xp("Low") < xp("High"), "recipient earned more: {} vs {}", xp("Low"), xp("High"));
+        // And the recipient really did get the deposit (its growth grew the most).
+        let gain = |n: &str| r.final_growth.iter().find(|(p, _)| p == n).unwrap().1;
+        assert!(gain("Low") - 50_000.0 > gain("High") - 57_000.0);
+    }
+
+    #[test]
+    fn adv_xp_mult_zero_disables_class_modelling() {
+        let mut pets = vec![ChamberPet {
+            name: "Adv".into(),
+            growth: 1_000_000.0,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 10.0,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+            class: Some(ChamberClass { level: 3, exp: 0.0, bonus_per_cl: 2.0 }),
+        }];
+        let r = simulate_growth_chamber(
+            &mut pets,
+            &ChamberRun { hours: 12, max_cycles: 5, adv_xp_mult: 0.0, ..Default::default() },
+        );
+        let cp = &r.class_progress[0];
+        assert_eq!(cp.start_level, 3);
+        assert_eq!(cp.end_level, 3, "no level-ups when modelling is off");
+        assert_eq!(cp.exp_gained, 0.0);
+        assert!((pets[0].campaign_bonus_pct - 10.0).abs() < 1e-9, "bonus unchanged");
+    }
+
+    #[test]
+    fn non_adventurers_have_no_class_progress() {
+        let mut pets = vec![
+            ChamberPet {
+                name: "Adv".into(),
+                growth: 30_000.0,
+                growth_multiplier: 1.0,
+                campaign_bonus_pct: 0.0,
+                passive_per_hour: 0.0,
+                food_per_feeding: 0.0,
+                gold_dragon_per_feeding: 0.0,
+                target: None,
+                in_chamber: true,
+                special: None,
+                class: Some(ChamberClass { level: 1, exp: 0.0, bonus_per_cl: 2.0 }),
+            },
+            // No `class` ⭢ not an Adventurer, earns no campaign class XP.
+            ChamberPet {
+                name: "NonAdv".into(),
+                growth: 30_000.0,
+                growth_multiplier: 1.0,
+                campaign_bonus_pct: 0.0,
+                passive_per_hour: 0.0,
+                food_per_feeding: 0.0,
+                gold_dragon_per_feeding: 0.0,
+                target: None,
+                in_chamber: true,
+                special: None,
+                class: None,
+            },
+        ];
+        let r = simulate_growth_chamber(
+            &mut pets,
+            &ChamberRun { hours: 12, max_cycles: 1, ..Default::default() },
+        );
+        assert_eq!(r.class_progress.len(), 1);
+        assert_eq!(r.class_progress[0].name, "Adv");
     }
 }
