@@ -153,6 +153,12 @@ pub struct SolverConstraints {
     pub forbidden: HashSet<String>,
     /// Pets forced into specific dungeon teams: dungeon → list of pet names.
     pub forced: HashMap<Dungeon, Vec<String>>,
+    /// Exact-slot pins for dungeon-forced pets, keyed by (dungeon, pet name) →
+    /// 0-based party index (0–5). When a forced pet has a pin and that slot is
+    /// in-bounds and still open, Phase 1 places it there instead of the
+    /// best-fitting open slot; an absent or unavailable pin falls back to
+    /// best-fit. Entries here are always a subset of `forced`.
+    pub forced_slots: HashMap<(Dungeon, String), usize>,
     /// Pets forced into any available team — solver picks the best dungeon/slot.
     pub forced_any: Vec<String>,
     /// Whitelisted pets: bypass the non-dungeon class filter.
@@ -587,24 +593,40 @@ pub fn solve_multi(
                 continue;
             };
 
-            // Find the best slot for this pet in the dungeon: best match
-            // quality first, then the most specific slot (so a flexible pet
-            // claims a tighter slot and leaves looser ones open), then the
+            // Honor an explicit slot pin first: if the user pinned this pet to
+            // an exact slot and that slot is in-bounds and still open, place it
+            // there regardless of fit (user intent wins — equipment hints then
+            // match the slot the pet actually occupies in-game).
+            let pinned = constraints
+                .forced_slots
+                .get(&(req.dungeon, forced_name.clone()))
+                .copied()
+                .filter(|&si| si < dd.party.len() && !assignment_map.contains_key(&(ri, si)))
+                .map(|si| {
+                    let q = score_pet(pet, &dd.party[si], true, config)
+                        .unwrap_or(MatchQuality::Fallback);
+                    (si, q)
+                });
+
+            // Otherwise find the best slot for this pet in the dungeon: best
+            // match quality first, then the most specific slot (so a flexible
+            // pet claims a tighter slot and leaves looser ones open), then the
             // lowest index for stability.
-            let best_slot = dd
-                .party
-                .iter()
-                .enumerate()
-                .filter(|(si, _)| !assignment_map.contains_key(&(ri, *si)))
-                .filter_map(|(si, slot)| {
-                    score_pet(pet, slot, true, config).map(|q| (si, q, slot_specificity(slot)))
-                })
-                .min_by(|a, b| {
-                    a.1.cmp(&b.1)
-                        .then_with(|| b.2.cmp(&a.2))
-                        .then_with(|| a.0.cmp(&b.0))
-                })
-                .map(|(si, q, _)| (si, q));
+            let best_slot = pinned.or_else(|| {
+                dd.party
+                    .iter()
+                    .enumerate()
+                    .filter(|(si, _)| !assignment_map.contains_key(&(ri, *si)))
+                    .filter_map(|(si, slot)| {
+                        score_pet(pet, slot, true, config).map(|q| (si, q, slot_specificity(slot)))
+                    })
+                    .min_by(|a, b| {
+                        a.1.cmp(&b.1)
+                            .then_with(|| b.2.cmp(&a.2))
+                            .then_with(|| a.0.cmp(&b.0))
+                    })
+                    .map(|(si, q, _)| (si, q))
+            });
 
             // If no slot matches constraints, force into the first open slot anyway
             // (user explicitly forced this pet — respect the intent)
@@ -2156,6 +2178,111 @@ mod tests {
             .collect();
         assert_eq!(names[0], ("FireBlade", MatchQuality::Exact));
         assert_eq!(names[1], ("WindBlade", MatchQuality::Exact));
+    }
+
+    /// Helper: find the slot a named pet was placed in within a plan.
+    fn placed_position(plan: &DungeonPlan, pet_name: &str) -> Option<usize> {
+        plan.assignments.iter().find_map(|a| match &a.assignment {
+            Assignment::Filled { pet, .. } if pet.name == pet_name => Some(a.position),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn test_forced_slot_pin_overrides_best_fit() {
+        // A Defender naturally best-fits the front Defender slot (index 0), but
+        // the user pins it to the back slot (in-game slot 6, index 5) because
+        // they run it there. The pin must win so equipment hints follow the
+        // slot the pet actually occupies. (Reproduces the reported "Gnome in
+        // slot 3 vs slot 6" equipment mismatch.)
+        let pets = vec![mock_pet("Gnome", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+        let dd = dungeon_with_depths(vec![vec![
+            make_slot(Some(Class::Defender), None), // 0: natural best fit
+            make_slot(None, None),
+            make_slot(None, None),
+            make_slot(None, None),
+            make_slot(None, None),
+            make_slot(None, None), // 5: pinned target
+        ]]);
+
+        let mut constraints = SolverConstraints::default();
+        constraints.forced.insert(Dungeon::Scrapyard, vec!["Gnome".into()]);
+        constraints
+            .forced_slots
+            .insert((Dungeon::Scrapyard, "Gnome".into()), 5);
+
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        assert_eq!(
+            placed_position(&plans[0], "Gnome"),
+            Some(5),
+            "the slot pin should override the best-fit Defender slot at index 0"
+        );
+    }
+
+    #[test]
+    fn test_forced_slot_pin_falls_back_when_unavailable() {
+        // An out-of-range pin (index 9) must not drop the pet — it falls back
+        // to best-fit placement, the same as an unpinned dungeon-force.
+        let pets = vec![mock_pet("Gnome", Element::Neutral, Some(Class::Defender),
+            RecommendedClass::Single(Class::Defender), true)];
+        let dd = dungeon_with_depths(vec![vec![
+            make_slot(Some(Class::Defender), None), // best fit
+            make_slot(None, None),
+        ]]);
+
+        let mut constraints = SolverConstraints::default();
+        constraints.forced.insert(Dungeon::Scrapyard, vec!["Gnome".into()]);
+        constraints
+            .forced_slots
+            .insert((Dungeon::Scrapyard, "Gnome".into()), 9);
+
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        assert_eq!(
+            placed_position(&plans[0], "Gnome"),
+            Some(0),
+            "an out-of-bounds pin should fall back to the best-fit slot, not be dropped"
+        );
+    }
+
+    #[test]
+    fn test_forced_slot_pin_yields_when_slot_taken() {
+        // Two pets pinned to the same slot: the first claims it, the second
+        // falls back to another open slot rather than evicting it or vanishing.
+        let pets = vec![
+            mock_pet("First", Element::Neutral, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true),
+            mock_pet("Second", Element::Neutral, Some(Class::Defender),
+                RecommendedClass::Single(Class::Defender), true),
+        ];
+        let dd = dungeon_with_depths(vec![vec![
+            make_slot(None, None),
+            make_slot(None, None),
+            make_slot(None, None),
+        ]]);
+
+        let mut constraints = SolverConstraints::default();
+        constraints
+            .forced
+            .insert(Dungeon::Scrapyard, vec!["First".into(), "Second".into()]);
+        constraints
+            .forced_slots
+            .insert((Dungeon::Scrapyard, "First".into()), 1);
+        constraints
+            .forced_slots
+            .insert((Dungeon::Scrapyard, "Second".into()), 1);
+
+        let requests = [DungeonRequest { dungeon: Dungeon::Scrapyard, depth: 1, data: &dd }];
+        let plans = solve_multi(&requests, &pets, &constraints, None);
+
+        assert_eq!(placed_position(&plans[0], "First"), Some(1), "first pin wins the slot");
+        let second = placed_position(&plans[0], "Second");
+        assert!(second.is_some(), "the second pet must still be placed");
+        assert_ne!(second, Some(1), "the second pet must not share the taken slot");
     }
 
     // ========================================================================

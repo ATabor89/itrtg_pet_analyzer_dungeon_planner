@@ -45,9 +45,11 @@ pub struct DungeonState {
     constraints_enabled: bool,
     /// Pet names forbidden from all dungeon teams.
     forbidden_pets: HashSet<String>,
-    /// Pets forced into dungeon teams: (optional dungeon, pet_name).
-    /// None dungeon = solver picks the best team.
-    forced_pets: Vec<(Option<Dungeon>, String)>,
+    /// Pets forced into dungeon teams: (optional dungeon, optional slot,
+    /// pet_name). None dungeon = solver picks the best team. The slot is the
+    /// in-game slot number 1–6 and only applies when a dungeon is set; None
+    /// lets the solver pick the best-fitting open slot.
+    forced_pets: Vec<(Option<Dungeon>, Option<u8>, String)>,
     /// Whitelisted pets: bypass non-dungeon class filter without being forced.
     whitelisted_pets: HashSet<String>,
     /// Explicit enable/disable choices for dungeon events, keyed by
@@ -58,6 +60,9 @@ pub struct DungeonState {
     constraint_search: String,
     /// Selected dungeon for the "Force" action. None = Any team.
     force_dungeon: Option<Dungeon>,
+    /// Selected slot (in-game 1–6) for the "Force" action. None = let the
+    /// solver pick. Only applied when `force_dungeon` is a specific dungeon.
+    force_slot: Option<u8>,
     /// Data version when plans were last refreshed.
     last_data_version: u64,
     /// Equipment inventory: catalog_key → owned quantity.
@@ -114,6 +119,7 @@ impl DungeonState {
             })
             .collect();
         self.force_dungeon = None; // Default: solver picks best team
+        self.force_slot = None; // Default: solver picks best slot
         self.constraints_enabled = true; // Default: constraints active
         self.initialized = true;
     }
@@ -154,20 +160,30 @@ impl DungeonState {
         }
 
         let mut forced: HashMap<Dungeon, Vec<String>> = HashMap::new();
+        let mut forced_slots: HashMap<(Dungeon, String), usize> = HashMap::new();
         let mut forced_any: Vec<String> = Vec::new();
-        for (dungeon, name) in &self.forced_pets {
+        for (dungeon, slot, name) in &self.forced_pets {
             // Skip if the pet is also forbidden (forbidden takes priority)
             if self.forbidden_pets.contains(name) {
                 continue;
             }
             match dungeon {
-                Some(d) => forced.entry(*d).or_default().push(name.clone()),
+                Some(d) => {
+                    forced.entry(*d).or_default().push(name.clone());
+                    // Convert the in-game slot number (1–6) the user picked to
+                    // the 0-based party index the solver works in.
+                    if let Some(s) = slot {
+                        forced_slots
+                            .insert((*d, name.clone()), s.saturating_sub(1) as usize);
+                    }
+                }
                 None => forced_any.push(name.clone()),
             }
         }
         SolverConstraints {
             forbidden: self.forbidden_pets.clone(),
             forced,
+            forced_slots,
             forced_any,
             whitelisted: self.whitelisted_pets.clone(),
             event_overrides,
@@ -225,7 +241,7 @@ impl DungeonState {
                 .constraints
                 .forced
                 .iter()
-                .map(|f| (f.dungeon, f.pet.clone())),
+                .map(|f| (f.dungeon, f.slot, f.pet.clone())),
         );
 
         // Event enable/disable overrides.
@@ -285,7 +301,11 @@ impl DungeonState {
             forced: self
                 .forced_pets
                 .iter()
-                .map(|(dungeon, pet)| ForcedEntry { pet: pet.clone(), dungeon: *dungeon })
+                .map(|(dungeon, slot, pet)| ForcedEntry {
+                    pet: pet.clone(),
+                    dungeon: *dungeon,
+                    slot: *slot,
+                })
                 .collect(),
         };
 
@@ -584,7 +604,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                     let mut names: Vec<&str> = data.merged.iter()
                         .filter(|p| p.is_unlocked())
                         .filter(|p| !state.forbidden_pets.contains(&p.name))
-                        .filter(|p| !state.forced_pets.iter().any(|(_, n)| n == &p.name))
+                        .filter(|p| !state.forced_pets.iter().any(|(_, _, n)| n == &p.name))
                         .filter(|p| !state.whitelisted_pets.contains(&p.name))
                         .filter(|p| search_lower.is_empty() || p.name.to_lowercase().contains(&search_lower))
                         .map(|p| p.name.as_str())
@@ -640,9 +660,14 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 )
                 .clicked()
             {
-                state
-                    .forced_pets
-                    .push((state.force_dungeon, state.constraint_search.clone()));
+                // A slot pin only applies to a specific dungeon; ignore it for
+                // an "Any" force.
+                let slot = state.force_dungeon.and(state.force_slot);
+                state.forced_pets.push((
+                    state.force_dungeon,
+                    slot,
+                    state.constraint_search.clone(),
+                ));
                 state.constraint_search.clear();
                 state.constraints_status = None;
             }
@@ -661,6 +686,32 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                     for (d, label) in DUNGEONS {
                         ui.selectable_value(&mut state.force_dungeon, Some(*d), *label);
                     }
+                });
+
+            // Optional exact-slot pin — only meaningful for a specific
+            // dungeon, so it's disabled (and reset) when the target is "Any".
+            if state.force_dungeon.is_none() {
+                state.force_slot = None;
+            }
+            let slot_label = match state.force_slot {
+                None => "Any slot".to_string(),
+                Some(s) => format!("Slot {s}"),
+            };
+            egui::ComboBox::from_id_salt("constraint_slot")
+                .selected_text(slot_label)
+                .width(110.0)
+                .show_ui(ui, |ui| {
+                    ui.add_enabled_ui(state.force_dungeon.is_some(), |ui| {
+                        ui.selectable_value(&mut state.force_slot, None, "Any slot");
+                        for s in 1..=6u8 {
+                            let row = if s <= 3 { "front" } else { "back" };
+                            ui.selectable_value(
+                                &mut state.force_slot,
+                                Some(s),
+                                format!("Slot {s} ({row})"),
+                            );
+                        }
+                    });
                 });
         });
 
@@ -732,13 +783,17 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                     let c = style::SUCCESS.linear_multiply(pill_alpha as f32 / 255.0);
                     ui.label(RichText::new("Forced:").color(c).size(11.0));
                     let mut to_remove = Vec::new();
-                    for (i, (dungeon, name)) in state.forced_pets.iter().enumerate() {
+                    for (i, (dungeon, slot, name)) in state.forced_pets.iter().enumerate() {
                         let target = match dungeon {
                             Some(d) => dungeon_label(*d),
                             None => "Any",
                         };
+                        let label = match slot {
+                            Some(s) => format!("{name} ⭢ {target} slot {s} ×"),
+                            None => format!("{name} ⭢ {target} ×"),
+                        };
                         let btn = egui::Button::new(
-                            RichText::new(format!("{name} ⭢ {target} ×")).color(c).size(11.0),
+                            RichText::new(label).color(c).size(11.0),
                         )
                         .fill(Color32::from_rgba_premultiplied(0x15, 0x30, 0x15, pill_alpha));
                         if ui.add(btn).clicked() {
@@ -945,9 +1000,10 @@ fn export_constraints_to_clipboard(state: &mut DungeonState) {
         forced: state
             .forced_pets
             .iter()
-            .map(|(dungeon, pet)| ForcedEntry {
+            .map(|(dungeon, slot, pet)| ForcedEntry {
                 pet: pet.clone(),
                 dungeon: *dungeon,
+                slot: *slot,
             })
             .collect(),
     };
@@ -1059,7 +1115,8 @@ whitelisted:
 forced:
   - pet: Frog
   - pet: Cat
-    dungeon: WaterTemple";
+    dungeon: WaterTemple
+    slot: 6";
 
 /// Parse the import text as YAML, validate and normalize pet names against
 /// the roster, and replace the current constraints if everything checks out.
@@ -1124,7 +1181,7 @@ fn import_constraints(state: &mut DungeonState, data: &DataStore) {
     let mut errors: Vec<String> = Vec::new();
     let mut resolved_forbidden: Vec<String> = Vec::new();
     let mut resolved_whitelisted: Vec<String> = Vec::new();
-    let mut resolved_forced: Vec<(Option<Dungeon>, String)> = Vec::new();
+    let mut resolved_forced: Vec<(Option<Dungeon>, Option<u8>, String)> = Vec::new();
 
     for name in &parsed.forbidden {
         match resolve(name) {
@@ -1140,7 +1197,23 @@ fn import_constraints(state: &mut DungeonState, data: &DataStore) {
     }
     for entry in &parsed.forced {
         match resolve(&entry.pet) {
-            Ok(canonical) => resolved_forced.push((entry.dungeon, canonical)),
+            // A slot pin only makes sense for a specific dungeon; drop it for
+            // an "Any" force so the data stays consistent with the UI.
+            Ok(canonical) => {
+                let slot = entry.dungeon.and(entry.slot);
+                // Reject pins the UI could never produce — otherwise the pill
+                // would display a slot the solver silently ignored.
+                if let Some(s) = slot {
+                    if !(1..=6).contains(&s) {
+                        errors.push(format!(
+                            "Invalid slot {s} for \"{}\" (must be 1–6)",
+                            entry.pet
+                        ));
+                        continue;
+                    }
+                }
+                resolved_forced.push((entry.dungeon, slot, canonical));
+            }
             Err(msg) => errors.push(msg),
         }
     }
