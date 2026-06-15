@@ -1319,14 +1319,36 @@ struct PetNameResolver {
 
 impl PetNameResolver {
     fn new(data: &DataStore) -> Self {
-        Self {
-            known: data.merged.iter().map(|p| p.name.clone()).collect(),
-            normalized: data
-                .merged
-                .iter()
-                .map(|p| (normalize_for_lookup(&p.name), p.name.clone()))
-                .collect(),
+        Self::from_entries(data.merged.iter().map(|p| {
+            (
+                p.name.clone(),
+                p.export.as_ref().map(|e| e.export_name.clone()),
+            )
+        }))
+    }
+
+    /// Build from `(canonical_name, optional in-game export_name)` pairs.
+    /// Indexes each pet's export name first (so "Egg" → "Egg/Chicken" and
+    /// "Reindeer" → "Rudolph" resolve from the player's own export — the
+    /// in-game Dungeon Teams export uses these names), then its canonical name,
+    /// which takes precedence on any collision.
+    fn from_entries(entries: impl Iterator<Item = (String, Option<String>)>) -> Self {
+        let entries: Vec<(String, Option<String>)> = entries.collect();
+        let known: HashSet<String> = entries.iter().map(|(n, _)| n.clone()).collect();
+
+        let mut normalized: HashMap<String, String> = HashMap::new();
+        for (name, export) in &entries {
+            if let Some(export_name) = export {
+                normalized
+                    .entry(normalize_for_lookup(export_name))
+                    .or_insert_with(|| name.clone());
+            }
         }
+        for (name, _) in &entries {
+            normalized.insert(normalize_for_lookup(name), name.clone());
+        }
+
+        Self { known, normalized }
     }
 
     fn resolve(&self, input: &str) -> Result<String, String> {
@@ -1417,6 +1439,16 @@ fn show_dungeon_teams_import_dialog(
                         .collect::<Vec<_>>()
                         .join(", ");
 
+                    // Dungeons already claimed by *other* teams — hidden from
+                    // this team's list so two teams can't map to one dungeon.
+                    let taken: HashSet<Dungeon> = state
+                        .team_choices
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .filter_map(|(_, c)| *c)
+                        .collect();
+
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(format!("Team {}", team_index + 1))
@@ -1433,6 +1465,9 @@ fn show_dungeon_teams_import_dialog(
                             .show_ui(ui, |ui| {
                                 ui.selectable_value(&mut state.team_choices[i], None, "— skip —");
                                 for (d, label) in DUNGEONS {
+                                    if taken.contains(d) {
+                                        continue; // claimed by another team
+                                    }
                                     ui.selectable_value(
                                         &mut state.team_choices[i],
                                         Some(*d),
@@ -1518,7 +1553,15 @@ fn apply_dungeon_teams_import(state: &mut DungeonState, data: &DataStore) {
 
     for (team, choice) in state.parsed_teams.iter().zip(state.team_choices.iter()) {
         let Some(dungeon) = choice else { continue };
-        mapped_dungeons.insert(*dungeon);
+        // Backstop for the dropdown guard: never let two teams target one
+        // dungeon (their pets would collide in a single 6-slot team).
+        if !mapped_dungeons.insert(*dungeon) {
+            errors.push(format!(
+                "{} is assigned to more than one team",
+                dungeon_label(*dungeon)
+            ));
+            continue;
+        }
         new_mapping.insert(team.index, *dungeon);
         team_count += 1;
         for m in &team.members {
@@ -3069,6 +3112,47 @@ mod tests {
         assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepWater"));
         assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepAny"));
         assert_eq!(forced_pets.len(), 3);
+    }
+
+    #[test]
+    fn resolver_matches_in_game_export_names() {
+        // The Dungeon Teams export uses in-game names ("Egg", "Reindeer") while
+        // the roster's canonical names differ ("Egg/Chicken", "Rudolph"). The
+        // resolver must map the export name to the canonical name.
+        let resolver = PetNameResolver::from_entries(
+            [
+                ("Egg/Chicken", Some("Egg")),
+                ("Rudolph", Some("Reindeer")),
+                ("Mist Sphere", Some("MistSphere")),
+                ("Succubus", Some("Succubus")),
+            ]
+            .into_iter()
+            .map(|(n, e)| (n.to_string(), e.map(|s| s.to_string()))),
+        );
+
+        assert_eq!(resolver.resolve("Egg").unwrap(), "Egg/Chicken");
+        assert_eq!(resolver.resolve("Reindeer").unwrap(), "Rudolph");
+        assert_eq!(resolver.resolve("MistSphere").unwrap(), "Mist Sphere");
+        // Canonical name still resolves directly.
+        assert_eq!(resolver.resolve("Egg/Chicken").unwrap(), "Egg/Chicken");
+        // A genuinely unknown name still errors.
+        assert!(resolver.resolve("Nonexistent").is_err());
+    }
+
+    #[test]
+    fn resolver_prefers_canonical_on_collision() {
+        // If one pet's export name normalizes to the same key as another pet's
+        // canonical name, the canonical name wins.
+        let resolver = PetNameResolver::from_entries(
+            [
+                ("Real Cat", None),
+                // Its export name collides with the canonical "Real Cat".
+                ("Other", Some("RealCat")),
+            ]
+            .into_iter()
+            .map(|(n, e)| (n.to_string(), e.map(|s| s.to_string()))),
+        );
+        assert_eq!(resolver.resolve("RealCat").unwrap(), "Real Cat");
     }
 
     #[test]
