@@ -121,6 +121,31 @@ The chamber lives in two files plus supporting data:
   not a special.
 - **Rebirth assumption:** simulate **from the start of a rebirth** (fishing at
   full, Pandora at the entered count). Cycle 0 is a full cycle.
+- **Adventurer class XP / class levels.** In-chamber Adventurers earn campaign
+  class XP each cycle: `250 · (1 + total_growth/20000) · hours · adv_xp_mult`,
+  using **total** growth (egg-included; base is ~20% off and won't reconcile)
+  and the pet's **pre-deposit** growth — the basis is `end_total` (base +
+  this cycle's passive, scaled), computed *before* the deposit/feeding. XP
+  accrues into `ChamberClass::exp` (residual toward the next level, matching the
+  save's `w.d.c`, **not** cumulative), draining against `class_exp_to_next(level)
+  = 1000 + 2000·level²` on each level-up. A level-up raises the pet's
+  `campaign_bonus_pct` by `bonus_per_cl` (= `2 + evo`, from
+  `merge::adventurer_per_level_bonus`), so the higher bonus applies **from the
+  next cycle** (we assume the level increments *after* the reward is calculated
+  — see open item). **Pre-deposit basis is validated:** in the real run the
+  recipient (Bag) ended with the highest growth from its own deposit yet earned
+  the *least* class XP — XP is monotonic with *pre*-campaign growth (see
+  `reference/real_growth_campaign/2_in_game_results.txt`). The `adv_xp_mult`
+  (pet-stone / ChP Adventurer-XP purchases) is a **manual chamber input** (the
+  pet-stone part is save-file-only; the player's `Chp Adv EXP boost` is 0); it
+  was ≈4.0× empirically. **`adv_xp_mult = 0` disables class modelling** entirely.
+  **Non-persistent:** `ChamberPet`s (and their `ChamberClass`) are rebuilt from
+  the roster each run and never written back to the export, so a pet that levels
+  up in a run starts the next run at its export CL. **Caveat:** the level-up bump
+  lands on `campaign_bonus_pct`, which **Bag** (reads `flat_bonus_pct`) and
+  **Nightmare** (reads its export CL) don't use for their special term — a
+  special pet's mid-run level-up shows in the report but doesn't raise its
+  special bonus. Regular contributors are unaffected.
 
 ## Open / deferred work
 
@@ -172,6 +197,16 @@ Roughly highest-leverage first. Each has enough context to start cold.
 9. **Fresh-rebirth validation of fishing/Pandora.** Both modelled from tooltips;
    a real fresh-rebirth capture (fishing is dormant for the player now — rebirth
    too old) would confirm them.
+10. **Class-XP timing + multiplier validation.** Two assumptions to confirm with
+    a real capture that includes a level-up (the player's current 62×12 h run has
+    a contributor about to level): (a) whether the class level increments
+    *before* or *after* the cycle's reward is calculated — we assume **after**
+    (so a level's higher bonus applies next cycle); if it's *before*, fold the
+    level-up into the bonus *before* `growth_campaign_detailed`. (b) The exact
+    `adv_xp_mult` and its composition (pet stones vs ChP) — ≈4.0× empirically;
+    the pet-stone term will come from the save import. Also still open: whether
+    the XP basis includes the cycle's passive (the +76/cycle in the validation
+    run was too small to tell; we include it, matching the campaign formula).
 
 ## Validation assets
 
