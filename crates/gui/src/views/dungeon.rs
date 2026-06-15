@@ -3,11 +3,13 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui, Vec2};
 use itrtg_models::dungeon::{DungeonRecommendations, EquipmentCatalog, EventEntry};
 use itrtg_models::Quality;
-use itrtg_models::{Dungeon, Element};
+use itrtg_models::{normalize_for_lookup, Dungeon, Element};
 use itrtg_planner::equipment::{self, EquipmentSource};
 use itrtg_planner::solver::{
     self, Assignment, CoverageKind, DungeonPlan, DungeonRequest, MatchQuality, SolverConstraints,
 };
+
+use pet_importer::parser::DungeonTeam;
 
 use crate::data::DataStore;
 use crate::state::{
@@ -77,6 +79,19 @@ pub struct DungeonState {
     constraints_import_text: String,
     /// Status message from the last import/export attempt.
     constraints_status: Option<(String, bool)>, // (message, is_error)
+    // -- Dungeon Teams import UI state --
+    /// Remembered team-ordinal → dungeon mapping (persisted via `AppState`),
+    /// used to pre-fill the choices when re-importing.
+    team_dungeons: BTreeMap<u8, Dungeon>,
+    /// Whether the Dungeon Teams import dialog is open.
+    show_teams_import: bool,
+    /// Text buffer for the Dungeon Teams import dialog.
+    teams_import_text: String,
+    /// Teams parsed from `teams_import_text`, awaiting a dungeon assignment.
+    parsed_teams: Vec<DungeonTeam>,
+    /// Per-parsed-team dungeon choice (aligned with `parsed_teams`). `None` =
+    /// skip that team on apply.
+    team_choices: Vec<Option<Dungeon>>,
 }
 
 /// Resolved minimum equipment standards for a dungeon.
@@ -244,6 +259,9 @@ impl DungeonState {
                 .map(|f| (f.dungeon, f.slot, f.pet.clone())),
         );
 
+        // Remembered team→dungeon mapping for Dungeon Teams re-imports.
+        self.team_dungeons = state.team_dungeons.clone();
+
         // Event enable/disable overrides.
         self.event_overrides.clear();
         for ov in &state.event_overrides {
@@ -308,6 +326,9 @@ impl DungeonState {
                 })
                 .collect(),
         };
+
+        // Remembered team→dungeon mapping for Dungeon Teams re-imports.
+        state.team_dungeons = self.team_dungeons.clone();
 
         // Event overrides → sorted Vec for stable YAML output.
         let mut overrides: Vec<EventOverride> = self
@@ -577,6 +598,18 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                 state.show_constraints_import = !state.show_constraints_import;
             }
 
+            // Import ← in-game Dungeon Teams export
+            if ui
+                .button(RichText::new("\u{1F465} Import Teams").size(11.0))
+                .on_hover_text(
+                    "Import your in-game Dungeon Teams export and pin each pet to its slot",
+                )
+                .clicked()
+            {
+                state.show_teams_import = !state.show_teams_import;
+                state.constraints_status = None;
+            }
+
             // Status flash from last import/export
             if let Some((msg, is_err)) = &state.constraints_status {
                 let color = if *is_err { style::ERROR } else { style::SUCCESS };
@@ -814,6 +847,7 @@ fn show_constraints(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
     // Import dialog (floating window, outside the collapsible so it doesn't
     // get clipped — the button that opens it lives inside the section above).
     show_constraints_import_dialog(ui.ctx(), state, data);
+    show_dungeon_teams_import_dialog(ui.ctx(), state, data);
 }
 
 // =============================================================================
@@ -1129,7 +1163,6 @@ forced:
 /// might type.
 fn import_constraints(state: &mut DungeonState, data: &DataStore) {
     use crate::state::ConstraintsState;
-    use itrtg_models::normalize_for_lookup;
 
     let text = &state.constraints_import_text;
 
@@ -1141,41 +1174,7 @@ fn import_constraints(state: &mut DungeonState, data: &DataStore) {
         }
     };
 
-    // Build lookup tables: exact name → canonical name, and normalized key
-    // → canonical name. The normalized key strips spaces, punctuation, and
-    // lowercases so "Honey Badger" and "Honeybadger" both map to the same
-    // canonical name.
-    let known_names: HashSet<String> = data
-        .merged
-        .iter()
-        .map(|p| p.name.clone())
-        .collect();
-    let normalized_lookup: HashMap<String, String> = data
-        .merged
-        .iter()
-        .map(|p| (normalize_for_lookup(&p.name), p.name.clone()))
-        .collect();
-
-    // Resolve a user-supplied name to the canonical roster name.
-    // Tries, in order: exact match → normalized match → fuzzy suggestion.
-    let resolve = |input: &str| -> Result<String, String> {
-        // Exact match (most common — exported YAML uses canonical names).
-        if known_names.contains(input) {
-            return Ok(input.to_string());
-        }
-        // Normalized match: "Honey Badger" → "honeybadger" → "Honeybadger".
-        let norm = normalize_for_lookup(input);
-        if let Some(canonical) = normalized_lookup.get(&norm) {
-            return Ok(canonical.clone());
-        }
-        // No match — build a helpful error with fuzzy suggestion.
-        let suggestion = find_closest_name(input, &known_names);
-        Err(if let Some(closest) = suggestion {
-            format!("Unknown pet: \"{input}\" — did you mean \"{closest}\"?")
-        } else {
-            format!("Unknown pet: \"{input}\"")
-        })
-    };
+    let resolver = PetNameResolver::new(data);
 
     // Validate and resolve all pet names.
     let mut errors: Vec<String> = Vec::new();
@@ -1184,33 +1183,30 @@ fn import_constraints(state: &mut DungeonState, data: &DataStore) {
     let mut resolved_forced: Vec<(Option<Dungeon>, Option<u8>, String)> = Vec::new();
 
     for name in &parsed.forbidden {
-        match resolve(name) {
+        match resolver.resolve(name) {
             Ok(canonical) => resolved_forbidden.push(canonical),
             Err(msg) => errors.push(msg),
         }
     }
     for name in &parsed.whitelisted {
-        match resolve(name) {
+        match resolver.resolve(name) {
             Ok(canonical) => resolved_whitelisted.push(canonical),
             Err(msg) => errors.push(msg),
         }
     }
     for entry in &parsed.forced {
-        match resolve(&entry.pet) {
+        match resolver.resolve(&entry.pet) {
             // A slot pin only makes sense for a specific dungeon; drop it for
             // an "Any" force so the data stays consistent with the UI.
             Ok(canonical) => {
                 let slot = entry.dungeon.and(entry.slot);
                 // Reject pins the UI could never produce — otherwise the pill
                 // would display a slot the solver silently ignored.
-                if let Some(s) = slot {
-                    if !(1..=6).contains(&s) {
-                        errors.push(format!(
-                            "Invalid slot {s} for \"{}\" (must be 1–6)",
-                            entry.pet
-                        ));
-                        continue;
-                    }
+                if let Some(s) = slot
+                    && !(1..=6).contains(&s)
+                {
+                    errors.push(format!("Invalid slot {s} for \"{}\" (must be 1–6)", entry.pet));
+                    continue;
                 }
                 resolved_forced.push((entry.dungeon, slot, canonical));
             }
@@ -1235,6 +1231,260 @@ fn import_constraints(state: &mut DungeonState, data: &DataStore) {
     state.constraints_status = Some((format!("Imported {count} constraints"), false));
     state.constraints_import_text.clear();
     state.show_constraints_import = false;
+}
+
+/// Resolves user/export-supplied pet names to canonical roster names. Tries an
+/// exact match, then a normalized match (so "Honey Badger" ≈ "Honeybadger"),
+/// and on a miss returns an error carrying a fuzzy suggestion. Build it once
+/// and reuse across a batch — the lookup tables are precomputed.
+struct PetNameResolver {
+    known: HashSet<String>,
+    normalized: HashMap<String, String>,
+}
+
+impl PetNameResolver {
+    fn new(data: &DataStore) -> Self {
+        Self {
+            known: data.merged.iter().map(|p| p.name.clone()).collect(),
+            normalized: data
+                .merged
+                .iter()
+                .map(|p| (normalize_for_lookup(&p.name), p.name.clone()))
+                .collect(),
+        }
+    }
+
+    fn resolve(&self, input: &str) -> Result<String, String> {
+        // Exact match (most common — exported names are usually canonical).
+        if self.known.contains(input) {
+            return Ok(input.to_string());
+        }
+        // Normalized match: "Honey Badger" → "honeybadger" → "Honeybadger".
+        if let Some(canonical) = self.normalized.get(&normalize_for_lookup(input)) {
+            return Ok(canonical.clone());
+        }
+        // No match — build a helpful error with a fuzzy suggestion.
+        Err(match find_closest_name(input, &self.known) {
+            Some(closest) => format!("Unknown pet: \"{input}\" — did you mean \"{closest}\"?"),
+            None => format!("Unknown pet: \"{input}\""),
+        })
+    }
+}
+
+/// Dialog for importing the in-game "Dungeon Teams" export. The export carries
+/// no dungeon identity, so the user assigns each team to a dungeon; the team's
+/// pets are then forced into that dungeon pinned to their exact slots.
+fn show_dungeon_teams_import_dialog(
+    ctx: &egui::Context,
+    state: &mut DungeonState,
+    data: &DataStore,
+) {
+    if !state.show_teams_import {
+        return;
+    }
+
+    let mut open = true;
+    egui::Window::new("Import Dungeon Teams")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(true)
+        .default_size([540.0, 380.0])
+        .show(ctx, |ui| {
+            ui.label(
+                RichText::new(
+                    "Paste your in-game \"Dungeon Teams\" export and Parse it, then assign each \
+                     team to a dungeon. Each team's pets are forced into that dungeon at their \
+                     exact slots. Existing forced pets for the assigned dungeons are replaced; \
+                     other constraints are left untouched.",
+                )
+                .color(style::TEXT_MUTED)
+                .size(11.0),
+            );
+
+            egui::ScrollArea::vertical()
+                .id_salt("teams_import_text")
+                .max_height(90.0)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(&mut state.teams_import_text)
+                            .desired_width(f32::INFINITY)
+                            .desired_rows(3)
+                            .font(egui::TextStyle::Monospace)
+                            .hint_text("---DungeonTeamsStart---0:Pet=1,...,;---DungeonTeamsEnd---"),
+                    );
+                });
+
+            ui.horizontal(|ui| {
+                if ui.button("Parse").clicked() && !state.teams_import_text.trim().is_empty() {
+                    parse_teams_into_state(state);
+                }
+                if ui.button("Clear").clicked() {
+                    state.teams_import_text.clear();
+                    state.parsed_teams.clear();
+                    state.team_choices.clear();
+                    state.constraints_status = None;
+                }
+            });
+
+            if !state.parsed_teams.is_empty() {
+                ui.separator();
+                ui.label(RichText::new("Assign teams to dungeons:").size(12.0));
+
+                for i in 0..state.parsed_teams.len() {
+                    // Build the slot-ordered name preview before borrowing
+                    // `team_choices` mutably in the combo below.
+                    let team_index = state.parsed_teams[i].index;
+                    let mut members = state.parsed_teams[i].members.clone();
+                    members.sort_by_key(|m| m.slot);
+                    let preview = members
+                        .iter()
+                        .map(|m| m.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!("Team {}", team_index + 1))
+                                .strong()
+                                .size(12.0),
+                        );
+                        let selected = match state.team_choices[i] {
+                            Some(d) => dungeon_label(d),
+                            None => "— skip —",
+                        };
+                        egui::ComboBox::from_id_salt(("team_dungeon", i))
+                            .selected_text(selected)
+                            .width(120.0)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut state.team_choices[i], None, "— skip —");
+                                for (d, label) in DUNGEONS {
+                                    ui.selectable_value(
+                                        &mut state.team_choices[i],
+                                        Some(*d),
+                                        *label,
+                                    );
+                                }
+                            });
+                        ui.label(
+                            RichText::new(preview).color(style::TEXT_MUTED).size(10.0),
+                        );
+                    });
+                }
+
+                ui.add_space(4.0);
+                let any_mapped = state.team_choices.iter().any(|c| c.is_some());
+                if ui
+                    .add_enabled(any_mapped, egui::Button::new("Apply"))
+                    .on_hover_text("Replace forced pets for the assigned dungeons")
+                    .clicked()
+                {
+                    apply_dungeon_teams_import(state, data);
+                }
+            }
+
+            if let Some((msg, is_err)) = &state.constraints_status {
+                let color = if *is_err { style::ERROR } else { style::SUCCESS };
+                ui.label(RichText::new(msg).color(color).size(11.0));
+            }
+        });
+
+    if !open {
+        state.show_teams_import = false;
+    }
+}
+
+/// Parse the pasted export into `parsed_teams`, pre-filling each team's dungeon
+/// choice from the remembered mapping.
+fn parse_teams_into_state(state: &mut DungeonState) {
+    match pet_importer::parser::parse_dungeon_teams(&state.teams_import_text) {
+        Ok(teams) => {
+            state.team_choices = teams
+                .iter()
+                .map(|t| state.team_dungeons.get(&t.index).copied())
+                .collect();
+            let n = teams.len();
+            state.parsed_teams = teams;
+            state.constraints_status =
+                Some((format!("Parsed {n} team(s) — assign each to a dungeon"), false));
+        }
+        Err(e) => {
+            state.parsed_teams.clear();
+            state.team_choices.clear();
+            state.constraints_status = Some((format!("Parse error: {e}"), true));
+        }
+    }
+}
+
+/// Replace the forced entries for the given dungeons with `new_entries`,
+/// leaving entries for every other dungeon — and the "Any" (no-dungeon)
+/// entries — untouched. Factored out so the scoped-overwrite semantics are
+/// unit-testable without the GUI state.
+fn replace_forced_for_dungeons(
+    forced_pets: &mut Vec<(Option<Dungeon>, Option<u8>, String)>,
+    mapped_dungeons: &HashSet<Dungeon>,
+    new_entries: Vec<(Option<Dungeon>, Option<u8>, String)>,
+) {
+    forced_pets.retain(|(d, _, _)| !d.is_some_and(|dd| mapped_dungeons.contains(&dd)));
+    forced_pets.extend(new_entries);
+}
+
+/// Apply the mapped teams: resolve names, then scoped-overwrite the forced
+/// constraints for the assigned dungeons (replacing, not duplicating), pinning
+/// each pet to its slot. Aborts without changes if any name is unknown.
+fn apply_dungeon_teams_import(state: &mut DungeonState, data: &DataStore) {
+    let resolver = PetNameResolver::new(data);
+
+    let mut errors: Vec<String> = Vec::new();
+    let mut new_entries: Vec<(Option<Dungeon>, Option<u8>, String)> = Vec::new();
+    let mut mapped_dungeons: HashSet<Dungeon> = HashSet::new();
+    let mut new_mapping: BTreeMap<u8, Dungeon> = BTreeMap::new();
+    let mut team_count = 0usize;
+    let mut pet_count = 0usize;
+
+    for (team, choice) in state.parsed_teams.iter().zip(state.team_choices.iter()) {
+        let Some(dungeon) = choice else { continue };
+        mapped_dungeons.insert(*dungeon);
+        new_mapping.insert(team.index, *dungeon);
+        team_count += 1;
+        for m in &team.members {
+            match resolver.resolve(&m.name) {
+                Ok(canonical) => {
+                    new_entries.push((Some(*dungeon), Some(m.slot), canonical));
+                    pet_count += 1;
+                }
+                Err(msg) => errors.push(format!("Team {}: {msg}", team.index + 1)),
+            }
+        }
+    }
+
+    if team_count == 0 {
+        state.constraints_status = Some(("No teams assigned to a dungeon".into(), true));
+        return;
+    }
+    if !errors.is_empty() {
+        state.constraints_status = Some((errors.join("\n"), true));
+        return;
+    }
+
+    // Scoped overwrite: drop existing forced entries for the imported dungeons
+    // (so a re-import replaces rather than duplicates) while keeping forced_any,
+    // other dungeons, and the forbid/whitelist lists intact.
+    replace_forced_for_dungeons(&mut state.forced_pets, &mapped_dungeons, new_entries);
+
+    // Remember the mapping (persisted via AppState) for the next re-import.
+    state.team_dungeons.extend(new_mapping);
+    // Importing teams is an explicit request to constrain — make sure the
+    // constraints aren't silently paused.
+    state.constraints_enabled = true;
+
+    state.constraints_status = Some((
+        format!("Imported {team_count} team(s); {pet_count} pets pinned to slots"),
+        false,
+    ));
+    state.show_teams_import = false;
+    state.teams_import_text.clear();
+    state.parsed_teams.clear();
+    state.team_choices.clear();
 }
 
 /// Find the closest known pet name to an unknown input, for error
@@ -2708,5 +2958,57 @@ fn format_compact_number(n: u64) -> String {
         format!("{k:.1}k")
     } else {
         n.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn forced(d: Option<Dungeon>, slot: Option<u8>, name: &str)
+        -> (Option<Dungeon>, Option<u8>, String) {
+        (d, slot, name.to_string())
+    }
+
+    #[test]
+    fn scoped_overwrite_replaces_only_mapped_dungeons() {
+        // Pre-existing: a Scrapyard force, a WaterTemple force, and an "Any".
+        let mut forced_pets = vec![
+            forced(Some(Dungeon::Scrapyard), Some(3), "OldScrap"),
+            forced(Some(Dungeon::WaterTemple), None, "KeepWater"),
+            forced(None, None, "KeepAny"),
+        ];
+        // Re-import only Scrapyard.
+        let mapped: HashSet<Dungeon> = [Dungeon::Scrapyard].into_iter().collect();
+        let new_entries = vec![
+            forced(Some(Dungeon::Scrapyard), Some(6), "NewScrap"),
+        ];
+
+        replace_forced_for_dungeons(&mut forced_pets, &mapped, new_entries);
+
+        // Old Scrapyard entry gone; its replacement present.
+        assert!(!forced_pets.iter().any(|(_, _, n)| n == "OldScrap"));
+        assert!(forced_pets.iter().any(|(d, s, n)|
+            *d == Some(Dungeon::Scrapyard) && *s == Some(6) && n == "NewScrap"));
+        // Unmapped dungeon and the "Any" force survive untouched.
+        assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepWater"));
+        assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepAny"));
+        assert_eq!(forced_pets.len(), 3);
+    }
+
+    #[test]
+    fn scoped_overwrite_can_clear_a_dungeon_with_no_new_entries() {
+        // Mapping a dungeon but importing nothing for it (e.g. an empty team)
+        // still clears its old entries.
+        let mut forced_pets = vec![
+            forced(Some(Dungeon::Forest), Some(1), "Gone"),
+            forced(Some(Dungeon::Volcano), Some(1), "Stay"),
+        ];
+        let mapped: HashSet<Dungeon> = [Dungeon::Forest].into_iter().collect();
+
+        replace_forced_for_dungeons(&mut forced_pets, &mapped, Vec::new());
+
+        assert_eq!(forced_pets.len(), 1);
+        assert_eq!(forced_pets[0].2, "Stay");
     }
 }
