@@ -411,6 +411,19 @@ impl MergedPet {
     /// pets; e.g. Hedgehog +0.58 → 56.76% at CL22).
     fn class_campaign_bonus(&self, ctx: &CampaignContext) -> Option<f32> {
         let export = self.export.as_ref()?;
+        let per_level = self.adventurer_per_level_bonus(ctx)? as f64;
+        Some(round2(per_level * export.class_level as f64))
+    }
+
+    /// The Adventurer campaign-bonus rate **per class level** (%), or `None` if
+    /// the pet isn't currently an Adventurer. `2 + evo`, where `evo` is the
+    /// pet's Adventurer evo bonus from `ADVENTURER_EVO_BONUS` (0 for most pets;
+    /// Goblin's is dynamic with Overflow Challenges). The full class bonus is
+    /// this × class level — see [`Self::class_campaign_bonus`]. The Growth
+    /// Chamber sim uses this as the per-level slope when a pet gains class levels
+    /// mid-run.
+    pub fn adventurer_per_level_bonus(&self, ctx: &CampaignContext) -> Option<f32> {
+        let export = self.export.as_ref()?;
         if export.class != Some(Class::Adventurer) {
             return None;
         }
@@ -425,8 +438,7 @@ impl MergedPet {
             evo += (oc.min(100) as f64) * 0.008
                 + (oc.saturating_sub(100).min(370) as f64) * 0.001622;
         }
-        let per_level = 2.0 + evo;
-        Some(round2(per_level * export.class_level as f64))
+        Some((2.0 + evo) as f32)
     }
 
     /// Apply per-pet campaign formulas — bespoke math a static rule can't
