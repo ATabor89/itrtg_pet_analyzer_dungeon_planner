@@ -1005,6 +1005,19 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
 
     // Editing must never silently no-op a missing field.
     assert!(edit_save(&raw, &[ScalarEdit::parse("p.nonexistent", "1")]).is_err());
+
+    // The `stones` named target (X.y) resolves and round-trips.
+    let stones_path = save_parser::edit::named_target("stones").expect("stones target");
+    let stones_edit = ScalarEdit {
+        path: stones_path.iter().map(|s| s.to_string()).collect(),
+        value: "424242".into(),
+    };
+    let (encoded2, applied2) = edit_save(&raw, &[stones_edit]).expect("stones edit");
+    assert_eq!(applied2[0].old, "267028"); // Main Stats export pet stones
+    assert_eq!(
+        save_parser::parse_save(&encoded2).unwrap().pet_stones,
+        Some(424242)
+    );
 }
 
 #[test]

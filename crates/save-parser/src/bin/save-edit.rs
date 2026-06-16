@@ -6,7 +6,7 @@
 //!   save-edit <in-save> <out-save> [--gp <n>] [--set <path> <value>]...
 //!
 //! Examples:
-//!   save-edit MySave.txt edited_save.txt --gp 999999999
+//!   save-edit MySave.txt edited_save.txt --gp 999999999 --stones 999999999
 //!   save-edit MySave.txt edited_save.txt --set p.025 75   # knock Camp Exp Boost down to disambiguate
 //!
 //! `<path>` is a dotted raw-tree path (the same paths used in FINDINGS.md),
@@ -24,6 +24,7 @@ fn usage() {
     eprintln!("Usage: save-edit <in-save> <out-save> [--gp <n>] [--set <path> <value>]...");
     eprintln!("  <out-save>          must start with 'edited_' (kept gitignored; holds real data)");
     eprintln!("  --gp <n>            set available god power (p.j)");
+    eprintln!("  --stones <n>        set pet stones (X.y)");
     eprintln!("  --set <path> <val>  set any scalar by dotted path, e.g. --set p.025 75");
 }
 
@@ -37,12 +38,13 @@ fn main() -> ExitCode {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--gp" => {
+            "--gp" | "--stones" => {
+                let name = &args[i][2..]; // strip "--"
                 let Some(val) = args.get(i + 1) else {
-                    eprintln!("--gp needs a value");
+                    eprintln!("--{name} needs a value");
                     return ExitCode::FAILURE;
                 };
-                let path = named_target("gp").expect("gp target");
+                let path = named_target(name).expect("named target");
                 edits.push(ScalarEdit {
                     path: path.iter().map(|s| s.to_string()).collect(),
                     value: val.clone(),

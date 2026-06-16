@@ -74,6 +74,14 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         119 => "Nothing", // a second "Nothing" id; both appeared in-game
         126 => "Core Shard of Gnome",
         127 => "Magic Soil",
+        // T4 materials — resolved 2026-06-16 by a save-edit probe: the five
+        // count-32 stacks were set to distinct counts (41–45) and read off
+        // in-game by name.
+        131 => "Sun Stone",
+        132 => "Jungle Stone",
+        133 => "Sky Stone",
+        134 => "Mythril",
+        135 => "Ocean Stone",
         138 => "Glowing Embers",
         141 => "Living Flame",
         146 => "Whispers of the Wind",
@@ -85,9 +93,6 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         //   five singleton inventory items {Not Nothing, Absolutely Nothing,
         //   Aether Ring +28, Food Journal One, Food Journal Two} — set known,
         //   per-id assignment unknown (all five predate the first save).
-        // - 131–135 are the five T4 materials {Mythril, Ocean Stone,
-        //   Sun Stone, Sky Stone, Jungle Stone}; still all at count 32 in
-        //   both saves, so per-id assignment remains ambiguous.
         // - Present at count 0: 128, 129, 139, 140, 142–145, 148, 150.
         // 126–149 look like per-dungeon boss material families (Gnome/earth,
         // fire, wind) — the matching water family is presumably nearby.
@@ -300,10 +305,19 @@ mod tests {
     }
 
     #[test]
+    fn t4_material_ids() {
+        // Resolved 2026-06-16 via a save-edit probe (counts 41–45 → names).
+        assert_eq!(material_name(131), Some("Sun Stone"));
+        assert_eq!(material_name(132), Some("Jungle Stone"));
+        assert_eq!(material_name(133), Some("Sky Stone"));
+        assert_eq!(material_name(134), Some("Mythril"));
+        assert_eq!(material_name(135), Some("Ocean Stone"));
+    }
+
+    #[test]
     fn unknown_ids_return_none() {
         assert_eq!(material_name(0), None);
         assert_eq!(material_name(130), None); // singleton set, unassigned
-        assert_eq!(material_name(134), None); // T4 material, id↔name ambiguous
         assert_eq!(material_name(9999), None);
     }
 
