@@ -140,8 +140,9 @@ The chamber lives in two files plus supporting data:
   from its own deposit yet earned the *least* class XP, fitting its *pre*-deposit
   growth; XP is monotonic with pre-campaign growth and **independent of CL/gear**
   (Aether CL16 ≈ Sphinx CL22 at equal growth). Only Adventurers earn it
-  (None-class chamber pets got zero). See `reference/real_growth_campaign/` and
-  the 2026-06-15 capture. **Multiplier:** the effective constant is **1000**
+  (None-class chamber pets got zero). Captured in
+  `reference/class_xp_validation/`, reconciled by the unit test
+  `class_xp_real_run_reconciles`. **Multiplier:** the effective constant is **1000**
   (= wiki `250` × **4.0**, fit to ±0.02% across 7 pets); the maxed "Camp Exp
   Boost" pet stone is +100% (×2), leaving an **unidentified ×2** (a 2nd upgrade,
   a research/god/Patreon perk, or the wiki `250` being outdated). `adv_xp_mult`
