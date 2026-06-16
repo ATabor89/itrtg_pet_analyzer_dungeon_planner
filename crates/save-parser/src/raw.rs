@@ -249,6 +249,59 @@ impl Raw {
             }
         }
     }
+
+    /// Mutable twin of [`peel`](Self::peel): unwrap any [`Raw::Base64`]
+    /// wrappers so a nested struct can be navigated/mutated.
+    fn peel_mut(&mut self) -> &mut Raw {
+        match self {
+            Raw::Base64(inner) => inner.peel_mut(),
+            other => other,
+        }
+    }
+
+    /// Follow a dotted key path (peeling base64 wrappers at each level) to the
+    /// scalar it names, returning the peeled value. `None` if any segment is
+    /// missing, traverses a non-struct, or names an empty field.
+    pub fn get_path(&self, path: &[&str]) -> Option<&Raw> {
+        let mut node = self;
+        for key in path {
+            node = node.get(key)?;
+        }
+        Some(node)
+    }
+
+    /// Replace the scalar at a dotted key path with `value`, returning the
+    /// previous value's serialized form. Base64 wrappers are peeled at each
+    /// level, so e.g. `["p", "j"]` reaches available god power and
+    /// `["p", "025"]` the Camp-Exp-Boost candidate inside the base64-wrapped
+    /// `p` block. This is the editing primitive behind the `save-edit` tool.
+    ///
+    /// Errors if the path is empty, a segment is missing, a non-terminal
+    /// segment is not a struct, or the target is an empty field (`k:;` / `k;`).
+    /// The value is written verbatim (the caller supplies invariant-culture
+    /// text — integers, `True`/`False`, etc.), matching how the game serializes.
+    pub fn set_scalar_path(&mut self, path: &[&str], value: &str) -> anyhow::Result<String> {
+        let (key, rest) = path
+            .split_first()
+            .ok_or_else(|| anyhow::anyhow!("empty path"))?;
+        let Raw::Struct(fields) = self.peel_mut() else {
+            anyhow::bail!("path segment {key:?} does not name a struct");
+        };
+        let (_, field) = fields
+            .iter_mut()
+            .find(|(k, _)| k == key)
+            .ok_or_else(|| anyhow::anyhow!("key {key:?} not found"))?;
+        let Field::Value(v) = field else {
+            anyhow::bail!("key {key:?} is an empty field");
+        };
+        if rest.is_empty() {
+            let prev = v.serialize();
+            *v = Raw::Scalar(value.to_string());
+            Ok(prev)
+        } else {
+            v.set_scalar_path(rest, value)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -332,5 +385,31 @@ mod tests {
         assert_eq!(prev, "TestAccount");
         assert_eq!(r.serialize(), "s:REDACTED;W:TestGod;c:1;");
         assert_eq!(r.set_scalar("missing", "x"), None);
+    }
+
+    #[test]
+    fn set_scalar_path_descends_into_base64_struct() {
+        // `p` is a base64-wrapped nested struct, like the real god-power block.
+        let text = format!("a:1;p:{};", b64("j:1297;025:100;"));
+        let mut r = parse(&text);
+        // Set a nested scalar; the rest of the tree must be untouched.
+        let prev = r.set_scalar_path(&["p", "j"], "999999").unwrap();
+        assert_eq!(prev, "1297");
+        // Round-trips, and re-reading the path yields the new value.
+        let r2 = parse(&r.serialize());
+        assert_eq!(r2.get_path(&["p", "j"]), Some(&Raw::Scalar("999999".into())));
+        // Sibling and outer fields are unchanged.
+        assert_eq!(r2.get_path(&["p", "025"]), Some(&Raw::Scalar("100".into())));
+        assert_eq!(r2.get("a"), Some(&Raw::Scalar("1".into())));
+    }
+
+    #[test]
+    fn set_scalar_path_errors_are_descriptive() {
+        let mut r = parse(&format!("p:{};", b64("j:1;")));
+        assert!(r.set_scalar_path(&["p", "missing"], "x").is_err());
+        assert!(r.set_scalar_path(&["nope"], "x").is_err());
+        assert!(r.set_scalar_path(&[], "x").is_err());
+        // Descending through a scalar (not a struct) is an error, not a panic.
+        assert!(r.set_scalar_path(&["p", "j", "deeper"], "x").is_err());
     }
 }

@@ -3,15 +3,18 @@
 #
 # The repo is public; raw saves embed the player's Steam id / account names /
 # god name inside base64(gzip(base64(...))). This hook decodes every staged
-# ManualSave*.txt and refuses the commit if its identity fields still hold real
-# values (it reuses the redaction logic via `save-dump --check`, so no PII is
-# hardcoded here). See reference/save_file_deserialization/FINDINGS.md.
+# save (ManualSave*.txt, plus edited_*.txt from `save-edit`) and refuses the
+# commit if its identity fields still hold real values (it reuses the redaction
+# logic via `save-dump --check`, so no PII is hardcoded here). See
+# reference/save_file_deserialization/FINDINGS.md.
 #
 # Enable once with:  git config core.hooksPath .githooks
 set -euo pipefail
 
+# `edited_*.txt` are normally gitignored, but a `git add -f` could stage one —
+# content-check them too (defense in depth alongside the gitignore rule).
 saves=$(git diff --cached --name-only --diff-filter=AM \
-        | grep -E '(^|/)ManualSave[^/]*\.txt$' || true)
+        | grep -E '(^|/)(ManualSave|edited_)[^/]*\.txt$' || true)
 [ -z "$saves" ] && exit 0
 
 echo "pre-commit: verifying staged save files are redacted…"
