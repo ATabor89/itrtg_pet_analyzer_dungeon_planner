@@ -270,10 +270,18 @@ impl Raw {
         let mut node = self;
         for key in path {
             let peeled = node.peel();
-            node = match peeled {
-                Raw::List(items) => items.get(list_index(items, key)?)?.peel(),
-                Raw::Struct(_) => peeled.get(key)?,
-                _ => return None,
+            node = if let Some((field, val)) = key.split_once('=') {
+                // A `field=value` selector resolves against a list *or* a
+                // single-element list stored as a lone struct (a 1-element
+                // `&`-list has no separator, so it re-parses as a struct —
+                // list_or_single semantics).
+                select_one(peeled, field, val)?
+            } else {
+                match peeled {
+                    Raw::List(items) => items.get(list_index(items, key)?)?.peel(),
+                    Raw::Struct(_) => peeled.get(key)?,
+                    _ => return None,
+                }
             };
         }
         Some(node)
@@ -296,6 +304,32 @@ impl Raw {
         let (key, rest) = path
             .split_first()
             .ok_or_else(|| anyhow::anyhow!("empty path"))?;
+        // A `field=value` selector resolves against a list *or* a lone struct
+        // (a 1-element list — see `get_path`).
+        if let Some((field, val)) = key.split_once('=') {
+            return match self.peel_mut() {
+                Raw::List(items) => {
+                    let idx = items
+                        .iter()
+                        .position(|e| matches!(e.get(field), Some(Raw::Scalar(s)) if s == val))
+                        .ok_or_else(|| anyhow::anyhow!("no list element matches {key:?}"))?;
+                    if rest.is_empty() {
+                        anyhow::bail!("path ends on list element [{idx}]; name a field inside it");
+                    }
+                    items[idx].set_scalar_path(rest, value)
+                }
+                s @ Raw::Struct(_) => {
+                    if !matches!(s.get(field), Some(Raw::Scalar(x)) if x == val) {
+                        anyhow::bail!("no element matches selector {key:?}");
+                    }
+                    if rest.is_empty() {
+                        anyhow::bail!("path ends on the matched element; name a field inside it");
+                    }
+                    s.set_scalar_path(rest, value)
+                }
+                _ => anyhow::bail!("selector {key:?} applied to a non-list/struct"),
+            };
+        }
         match self.peel_mut() {
             Raw::Struct(fields) => {
                 let (_, field) = fields
@@ -330,6 +364,46 @@ impl Raw {
             }
             _ => anyhow::bail!("path segment {key:?} does not name a struct or list"),
         }
+    }
+}
+
+impl Raw {
+    /// Mutable navigation to the node a dotted path names (struct keys + list
+    /// index/`field=value` selectors, peeling base64). Unlike
+    /// [`set_scalar_path`](Self::set_scalar_path) this returns the node itself,
+    /// so callers can mutate a whole sub-tree — e.g. append to a list. An empty
+    /// path returns `self` (peeled). `None` if any segment is missing.
+    pub fn get_path_mut(&mut self, path: &[&str]) -> Option<&mut Raw> {
+        let Some((key, rest)) = path.split_first() else {
+            return Some(self.peel_mut());
+        };
+        match self.peel_mut() {
+            Raw::Struct(fields) => match fields.iter_mut().find(|(k, _)| k == key)?.1 {
+                Field::Value(ref mut v) => v.get_path_mut(rest),
+                _ => None,
+            },
+            Raw::List(items) => {
+                let idx = list_index(items, key)?;
+                items[idx].get_path_mut(rest)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Resolve a `field=value` selector against a list, or against a single-element
+/// list stored as a lone struct (list_or_single semantics). Returns the matched
+/// element (peeled).
+fn select_one<'a>(node: &'a Raw, field: &str, val: &str) -> Option<&'a Raw> {
+    match node {
+        Raw::List(items) => items
+            .iter()
+            .find(|e| matches!(e.get(field), Some(Raw::Scalar(s)) if s == val))
+            .map(Raw::peel),
+        Raw::Struct(_) => {
+            matches!(node.get(field), Some(Raw::Scalar(s)) if s == val).then_some(node)
+        }
+        _ => None,
     }
 }
 
@@ -490,5 +564,18 @@ mod tests {
         assert_eq!(r2.get_path(&["Q", "a=159", "b"]), Some(&Raw::Scalar("99".into())));
         // A selector that matches nothing errors, not panics.
         assert!(r.set_scalar_path(&["Q", "a=999", "b"], "1").is_err());
+    }
+
+    #[test]
+    fn selector_resolves_single_element_list() {
+        // ONE base64 struct in a field is a 1-element list (no `&` separator),
+        // which re-parses as a lone struct — the selector must still find it.
+        let mut r = parse(&format!("Q:{};x:1;", b64("a:9990;b:777;")));
+        assert_eq!(r.get_path(&["Q", "a=9990", "b"]), Some(&Raw::Scalar("777".into())));
+        assert_eq!(r.set_scalar_path(&["Q", "a=9990", "b"], "5").unwrap(), "777");
+        let r2 = parse(&r.serialize());
+        assert_eq!(r2.get_path(&["Q", "a=9990", "b"]), Some(&Raw::Scalar("5".into())));
+        // Non-matching selector on the lone struct errors, not panics.
+        assert!(r.set_scalar_path(&["Q", "a=1", "b"], "1").is_err());
     }
 }

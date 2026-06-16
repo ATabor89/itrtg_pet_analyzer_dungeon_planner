@@ -20,7 +20,7 @@
 
 use std::process::ExitCode;
 
-use save_parser::edit::{edit_save, named_target, EditOp, ScalarEdit};
+use save_parser::edit::{edit_save, named_target, EditOp, MaterialGrant, ScalarEdit};
 
 fn usage() {
     eprintln!("Usage: save-edit <in-save> <out-save> [--gp <n>] [--set <path> <value>] [--mul <path> <factor>]...");
@@ -29,6 +29,7 @@ fn usage() {
     eprintln!("  --stones <n>        set pet stones (X.y)");
     eprintln!("  --set <path> <val>  set any scalar by dotted path, e.g. --set p.025 75");
     eprintln!("  --mul <path> <f>    multiply a numeric value, e.g. --mul X.b.a=Salamander.E 10");
+    eprintln!("  --material <id> <n> set/add a material-inventory count by item id (X.Q)");
     eprintln!("                      (list paths: index `X.Q.17.b` or selector `X.Q.a=117.b`)");
 }
 
@@ -39,6 +40,7 @@ fn main() -> ExitCode {
     // positional (so a flag value like `1234567` is never mistaken for one).
     let mut positionals: Vec<&str> = Vec::new();
     let mut edits: Vec<ScalarEdit> = Vec::new();
+    let mut materials: Vec<MaterialGrant> = Vec::new();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -75,6 +77,17 @@ fn main() -> ExitCode {
                 edits.push(ScalarEdit::mul(path, factor));
                 i += 3;
             }
+            "--material" => {
+                let (Some(id), Some(count)) = (args.get(i + 1), args.get(i + 2)) else {
+                    eprintln!("--material needs <item-id> <count>");
+                    return ExitCode::FAILURE;
+                };
+                materials.push(MaterialGrant {
+                    id: id.clone(),
+                    count: count.clone(),
+                });
+                i += 3;
+            }
             other if other.starts_with("--") => {
                 eprintln!("unknown flag: {other}");
                 usage();
@@ -95,7 +108,7 @@ fn main() -> ExitCode {
         }
     };
 
-    if edits.is_empty() {
+    if edits.is_empty() && materials.is_empty() {
         eprintln!("No edits requested (use --gp or --set).");
         usage();
         return ExitCode::FAILURE;
@@ -136,7 +149,7 @@ fn main() -> ExitCode {
         }
     };
 
-    let (encoded, applied) = match edit_save(&raw, &edits) {
+    let (encoded, applied) = match edit_save(&raw, &edits, &materials) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("Edit failed: {e:#}");
