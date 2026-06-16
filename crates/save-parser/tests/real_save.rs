@@ -1102,4 +1102,8 @@ fn permanent_upgrades_match_known_values() {
     // a fresh-save purchase diff confirmed p.017 = Loot, p.019 = Exp.
     assert_eq!(up.dungeon_loot_pct, 50);
     assert_eq!(up.dungeon_exp_pct, 50);
+    // Crafting Boost (p.020) and Crafting Queue Slot (X.032), both owned in the
+    // main save — confirmed by fresh-save buys (0→25 and 0→1).
+    assert_eq!(up.crafting_boost_pct, 25);
+    assert_eq!(save.crafting_queue_slots, 1);
 }

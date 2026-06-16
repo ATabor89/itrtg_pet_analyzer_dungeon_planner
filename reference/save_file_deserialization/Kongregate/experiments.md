@@ -43,3 +43,31 @@ experiment's before/after pair together.
     pet-unlock (`y/z` achievement flags, `o.*`, big doubles `b`/`d`), TBS
     countdown timers (`T.f[].d`), and the cluster of `x.*` / `p.013/L/S`
     time-based accumulators that all drift by the same amount.
+
+### 2026-06-16 — upgrade sweep (steps 2–11, one buy each)
+
+Each save is one purchase past the previous (plus heavy GP/clone/creating/
+building leveling = noise). Narrowing each diff to `root.p.*` (minus the
+continuous GP-progress fields `j/v/h/i/a/b/c/d/L/S/013/N/m/n`) isolates the buy:
+
+| step | bought | field | move |
+|------|--------|-------|------|
+| 2 | Crafting Boost | `p.020` | 0 → 25 |
+| 3 | Crafting Queue Slot | `X.032` | 0 → 1 (not in `p`; pet block) |
+| 4 | Improved Campaign Cancel | `p.010` | False → True |
+| 5 | Optimal Campaigns | `p.033` | 0 → 1 |
+| 6 | Pet Half Stats (GP) | `p.Y` | False → True |
+| 7 | Config Half Stats ("Custom Pet Clones") | `p.008` | False → True |
+| 8 | Auto Worker Clones | `p.034` | 0 → 1 |
+| 9 | Improved Next At For Challenges | `p.B` + `p.U` | both False → True |
+| 10 | Inventory Space (+50) | `p.018` | 50 → 100 |
+| 11 | Item Slot (3→4) | `p.021` | 3 → 4 |
+
+Cost cross-checks held (e.g. Crafting Queue Slot `X.y` −500,000 = wiki 500k).
+Not bought yet (need crystals / Nevermelt Ice): **Crystal Improve** (+25%, a
+*different* field from `p.020`), **Refrigerator**. Step 9 flips two flags — the
+upgrade vs an incidental unlock isn't disambiguated.
+
+**Method note:** restrict each consecutive diff to `root.p.*` (the upgrade
+block) and ignore the continuous GP-progress keys; the one-time upgrade flip
+then stands out even under heavy leveling noise.
