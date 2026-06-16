@@ -44,6 +44,31 @@ fn load_rebirth_saves() -> Option<(save_parser::SaveFile, save_parser::SaveFile)
     ))
 }
 
+/// The 2026-06-16 save, captured to resolve the Baal-Slayer component levels:
+/// the player set each TBS part to a *distinct* level (so the letter→part
+/// mapping is unambiguous) and bought the final "Max Crystal" upgrade since the
+/// 06-13 saves. See `save_pet_stone_tbs/notes.txt`.
+fn load_tbs_save() -> Option<save_parser::SaveFile> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../reference/save_file_deserialization/save_pet_stone_tbs/ManualSave_2026-06-16.txt"
+    );
+    let raw = std::fs::read_to_string(path).ok()?;
+    Some(save_parser::parse_save(&raw).expect("TBS save should parse"))
+}
+
+macro_rules! require_tbs_save {
+    () => {
+        match load_tbs_save() {
+            Some(save) => save,
+            None => {
+                eprintln!("2026-06-16 TBS save not present; skipping");
+                return;
+            }
+        }
+    };
+}
+
 macro_rules! require_rebirth_saves {
     () => {
         match load_rebirth_saves() {
@@ -518,10 +543,13 @@ fn god_power_block_matches_exports() {
     assert_eq!(save1.light_clones, Some(68581));
     assert_eq!(save2.light_clones, Some(68681));
 
-    // Statistics multi: displayed 1.125e15× = 2^50, which cross-validates
-    // the 50 paid doublings (2,500 GP ÷ 50/double) stored at p.017/p.019.
-    // (The save's text serialization keeps 15 significant digits, so the
-    // parsed value is 2^50 to within that precision, not bit-exact.)
+    // Statistics multi: displayed 1.125e15× = 2^50, cross-validating the 50
+    // paid doublings (2,500 GP ÷ 50/double). (The save's text serialization
+    // keeps 15 significant digits, so the parsed value is 2^50 to within that
+    // precision, not bit-exact.) NOTE: p.017 and p.019 both read 50 and were
+    // *tentatively* tied to the doubling count, but the pet-stone "Dungeon
+    // Loot" / "Dungeon Exp" upgrades (both maxed at +50%) are an equally good
+    // fit for these two fields — unresolved pending a controlled purchase diff.
     let multi = save2.statistics_multi.unwrap();
     assert!((multi - (2f64).powi(50)).abs() / (2f64).powi(50) < 1e-14);
     assert_eq!(save2.root.get_path(&["p", "017"]).unwrap().as_u64(), Some(50));
@@ -807,6 +835,7 @@ const ALL_SAVE_PATHS: &[&str] = &[
     "save_day_six_mid_training/ManualSave_2026-06-12.txt",
     "save_new_rebirth_mid_training/ManualSave_2026-06-13.txt",
     "save_new_rebirth_mid_training/ManualSave_2026-06-13-second.txt",
+    "save_pet_stone_tbs/ManualSave_2026-06-16.txt",
 ];
 
 fn read_raw_save(rel: &str) -> Option<String> {
@@ -941,4 +970,75 @@ fn gp_allocation_and_speeds_match_notes() {
     assert_eq!(rb2.gp_building_speed_pct, Some(50_000));
     assert_eq!(rb1.gp_creating_speed_pct, Some(45_000));
     assert_eq!(rb2.gp_creating_speed_pct, Some(45_000));
+}
+
+#[test]
+fn tbs_component_levels_match_notes() {
+    let save = require_tbs_save!();
+    // The player set each Baal-Slayer part to a distinct level (notes.txt):
+    // Eyes 125 (mirrored), Wings 127, Tail 128, Feet 130, Mouth 132.
+    let t = save.tbs_levels.expect("root.S present");
+    assert_eq!(t.eyes, 125);
+    assert_eq!(t.wings, 127);
+    assert_eq!(t.tail, 128);
+    assert_eq!(t.feet, 130);
+    assert_eq!(t.mouth, 132);
+    // Displayed score 1017 = eyes×4 (mirrored) + the other four ×1.
+    assert_eq!(t.score(), 1017);
+}
+
+#[test]
+fn tbs_levels_were_uniform_before() {
+    // Confirms `root.S.b..f` really are the per-part levels: in every save
+    // before 2026-06-16 all five read 126 (the "all five 126" reading in
+    // FINDINGS), and they only diverged once the player leveled each part
+    // individually for this capture.
+    let mut saves: Vec<(save_parser::SaveFile, &str)> = Vec::new();
+    if let Some(s) = load_reference_save() {
+        saves.push((s, "06-09"));
+    }
+    if let Some(s) = load_second_save() {
+        saves.push((s, "06-10"));
+    }
+    if let Some((rb1, rb2)) = load_rebirth_saves() {
+        saves.push((rb1, "06-13"));
+        saves.push((rb2, "06-13-second"));
+    }
+    for (save, label) in &saves {
+        let t = save.tbs_levels.expect("root.S present");
+        assert_eq!(
+            (t.eyes, t.wings, t.tail, t.feet, t.mouth),
+            (126, 126, 126, 126, 126),
+            "{label} TBS levels"
+        );
+    }
+}
+
+#[test]
+fn max_crystal_upgrade_ticked_five_to_six() {
+    // The "Max Crystal" pet-stone upgrade (p.001) is rebirth-independent. It
+    // read 5 across every save through 2026-06-13 and 6 in the 2026-06-16 save
+    // after the player bought the last one — the move that validated the whole
+    // root.p permanent-upgrade block.
+    let (Some(old), Some(new)) = (load_reference_save(), load_tbs_save()) else {
+        eprintln!("reference saves not present; skipping");
+        return;
+    };
+    assert_eq!(old.permanent_upgrades.unwrap().max_crystal, 5);
+    assert_eq!(new.permanent_upgrades.unwrap().max_crystal, 6);
+}
+
+#[test]
+fn permanent_upgrades_match_known_values() {
+    let save = require_tbs_save!();
+    let up = save.permanent_upgrades.expect("root.p present");
+    // High-confidence pet-stone upgrades (exact, permanent across all saves):
+    assert_eq!(up.inventory_limit, 250); // "Inventory Space" — equipment limit
+    assert_eq!(up.item_slots, 8); // "Item Slot" — maxed at 8
+    // The equipped party-item loadout list (X.013) has exactly item_slots
+    // entries — an independent cross-check on p.021.
+    let loadout = save.root.get_path(&["X", "013"]).expect("X.013 present");
+    assert_eq!(loadout.list_or_single().len(), up.item_slots as usize);
+    // Candidate: maxed "Camp Exp Boost" = +100% (the Growth Chamber's ×2).
+    assert_eq!(up.camp_exp_boost_pct, 100);
 }
