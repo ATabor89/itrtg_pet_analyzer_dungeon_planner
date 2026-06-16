@@ -10,7 +10,9 @@
 //!   save-edit MySave.txt edited_save.txt --set p.025 75   # knock Camp Exp Boost down to disambiguate
 //!
 //! `<path>` is a dotted raw-tree path (the same paths used in FINDINGS.md),
-//! e.g. `p.j` (available GP), `p.025`, `S.b` (a TBS component level). The output
+//! e.g. `p.j` (available GP), `p.025`, `S.b` (a TBS component level). A numeric
+//! segment indexes a list — `X.Q.17.b` is material-inventory element 17's
+//! count. The output
 //! is written to a NEW file (never in place) and carries the save's REAL,
 //! unredacted data — do not commit it (`.gitignore` covers `**/edited_*.txt`).
 
