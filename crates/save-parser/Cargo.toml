@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "save-dump"
 path = "src/main.rs"
 
+[[bin]]
+name = "save-edit"
+path = "src/bin/save-edit.rs"
+
 [dependencies]
 itrtg-models = { path = "../models" }
 anyhow = "1"

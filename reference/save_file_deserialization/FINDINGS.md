@@ -175,11 +175,15 @@ TBS pair hypothesis (user): the duplicated values could be current/max,
 where max is the GP-purchase cap and current can exceed it via challenge
 point upgrades (e.g. the ChP −1%/level rebirth-level-loss upgrade). The
 user has maxed the GP side, so a GP purchase can't test this — a ChP
-upgrade purchase could. Related idea parked for later: a save *editor*
-(grant GP/ChP/OfP on a backup save, buy things, diff) — re-serialization is
-already implemented (the `raw` module round-trips and the game accepts a
-re-encoded save), so an editor is now feasible and is the cleanest way to
-nudge the resource-gated upgrades the user can't otherwise change.
+upgrade purchase could.
+
+The save **editor now exists** (`save-edit`, see below): the cleanest way to
+nudge resource-gated upgrades is to grant currency and buy/sell in-game, or to
+knock a *maxed* field down directly. For the open collisions: `save-edit <in>
+<out> --set p.025 75` knocks the Camp-Exp-Boost candidate down (then check
+in-game whether the Camp Exp Boost %, the TBS double-points %, or both moved —
+splitting `p.025` from `p.E`); granting GP lets the user buy one stat-multi
+doubling to split `p.017`/`p.019`.
 
 ### Pet-stone *permanent upgrades* also live in `root.p`
 
@@ -474,6 +478,29 @@ every reference save; the game accepts a re-encoded save). Note the analytic
 `tree::Node` is intentionally lossy — empty fields `k:;` and bare `k;` both
 become `Leaf("")`, and real saves use both — so `raw`, not `Node`, is what
 round-trips.
+
+### `save-edit` — the save editor
+
+`crates/save-parser/src/edit.rs` + the `save-edit` bin apply scalar field
+overrides to a save and re-encode it (game-loadable). It builds on `raw`'s new
+`set_scalar_path(&["p","025"], "75")`, which navigates the base64-wrapped
+nested structs and overwrites a single scalar, leaving every other byte intact.
+
+```
+save-edit <in-save> edited_save.txt --gp 999999999     # named: available GP (p.j)
+save-edit <in-save> edited_save.txt --set p.025 75     # generic: any dotted path
+```
+
+Output goes to a NEW file (never in place; the bin refuses `in == out`), is
+self-verified (re-decoded and the edited paths re-read), and **must be named
+`edited_*`** — that name is enforced by the bin and matches the
+`**/edited_*.txt` gitignore rule (and the pre-commit hook content-checks it
+too), because the output carries the save's **real, unredacted** data.
+Only `--gp` is a named target so far; ChP / Overflow Points are **not yet
+located** — they are not stored as recoverable scalars in any captured save
+(total/used/left = 781/650/131 in 06-16 appear only as unrelated ids), so they
+need a purpose-built before/after save (spend a known amount, then diff) before
+a named flag or `--set` path can target them.
 
 **The committed `ManualSave_*.txt` here are REDACTED** (`save-dump --redact`):
 the repo is public, so the root identity fields are replaced with placeholders
