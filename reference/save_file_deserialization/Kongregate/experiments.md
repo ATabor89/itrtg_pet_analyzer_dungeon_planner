@@ -59,14 +59,27 @@ continuous GP-progress fields `j/v/h/i/a/b/c/d/L/S/013/N/m/n`) isolates the buy:
 | 6 | Pet Half Stats (GP) | `p.Y` | False → True |
 | 7 | Config Half Stats ("Custom Pet Clones") | `p.008` | False → True |
 | 8 | Auto Worker Clones | `p.034` | 0 → 1 |
-| 9 | Improved Next At For Challenges | `p.B` + `p.U` | both False → True |
+| 9 | Improved Next At For Challenges (also grants base Improved Next At) | `p.B` + `p.U` | both False → True |
 | 10 | Inventory Space (+50) | `p.018` | 50 → 100 |
 | 11 | Item Slot (3→4) | `p.021` | 3 → 4 |
 
 Cost cross-checks held (e.g. Crafting Queue Slot `X.y` −500,000 = wiki 500k).
-Not bought yet (need crystals / Nevermelt Ice): **Crystal Improve** (+25%, a
-*different* field from `p.020`), **Refrigerator**. Step 9 flips two flags — the
-upgrade vs an incidental unlock isn't disambiguated.
+Step 9 flips two flags because buying "Improved Next At For Challenges" also
+grants the base "Improved Next At" GP upgrade (player confirmed base shows as
+already-purchased on the God Power page); `p.B`/`p.U` are that pair, base vs
+for-challenges TBD.
+
+Not yet captured:
+- **Crystal Improve** (+25%, a *different* field from `p.020`) — needs crystals
+  unlocked first; also a real-money purchase (the pet-stone and cash versions
+  are mutually exclusive).
+- **Refrigerator** — needs Nevermelt Ice + pet stones, or real money.
+- **Auto Select Camp** — doesn't appear in the UI yet; likely gated behind
+  having run a campaign. A snapshot was kept with a campaign running; reloading
+  after it completes may expose this (and other campaign-completion unlocks).
+
+Real-money upgrades (Refrigerator, Crystal Improve, …) can't be exercised by
+buying, so they stay unmapped unless acquired some other way.
 
 **Method note:** restrict each consecutive diff to `root.p.*` (the upgrade
 block) and ignore the continuous GP-progress keys; the one-time upgrade flip
