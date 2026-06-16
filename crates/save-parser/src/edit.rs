@@ -17,20 +17,64 @@ use anyhow::{Context, Result};
 
 use crate::{container, raw};
 
-/// One field override: the dotted raw-tree path and the new scalar text.
+/// What to do to the scalar a [`ScalarEdit`] points at.
+#[derive(Debug, Clone)]
+pub enum EditOp {
+    /// Overwrite with this verbatim text.
+    Set(String),
+    /// Multiply the current numeric value by this factor.
+    Mul(f64),
+}
+
+/// One field edit: the dotted raw-tree path plus the operation to apply.
 #[derive(Debug, Clone)]
 pub struct ScalarEdit {
     pub path: Vec<String>,
-    pub value: String,
+    pub op: EditOp,
 }
 
 impl ScalarEdit {
-    /// Build from a dotted path string (e.g. `"p.025"`) and a value.
-    pub fn parse(path: &str, value: &str) -> Self {
+    fn split_path(path: &str) -> Vec<String> {
+        path.split('.').map(str::to_string).collect()
+    }
+
+    /// Set a dotted path (e.g. `"p.025"`) to a verbatim value.
+    pub fn set(path: &str, value: &str) -> Self {
         ScalarEdit {
-            path: path.split('.').map(str::to_string).collect(),
-            value: value.to_string(),
+            path: Self::split_path(path),
+            op: EditOp::Set(value.to_string()),
         }
+    }
+
+    /// Multiply the value at a dotted path by `factor`.
+    pub fn mul(path: &str, factor: f64) -> Self {
+        ScalarEdit {
+            path: Self::split_path(path),
+            op: EditOp::Mul(factor),
+        }
+    }
+
+    /// Back-compat alias for [`ScalarEdit::set`].
+    pub fn parse(path: &str, value: &str) -> Self {
+        Self::set(path, value)
+    }
+}
+
+/// Multiply a numeric save value (verbatim text) by `factor`, returning the new
+/// verbatim text. Integer-looking inputs that stay whole stay integers; anything
+/// else is formatted as a float (the game re-parses doubles, so an exact byte
+/// match isn't required).
+fn apply_factor(current: &str, factor: f64) -> Result<String> {
+    let v: f64 = current
+        .parse()
+        .with_context(|| format!("value {current:?} is not numeric — can't multiply"))?;
+    let r = v * factor;
+    anyhow::ensure!(r.is_finite(), "multiplying {current:?} by {factor} is not finite");
+    let looks_integer = !current.contains(['.', 'e', 'E']);
+    if looks_integer && r.fract() == 0.0 && r.abs() < 9.0e18 {
+        Ok(format!("{}", r as i64))
+    } else {
+        Ok(format!("{r}"))
     }
 }
 
@@ -70,13 +114,24 @@ pub fn edit_save(raw_save: &str, edits: &[ScalarEdit]) -> Result<(String, Vec<Ap
     let mut applied = Vec::with_capacity(edits.len());
     for edit in edits {
         let segs: Vec<&str> = edit.path.iter().map(String::as_str).collect();
+        // Resolve the new value (Mul reads the current scalar first).
+        let new_value = match &edit.op {
+            EditOp::Set(v) => v.clone(),
+            EditOp::Mul(factor) => {
+                let cur = match root.get_path(&segs) {
+                    Some(raw::Raw::Scalar(s)) => s.clone(),
+                    _ => anyhow::bail!("{} is not a scalar to multiply", edit.path.join(".")),
+                };
+                apply_factor(&cur, *factor)?
+            }
+        };
         let old = root
-            .set_scalar_path(&segs, &edit.value)
-            .with_context(|| format!("set {}", edit.path.join(".")))?;
+            .set_scalar_path(&segs, &new_value)
+            .with_context(|| format!("edit {}", edit.path.join(".")))?;
         applied.push(AppliedEdit {
             path: edit.path.join("."),
             old,
-            new: edit.value.clone(),
+            new: new_value,
         });
     }
 
@@ -87,18 +142,43 @@ pub fn edit_save(raw_save: &str, edits: &[ScalarEdit]) -> Result<(String, Vec<Ap
     let check_plaintext = container::decode_to_plaintext(&encoded)
         .context("re-decode the edited save for verification")?;
     let check_root = raw::parse(&check_plaintext);
-    for edit in edits {
-        let segs: Vec<&str> = edit.path.iter().map(String::as_str).collect();
+    for a in &applied {
+        let segs: Vec<&str> = a.path.split('.').collect();
         match check_root.get_path(&segs) {
-            Some(raw::Raw::Scalar(s)) if *s == edit.value => {}
+            Some(raw::Raw::Scalar(s)) if *s == a.new => {}
             other => anyhow::bail!(
                 "verification failed for {}: expected {:?}, found {:?}",
-                edit.path.join("."),
-                edit.value,
+                a.path,
+                a.new,
                 other
             ),
         }
     }
 
     Ok((encoded, applied))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_factor_keeps_integers_integer() {
+        assert_eq!(apply_factor("192164", 10.0).unwrap(), "1921640");
+        assert_eq!(apply_factor("5", 3.0).unwrap(), "15");
+    }
+
+    #[test]
+    fn apply_factor_handles_floats() {
+        // Growth-style value stays fractional.
+        assert_eq!(apply_factor("66841.5", 2.0).unwrap(), "133683");
+        assert_eq!(apply_factor("100", 1.5).unwrap(), "150"); // int that stays whole
+        assert!(apply_factor("100.0", 1.5).unwrap().starts_with("150"));
+    }
+
+    #[test]
+    fn apply_factor_rejects_non_numeric() {
+        assert!(apply_factor("True", 2.0).is_err());
+        assert!(apply_factor("Salamander", 2.0).is_err());
+    }
 }
