@@ -8,6 +8,8 @@
 //! Examples:
 //!   save-edit MySave.txt edited_save.txt --gp 999999999 --stones 999999999
 //!   save-edit MySave.txt edited_save.txt --set p.025 75   # knock Camp Exp Boost down to disambiguate
+//!   save-edit MySave.txt edited_save.txt --mul X.b.a=Salamander.E 10   # 10× Salamander's growth
+//!   save-edit MySave.txt edited_save.txt --set X.Q.a=117.b 99999       # set material id 117's count
 //!
 //! `<path>` is a dotted raw-tree path (the same paths used in FINDINGS.md),
 //! e.g. `p.j` (available GP), `p.025`, `S.b` (a TBS component level). A numeric
@@ -18,14 +20,16 @@
 
 use std::process::ExitCode;
 
-use save_parser::edit::{edit_save, named_target, ScalarEdit};
+use save_parser::edit::{edit_save, named_target, EditOp, ScalarEdit};
 
 fn usage() {
-    eprintln!("Usage: save-edit <in-save> <out-save> [--gp <n>] [--set <path> <value>]...");
+    eprintln!("Usage: save-edit <in-save> <out-save> [--gp <n>] [--set <path> <value>] [--mul <path> <factor>]...");
     eprintln!("  <out-save>          must start with 'edited_' (kept gitignored; holds real data)");
     eprintln!("  --gp <n>            set available god power (p.j)");
     eprintln!("  --stones <n>        set pet stones (X.y)");
     eprintln!("  --set <path> <val>  set any scalar by dotted path, e.g. --set p.025 75");
+    eprintln!("  --mul <path> <f>    multiply a numeric value, e.g. --mul X.b.a=Salamander.E 10");
+    eprintln!("                      (list paths: index `X.Q.17.b` or selector `X.Q.a=117.b`)");
 }
 
 fn main() -> ExitCode {
@@ -47,7 +51,7 @@ fn main() -> ExitCode {
                 let path = named_target(name).expect("named target");
                 edits.push(ScalarEdit {
                     path: path.iter().map(|s| s.to_string()).collect(),
-                    value: val.clone(),
+                    op: EditOp::Set(val.clone()),
                 });
                 i += 2;
             }
@@ -56,7 +60,19 @@ fn main() -> ExitCode {
                     eprintln!("--set needs <path> <value>");
                     return ExitCode::FAILURE;
                 };
-                edits.push(ScalarEdit::parse(path, val));
+                edits.push(ScalarEdit::set(path, val));
+                i += 3;
+            }
+            "--mul" => {
+                let (Some(path), Some(fac)) = (args.get(i + 1), args.get(i + 2)) else {
+                    eprintln!("--mul needs <path> <factor>");
+                    return ExitCode::FAILURE;
+                };
+                let Ok(factor) = fac.parse::<f64>() else {
+                    eprintln!("--mul factor {fac:?} is not a number");
+                    return ExitCode::FAILURE;
+                };
+                edits.push(ScalarEdit::mul(path, factor));
                 i += 3;
             }
             other if other.starts_with("--") => {
