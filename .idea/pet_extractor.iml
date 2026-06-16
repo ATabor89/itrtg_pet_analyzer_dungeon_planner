@@ -8,6 +8,8 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/pet-importer/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/planner/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/wiki-extractor/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/save-parser/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/save-parser/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
