@@ -176,9 +176,56 @@ where max is the GP-purchase cap and current can exceed it via challenge
 point upgrades (e.g. the ChP −1%/level rebirth-level-loss upgrade). The
 user has maxed the GP side, so a GP purchase can't test this — a ChP
 upgrade purchase could. Related idea parked for later: a save *editor*
-(grant GP/ChP/OfP on a backup save, buy things, diff) — requires
-implementing re-serialization, which is untested but is just the container
-steps reversed.
+(grant GP/ChP/OfP on a backup save, buy things, diff) — re-serialization is
+already implemented (the `raw` module round-trips and the game accepts a
+re-encoded save), so an editor is now feasible and is the cleanest way to
+nudge the resource-gated upgrades the user can't otherwise change.
+
+### Pet-stone *permanent upgrades* also live in `root.p`
+
+Despite the "god-power block" label, `root.p` holds **all** permanent
+purchases — god-power buys *and* pet-stone buys sit together in its numeric
+keys. Isolated by diffing the five committed saves for keys that never change
+(rebirth-independent). The block was **validated** when `p.001` ticked
+**5 → 6** between the 06-13 and 06-16 saves — exactly the player buying the
+last "Max Crystal".
+
+| key | value | pet-stone upgrade | confidence |
+|-----|-------|-------------------|-----------|
+| `p.001` | 5 → **6** | **Max Crystal** (crystals equippable at once, cap 6) | **Confirmed** (the 5→6 move) |
+| `p.018` | 250 | **Inventory Space** (equipment limit, +50/buy) | **High** (exact) |
+| `p.021` | 8 | **Item Slot** (dungeon party-item slots, cap 8) | **High** (exact; `X.013` loadout has 8 entries) |
+| `p.025` | 100 | **Camp Exp Boost** (+%/buy adventurer campaign class XP, cap +100%) | **Candidate** — see below |
+| `p.017`, `p.019` | 50, 50 | **Dungeon Loot** & **Dungeon Exp** (+25%/buy, cap +50%) | Candidate |
+| `p.020` | 25 | a +25% buy (Crystal Improve / Crafting Boost) | Low |
+| `p.016` `p.023` `p.030` `p.014` | 2, 9, 775, 3169 | unidentified, permanent | — |
+| ~13 `True` flags (`k,l,o,p,B,J,U,V,Y,Z,008,010,011`) | — | the one-time boolean buys (Refrigerator, Auto Select Camp, Dungeon Team, Improved Campaign Cancel, Optimal Campaigns, Auto Worker Clones, …) + GP toggles | — |
+
+`p.001`/`p.018`/`p.021`/`p.025` are promoted to `SaveFile.permanent_upgrades`
+([`PermanentUpgrades`]).
+
+**`p.025` = Camp Exp Boost (the Growth Chamber's missing ×2).** The chamber
+sim's adventurer class-XP multiplier is `250 × 4.0`, where maxed Camp Exp Boost
+explains one ×2 (`growth_chamber_status.md`); reading `p.025` lets that be
+auto-derived (`mult ×= 1 + p.025/100`). **Caveat — unresolved collision:**
+`p.025` and `p.E` are *both* 100 and `p.E`/`p.025` were earlier paired as the
+TBS "double-points chance" (also 100%). The pet-stone reading is favoured by a
+counting argument — there are exactly **two** permanent `100` fields and the
+player has exactly **two** distinct things at 100% (TBS double-points *and*
+maxed Camp Exp Boost), so most likely one each, not a TBS pair. The same
+two-of-a-kind logic applies to `p.017`/`p.019` = 50/50 vs the two maxed +50%
+dungeon upgrades (and the stat-multi doubling count is anyway redundant with
+`p.C` = 2^50 stored directly). None of these are *proven*; the clean tests need
+a controlled purchase diff — nudge the in-game TBS double-points % (splits
+`p.025` from `p.E`) and buy one stat-multi doubling (splits `p.017`/`p.019`).
+A save editor would make those nudges cheap.
+
+Consumables, for contrast, are **not** here: every consumable pet-stone item
+(Elixir, Phoenix Feather, Flying Boots, Torch, bombs, keys, runes, talismans,
+Rebirth Bacon, Ale, Strategy Book, …) is a quantity in the material inventory
+`X.Q` (or the food fields `X.c/d/e`, chocolate `X.v`, gems `X.002`) — already
+decoded into `SaveFile.materials` / foods. `X.013` (list of 8) is the *equipped*
+party-item loadout.
 
 ## `root.x` — the global tracker block
 
@@ -286,11 +333,33 @@ matches the notes' Next-At/Spread columns. Levels reset per rebirth.
 The Baal Slayer (TBS) block. Confirmed: `T.h` = **unspent Baal Power**
 (0 → 334 between the two 2026-06-13 saves ✓). `T.f` = list of 5 entries with
 `d` = a staggered countdown timer (1 h / 3,600,000 ms apart; all decrement in
-real time). `T.k` = list of 5 TBS tracks (`a`=100, `b`={39,27,25,21,16},
-`c`=1..5, `i`={18,18,18,27,27}) — these did **not** move between the saves and
-do **not** equal the displayed "all five levels 126", so the on-screen TBS
-levels / crit-chance 100% / crit-damage 604% / score 1008 are not these raw
-`k` fields (likely derived, or stored elsewhere — still open).
+real time). `T.k` = list of 5 TBS tracks (`a`≈100, `b`={39,27,25,21,16}→
+{40,28,26,22,17} across 06-13→06-16, `c`=1..5, `i`={18,18,18,27,27}) — these
+are **not** the on-screen component levels (see `root.S` below).
+
+## `root.S` — Baal Slayer component levels (decoded 2026-06-16)
+
+The five TBS body-part levels, one per letter key, stored as the displayed
+level directly. Resolved by setting each part to a **distinct** level for the
+2026-06-16 capture (`save_pet_stone_tbs/notes.txt`); every earlier save had all
+five at **126** (the "all five 126" reading that the old `T.k` guess failed to
+match).
+
+| key | part | 06-16 value |
+|-----|------|-------------|
+| `S.b` | **Eyes** (player levels these *mirrored* → counts 4× in score) | 125 |
+| `S.d` | **Wings** | 127 |
+| `S.e` | **Tail** | 128 |
+| `S.f` | **Feet** | 130 |
+| `S.c` | **Mouth** | 132 |
+
+`S.a` = 99.56472 (constant across every save — not a level), `S.g` = 0:
+unidentified. The displayed **score** is derived, not stored —
+`4·eyes + wings + tail + feet + mouth = 4·125 + 127 + 128 + 130 + 132 = 1017` ✓
+(eyes ×4 because mirrored). Crit-chance (1%/mirrored-eye-level, capped 100%) and
+crit-damage (617% before the +30% from SpaceDim Controlled Entropy lv120 ⇒
+647%) are likewise computed, not stored. Promoted to `SaveFile.tbs_levels`
+([`TbsLevels`], with `score()`). The *mirror* flag has not been located.
 
 ## Equipment struct (`X.R[i]`)
 
@@ -392,6 +461,11 @@ The 2026-06-13 decodes are promoted into the typed `SaveFile`: `spacedim`
 `gp_building_speed_pct`, and `gp_allocation` (`GpAllocation`). The two
 rebirth saves are regression-tested in `tests/real_save.rs`.
 
+The 2026-06-16 decodes add `tbs_levels` (`TbsLevels`, with `score()`) and
+`permanent_upgrades` (`PermanentUpgrades`). The 06-16 save is in
+`tests/real_save.rs` (TBS levels, the 5→6 Max Crystal move, the high-confidence
+upgrades) and in the round-trip / redaction guards.
+
 ## Re-serialization and redaction
 
 `container::encode_container` + the lossless `raw` module (`raw::Raw`) invert
@@ -416,6 +490,9 @@ needs the original identity values, use your own local (un-redacted) save.
 - `second_save/` — 2026-06-10 save + re-exports + **full manual inventory
   transcription** (materials, gems, equipment counts) — the richest ground
   truth so far.
+- `save_pet_stone_tbs/` — 2026-06-16 save + `notes.txt`: each Baal-Slayer
+  component set to a distinct level (resolving `root.S`) and the final Max
+  Crystal bought (the `p.001` 5→6 that validated the `root.p` upgrade block).
 - `normal_stats_investigation.md` — the normal-stats formula work.
 - `expand_save.ps1` — decoder/expander script (superseded by
   `save-dump --tree` but kept for history).

@@ -1,0 +1,19 @@
+TBS levels:
+
+Eyes: 125 (mirrored)
+    - Note that there are two ways you can level this up. Doing it mirrored gives a higher bonus.
+
+Wings: 127
+Tail: 128
+Feet: 130
+Mouth: 132
+
+Critical chance is 100%.
+    Critical chance is 1% per level of mirrored eyes or 1% per 2.5 levels of normal eyes. The chance can't go above 100%, but there are reasons to level beyond that since you lose levels when rebirthing. Having a buffer means you can stay at or above 100% when rebirthing.
+Critical damage is 647%.
+Score is 1017.
+    - Eyes count 4x if mirrored and all other levels count 1x.
+
+Critical damage without SpaceDim and RTI is 617%.
+    SpaceDim: Controlled Entropy is level 120. Increases critical damage of TBS by 0.25% per level. Current bonus is 30%.
+    I do not have RTI unlocked yet.
