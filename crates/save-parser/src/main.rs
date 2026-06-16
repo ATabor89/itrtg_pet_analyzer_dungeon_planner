@@ -159,6 +159,13 @@ fn main() -> ExitCode {
         }
     };
 
+    if let Ok(decoded) = save_parser::container::decode_container(&raw) {
+        let fmt = match decoded.format {
+            save_parser::container::ContainerFormat::SteamGzip => "Steam (gzip)",
+            save_parser::container::ContainerFormat::KongregateLzf => "Kongregate (LZF)",
+        };
+        println!("Container: {fmt}");
+    }
     println!(
         "Save for god {} / account {} (unix {})",
         save.god_name.as_deref().unwrap_or("?"),

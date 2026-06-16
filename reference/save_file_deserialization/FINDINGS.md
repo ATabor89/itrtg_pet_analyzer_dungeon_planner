@@ -13,6 +13,10 @@ Regenerate the expanded tree at any time:
 
 ## Container format (outer → inner)
 
+Two platform variants wrap the **same** inner `base64(tree)`:
+
+### Steam: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`
+
 1. The save file is base64 text **with 2 extra characters prepended** (here
    `V2`). Strip the first 2 characters before decoding. (Purpose unknown —
    possibly a version tag or junk salt. Worth checking against a second save.)
@@ -21,7 +25,25 @@ Regenerate the expanded tree at any time:
 3. Gunzip → ASCII text which is itself **base64 again**.
 4. Base64-decode → "layer 1" plaintext: a serialized object tree (see grammar).
 
-So: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`.
+### Kongregate / web ("Save to file"): `b64( LZF( b64(tree) ) )`
+
+No junk prefix; **LZF** compression (Marc Lehmann's liblzf, the `CLZF2.cs` the
+community editor uses — *not* gzip/deflate/zlib/LZString) instead of gzip+length.
+Decoded 2026-06-16 from a fresh-game export (`Kongregate/`). Notes:
+
+- LZF has no header: a stream of chunks, each led by one control byte —
+  `<32` = literal run of `ctrl+1` bytes, `≥32` = back-reference (`crate::lzf`).
+- The "Save to file" export **concatenates two `base64(tree)` blobs** (live +
+  backup) separated by non-base64 bytes; decode only the leading base64 run =
+  the first, complete tree.
+- This file format is **not redactable by our tooling on its own** and carries
+  identity → gitignored (`**/*_SaveItRtG.txt`). It decodes fine; we just don't
+  re-encode LZF.
+
+`container::decode_container` auto-detects the variant (`ContainerFormat`).
+Re-encoding always emits the Steam (`V2` gzip) container, which **both** builds
+accept on import — so an edited web save loads in either. (No LZF *compressor*
+is implemented; it isn't needed for that round trip.)
 
 ## Serialization grammar
 
