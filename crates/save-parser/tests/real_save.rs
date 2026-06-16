@@ -759,6 +759,16 @@ fn pet_stones_spent_is_tracked() {
 }
 
 #[test]
+fn pet_and_class_change_tokens() {
+    let save = require_save!();
+    // p.I = Pet Tokens, p.023 = Class Change Tokens — resolved 2026-06-16 by a
+    // token-count fresh-save diff (p.I 5→6, p.023 8→10). p.I was *not* the
+    // TBS-pixels twin of p.D (both 3 here only by coincidence).
+    assert_eq!(save.pet_tokens, Some(3));
+    assert_eq!(save.class_change_tokens, Some(9));
+}
+
+#[test]
 fn raw_tree_keeps_unidentified_fields_reachable() {
     let save = require_save!();
     // X.D — meaning still unknown; the raw tree must keep it visible.

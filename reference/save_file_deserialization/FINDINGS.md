@@ -170,7 +170,9 @@ Confirmed (cross-save diff vs the two Main Stats exports):
 | `017`, `019` | **NOT** the doubling count — `017` = **Dungeon Loot** %, `019` = **Dungeon Exp** % (pet-stone upgrades), confirmed 2026-06-16 by a fresh-save purchase diff. The doubling count is stored elsewhere; `C` = 2^50 captures the multi directly. | |
 | `r`,`s`,`t`,`u` | **unused-GP stat allocation %** = **physical / mystic / battle / creating** respectively | resolved 2026-06-13: the user skewed the split to 25/21/22/27 (physical/mystic/battle/creating) and the fields moved to `r`=25, `s`=21, `t`=22, `u`=27 ✓ |
 | `E` | **TBS double-points chance** % | **confirmed** 2026-06-16 (save-edit `p.E`=91 → in-game "Chance for double points in TBS: 91%"). Its old "pair" `025` is actually Camp Exp Boost, not a TBS twin. |
-| `D` | **TBS extra white-area pixels** | **confirmed** 2026-06-16 (`p.D`=6 → in-game "Extra Pixels for the white area: 6"). Twin `I` left at 3. |
+| `D` | **TBS extra white-area pixels** | **confirmed** 2026-06-16 (`p.D`=6 → in-game "Extra Pixels for the white area: 6"). `p.I` (also 3 here) is **not** a twin — it's **Pet Tokens** (token-count diff, 5→6). |
+| `I` | **Pet Tokens** (unlock/evolve currency) | **confirmed** 2026-06-16 (fresh-save diff 5→6). |
+| `023` | **Class Change Tokens** | **confirmed** 2026-06-16 (fresh-save diff 8→10). |
 | `y`,`z` | TBS keep-on-rebirth % (user: 80%) | both 80; **`y` is NOT the displayed value** — setting `p.y`=61 left "TBS progress kept after rebirthing" at 80%, so the live field is `z` (or a cap). Retest by editing `z`. |
 | `w`,`e` | TBS level-loss-on-miss / "Chance to lose progress" | `w` PERM 20, `e` drifts (20→19). Editing `p.w`=17 showed "Chance to lose progress in TBS: 39%" — the display looks *derived* (≈ base − `w`), so `w` reduces lose-chance but isn't shown literally. Not fully pinned. |
 | `027` | **identity unknown** — the "= `j` + 18" claim was a two-save coincidence (2026-06-13: `027`=62→67 while `j`=2931→1511, so `027` ≠ `j`+18). It moved +5, same delta as the P. Baal kills (43→48), but its absolute (62/67) doesn't match a Baal count and `P.c` already tracks that cleanly — so leave unidentified, don't repeat the x.138 mistake | |
@@ -238,7 +240,9 @@ Kongregate save bought up one upgrade at a time, diffing each step (the bulk in
 | `p.008` | bool | **Config Half Stats** ("Custom Pet Clones") | **Confirmed** (F→T) |
 | `p.Y` | bool | **Pet Half Stats** (GP upgrade; prereq for Config Half Stats) | **Confirmed** (F→T) |
 | `p.B`, `p.U` | bool | **Improved Next At** (base, GP) + **Improved Next At For Challenges** — buying the for-challenges upgrade also grants the base one (player confirmed base reads as already-purchased on the GP page), so both flip together; which key is base vs for-challenges is TBD | **Confirmed** (F→T) |
-| `p.016` `p.023` `p.030` `p.014` | — | unidentified, permanent | — |
+| `p.I` | currency | **Pet Tokens** (5→6 diff) | **Confirmed** |
+| `p.023` | currency | **Class Change Tokens** (8→10 diff) | **Confirmed** |
+| `p.016` `p.030` `p.014` | — | unidentified, permanent | — |
 
 Plus **`X.032`** (count) = **Crafting Queue Slot** (0→1, cost 500k ✓) — outside
 `p`, in the pet block. Not yet bought (need crystals): **Crystal Improve**

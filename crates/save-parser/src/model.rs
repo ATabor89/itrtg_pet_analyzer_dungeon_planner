@@ -39,6 +39,14 @@ pub struct SaveFile {
     /// crafting queue slots for blacksmith pets. Confirmed 2026-06-16 by a
     /// fresh-save buy (0 → 1, X.y −500,000 = the wiki cost).
     pub crafting_queue_slots: u32,
+    /// Pet Tokens (root `p.I`) — the currency for unlocking/evolving pets.
+    /// Confirmed 2026-06-16 by a fresh-save diff (5 → 6 across a +1-token save
+    /// pair). NB: `p.I` was *not* the TBS-pixels twin of `p.D` — they were both
+    /// 3 in the main save by coincidence.
+    pub pet_tokens: Option<u64>,
+    /// Class Change Tokens (root `p.023`) — re-class an evolved pet for free.
+    /// Confirmed 2026-06-16 by the same diff pair (8 → 10).
+    pub class_change_tokens: Option<u64>,
     /// Pet food counts (root `X.c`/`X.d`/`X.e`) and chocolate (root `X.v`).
     /// These are dedicated fields, not material-inventory entries. An absent
     /// field reads as 0.
@@ -883,6 +891,8 @@ impl SaveFile {
             pet_stones: x.get("y").and_then(Node::as_u64),
             pet_stones_spent: x.get("z").and_then(Node::as_u64),
             crafting_queue_slots: get_u32(x, "032"),
+            pet_tokens: root.get_path(&["p", "I"]).and_then(Node::as_u64),
+            class_change_tokens: root.get_path(&["p", "023"]).and_then(Node::as_u64),
             puny_food: get_u64(x, "c"),
             strong_food: get_u64(x, "d"),
             mighty_food: get_u64(x, "e"),
