@@ -205,9 +205,10 @@ nudge resource-gated upgrades is to grant currency and buy/sell in-game, or to
 knock a *maxed* field down directly. This already resolved one collision:
 `save-edit <in> edited.txt --set p.025 75` dropped the in-game **Camp Exp Boost**
 to +75% while the TBS double-points % held at 100%, confirming `p.025` = Camp
-Exp Boost and `p.E` = the TBS field (see below). Still open: grant GP and buy one
-stat-multi doubling to split `p.017`/`p.019` (Dungeon Loot/Exp vs the doubling
-count).
+Exp Boost and `p.E` = the TBS field (see below). The fresh-save purchase-diff
+method (a zero-purchase Kongregate save bought up one upgrade at a time) then
+mapped the bulk of the pet-stone and GP upgrades — see the table below and
+`Kongregate/experiments.md`.
 
 ### Pet-stone *permanent upgrades* also live in `root.p`
 
@@ -218,19 +219,38 @@ keys. Isolated by diffing the five committed saves for keys that never change
 **5 → 6** between the 06-13 and 06-16 saves — exactly the player buying the
 last "Max Crystal".
 
-| key | value | pet-stone upgrade | confidence |
-|-----|-------|-------------------|-----------|
-| `p.001` | 5 → **6** | **Max Crystal** (crystals equippable at once, cap 6) | **Confirmed** (the 5→6 move) |
-| `p.018` | 250 | **Inventory Space** (equipment limit, +50/buy) | **High** (exact) |
-| `p.021` | 8 | **Item Slot** (dungeon party-item slots, cap 8) | **High** (exact; `X.013` loadout has 8 entries) |
-| `p.025` | 100 | **Camp Exp Boost** (+%/buy adventurer campaign class XP, cap +100%) | **Confirmed** (save-edit diff) |
-| `p.017`, `p.019` | 50, 50 | **Dungeon Loot** (`017`) & **Dungeon Exp** (`019`) (+25%/buy, cap +50%) | **Confirmed** (fresh-save diff) |
-| `p.020` | 25 | a +25% buy (Crystal Improve / Crafting Boost) | Low |
-| `p.016` `p.023` `p.030` `p.014` | 2, 9, 775, 3169 | unidentified, permanent | — |
-| ~13 `True` flags (`k,l,o,p,B,J,U,V,Y,Z,008,010,011`) | — | the one-time boolean buys (Refrigerator, Auto Select Camp, Dungeon Team, Improved Campaign Cancel, Optimal Campaigns, Auto Worker Clones, …) + GP toggles | — |
+Most rows below were **confirmed 2026-06-16** by a fresh-zero-purchase
+Kongregate save bought up one upgrade at a time, diffing each step (the bulk in
+`Kongregate/experiments.md`):
 
-`p.001`/`p.018`/`p.021`/`p.025` are promoted to `SaveFile.permanent_upgrades`
-([`PermanentUpgrades`]).
+| key | kind | upgrade | confidence |
+|-----|------|---------|-----------|
+| `p.001` | count | **Max Crystal** (crystals equippable, cap 6) | **Confirmed** (5→6) |
+| `p.018` | count | **Inventory Space** (equipment limit, +50/buy) | **Confirmed** (50→100) |
+| `p.021` | count | **Item Slot** (dungeon party-item slots, cap 8) | **Confirmed** (3→4) |
+| `p.017` | % | **Dungeon Loot** (+25%/buy, cap +50%) | **Confirmed** (0→50) |
+| `p.019` | % | **Dungeon Exp** (+25%/buy, cap +50%) | **Confirmed** (0→25) |
+| `p.020` | % | **Crafting Boost** (+25%, single) | **Confirmed** (0→25) |
+| `p.025` | % | **Camp Exp Boost** (+25%/buy, cap +100%) | **Confirmed** (save-edit diff) |
+| `p.010` | bool | **Improved Campaign Cancel** | **Confirmed** (F→T) |
+| `p.033` | 0/1 | **Optimal Campaigns** | **Confirmed** (0→1) |
+| `p.034` | 0/1 | **Auto Worker Clones** | **Confirmed** (0→1) |
+| `p.008` | bool | **Config Half Stats** ("Custom Pet Clones") | **Confirmed** (F→T) |
+| `p.Y` | bool | **Pet Half Stats** (GP upgrade; prereq for Config Half Stats) | **Confirmed** (F→T) |
+| `p.B`, `p.U` | bool | **Improved Next At For Challenges** (both flags flipped on the buy — which is the upgrade vs incidental is unresolved) | Confirmed-ish |
+| `p.016` `p.023` `p.030` `p.014` | — | unidentified, permanent | — |
+
+Plus **`X.032`** (count) = **Crafting Queue Slot** (0→1, cost 500k ✓) — outside
+`p`, in the pet block. Not yet bought (need crystals): **Crystal Improve**
+(+25%, a *different* field from `p.020`), **Refrigerator** (also needs
+Nevermelt Ice). Other one-time GP/pet booleans (Refrigerator, Auto Select Camp,
+Dungeon Team, Crystal Slot, …) sit among the remaining `root.p` `True` flags.
+
+Promoted to the typed model: `PermanentUpgrades` gains `dungeon_loot_pct`,
+`dungeon_exp_pct`, `crafting_boost_pct` (alongside `max_crystal`,
+`inventory_limit`, `item_slots`, `camp_exp_boost_pct`); `SaveFile` gains
+`pet_stones_spent` (`X.z`) and `crafting_queue_slots` (`X.032`). The boolean
+toggles stay reachable via the raw tree (`root.get_path(&["p","010"])`).
 
 **`p.025` = Camp Exp Boost (the Growth Chamber's missing ×2) — CONFIRMED.** The
 chamber sim's adventurer class-XP multiplier is `250 × 4.0`, where maxed Camp

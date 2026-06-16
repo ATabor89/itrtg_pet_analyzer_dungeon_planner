@@ -35,6 +35,10 @@ pub struct SaveFile {
     /// by 750,000 and `X.z` up by exactly 750,000 (= 2·275k + 200k, the wiki
     /// costs).
     pub pet_stones_spent: Option<u64>,
+    /// "Crafting Queue Slot" pet-stone upgrades bought (root `X.032`) — extra
+    /// crafting queue slots for blacksmith pets. Confirmed 2026-06-16 by a
+    /// fresh-save buy (0 → 1, X.y −500,000 = the wiki cost).
+    pub crafting_queue_slots: u32,
     /// Pet food counts (root `X.c`/`X.d`/`X.e`) and chocolate (root `X.v`).
     /// These are dedicated fields, not material-inventory entries. An absent
     /// field reads as 0.
@@ -432,6 +436,11 @@ pub struct PermanentUpgrades {
     /// 0 → 25. (Resolves which of the two `50`s in the main save is which, and
     /// supersedes the earlier "stat-multi doubling count" guess for these keys.)
     pub dungeon_exp_pct: u32,
+    /// `p.020` — "Crafting Boost": +% crafting quality/speed for blacksmiths &
+    /// alchemists (+25%, single purchase). **Confirmed** 2026-06-16 by a
+    /// fresh-save buy (0 → 25). Crystal Improve — the other +25% candidate for
+    /// this key — is a *different* field (untested: needs crystals to unlock).
+    pub crafting_boost_pct: u32,
 }
 
 impl PermanentUpgrades {
@@ -443,6 +452,7 @@ impl PermanentUpgrades {
             camp_exp_boost_pct: get_u32(p, "025"),
             dungeon_loot_pct: get_u32(p, "017"),
             dungeon_exp_pct: get_u32(p, "019"),
+            crafting_boost_pct: get_u32(p, "020"),
         }
     }
 }
@@ -872,6 +882,7 @@ impl SaveFile {
             account_name: root.get("s").and_then(Node::as_str).map(str::to_string),
             pet_stones: x.get("y").and_then(Node::as_u64),
             pet_stones_spent: x.get("z").and_then(Node::as_u64),
+            crafting_queue_slots: get_u32(x, "032"),
             puny_food: get_u64(x, "c"),
             strong_food: get_u64(x, "d"),
             mighty_food: get_u64(x, "e"),
