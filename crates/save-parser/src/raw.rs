@@ -261,15 +261,17 @@ impl Raw {
 
     /// Follow a dotted path (peeling base64 wrappers at each level) to the
     /// value it names. A segment is a struct key, or — when the current node is
-    /// a [`Raw::List`] — a 0-based numeric index (e.g. `X.Q.17.b` selects list
-    /// element 17, then its field `b`). `None` if any segment is missing, the
-    /// index is out of range, or a segment traverses a scalar.
+    /// a [`Raw::List`] — a list selector: a 0-based numeric index (`X.Q.17.b`),
+    /// or `field=value` to pick the first element whose `field` scalar equals
+    /// `value` (`X.b.a=Salamander.E`, `X.Q.a=117.b`). `None` if any segment is
+    /// missing, the index/selector matches nothing, or a segment traverses a
+    /// scalar.
     pub fn get_path(&self, path: &[&str]) -> Option<&Raw> {
         let mut node = self;
         for key in path {
             let peeled = node.peel();
             node = match peeled {
-                Raw::List(items) => items.get(key.parse::<usize>().ok()?)?.peel(),
+                Raw::List(items) => items.get(list_index(items, key)?)?.peel(),
                 Raw::Struct(_) => peeled.get(key)?,
                 _ => return None,
             };
@@ -280,16 +282,16 @@ impl Raw {
     /// Replace the scalar at a dotted path with `value`, returning the previous
     /// value's serialized form. Base64 wrappers are peeled at each level, so
     /// `["p", "j"]` reaches available god power inside the base64-wrapped `p`
-    /// block. A segment is a struct key, or a 0-based index when the current
-    /// node is a [`Raw::List`] — e.g. `["X", "Q", "17", "b"]` sets the count of
-    /// material-inventory element 17. This is the editing primitive behind the
-    /// `save-edit` tool.
+    /// block. A segment is a struct key, or a list selector when the current
+    /// node is a [`Raw::List`] — a 0-based index (`["X","Q","17","b"]`) or
+    /// `field=value` to select by content (`["X","b","a=Salamander","E"]`).
+    /// This is the editing primitive behind the `save-edit` tool.
     ///
-    /// Errors (never panics) if the path is empty, a segment is missing or
-    /// out of range, a non-terminal segment is a scalar, the target is an empty
-    /// field (`k:;` / `k;`), or the path stops on a list element rather than a
-    /// scalar inside it. The value is written verbatim (the caller supplies
-    /// invariant-culture text — integers, `True`/`False`, etc.).
+    /// Errors (never panics) if the path is empty, a segment is missing, an
+    /// index/selector matches nothing, a non-terminal segment is a scalar, the
+    /// target is an empty field (`k:;` / `k;`), or the path stops on a list
+    /// element rather than a scalar inside it. The value is written verbatim
+    /// (the caller supplies invariant-culture text — integers, `True`/`False`).
     pub fn set_scalar_path(&mut self, path: &[&str], value: &str) -> anyhow::Result<String> {
         let (key, rest) = path
             .split_first()
@@ -312,22 +314,36 @@ impl Raw {
                 }
             }
             Raw::List(items) => {
-                let idx = key
-                    .parse::<usize>()
-                    .map_err(|_| anyhow::anyhow!("list index {key:?} is not a number"))?;
-                let len = items.len();
-                let elem = items
-                    .get_mut(idx)
-                    .ok_or_else(|| anyhow::anyhow!("list index {idx} out of range (len {len})"))?;
+                let idx = list_index(items, key).ok_or_else(|| {
+                    if key.contains('=') {
+                        anyhow::anyhow!("no list element matches selector {key:?}")
+                    } else {
+                        anyhow::anyhow!("list index {key:?} is not valid (len {})", items.len())
+                    }
+                })?;
                 if rest.is_empty() {
                     anyhow::bail!(
                         "path ends on list element [{idx}]; name a field inside it, e.g. '{idx}.b'"
                     );
                 }
-                elem.set_scalar_path(rest, value)
+                items[idx].set_scalar_path(rest, value)
             }
             _ => anyhow::bail!("path segment {key:?} does not name a struct or list"),
         }
+    }
+}
+
+/// Resolve a list-path segment to an element index. A bare number is a 0-based
+/// index (bounds-checked); `field=value` selects the first element whose `field`
+/// scalar equals `value`. `None` if nothing matches.
+fn list_index(items: &[Raw], seg: &str) -> Option<usize> {
+    if let Some((field, val)) = seg.split_once('=') {
+        items
+            .iter()
+            .position(|el| matches!(el.get(field), Some(Raw::Scalar(s)) if s == val))
+    } else {
+        let i: usize = seg.parse().ok()?;
+        (i < items.len()).then_some(i)
     }
 }
 
@@ -457,5 +473,22 @@ mod tests {
         assert!(r.set_scalar_path(&["Q", "9", "b"], "1").is_err());
         assert!(r.set_scalar_path(&["Q", "x", "b"], "1").is_err());
         assert!(r.set_scalar_path(&["Q", "0"], "1").is_err());
+    }
+
+    #[test]
+    fn list_selector_picks_element_by_field() {
+        // `Q` elements carry an id `a` and a count `b`; select by `a=<id>`.
+        let list = format!("{}&{}", b64("a:117;b:50;"), b64("a:159;b:99;"));
+        let mut r = parse(&format!("Q:{list};"));
+        // Read by selector.
+        assert_eq!(r.get_path(&["Q", "a=159", "b"]), Some(&Raw::Scalar("99".into())));
+        // Write by selector; the other element is untouched.
+        let prev = r.set_scalar_path(&["Q", "a=117", "b"], "500").unwrap();
+        assert_eq!(prev, "50");
+        let r2 = parse(&r.serialize());
+        assert_eq!(r2.get_path(&["Q", "a=117", "b"]), Some(&Raw::Scalar("500".into())));
+        assert_eq!(r2.get_path(&["Q", "a=159", "b"]), Some(&Raw::Scalar("99".into())));
+        // A selector that matches nothing errors, not panics.
+        assert!(r.set_scalar_path(&["Q", "a=999", "b"], "1").is_err());
     }
 }

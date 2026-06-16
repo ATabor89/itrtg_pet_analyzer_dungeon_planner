@@ -535,14 +535,18 @@ round-trips.
 overrides to a save and re-encode it (game-loadable). It builds on `raw`'s new
 `set_scalar_path(&["p","025"], "75")`, which navigates the base64-wrapped
 nested structs and overwrites a single scalar, leaving every other byte intact.
-A numeric path segment indexes a list (`X.Q.17.b` = material-inventory element
-17's count), so list elements are editable too — that is how the T4 materials
-were resolved (set five count-32 stacks to 41–45, read off in-game).
+A list segment is either a numeric **index** (`X.Q.17.b`) or a `field=value`
+**selector** that picks the element by content (`X.b.a=Salamander.E`,
+`X.Q.a=117.b`) — so pets and materials are editable by name/id without looking
+up an index. (Paths are dot-delimited throughout, so a selector value can't
+contain a literal `.` — fine for integer ids and element names.) `--mul`
+multiplies a numeric value in place (integers stay integers, floats stay floats).
 
 ```
 save-edit <in> edited_save.txt --gp 999999999 --stones 999999999  # named targets
-save-edit <in> edited_save.txt --set p.025 75                     # generic dotted path
-save-edit <in> edited_save.txt --set X.Q.17.b 43                  # list index
+save-edit <in> edited_save.txt --set p.025 75                     # dotted path
+save-edit <in> edited_save.txt --set X.Q.a=117.b 99999           # material by id
+save-edit <in> edited_save.txt --mul X.b.a=Salamander.E 10       # 10× a pet's growth
 ```
 
 Output goes to a NEW file (never in place; the bin refuses `in == out`), is
