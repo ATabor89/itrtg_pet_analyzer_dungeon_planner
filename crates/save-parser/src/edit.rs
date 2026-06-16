@@ -51,6 +51,8 @@ pub fn named_target(name: &str) -> Option<&'static [&'static str]> {
     match name {
         // Available god power (root `p.j`), verified across the reference saves.
         "gp" => Some(&["p", "j"]),
+        // Pet stones (root `X.y`), verified against the Main Stats export.
+        "stones" => Some(&["X", "y"]),
         _ => None,
     }
 }
