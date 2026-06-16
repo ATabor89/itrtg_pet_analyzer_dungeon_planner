@@ -1016,16 +1016,26 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
 
     // The `stones` named target (X.y) resolves and round-trips.
     let stones_path = save_parser::edit::named_target("stones").expect("stones target");
-    let stones_edit = ScalarEdit {
-        path: stones_path.iter().map(|s| s.to_string()).collect(),
-        value: "424242".into(),
-    };
+    let stones_edit = ScalarEdit::set(&stones_path.join("."), "424242");
     let (encoded2, applied2) = edit_save(&raw, &[stones_edit]).expect("stones edit");
     assert_eq!(applied2[0].old, "267028"); // Main Stats export pet stones
     assert_eq!(
         save_parser::parse_save(&encoded2).unwrap().pet_stones,
         Some(424242)
     );
+
+    // --mul on a real field, and the by-content list selector: 10× Salamander's
+    // growth (X.b element with a=Salamander, field E).
+    let (encoded3, applied3) =
+        edit_save(&raw, &[ScalarEdit::mul("X.b.a=Salamander.E", 10.0)]).expect("mul edit");
+    let sal = save_parser::parse_save(&encoded3)
+        .unwrap()
+        .pet_by_name("Salamander")
+        .unwrap()
+        .growth;
+    // Pet Stats export growth 66,841 → ×10.
+    assert!((sal / 668_410.0 - 1.0).abs() < 1e-3, "Salamander growth ×10: {sal}");
+    assert!(applied3[0].new.starts_with("668413"));
 }
 
 #[test]
