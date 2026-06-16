@@ -146,10 +146,10 @@ Confirmed (cross-save diff vs the two Main Stats exports):
 | `C` | **statistics multi** — exactly 2^50 = 1.1259e15, matching the displayed "1.125e15 x" | three-way lock with `017`/`019` = 50 doublings × 50 GP = the 2,500 GP spent |
 | `017`, `019` | both exactly 50 = statistics-multi doubling count; which of the two is it (and what the other is) needs a purchase between saves | 2^50 = `C` ✓ |
 | `r`,`s`,`t`,`u` | **unused-GP stat allocation %** = **physical / mystic / battle / creating** respectively | resolved 2026-06-13: the user skewed the split to 25/21/22/27 (physical/mystic/battle/creating) and the fields moved to `r`=25, `s`=21, `t`=22, `u`=27 ✓ |
-| `y`,`z` | candidate pair: TBS keep-on-rebirth % (user: 80%) | both 80 |
-| `E`,`025` | candidate pair: TBS double-points chance (user: 100%) | both 100 |
-| `D`,`I` | candidate pair: TBS extra white-area pixels (user: 3) | both 3 |
-| `e`,`w` | candidate pair: TBS level-loss-on-miss % (user: 20%) | both 20 |
+| `E` | **TBS double-points chance** % | **confirmed** 2026-06-16 (save-edit `p.E`=91 → in-game "Chance for double points in TBS: 91%"). Its old "pair" `025` is actually Camp Exp Boost, not a TBS twin. |
+| `D` | **TBS extra white-area pixels** | **confirmed** 2026-06-16 (`p.D`=6 → in-game "Extra Pixels for the white area: 6"). Twin `I` left at 3. |
+| `y`,`z` | TBS keep-on-rebirth % (user: 80%) | both 80; **`y` is NOT the displayed value** — setting `p.y`=61 left "TBS progress kept after rebirthing" at 80%, so the live field is `z` (or a cap). Retest by editing `z`. |
+| `w`,`e` | TBS level-loss-on-miss / "Chance to lose progress" | `w` PERM 20, `e` drifts (20→19). Editing `p.w`=17 showed "Chance to lose progress in TBS: 39%" — the display looks *derived* (≈ base − `w`), so `w` reduces lose-chance but isn't shown literally. Not fully pinned. |
 | `027` | **identity unknown** — the "= `j` + 18" claim was a two-save coincidence (2026-06-13: `027`=62→67 while `j`=2931→1511, so `027` ≠ `j`+18). It moved +5, same delta as the P. Baal kills (43→48), but its absolute (62/67) doesn't match a Baal count and `P.c` already tracks that cleanly — so leave unidentified, don't repeat the x.138 mistake | |
 | `003` | delta (+21) matches Lucky Draws *opened* delta | absolute value 7,659 ≠ 3,053 though — id unclear |
 | `L`, `S`, `013` | ms timers, all advanced by the same +38.8e6 ms | plausibly time-since-rebirth (~12 h at save 1) |
@@ -428,9 +428,9 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
   prior table's "Nothing"; real Nothing is 119 — and 21 = Torch).
   Remaining: the five count-1 ids {130,160,164,167,168} ↔ {Not Nothing,
   Absolutely Nothing, Aether Ring +28, Food Journal One, Food Journal Two}
-  (set known, assignment unknown), and the T4 materials 131–135 ↔
-  {Mythril, Ocean/Sun/Sky/Jungle Stone} (all still count 32 in both saves —
-  needs the counts to diverge, e.g. after crafting with one of them).
+  (set known, assignment unknown). The **T4 materials are resolved** (save-edit
+  probe 2026-06-16, counts 41–45 read off in-game): 131=Sun Stone, 132=Jungle
+  Stone, 133=Sky Stone, 134=Mythril, 135=Ocean Stone — now in `items.rs`.
 - Equipment *type* id ↔ name: solved for everything equipped, derived by
   joining Pet Stats gear strings ↔ Pet Equips instance ids ↔ the save's `R`
   instance→type map (zero vote conflicts). 2026-06-13 the user equipped five
@@ -487,10 +487,14 @@ round-trips.
 overrides to a save and re-encode it (game-loadable). It builds on `raw`'s new
 `set_scalar_path(&["p","025"], "75")`, which navigates the base64-wrapped
 nested structs and overwrites a single scalar, leaving every other byte intact.
+A numeric path segment indexes a list (`X.Q.17.b` = material-inventory element
+17's count), so list elements are editable too — that is how the T4 materials
+were resolved (set five count-32 stacks to 41–45, read off in-game).
 
 ```
-save-edit <in-save> edited_save.txt --gp 999999999     # named: available GP (p.j)
-save-edit <in-save> edited_save.txt --set p.025 75     # generic: any dotted path
+save-edit <in> edited_save.txt --gp 999999999 --stones 999999999  # named targets
+save-edit <in> edited_save.txt --set p.025 75                     # generic dotted path
+save-edit <in> edited_save.txt --set X.Q.17.b 43                  # list index
 ```
 
 Output goes to a NEW file (never in place; the bin refuses `in == out`), is
@@ -498,7 +502,15 @@ self-verified (re-decoded and the edited paths re-read), and **must be named
 `edited_*`** — that name is enforced by the bin and matches the
 `**/edited_*.txt` gitignore rule (and the pre-commit hook content-checks it
 too), because the output carries the save's **real, unredacted** data.
-Only `--gp` is a named target so far; ChP / Overflow Points are **not yet
+Named targets so far: `--gp` (p.j), `--stones` (X.y). **Best method for mapping
+upgrades:** load the edited save into the **Kongregate web build** (InPrivate
+tab) — its import leaves the Steam save untouched — and ideally diff against a
+*fresh zero-purchase Kongregate save* (every field at default), so a single
+in-game purchase isolates its field unambiguously.
+
+When probing a *maxed* purchasable upgrade, set its field **down** (below the
+cap) so it reappears on the purchase screen (as Camp Exp Boost did); setting it
+*up* keeps it maxed and shows nothing. ChP / Overflow Points are **not yet
 located**. A value-shape search came up empty — no scalar equals the ChP
 total/used/left (781/650/131 in 06-16; the literal hits are unrelated ids), and
 no leaf carries the 751→781 total-ChP delta from 06-09→06-16. That is
