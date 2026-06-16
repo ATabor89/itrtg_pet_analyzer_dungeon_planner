@@ -30,6 +30,11 @@ pub struct SaveFile {
     pub account_name: Option<String>,
     /// Pet stones (root `X.y`).
     pub pet_stones: Option<u64>,
+    /// Cumulative pet stones **spent** (root `X.z`). Confirmed 2026-06-16 by a
+    /// fresh-save diff: buying 2 Dungeon Loot + 1 Dungeon Exp moved `X.y` down
+    /// by 750,000 and `X.z` up by exactly 750,000 (= 2·275k + 200k, the wiki
+    /// costs).
+    pub pet_stones_spent: Option<u64>,
     /// Pet food counts (root `X.c`/`X.d`/`X.e`) and chocolate (root `X.v`).
     /// These are dedicated fields, not material-inventory entries. An absent
     /// field reads as 0.
@@ -418,6 +423,15 @@ pub struct PermanentUpgrades {
     /// (the colliding `p.E`, also 100) stayed at 100% — so `p.025` is Camp Exp
     /// Boost and `p.E` is the unrelated TBS field.
     pub camp_exp_boost_pct: u32,
+    /// `p.017` — "Dungeon Loot": +% loot found in dungeons (+25%/level, caps at
+    /// +50%). **Confirmed** 2026-06-16 by a fresh-save diff: buying 2 Dungeon
+    /// Loot moved `p.017` 0 → 50.
+    pub dungeon_loot_pct: u32,
+    /// `p.019` — "Dungeon Exp": +% exp received in dungeons (+25%/level, caps at
+    /// +50%). **Confirmed** by the same diff: buying 1 Dungeon Exp moved `p.019`
+    /// 0 → 25. (Resolves which of the two `50`s in the main save is which, and
+    /// supersedes the earlier "stat-multi doubling count" guess for these keys.)
+    pub dungeon_exp_pct: u32,
 }
 
 impl PermanentUpgrades {
@@ -427,6 +441,8 @@ impl PermanentUpgrades {
             inventory_limit: get_u32(p, "018"),
             item_slots: get_u32(p, "021"),
             camp_exp_boost_pct: get_u32(p, "025"),
+            dungeon_loot_pct: get_u32(p, "017"),
+            dungeon_exp_pct: get_u32(p, "019"),
         }
     }
 }
@@ -855,6 +871,7 @@ impl SaveFile {
             god_name: root.get("W").and_then(Node::as_str).map(str::to_string),
             account_name: root.get("s").and_then(Node::as_str).map(str::to_string),
             pet_stones: x.get("y").and_then(Node::as_u64),
+            pet_stones_spent: x.get("z").and_then(Node::as_u64),
             puny_food: get_u64(x, "c"),
             strong_food: get_u64(x, "d"),
             mighty_food: get_u64(x, "e"),

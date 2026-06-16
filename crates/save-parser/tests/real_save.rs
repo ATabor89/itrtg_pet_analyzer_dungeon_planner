@@ -546,13 +546,12 @@ fn god_power_block_matches_exports() {
     // Statistics multi: displayed 1.125e15× = 2^50, cross-validating the 50
     // paid doublings (2,500 GP ÷ 50/double). (The save's text serialization
     // keeps 15 significant digits, so the parsed value is 2^50 to within that
-    // precision, not bit-exact.) NOTE: p.017 and p.019 both read 50 and were
-    // *tentatively* tied to the doubling count, but the pet-stone "Dungeon
-    // Loot" / "Dungeon Exp" upgrades (both maxed at +50%) are an equally good
-    // fit for these two fields — unresolved pending a controlled purchase diff.
+    // precision, not bit-exact.) The doubling count is stored elsewhere: p.017
+    // and p.019 (also 50/50) turned out to be the Dungeon Loot / Dungeon Exp
+    // pet-stone upgrades (fresh-save diff 2026-06-16), not the doubling count.
     let multi = save2.statistics_multi.unwrap();
     assert!((multi - (2f64).powi(50)).abs() / (2f64).powi(50) < 1e-14);
-    assert_eq!(save2.root.get_path(&["p", "017"]).unwrap().as_u64(), Some(50));
+    assert_eq!(save2.root.get_path(&["p", "019"]).unwrap().as_u64(), Some(50));
 
     // Creation count from god power (export "Creation Count: 166" = 1 base
     // + 165 from GP).
@@ -751,11 +750,20 @@ fn earth_eater_rebirth_counter_tracks_global() {
 }
 
 #[test]
+fn pet_stones_spent_is_tracked() {
+    let save = require_save!();
+    // X.z = cumulative pet stones spent (resolved 2026-06-16 via a fresh-save
+    // diff: 2 Dungeon Loot + 1 Dungeon Exp = 750,000 spent, X.y down /
+    // X.z up by exactly that).
+    assert_eq!(save.pet_stones_spent, Some(13253888));
+}
+
+#[test]
 fn raw_tree_keeps_unidentified_fields_reachable() {
     let save = require_save!();
-    // X.z — meaning still unknown; the raw tree must keep it visible.
-    let z = save.root.get_path(&["X", "z"]).and_then(|n| n.as_u64());
-    assert_eq!(z, Some(13253888));
+    // X.D — meaning still unknown; the raw tree must keep it visible.
+    let d = save.root.get_path(&["X", "D"]).and_then(|n| n.as_u64());
+    assert_eq!(d, Some(25));
     // Unknown per-pet fields stay on the pet's raw node (Santa t = 4).
     let santa = save.pet_by_name("Santa").unwrap();
     assert_eq!(santa.raw.get("t").and_then(|n| n.as_u64()), Some(4));
@@ -1090,4 +1098,8 @@ fn permanent_upgrades_match_known_values() {
     // Confirmed (save-edit diff 2026-06-16): maxed "Camp Exp Boost" = +100%
     // (the Growth Chamber's ×2).
     assert_eq!(up.camp_exp_boost_pct, 100);
+    // Dungeon Loot / Dungeon Exp — both maxed at +50% in the main save;
+    // a fresh-save purchase diff confirmed p.017 = Loot, p.019 = Exp.
+    assert_eq!(up.dungeon_loot_pct, 50);
+    assert_eq!(up.dungeon_exp_pct, 50);
 }
