@@ -259,47 +259,74 @@ impl Raw {
         }
     }
 
-    /// Follow a dotted key path (peeling base64 wrappers at each level) to the
-    /// scalar it names, returning the peeled value. `None` if any segment is
-    /// missing, traverses a non-struct, or names an empty field.
+    /// Follow a dotted path (peeling base64 wrappers at each level) to the
+    /// value it names. A segment is a struct key, or — when the current node is
+    /// a [`Raw::List`] — a 0-based numeric index (e.g. `X.Q.17.b` selects list
+    /// element 17, then its field `b`). `None` if any segment is missing, the
+    /// index is out of range, or a segment traverses a scalar.
     pub fn get_path(&self, path: &[&str]) -> Option<&Raw> {
         let mut node = self;
         for key in path {
-            node = node.get(key)?;
+            let peeled = node.peel();
+            node = match peeled {
+                Raw::List(items) => items.get(key.parse::<usize>().ok()?)?.peel(),
+                Raw::Struct(_) => peeled.get(key)?,
+                _ => return None,
+            };
         }
         Some(node)
     }
 
-    /// Replace the scalar at a dotted key path with `value`, returning the
-    /// previous value's serialized form. Base64 wrappers are peeled at each
-    /// level, so e.g. `["p", "j"]` reaches available god power and
-    /// `["p", "025"]` the Camp-Exp-Boost candidate inside the base64-wrapped
-    /// `p` block. This is the editing primitive behind the `save-edit` tool.
+    /// Replace the scalar at a dotted path with `value`, returning the previous
+    /// value's serialized form. Base64 wrappers are peeled at each level, so
+    /// `["p", "j"]` reaches available god power inside the base64-wrapped `p`
+    /// block. A segment is a struct key, or a 0-based index when the current
+    /// node is a [`Raw::List`] — e.g. `["X", "Q", "17", "b"]` sets the count of
+    /// material-inventory element 17. This is the editing primitive behind the
+    /// `save-edit` tool.
     ///
-    /// Errors if the path is empty, a segment is missing, a non-terminal
-    /// segment is not a struct, or the target is an empty field (`k:;` / `k;`).
-    /// The value is written verbatim (the caller supplies invariant-culture
-    /// text — integers, `True`/`False`, etc.), matching how the game serializes.
+    /// Errors (never panics) if the path is empty, a segment is missing or
+    /// out of range, a non-terminal segment is a scalar, the target is an empty
+    /// field (`k:;` / `k;`), or the path stops on a list element rather than a
+    /// scalar inside it. The value is written verbatim (the caller supplies
+    /// invariant-culture text — integers, `True`/`False`, etc.).
     pub fn set_scalar_path(&mut self, path: &[&str], value: &str) -> anyhow::Result<String> {
         let (key, rest) = path
             .split_first()
             .ok_or_else(|| anyhow::anyhow!("empty path"))?;
-        let Raw::Struct(fields) = self.peel_mut() else {
-            anyhow::bail!("path segment {key:?} does not name a struct");
-        };
-        let (_, field) = fields
-            .iter_mut()
-            .find(|(k, _)| k == key)
-            .ok_or_else(|| anyhow::anyhow!("key {key:?} not found"))?;
-        let Field::Value(v) = field else {
-            anyhow::bail!("key {key:?} is an empty field");
-        };
-        if rest.is_empty() {
-            let prev = v.serialize();
-            *v = Raw::Scalar(value.to_string());
-            Ok(prev)
-        } else {
-            v.set_scalar_path(rest, value)
+        match self.peel_mut() {
+            Raw::Struct(fields) => {
+                let (_, field) = fields
+                    .iter_mut()
+                    .find(|(k, _)| k == key)
+                    .ok_or_else(|| anyhow::anyhow!("key {key:?} not found"))?;
+                let Field::Value(v) = field else {
+                    anyhow::bail!("key {key:?} is an empty field");
+                };
+                if rest.is_empty() {
+                    let prev = v.serialize();
+                    *v = Raw::Scalar(value.to_string());
+                    Ok(prev)
+                } else {
+                    v.set_scalar_path(rest, value)
+                }
+            }
+            Raw::List(items) => {
+                let idx = key
+                    .parse::<usize>()
+                    .map_err(|_| anyhow::anyhow!("list index {key:?} is not a number"))?;
+                let len = items.len();
+                let elem = items
+                    .get_mut(idx)
+                    .ok_or_else(|| anyhow::anyhow!("list index {idx} out of range (len {len})"))?;
+                if rest.is_empty() {
+                    anyhow::bail!(
+                        "path ends on list element [{idx}]; name a field inside it, e.g. '{idx}.b'"
+                    );
+                }
+                elem.set_scalar_path(rest, value)
+            }
+            _ => anyhow::bail!("path segment {key:?} does not name a struct or list"),
         }
     }
 }
@@ -411,5 +438,24 @@ mod tests {
         assert!(r.set_scalar_path(&[], "x").is_err());
         // Descending through a scalar (not a struct) is an error, not a panic.
         assert!(r.set_scalar_path(&["p", "j", "deeper"], "x").is_err());
+    }
+
+    #[test]
+    fn set_scalar_path_indexes_into_lists() {
+        // `Q` is an &-joined list of two structs, like the material inventory.
+        let list = format!("{}&{}", b64("a:24;b:104;"), b64("a:25;b:124;"));
+        let mut r = parse(&format!("c:1;Q:{list};"));
+        // Set element 1's `b` by index.
+        let prev = r.set_scalar_path(&["Q", "1", "b"], "99").unwrap();
+        assert_eq!(prev, "124");
+        let r2 = parse(&r.serialize());
+        assert_eq!(r2.get_path(&["Q", "1", "b"]), Some(&Raw::Scalar("99".into())));
+        // Sibling element untouched.
+        assert_eq!(r2.get_path(&["Q", "0", "b"]), Some(&Raw::Scalar("104".into())));
+        // Out-of-range and non-numeric indices error rather than panic; a path
+        // that stops on the element (not a field inside it) also errors.
+        assert!(r.set_scalar_path(&["Q", "9", "b"], "1").is_err());
+        assert!(r.set_scalar_path(&["Q", "x", "b"], "1").is_err());
+        assert!(r.set_scalar_path(&["Q", "0"], "1").is_err());
     }
 }
