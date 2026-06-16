@@ -1074,6 +1074,7 @@ fn permanent_upgrades_match_known_values() {
     // entries — an independent cross-check on p.021.
     let loadout = save.root.get_path(&["X", "013"]).expect("X.013 present");
     assert_eq!(loadout.list_or_single().len(), up.item_slots as usize);
-    // Candidate: maxed "Camp Exp Boost" = +100% (the Growth Chamber's ×2).
+    // Confirmed (save-edit diff 2026-06-16): maxed "Camp Exp Boost" = +100%
+    // (the Growth Chamber's ×2).
     assert_eq!(up.camp_exp_boost_pct, 100);
 }
