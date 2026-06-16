@@ -1005,6 +1005,7 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
             ScalarEdit::parse("p.j", "999999999"),
             ScalarEdit::parse("p.025", "75"),
         ],
+        &[],
     )
     .expect("edit should succeed");
 
@@ -1022,12 +1023,12 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
     assert_eq!(edited.god_name.as_deref(), Some("RedactedGod"));
 
     // Editing must never silently no-op a missing field.
-    assert!(edit_save(&raw, &[ScalarEdit::parse("p.nonexistent", "1")]).is_err());
+    assert!(edit_save(&raw, &[ScalarEdit::parse("p.nonexistent", "1")], &[]).is_err());
 
     // The `stones` named target (X.y) resolves and round-trips.
     let stones_path = save_parser::edit::named_target("stones").expect("stones target");
     let stones_edit = ScalarEdit::set(&stones_path.join("."), "424242");
-    let (encoded2, applied2) = edit_save(&raw, &[stones_edit]).expect("stones edit");
+    let (encoded2, applied2) = edit_save(&raw, &[stones_edit], &[]).expect("stones edit");
     assert_eq!(applied2[0].old, "267028"); // Main Stats export pet stones
     assert_eq!(
         save_parser::parse_save(&encoded2).unwrap().pet_stones,
@@ -1037,7 +1038,7 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
     // --mul on a real field, and the by-content list selector: 10× Salamander's
     // growth (X.b element with a=Salamander, field E).
     let (encoded3, applied3) =
-        edit_save(&raw, &[ScalarEdit::mul("X.b.a=Salamander.E", 10.0)]).expect("mul edit");
+        edit_save(&raw, &[ScalarEdit::mul("X.b.a=Salamander.E", 10.0)], &[]).expect("mul edit");
     let sal = save_parser::parse_save(&encoded3)
         .unwrap()
         .pet_by_name("Salamander")
@@ -1046,6 +1047,24 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
     // Pet Stats export growth 66,841 → ×10.
     assert!((sal / 668_410.0 - 1.0).abs() < 1e-3, "Salamander growth ×10: {sal}");
     assert!(applied3[0].new.starts_with("668413"));
+
+    // Material grants: set an existing stack (117 = Ant) and *add* a brand-new
+    // one (id 9990 is absent → the entry is appended, not an error).
+    use save_parser::edit::MaterialGrant;
+    let (encoded4, applied4) = edit_save(
+        &raw,
+        &[],
+        &[
+            MaterialGrant { id: "117".into(), count: "5".into() },
+            MaterialGrant { id: "9990".into(), count: "777".into() },
+        ],
+    )
+    .expect("material grant");
+    let m4 = save_parser::parse_save(&encoded4).unwrap();
+    let count_of = |id: u32| m4.materials.iter().find(|m| m.item_id == id).map(|m| m.count);
+    assert_eq!(count_of(117), Some(5)); // existing Ant stack set
+    assert_eq!(count_of(9990), Some(777)); // new stack appended
+    assert!(applied4.iter().any(|a| a.path == "X.Q.a=9990.b" && a.old == "(absent)"));
 }
 
 #[test]

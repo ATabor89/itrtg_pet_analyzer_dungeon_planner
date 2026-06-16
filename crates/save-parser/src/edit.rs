@@ -17,6 +17,16 @@ use anyhow::{Context, Result};
 
 use crate::{container, raw};
 
+/// Grant a material: set the count of the `X.Q` inventory entry with item id
+/// `id` to `count`, **adding the entry if the save doesn't have it yet** (a
+/// fresh account has no stack for most materials, so a plain scalar set can't
+/// reach them).
+#[derive(Debug, Clone)]
+pub struct MaterialGrant {
+    pub id: String,
+    pub count: String,
+}
+
 /// What to do to the scalar a [`ScalarEdit`] points at.
 #[derive(Debug, Clone)]
 pub enum EditOp {
@@ -57,6 +67,14 @@ impl ScalarEdit {
     /// Back-compat alias for [`ScalarEdit::set`].
     pub fn parse(path: &str, value: &str) -> Self {
         Self::set(path, value)
+    }
+}
+
+/// Unwrap any [`raw::Raw::Base64`] wrappers, by value.
+fn peel_owned(r: raw::Raw) -> raw::Raw {
+    match r {
+        raw::Raw::Base64(inner) => peel_owned(*inner),
+        other => other,
     }
 }
 
@@ -107,11 +125,72 @@ pub fn named_target(name: &str) -> Option<&'static [&'static str]> {
 /// After encoding, it decodes the result again and confirms each edited path
 /// now reads the requested value — so a serializer/encoder bug surfaces here
 /// rather than as a corrupt save the game silently rejects.
-pub fn edit_save(raw_save: &str, edits: &[ScalarEdit]) -> Result<(String, Vec<AppliedEdit>)> {
+pub fn edit_save(
+    raw_save: &str,
+    edits: &[ScalarEdit],
+    materials: &[MaterialGrant],
+) -> Result<(String, Vec<AppliedEdit>)> {
     let decoded = container::decode_container(raw_save).context("decode save container")?;
     let mut root = raw::parse(&decoded.plaintext);
 
-    let mut applied = Vec::with_capacity(edits.len());
+    let mut applied = Vec::with_capacity(edits.len() + materials.len());
+
+    // Material grants: set-or-add an entry in the X.Q inventory list. On a
+    // fresh account X.Q can be an *empty field* (no list yet) — turn it into a
+    // list so the first grant has somewhere to go.
+    for mat in materials {
+        let x = root.get_path_mut(&["X"]).context("save has no X block")?;
+        let raw::Raw::Struct(xfields) = x else {
+            anyhow::bail!("X is not a struct");
+        };
+        let q_field = &mut xfields
+            .iter_mut()
+            .find(|(k, _)| k == "Q")
+            .context("X has no Q (material inventory) field")?
+            .1;
+        match q_field {
+            raw::Field::Value(raw::Raw::List(_)) => {}
+            raw::Field::EmptyColon | raw::Field::EmptyBare => {
+                *q_field = raw::Field::Value(raw::Raw::List(Vec::new()));
+            }
+            // A lone struct is a 1-element list (no `&` separator); normalize it
+            // to a real list so the upsert can append.
+            raw::Field::Value(v) if matches!(v.peel(), raw::Raw::Struct(_)) => {
+                let only = std::mem::replace(v, raw::Raw::List(Vec::new()));
+                let elem = peel_owned(only);
+                if let raw::Raw::List(items) = v {
+                    items.push(elem);
+                }
+            }
+            raw::Field::Value(_) => anyhow::bail!("X.Q is present but not a list"),
+        }
+        let raw::Field::Value(raw::Raw::List(items)) = q_field else {
+            unreachable!("X.Q normalized to a list above");
+        };
+        let existing = items
+            .iter()
+            .position(|e| matches!(e.get("a"), Some(raw::Raw::Scalar(s)) if *s == mat.id));
+        let old = match existing {
+            Some(i) => {
+                let prev = items[i].get("b").map_or_else(|| "0".into(), raw::Raw::serialize);
+                items[i].set_scalar_path(&["b"], &mat.count)?;
+                prev
+            }
+            None => {
+                items.push(raw::Raw::Struct(vec![
+                    ("a".into(), raw::Field::Value(raw::Raw::Scalar(mat.id.clone()))),
+                    ("b".into(), raw::Field::Value(raw::Raw::Scalar(mat.count.clone()))),
+                ]));
+                "(absent)".into()
+            }
+        };
+        applied.push(AppliedEdit {
+            path: format!("X.Q.a={}.b", mat.id),
+            old,
+            new: mat.count.clone(),
+        });
+    }
+
     for edit in edits {
         let segs: Vec<&str> = edit.path.iter().map(String::as_str).collect();
         // Resolve the new value (Mul reads the current scalar first).
@@ -180,5 +259,31 @@ mod tests {
     fn apply_factor_rejects_non_numeric() {
         assert!(apply_factor("True", 2.0).is_err());
         assert!(apply_factor("Salamander", 2.0).is_err());
+    }
+
+    #[test]
+    fn grants_a_single_material_to_empty_inventory() {
+        use base64::Engine as _;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        // Minimal save: X (a base64 nested struct) with an EMPTY Q field.
+        let x_inner = b64.encode("y:0;Q:;".as_bytes());
+        let plaintext = format!("X:{x_inner};");
+        let save = container::encode_container(&plaintext, "V2");
+
+        // Granting ONE material builds a 1-element list — the case that broke
+        // the self-verify before the singleton-selector fix.
+        let (encoded, applied) = edit_save(
+            &save,
+            &[],
+            &[MaterialGrant { id: "5".into(), count: "400000".into() }],
+        )
+        .expect("single grant to empty X.Q should succeed");
+        assert_eq!(applied[0].old, "(absent)");
+
+        let root = raw::parse(&container::decode_to_plaintext(&encoded).unwrap());
+        assert_eq!(
+            root.get_path(&["X", "Q", "a=5", "b"]),
+            Some(&raw::Raw::Scalar("400000".into()))
+        );
     }
 }
