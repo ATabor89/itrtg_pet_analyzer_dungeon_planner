@@ -84,3 +84,16 @@ buying, so they stay unmapped unless acquired some other way.
 **Method note:** restrict each consecutive diff to `root.p.*` (the upgrade
 block) and ignore the continuous GP-progress keys; the one-time upgrade flip
 then stands out even under heavy leveling noise.
+
+### 2026-06-16 — Pet Tokens / Class Change Tokens (`TokenDiff/`)
+
+Two saves with token counts in the names (Pet Token 5→6, CC Token 8→10).
+Filtering the diff to the exact transitions found unique hits:
+
+- `p.I`: 5 → 6 → **Pet Tokens**.
+- `p.023`: 8 → 10 → **Class Change Tokens**.
+
+Correction: `p.I` had been *assumed* to be the twin of `p.D` (TBS extra pixels —
+both 3 in the main save), but only `p.D` was ever directly confirmed. The token
+diff proves `p.I` = Pet Tokens; the equal values were a coincidence. Promoted to
+`SaveFile.pet_tokens` / `SaveFile.class_change_tokens`.

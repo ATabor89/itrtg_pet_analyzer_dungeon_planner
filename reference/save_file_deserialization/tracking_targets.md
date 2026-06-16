@@ -8,8 +8,8 @@ scalars in the `X` (pet) block or root; consumables may be material-inventory
 
 | Target | What it is | Notes / where to look | Status |
 |--------|-----------|------------------------|--------|
-| **Pet Tokens** | Unlock / evolve pets; bought with pet stones | Player buys them in bulk → easy diff (buy or use some). Likely a dedicated `X.*` scalar. | TODO |
-| **Class Change Tokens** (CC Token) | Re-class an evolved pet for free | Diff a buy/use. Dedicated scalar. | TODO |
+| ~~Pet Tokens~~ | Unlock / evolve pets | **DONE: `p.I`** (token-count diff 5→6). `SaveFile.pet_tokens`. | ✅ |
+| ~~Class Change Tokens~~ (CC Token) | Re-class an evolved pet for free | **DONE: `p.023`** (diff 8→10). `SaveFile.class_change_tokens`. | ✅ |
 | **Lucky Draws** | Gacha-style draw | `x.071` already = lucky draws **opened** (lifetime); the **unopened** draw count is a separate, unlocated field. | Partial |
 | **Ultimate Shadow Summon** | Summon currency/item | Diff a gain/use. | TODO |
 | **Godly Liquid** | Consumable; ×2 creating speed while active (Main Stats: "bonus from godly liquids (×2)") | Count likely a scalar or `X.Q` entry; an *active* timer may be separate. | TODO |
