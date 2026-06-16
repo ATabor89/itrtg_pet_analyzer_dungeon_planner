@@ -100,6 +100,7 @@ is implemented; it isn't needed for that round trip.)
 | `002` | **gem inventory**: list of {`a`=element id, `b`=gem level, `c`=count} | all 7 stacks match the transcription exactly; same element ids as pets (0=N,1=F,2=W,3=E,4=Wi) |
 | `x` | list of 8 **campaign slots** | `d` = `&`-joined pet ids (10 per slot), `e` = 43,200,000 ms = 12 h, `f` = total bonus, `c` = timestamp, `i` = RNG seed |
 | `y` | pet stones | 267,028 ✓ Main Stats |
+| `z` | **cumulative pet stones spent** | fresh-save diff: `y` −750,000 / `z` +750,000 when buying 2 Dungeon Loot + 1 Dungeon Exp (= 2·275k + 200k) ✓ |
 | `P` | list of 3 **active dungeon runs** | `a` = dungeon id (2,3,5), `c` = 43,200,000 ms, `d` = depth-ish, seeds in `e`/`j` |
 | `Q` | list of 69 — **material inventory** (`a`=item id, `b`=count) | export-confirmed: 117=Ant 192,164 ✓, 159=Strategy Book 2,840 ✓, 166=Honey 787 ✓, 174=Acorn 24,727 ✓. Full id→name table (incl. the prior project's identifications: Herb/Iron Ore/…/Soul of Sylph) lives in `crates/save-parser/src/items.rs` |
 | `R` | list of 209 — **owned pet equipment** | see equipment struct |
@@ -166,7 +167,7 @@ Confirmed (cross-save diff vs the two Main Stats exports):
 | `F` | total might (lives on its own screen, mirrored here) | 100,983 ✓ |
 | `002` | crystal power (only changes on rebirth — equipped crystals convert then) | 4,183 ✓ |
 | `C` | **statistics multi** — exactly 2^50 = 1.1259e15, matching the displayed "1.125e15 x" | three-way lock with `017`/`019` = 50 doublings × 50 GP = the 2,500 GP spent |
-| `017`, `019` | both exactly 50 = statistics-multi doubling count; which of the two is it (and what the other is) needs a purchase between saves | 2^50 = `C` ✓ |
+| `017`, `019` | **NOT** the doubling count — `017` = **Dungeon Loot** %, `019` = **Dungeon Exp** % (pet-stone upgrades), confirmed 2026-06-16 by a fresh-save purchase diff. The doubling count is stored elsewhere; `C` = 2^50 captures the multi directly. | |
 | `r`,`s`,`t`,`u` | **unused-GP stat allocation %** = **physical / mystic / battle / creating** respectively | resolved 2026-06-13: the user skewed the split to 25/21/22/27 (physical/mystic/battle/creating) and the fields moved to `r`=25, `s`=21, `t`=22, `u`=27 ✓ |
 | `E` | **TBS double-points chance** % | **confirmed** 2026-06-16 (save-edit `p.E`=91 → in-game "Chance for double points in TBS: 91%"). Its old "pair" `025` is actually Camp Exp Boost, not a TBS twin. |
 | `D` | **TBS extra white-area pixels** | **confirmed** 2026-06-16 (`p.D`=6 → in-game "Extra Pixels for the white area: 6"). Twin `I` left at 3. |
@@ -223,7 +224,7 @@ last "Max Crystal".
 | `p.018` | 250 | **Inventory Space** (equipment limit, +50/buy) | **High** (exact) |
 | `p.021` | 8 | **Item Slot** (dungeon party-item slots, cap 8) | **High** (exact; `X.013` loadout has 8 entries) |
 | `p.025` | 100 | **Camp Exp Boost** (+%/buy adventurer campaign class XP, cap +100%) | **Confirmed** (save-edit diff) |
-| `p.017`, `p.019` | 50, 50 | **Dungeon Loot** & **Dungeon Exp** (+25%/buy, cap +50%) | Candidate |
+| `p.017`, `p.019` | 50, 50 | **Dungeon Loot** (`017`) & **Dungeon Exp** (`019`) (+25%/buy, cap +50%) | **Confirmed** (fresh-save diff) |
 | `p.020` | 25 | a +25% buy (Crystal Improve / Crafting Boost) | Low |
 | `p.016` `p.023` `p.030` `p.014` | 2, 9, 775, 3169 | unidentified, permanent | — |
 | ~13 `True` flags (`k,l,o,p,B,J,U,V,Y,Z,008,010,011`) | — | the one-time boolean buys (Refrigerator, Auto Select Camp, Dungeon Team, Improved Campaign Cancel, Optimal Campaigns, Auto Worker Clones, …) + GP toggles | — |
@@ -241,12 +242,17 @@ its four +25% levels) while the Baal-Slayer double-points chance stayed at
 not a pair. The chamber's *other* ×2 remains unidentified (see
 [`project_chamber_class_xp`] / `growth_chamber_status.md`).
 
-The same two-100s-for-two-distinct-100%-upgrades reasoning that held for `p.025`
-also points at `p.017`/`p.019` = 50/50 being **Dungeon Loot** & **Dungeon Exp**
-(both maxed +50%) rather than the stat-multi doubling count (which is anyway
-redundant with `p.C` = 2^50 stored directly) — but that one is **not yet
-proven**: grant GP and buy one stat-multi doubling, then see which of
-`p.017`/`p.019` moves.
+The same reasoning held for `p.017`/`p.019` = 50/50, now **confirmed** as
+**Dungeon Loot** (`017`) & **Dungeon Exp** (`019`) by a fresh-save purchase diff
+(2026-06-16): on a zero-purchase Kongregate save, buying 2 Dungeon Loot moved
+`p.017` 0→50 and 1 Dungeon Exp moved `p.019` 0→25. Same diff resolved
+**`X.z` = cumulative pet stones spent** (`X.y` down / `X.z` up by exactly
+750,000 = 2·275k + 200k). The stat-multi doubling count is stored elsewhere;
+`p.C` = 2^50 captures the multi directly.
+
+This fresh-zero-purchase-Kongregate-save diff is the workflow for the rest of
+the upgrade fields: bankroll the save (`save-edit --stones`), buy a small,
+labelled batch, re-export, diff. See `Kongregate/experiments.md`.
 
 Consumables, for contrast, are **not** here: every consumable pet-stone item
 (Elixir, Phoenix Feather, Flying Boots, Torch, bombs, keys, runes, talismans,
@@ -442,8 +448,8 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
 - HP/Attack/Defense/Speed/elemental affinities from the Pet Stats export do
   not appear literally in the save → derived at runtime. If we ever need them,
   we either keep using the export or reverse the formulas.
-- `X.v` (10,062), `X.z` (13,253,888), `X.T` (23 entries), `X.028` (737 ids),
-  pet `t`/`u` — unidentified.
+- `X.v` (10,062), `X.T` (23 entries), `X.028` (737 ids), pet `t`/`u` —
+  unidentified. (`X.z` resolved: cumulative pet stones spent.)
 - Material id ↔ name: mostly solved in `crates/save-parser/src/items.rs`
   (prior-project table + export-confirmed + the 2026-06-10 full inventory
   transcription: 16/17 = Health Potion X/S, 19 = Antidote — correcting the
