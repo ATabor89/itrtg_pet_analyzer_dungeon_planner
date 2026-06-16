@@ -973,6 +973,41 @@ fn gp_allocation_and_speeds_match_notes() {
 }
 
 #[test]
+fn save_edit_sets_gp_and_preserves_the_rest() {
+    use save_parser::edit::{edit_save, ScalarEdit};
+    let Some(raw) = read_raw_save("ManualSave_2026-06-09.txt") else {
+        eprintln!("reference save not present; skipping");
+        return;
+    };
+    // Grant GP (p.j) and knock the Camp-Exp-Boost candidate (p.025) down a
+    // level — the kind of edit that disambiguates a maxed upgrade in-game.
+    let (encoded, applied) = edit_save(
+        &raw,
+        &[
+            ScalarEdit::parse("p.j", "999999999"),
+            ScalarEdit::parse("p.025", "75"),
+        ],
+    )
+    .expect("edit should succeed");
+
+    // The reported old values are the originals (GP 1297; Camp Exp Boost 100).
+    assert_eq!(applied[0].old, "1297");
+    assert_eq!(applied[1].old, "100");
+
+    // The edited save parses, reads the new values, and leaves everything else
+    // intact (pet stones, pet roster, identity redaction all unchanged).
+    let edited = save_parser::parse_save(&encoded).expect("edited save parses");
+    assert_eq!(edited.gp_available, Some(999_999_999));
+    assert_eq!(edited.permanent_upgrades.unwrap().camp_exp_boost_pct, 75);
+    assert_eq!(edited.pet_stones, Some(267028));
+    assert_eq!(edited.pets.len(), 158);
+    assert_eq!(edited.god_name.as_deref(), Some("RedactedGod"));
+
+    // Editing must never silently no-op a missing field.
+    assert!(edit_save(&raw, &[ScalarEdit::parse("p.nonexistent", "1")]).is_err());
+}
+
+#[test]
 fn tbs_component_levels_match_notes() {
     let save = require_tbs_save!();
     // The player set each Baal-Slayer part to a distinct level (notes.txt):

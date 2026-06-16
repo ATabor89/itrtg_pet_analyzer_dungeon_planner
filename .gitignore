@@ -15,3 +15,6 @@
 # the game-load test. Never commit them.
 /reference/save_file_deserialization/reencode_test*.txt
 **/reencode_*.txt
+
+# Edited saves from `save-edit` — also unredacted real saves. Never commit them.
+**/edited_*.txt
