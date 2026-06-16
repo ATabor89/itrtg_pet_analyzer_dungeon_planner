@@ -108,6 +108,11 @@ pub struct SaveFile {
     /// Unused-GP god-stat allocation split (root `p.r/s/t/u`). `None` if the
     /// god-power block is absent.
     pub gp_allocation: Option<GpAllocation>,
+    /// Permanent account upgrades stored in the `root.p` block (god-power +
+    /// pet-stone purchases live together there). `None` if `p` is absent.
+    pub permanent_upgrades: Option<PermanentUpgrades>,
+    /// The Baal Slayer (TBS) component levels (root `S`). `None` if absent.
+    pub tbs_levels: Option<TbsLevels>,
     /// The full raw tree, for exploring not-yet-identified fields.
     pub root: Node,
 }
@@ -382,6 +387,95 @@ pub struct GpAllocation {
     pub battle: u32,
     /// `p.u` — bonus creating god-stat %.
     pub creating: u32,
+}
+
+/// Permanent account upgrades, read from the numeric keys of the `root.p`
+/// block. Despite FINDINGS historically calling `p` the "god-power block", it
+/// holds *all* permanent purchases — god-power buys **and** pet-stone buys
+/// sit side by side. These fields are the pet-stone permanent upgrades, keyed
+/// off the wiki's purchase list.
+///
+/// Confidence varies (see each field). The block as a whole was validated when
+/// `p.001` ticked **5 → 6** between the 2026-06-13 and 2026-06-16 saves, the
+/// exact rebirth-independent move of buying the last "Max Crystal".
+#[derive(Debug, Clone, Copy)]
+pub struct PermanentUpgrades {
+    /// `p.001` — "Max Crystal": number of crystals equippable at once (caps at
+    /// 6). **Confirmed** by the 5 → 6 move across the 06-13 → 06-16 saves.
+    pub max_crystal: u32,
+    /// `p.018` — "Inventory Space": the equipment-storage limit (250 here).
+    /// **High confidence** (exact match to the in-game limit, permanent).
+    pub inventory_limit: u32,
+    /// `p.021` — "Item Slot": distinct dungeon party-item slots, caps at 8
+    /// (maxed here). **High confidence** (exact, and the equipped-item loadout
+    /// list `X.013` has exactly this many entries).
+    pub item_slots: u32,
+    /// `p.025` — **candidate** for "Camp Exp Boost": the extra % class XP
+    /// adventurer pets earn in campaigns (+25%/level, caps at +100% = maxed
+    /// here). This is the value the Growth Chamber sim's `adv_xp_mult` wants
+    /// (maxed ⇒ ×2). Caveat: it collides with an earlier guess that paired
+    /// `p.E`/`p.025` as the Baal-Slayer "double-points chance" (also 100). The
+    /// two-100s-for-two-distinct-100%-upgrades argument favours Camp Exp Boost,
+    /// but it is not yet proven by a controlled purchase diff — treat as a
+    /// strong hypothesis, not ground truth.
+    pub camp_exp_boost_pct: u32,
+}
+
+impl PermanentUpgrades {
+    fn from_p(p: &Node) -> Self {
+        PermanentUpgrades {
+            max_crystal: get_u32(p, "001"),
+            inventory_limit: get_u32(p, "018"),
+            item_slots: get_u32(p, "021"),
+            camp_exp_boost_pct: get_u32(p, "025"),
+        }
+    }
+}
+
+/// The Baal Slayer (TBS) component levels, stored in the `root.S` block. Each
+/// of the five body parts (`S.b/c/d/e/f`) levels independently and the value
+/// is the displayed level directly; the parts reset partially on rebirth.
+/// Resolved 2026-06-16: the player set each part to a distinct level
+/// (125/132/127/128/130) so the letter→part mapping is unambiguous — earlier
+/// saves had all five at 126 (the "all five 126" reading in FINDINGS).
+///
+/// `S.a` (a constant 99.56…) and `S.g` (0) are not levels and stay
+/// unidentified. The displayed crit-chance, crit-damage and **score** are all
+/// *derived* from these levels (+ SpaceDim), not stored — see
+/// [`TbsLevels::score`].
+#[derive(Debug, Clone, Copy)]
+pub struct TbsLevels {
+    /// `S.b` — Eyes. The player levels this "mirrored" for a bigger bonus;
+    /// mirrored eyes count 4× toward the score.
+    pub eyes: u32,
+    /// `S.d` — Wings.
+    pub wings: u32,
+    /// `S.e` — Tail.
+    pub tail: u32,
+    /// `S.f` — Feet.
+    pub feet: u32,
+    /// `S.c` — Mouth.
+    pub mouth: u32,
+}
+
+impl TbsLevels {
+    fn from_node(s: &Node) -> Self {
+        TbsLevels {
+            eyes: get_u32(s, "b"),
+            mouth: get_u32(s, "c"),
+            wings: get_u32(s, "d"),
+            tail: get_u32(s, "e"),
+            feet: get_u32(s, "f"),
+        }
+    }
+
+    /// The in-game Baal-Slayer "score": eyes count **4×** (this account levels
+    /// them mirrored), every other part 1×. Verified against the displayed
+    /// 1017 = 4·125 + 127 + 128 + 130 + 132. Assumes mirrored eyes; the mirror
+    /// flag itself has not been located in the save.
+    pub fn score(&self) -> u32 {
+        4 * self.eyes + self.wings + self.tail + self.feet + self.mouth
+    }
 }
 
 /// One adventure-mode research (root `032.H.a[i]`).
@@ -754,6 +848,9 @@ impl SaveFile {
             creating: get_u32(p, "u"),
         });
 
+        let permanent_upgrades = root.get("p").map(PermanentUpgrades::from_p);
+        let tbs_levels = root.get("S").map(TbsLevels::from_node);
+
         Ok(SaveFile {
             saved_at_unix: root.get("c").and_then(Node::as_i64),
             god_name: root.get("W").and_then(Node::as_str).map(str::to_string),
@@ -785,6 +882,8 @@ impl SaveFile {
             gp_creating_speed_pct: root.get_path(&["p", "h"]).and_then(Node::as_u64),
             gp_building_speed_pct: root.get_path(&["p", "i"]).and_then(Node::as_u64),
             gp_allocation,
+            permanent_upgrades,
+            tbs_levels,
             pets,
             equipment,
             materials,
