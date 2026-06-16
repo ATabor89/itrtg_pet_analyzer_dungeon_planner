@@ -63,6 +63,16 @@ well-tested logic and concise UI code that follows existing patterns.
 text, in-game help text, research notes, the old JS analyzer) lives in the
 top-level `reference/` directory — none of it is read by code.
 
+## Local tooling
+
+- **Python is installed and on `PATH`** (3.14, at
+  `C:\Users\Shogg\AppData\Local\Programs\Python\Python314\python.exe`). Invoke
+  it as **`python`** (or the `py` launcher) — both work in Bash and PowerShell.
+  Do **not** use `python3`: on this Windows box that name resolves to the
+  Microsoft Store app-execution-alias stub and fails with "Python was not
+  found". So when a quick script is genuinely the better tool, reach for
+  `python` directly instead of falling back to PowerShell.
+
 ## Verify before committing
 
 ```
