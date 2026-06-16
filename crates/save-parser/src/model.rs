@@ -410,14 +410,13 @@ pub struct PermanentUpgrades {
     /// (maxed here). **High confidence** (exact, and the equipped-item loadout
     /// list `X.013` has exactly this many entries).
     pub item_slots: u32,
-    /// `p.025` — **candidate** for "Camp Exp Boost": the extra % class XP
-    /// adventurer pets earn in campaigns (+25%/level, caps at +100% = maxed
-    /// here). This is the value the Growth Chamber sim's `adv_xp_mult` wants
-    /// (maxed ⇒ ×2). Caveat: it collides with an earlier guess that paired
-    /// `p.E`/`p.025` as the Baal-Slayer "double-points chance" (also 100). The
-    /// two-100s-for-two-distinct-100%-upgrades argument favours Camp Exp Boost,
-    /// but it is not yet proven by a controlled purchase diff — treat as a
-    /// strong hypothesis, not ground truth.
+    /// `p.025` — "Camp Exp Boost": the extra % class XP adventurer pets earn in
+    /// campaigns (+25%/level, caps at +100% = maxed here). This is the value the
+    /// Growth Chamber sim's `adv_xp_mult` wants (maxed ⇒ ×2). **Confirmed**
+    /// 2026-06-16 by a `save-edit` diff: setting `p.025` to 75 lowered the
+    /// in-game Camp Exp Boost to +75% while the Baal-Slayer double-points chance
+    /// (the colliding `p.E`, also 100) stayed at 100% — so `p.025` is Camp Exp
+    /// Boost and `p.E` is the unrelated TBS field.
     pub camp_exp_boost_pct: u32,
 }
 

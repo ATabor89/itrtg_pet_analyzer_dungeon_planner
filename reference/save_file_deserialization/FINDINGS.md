@@ -179,11 +179,12 @@ upgrade purchase could.
 
 The save **editor now exists** (`save-edit`, see below): the cleanest way to
 nudge resource-gated upgrades is to grant currency and buy/sell in-game, or to
-knock a *maxed* field down directly. For the open collisions: `save-edit <in>
-<out> --set p.025 75` knocks the Camp-Exp-Boost candidate down (then check
-in-game whether the Camp Exp Boost %, the TBS double-points %, or both moved —
-splitting `p.025` from `p.E`); granting GP lets the user buy one stat-multi
-doubling to split `p.017`/`p.019`.
+knock a *maxed* field down directly. This already resolved one collision:
+`save-edit <in> edited.txt --set p.025 75` dropped the in-game **Camp Exp Boost**
+to +75% while the TBS double-points % held at 100%, confirming `p.025` = Camp
+Exp Boost and `p.E` = the TBS field (see below). Still open: grant GP and buy one
+stat-multi doubling to split `p.017`/`p.019` (Dungeon Loot/Exp vs the doubling
+count).
 
 ### Pet-stone *permanent upgrades* also live in `root.p`
 
@@ -199,7 +200,7 @@ last "Max Crystal".
 | `p.001` | 5 → **6** | **Max Crystal** (crystals equippable at once, cap 6) | **Confirmed** (the 5→6 move) |
 | `p.018` | 250 | **Inventory Space** (equipment limit, +50/buy) | **High** (exact) |
 | `p.021` | 8 | **Item Slot** (dungeon party-item slots, cap 8) | **High** (exact; `X.013` loadout has 8 entries) |
-| `p.025` | 100 | **Camp Exp Boost** (+%/buy adventurer campaign class XP, cap +100%) | **Candidate** — see below |
+| `p.025` | 100 | **Camp Exp Boost** (+%/buy adventurer campaign class XP, cap +100%) | **Confirmed** (save-edit diff) |
 | `p.017`, `p.019` | 50, 50 | **Dungeon Loot** & **Dungeon Exp** (+25%/buy, cap +50%) | Candidate |
 | `p.020` | 25 | a +25% buy (Crystal Improve / Crafting Boost) | Low |
 | `p.016` `p.023` `p.030` `p.014` | 2, 9, 775, 3169 | unidentified, permanent | — |
@@ -208,21 +209,22 @@ last "Max Crystal".
 `p.001`/`p.018`/`p.021`/`p.025` are promoted to `SaveFile.permanent_upgrades`
 ([`PermanentUpgrades`]).
 
-**`p.025` = Camp Exp Boost (the Growth Chamber's missing ×2).** The chamber
-sim's adventurer class-XP multiplier is `250 × 4.0`, where maxed Camp Exp Boost
-explains one ×2 (`growth_chamber_status.md`); reading `p.025` lets that be
-auto-derived (`mult ×= 1 + p.025/100`). **Caveat — unresolved collision:**
-`p.025` and `p.E` are *both* 100 and `p.E`/`p.025` were earlier paired as the
-TBS "double-points chance" (also 100%). The pet-stone reading is favoured by a
-counting argument — there are exactly **two** permanent `100` fields and the
-player has exactly **two** distinct things at 100% (TBS double-points *and*
-maxed Camp Exp Boost), so most likely one each, not a TBS pair. The same
-two-of-a-kind logic applies to `p.017`/`p.019` = 50/50 vs the two maxed +50%
-dungeon upgrades (and the stat-multi doubling count is anyway redundant with
-`p.C` = 2^50 stored directly). None of these are *proven*; the clean tests need
-a controlled purchase diff — nudge the in-game TBS double-points % (splits
-`p.025` from `p.E`) and buy one stat-multi doubling (splits `p.017`/`p.019`).
-A save editor would make those nudges cheap.
+**`p.025` = Camp Exp Boost (the Growth Chamber's missing ×2) — CONFIRMED.** The
+chamber sim's adventurer class-XP multiplier is `250 × 4.0`, where maxed Camp
+Exp Boost explains one ×2 (`growth_chamber_status.md`); reading `p.025` lets
+that be auto-derived (`mult ×= 1 + p.025/100`). Confirmed 2026-06-16 with
+`save-edit --set p.025 75`: in-game Camp Exp Boost dropped to **+75%** (one of
+its four +25% levels) while the Baal-Slayer double-points chance stayed at
+100% — so `p.025` is Camp Exp Boost and the colliding `p.E` is the TBS field,
+not a pair. The chamber's *other* ×2 remains unidentified (see
+[`project_chamber_class_xp`] / `growth_chamber_status.md`).
+
+The same two-100s-for-two-distinct-100%-upgrades reasoning that held for `p.025`
+also points at `p.017`/`p.019` = 50/50 being **Dungeon Loot** & **Dungeon Exp**
+(both maxed +50%) rather than the stat-multi doubling count (which is anyway
+redundant with `p.C` = 2^50 stored directly) — but that one is **not yet
+proven**: grant GP and buy one stat-multi doubling, then see which of
+`p.017`/`p.019` moves.
 
 Consumables, for contrast, are **not** here: every consumable pet-stone item
 (Elixir, Phoenix Feather, Flying Boots, Torch, bombs, keys, runes, talismans,
@@ -497,10 +499,15 @@ self-verified (re-decoded and the edited paths re-read), and **must be named
 `**/edited_*.txt` gitignore rule (and the pre-commit hook content-checks it
 too), because the output carries the save's **real, unredacted** data.
 Only `--gp` is a named target so far; ChP / Overflow Points are **not yet
-located** — they are not stored as recoverable scalars in any captured save
-(total/used/left = 781/650/131 in 06-16 appear only as unrelated ids), so they
-need a purpose-built before/after save (spend a known amount, then diff) before
-a named flag or `--set` path can target them.
+located**. A value-shape search came up empty — no scalar equals the ChP
+total/used/left (781/650/131 in 06-16; the literal hits are unrelated ids), and
+no leaf carries the 751→781 total-ChP delta from 06-09→06-16. That is
+*consistent with* ChP being **derived** (total from challenge completions, used
+from the stored "Chp X boost" levels, remaining = total − used — all of which
+are stored), but it is not proof: the search only ruled out plain-integer
+storage, and **Overflow Points** especially may well be a stored counter. The
+clean way to settle both is a purpose-built before/after save — earn/spend a
+known amount, then diff — which is now cheap with `save-edit` in hand.
 
 **The committed `ManualSave_*.txt` here are REDACTED** (`save-dump --redact`):
 the repo is public, so the root identity fields are replaced with placeholders
