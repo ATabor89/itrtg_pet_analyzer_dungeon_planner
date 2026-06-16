@@ -1756,6 +1756,7 @@ mod tests {
         mock_pet_with_evo(name, element, class, rec, unlocked, 1, 1, 10000)
     }
 
+    #[allow(clippy::too_many_arguments)] // test helper; spelling out fields keeps call sites readable
     fn mock_pet_with_evo(
         name: &str,
         element: Element,
@@ -1815,14 +1816,14 @@ mod tests {
 
     #[test]
     fn test_exact_match_preferred() {
-        let pets = vec![
+        let pets = [
             mock_pet("Frog", Element::Water, Some(Class::Supporter), RecommendedClass::Single(Class::Supporter), true),
             mock_pet("Mouse", Element::Earth, None, RecommendedClass::Wildcard, true),
         ];
         let available: Vec<&MergedPet> = pets.iter().collect();
 
         let slot = make_slot(Some(Class::Supporter), Some(Element::Water));
-        let score = score_pet(&available[0], &slot, false, None);
+        let score = score_pet(available[0], &slot, false, None);
         assert_eq!(score, Some(MatchQuality::Exact));
     }
 
