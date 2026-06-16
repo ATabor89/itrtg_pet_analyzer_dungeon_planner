@@ -19,9 +19,8 @@
 # Edited saves from `save-edit` — also unredacted real saves. Never commit them.
 **/edited_*.txt
 
-# Kongregate / web-build "Save to file" exports (e.g. *_SaveItRtG.txt) use a
-# custom compressed container our tooling can't decode — so they CANNOT be
-# redaction-checked, and they carry identity. Never commit them. (The in-game
-# manual text export uses the readable V2 format; redact those before committing
-# like any other save.)
-**/*_SaveItRtG.txt
+# Kongregate / web-build "Save to file" exports (any name containing
+# "SaveItRtG") carry identity and use a custom container our tooling decodes but
+# can't redaction-check — never commit them. The broad glob catches names both
+# with and without an underscore before the suffix (e.g. `2_CraftingBoostSaveItRtG.txt`).
+**/*SaveItRtG*.txt
