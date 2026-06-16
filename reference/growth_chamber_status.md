@@ -131,14 +131,22 @@ The chamber lives in two files plus supporting data:
   = 1000 + 2000·level²` on each level-up. A level-up raises the pet's
   `campaign_bonus_pct` by `bonus_per_cl` (= `2 + evo`, from
   `merge::adventurer_per_level_bonus`), so the higher bonus applies **from the
-  next cycle** (we assume the level increments *after* the reward is calculated
-  — see open item). **Pre-deposit basis is validated:** in the real run the
-  recipient (Bag) ended with the highest growth from its own deposit yet earned
-  the *least* class XP — XP is monotonic with *pre*-campaign growth (see
-  `reference/real_growth_campaign/2_in_game_results.txt`). The `adv_xp_mult`
-  (pet-stone / ChP Adventurer-XP purchases) is a **manual chamber input** (the
-  pet-stone part is save-file-only; the player's `Chp Adv EXP boost` is 0); it
-  was ≈4.0× empirically. **`adv_xp_mult = 0` disables class modelling** entirely.
+  next cycle**. **The level increments *after* the reward is calculated —
+  VALIDATED 2026-06-15:** in a real 12 h run Hedgehog went CL22→23, and its
+  contribution (144.25) matches the CL22 bonus (predicted 144.32: innate 166 +
+  Magic Stick 50 + class 2.58·22 = 56.76, ×UPC 40%) — *not* CL23 (145.32). So
+  the pet contributes at its old CL, then levels. **Pre-deposit basis +
+  recipient-included, VALIDATED twice:** the recipient (Bag) ended highest-growth
+  from its own deposit yet earned the *least* class XP, fitting its *pre*-deposit
+  growth; XP is monotonic with pre-campaign growth and **independent of CL/gear**
+  (Aether CL16 ≈ Sphinx CL22 at equal growth). Only Adventurers earn it
+  (None-class chamber pets got zero). See `reference/real_growth_campaign/` and
+  the 2026-06-15 capture. **Multiplier:** the effective constant is **1000**
+  (= wiki `250` × **4.0**, fit to ±0.02% across 7 pets); the maxed "Camp Exp
+  Boost" pet stone is +100% (×2), leaving an **unidentified ×2** (a 2nd upgrade,
+  a research/god/Patreon perk, or the wiki `250` being outdated). `adv_xp_mult`
+  is a **manual chamber input** (the pet-stone part is save-file-only; `Chp Adv
+  EXP boost` is 0) — **set it to 4.0**. **`adv_xp_mult = 0` disables modelling.**
   **Non-persistent:** `ChamberPet`s (and their `ChamberClass`) are rebuilt from
   the roster each run and never written back to the export, so a pet that levels
   up in a run starts the next run at its export CL. **Caveat:** the level-up bump
@@ -197,16 +205,15 @@ Roughly highest-leverage first. Each has enough context to start cold.
 9. **Fresh-rebirth validation of fishing/Pandora.** Both modelled from tooltips;
    a real fresh-rebirth capture (fishing is dormant for the player now — rebirth
    too old) would confirm them.
-10. **Class-XP timing + multiplier validation.** Two assumptions to confirm with
-    a real capture that includes a level-up (the player's current 62×12 h run has
-    a contributor about to level): (a) whether the class level increments
-    *before* or *after* the cycle's reward is calculated — we assume **after**
-    (so a level's higher bonus applies next cycle); if it's *before*, fold the
-    level-up into the bonus *before* `growth_campaign_detailed`. (b) The exact
-    `adv_xp_mult` and its composition (pet stones vs ChP) — ≈4.0× empirically;
-    the pet-stone term will come from the save import. Also still open: whether
-    the XP basis includes the cycle's passive (the +76/cycle in the validation
-    run was too small to tell; we include it, matching the campaign formula).
+10. **Class-XP — RESOLVED 2026-06-15** (a level-up capture: Hedgehog CL22→23 in a
+    real 12 h run). Confirmed: level increments **after** the reward (Hedgehog
+    contributed at CL22); pre-deposit growth basis; recipient earns XP; XP is
+    growth-only (CL/gear-independent); only Adventurers earn it. The effective
+    multiplier is **×4** (constant 1000); pet-stone "Camp Exp Boost" maxed is ×2,
+    and **the other ×2 is still unidentified** — worth tracking down in-game so
+    `adv_xp_mult` can eventually be auto-derived rather than typed (4.0). The
+    pet-stone term will also come from the save import. The passive-in-basis
+    question is moot: the residual is <0.02% (constant ≈999.8 vs 1000).
 
 ## Validation assets
 
