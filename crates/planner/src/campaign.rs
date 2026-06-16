@@ -2117,6 +2117,122 @@ mod tests {
         assert!((pets[0].campaign_bonus_pct - 10.0).abs() < 1e-9, "bonus unchanged");
     }
 
+    /// Reconciles the real 12 h run captured in `reference/class_xp_validation/`:
+    /// the class-XP formula (`250·(1+g/20000)·12·mult`, effective ×4) on
+    /// pre-deposit growth, Adventurer-only accrual, the recipient earning the
+    /// least, and a level-up (Hedgehog CL22→23) applying *after* the reward.
+    #[test]
+    fn class_xp_real_run_reconciles() {
+        // The pet stones give the effective ×4 (constant 1000): wiki base 250 ×
+        // adv_xp_mult 4.0. UPC was 40%. Passive 0 — the "before-end" export
+        // already holds this run's Moai (same convention as the deposit fixture).
+        let adv_mult = 4.0;
+        // (name, pre-deposit growth, class XP the game awarded). None of these
+        // carry a Magic Egg, so the export Growth column is both base and total.
+        let advs: &[(&str, f64, f64)] = &[
+            ("Bag", 58_661.0, 47_186.0), // the recipient
+            ("Hedgehog", 58_692.0, 47_204.0),
+            ("Aether", 58_694.0, 47_205.0),
+            ("Sphinx", 58_704.0, 47_211.0),
+            ("Meteor", 59_080.0, 47_437.0),
+            ("Otter", 59_913.0, 47_937.0),
+            ("Cupid", 59_923.0, 47_943.0),
+        ];
+        // Hedgehog's real CL22 campaign bonus: innate 25 + token 141 + Magic
+        // Stick +20 SSS 50 + class 2.58·22 (56.76). Seed its class exp just shy
+        // of the CL22→23 threshold so the cycle's XP tips it over — the export
+        // carries no class exp (only a save would), so we supply the residual the
+        // game evidently had.
+        let hedgehog_cl22_bonus = 25.0 + 141.0 + 50.0 + 2.58 * 22.0; // 272.76
+        let hedgehog_seed_exp = class_exp_to_next(22) - 100.0;
+
+        let mk = |name: &str, growth: f64, class: Option<ChamberClass>, bonus: f32| ChamberPet {
+            name: name.into(),
+            growth,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: bonus,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special: None,
+            class,
+        };
+
+        let mut pets: Vec<ChamberPet> = advs
+            .iter()
+            .map(|&(name, g, _)| {
+                if name == "Hedgehog" {
+                    mk(
+                        name,
+                        g,
+                        Some(ChamberClass { level: 22, exp: hedgehog_seed_exp, bonus_per_cl: 2.58 }),
+                        hedgehog_cl22_bonus as f32,
+                    )
+                } else {
+                    // CL / bonus_per_cl don't affect XP (growth-only) or the
+                    // recipient (lowest growth) — only the values asserted below.
+                    mk(name, g, Some(ChamberClass { level: 20, exp: 0.0, bonus_per_cl: 2.0 }), 0.0)
+                }
+            })
+            .collect();
+        // The three None-class chamber pets — they must earn no class XP.
+        pets.push(mk("Raiju", 58_672.0, None, 0.0));
+        pets.push(mk("Pandora's Box", 59_106.0, None, 0.0));
+        pets.push(mk("Earth Eater", 59_485.0, None, 0.0));
+
+        let result = simulate_growth_chamber(
+            &mut pets,
+            &ChamberRun {
+                upc_pct: 40.0,
+                hours: 12,
+                max_cycles: 1,
+                adv_xp_mult: adv_mult,
+                ..Default::default()
+            },
+        );
+
+        // Only the 7 Adventurers earn class XP; the None-class pets don't.
+        assert_eq!(result.class_progress.len(), 7, "only Adventurers earn class XP");
+        for none_pet in ["Raiju", "Pandora's Box", "Earth Eater"] {
+            assert!(
+                !result.class_progress.iter().any(|c| c.name == none_pet),
+                "{none_pet} (None-class) earned class XP"
+            );
+        }
+
+        // XP amount matches the game to <0.1% for every Adventurer — the formula
+        // and the ×4 multiplier, on pre-deposit growth (Bag is the recipient).
+        for &(name, _, game_xp) in advs {
+            let cp = result.class_progress.iter().find(|c| c.name == name).unwrap();
+            let rel = (cp.exp_gained - game_xp).abs() / game_xp;
+            assert!(rel < 1e-3, "{name} class XP {:.0}, game {game_xp} (rel {rel:.5})", cp.exp_gained);
+        }
+
+        // Pre-deposit basis: the recipient (Bag, lowest growth) earns the least.
+        let bag_xp = result.class_progress.iter().find(|c| c.name == "Bag").unwrap().exp_gained;
+        assert!(
+            result.class_progress.iter().all(|c| c.name == "Bag" || c.exp_gained > bag_xp),
+            "the recipient should earn the least class XP (pre-deposit basis)"
+        );
+
+        // Level-up timing: Hedgehog contributed at CL22, *then* leveled to 23.
+        let hh_idx = pets.iter().position(|p| p.name == "Hedgehog").unwrap();
+        let hh_contrib = result.trace[0].contributions.iter().find(|(i, _)| *i == hh_idx).unwrap().1;
+        assert!((hh_contrib - 144.25).abs() < 0.3, "Hedgehog contribution {hh_contrib:.2}, game 144.25");
+        let hh = result.class_progress.iter().find(|c| c.name == "Hedgehog").unwrap();
+        assert_eq!(hh.start_level, 22);
+        assert_eq!(hh.end_level, 23, "Hedgehog should reach CL23");
+        // The level-up's bonus bump (+2.58) is applied for the next cycle.
+        assert!(
+            (pets[hh_idx].campaign_bonus_pct as f64 - (hedgehog_cl22_bonus + 2.58)).abs() < 1e-2,
+            "post-level bonus {}, want {}",
+            pets[hh_idx].campaign_bonus_pct,
+            hedgehog_cl22_bonus + 2.58
+        );
+    }
+
     #[test]
     fn non_adventurers_have_no_class_progress() {
         let mut pets = vec![

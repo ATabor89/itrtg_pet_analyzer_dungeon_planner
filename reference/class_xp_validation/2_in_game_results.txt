@@ -1,0 +1,25 @@
+Your pets Bag, Thunder Ball, Hedgehog, Aether, Sphinx, Meteor, Pandora's box,
+Earth Eater, Otter and Cupid finished their Growth Campaign.
+
+The total growth of Nugget has increased by 87.31 (Bag)!
+
+The total growth for Bag has increased by 1,746.16!
+
+Bag received 47,186 class experience.
+Thunder Ball increased the growth gain for Bag by 224.88.
+Hedgehog increased the growth gain for Bag by 144.25.
+Hedgehog received 47,204 class experience.
+Hedgehog increased its class to level 23!
+Aether increased the growth gain for Bag by 234.57.
+Aether received 47,205 class experience.
+Sphinx increased the growth gain for Bag by 76.01.
+Sphinx received 47,211 class experience.
+Meteor increased the growth gain for Bag by 103.39.
+Meteor received 47,437 class experience.
+Pandora's box increased the growth gain for Bag by 38.75.
+Earth Eater increased the growth gain for Bag by 90.
+Otter increased the growth gain for Bag by 89.71.
+Otter received 47,937 class experience.
+Cupid increased the growth gain for Bag by 129.54.
+Cupid received 47,943 class experience.
+Pandora's box gave an additional growth of 615.
