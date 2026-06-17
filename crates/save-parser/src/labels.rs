@@ -28,8 +28,10 @@ pub struct FieldLabel {
 pub struct BlockSchema {
     /// Path prefix to the block (dotted segments from the root).
     pub base: &'static [&'static str],
-    /// Singular display name for the block and each of its elements.
+    /// Singular display name for each element (e.g. "Pet").
     pub name: &'static str,
+    /// Plural display name for the block/list container (e.g. "Pets").
+    pub plural: &'static str,
     /// `true` when `base` is a list addressed by index (fields live at
     /// `base.<index>.key`); `false` for a single struct (`base.key`).
     pub is_list: bool,
@@ -130,7 +132,8 @@ pub const CREATION_FIELDS: &[FieldLabel] = &[
     lbl!("i", "Next At"),
 ];
 
-/// Monuments — `D.<index>`.
+/// Monuments — `D.<index>`. The `e` sub-struct holds the monument's *upgrade*
+/// (the level/next-at/spread that FINDINGS previously had as "unlocated").
 pub const MONUMENT_FIELDS: &[FieldLabel] = &[
     lbl!("a", "Monument Id"),
     lbl!("b", "Level"),
@@ -139,6 +142,10 @@ pub const MONUMENT_FIELDS: &[FieldLabel] = &[
     lbl!("f", "Building"),
     lbl!("c", "Clones Allocated"),
     lbl!("d", "Progress"),
+    lbl!("e", "Upgrade"),
+    lbl!("e.b", "Upgrade Level"),
+    lbl!("e.f", "Upgrade Next At"),
+    lbl!("e.g", "Upgrade Spread"),
 ];
 
 /// Mights — `V.<index>`.
@@ -182,17 +189,17 @@ pub const TBS_FIELDS: &[FieldLabel] = &[
 
 /// Every block, consumed by the save editor to build tree labels.
 pub const BLOCKS: &[BlockSchema] = &[
-    BlockSchema { base: &["X", "b"], name: "Pet", is_list: true, fields: PET_FIELDS },
-    BlockSchema { base: &["X", "R"], name: "Equipment", is_list: true, fields: EQUIPMENT_FIELDS },
-    BlockSchema { base: &["X", "Q"], name: "Material", is_list: true, fields: MATERIAL_FIELDS },
-    BlockSchema { base: &["X", "002"], name: "Gem", is_list: true, fields: GEM_FIELDS },
-    BlockSchema { base: &["X", "S"], name: "Dungeon Team", is_list: true, fields: DUNGEON_TEAM_FIELDS },
-    BlockSchema { base: &["X", "x"], name: "Campaign", is_list: true, fields: CAMPAIGN_FIELDS },
-    BlockSchema { base: &["032", "H", "a"], name: "Research", is_list: true, fields: RESEARCH_FIELDS },
-    BlockSchema { base: &["i"], name: "Creation", is_list: true, fields: CREATION_FIELDS },
-    BlockSchema { base: &["D"], name: "Monument", is_list: true, fields: MONUMENT_FIELDS },
-    BlockSchema { base: &["V"], name: "Might", is_list: true, fields: MIGHT_FIELDS },
-    BlockSchema { base: &["009", "b"], name: "SpaceDim Element", is_list: true, fields: SPACEDIM_FIELDS },
-    BlockSchema { base: &["K", "l"], name: "Divinity Upgrade", is_list: true, fields: DIVINITY_UPGRADE_FIELDS },
-    BlockSchema { base: &["S"], name: "Baal Slayer Parts", is_list: false, fields: TBS_FIELDS },
+    BlockSchema { base: &["X", "b"], name: "Pet", plural: "Pets", is_list: true, fields: PET_FIELDS },
+    BlockSchema { base: &["X", "R"], name: "Equipment", plural: "Equipment", is_list: true, fields: EQUIPMENT_FIELDS },
+    BlockSchema { base: &["X", "Q"], name: "Material", plural: "Materials", is_list: true, fields: MATERIAL_FIELDS },
+    BlockSchema { base: &["X", "002"], name: "Gem", plural: "Gems", is_list: true, fields: GEM_FIELDS },
+    BlockSchema { base: &["X", "S"], name: "Dungeon Team", plural: "Dungeon Teams", is_list: true, fields: DUNGEON_TEAM_FIELDS },
+    BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, fields: CAMPAIGN_FIELDS },
+    BlockSchema { base: &["032", "H", "a"], name: "Research", plural: "Researches", is_list: true, fields: RESEARCH_FIELDS },
+    BlockSchema { base: &["i"], name: "Creation", plural: "Creations", is_list: true, fields: CREATION_FIELDS },
+    BlockSchema { base: &["D"], name: "Monument", plural: "Monuments", is_list: true, fields: MONUMENT_FIELDS },
+    BlockSchema { base: &["V"], name: "Might", plural: "Mights", is_list: true, fields: MIGHT_FIELDS },
+    BlockSchema { base: &["009", "b"], name: "SpaceDim Element", plural: "SpaceDim Elements", is_list: true, fields: SPACEDIM_FIELDS },
+    BlockSchema { base: &["K", "l"], name: "Divinity Upgrade", plural: "Divinity Upgrades", is_list: true, fields: DIVINITY_UPGRADE_FIELDS },
+    BlockSchema { base: &["S"], name: "Baal Slayer Parts", plural: "Baal Slayer Parts", is_list: false, fields: TBS_FIELDS },
 ];

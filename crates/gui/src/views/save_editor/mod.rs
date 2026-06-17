@@ -34,6 +34,8 @@ pub struct SaveEditorState {
     /// The query we last auto-scrolled to in Reveal mode, so we scroll once per
     /// query rather than yanking the viewport back every frame.
     tree_scrolled_query: Option<String>,
+    /// Browse-mode collapsing-id generation; "Collapse all" bumps it.
+    tree_generation: u64,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -95,6 +97,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         tree_search,
         tree_reveal,
         tree_scrolled_query,
+        tree_generation,
         buffers,
         ..
     } = state;
@@ -135,6 +138,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                         tree_search,
                         tree_reveal,
                         tree_scrolled_query,
+                        tree_generation,
                     ),
                 });
         });

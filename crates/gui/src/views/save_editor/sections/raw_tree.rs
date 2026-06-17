@@ -49,6 +49,7 @@ pub fn show(
     search: &mut String,
     reveal: &mut bool,
     scrolled_query: &mut Option<String>,
+    generation: &mut u64,
 ) {
     ui.heading("Raw Save Tree");
     ui.horizontal(|ui| {
@@ -65,6 +66,16 @@ pub fn show(
         ui.checkbox(reveal, "Reveal in place").on_hover_text(
             "Jump to matches and expand the path to them, without hiding the rest of the tree.",
         );
+        ui.separator();
+        // Collapse everything by bumping the browse id namespace: every container
+        // gets a fresh (default-collapsed) id, including hidden descendants.
+        if ui
+            .button("⊟ Collapse all")
+            .on_hover_text("Collapse the entire tree")
+            .clicked()
+        {
+            *generation = generation.wrapping_add(1);
+        }
     });
     ui.label(
         RichText::new(
@@ -111,6 +122,7 @@ pub fn show(
             matches: &matches,
             want_scroll,
             scrolled: &mut scrolled,
+            generation: *generation,
         };
         let mut path: Vec<String> = Vec::new();
         if let Raw::Struct(fields) = session.root().peel() {
@@ -230,6 +242,9 @@ struct Walk<'a> {
     want_scroll: bool,
     /// Whether we've already scrolled this frame.
     scrolled: &'a mut bool,
+    /// Browse-mode id namespace generation; bumped by "Collapse all" so every
+    /// container gets a fresh, default-collapsed id.
+    generation: u64,
 }
 
 impl Walk<'_> {
@@ -270,10 +285,10 @@ impl Walk<'_> {
                 }
             }
             Raw::Struct(fields) => {
-                let force_open = self.container_open(path);
-                if self.mode == Mode::Filter && force_open != Some(true) {
+                if self.mode == Mode::Filter && !self.on_match(path) {
                     return;
                 }
+                let force_open = self.force_state(path);
                 let summary = format!("{{{} fields}}", fields.len());
                 self.container(ui, path, &name, summary, force_open, |w, path, ui| {
                     for (k, f) in fields {
@@ -282,10 +297,10 @@ impl Walk<'_> {
                 });
             }
             Raw::List(items) => {
-                let force_open = self.container_open(path);
-                if self.mode == Mode::Filter && force_open != Some(true) {
+                if self.mode == Mode::Filter && !self.on_match(path) {
                     return;
                 }
+                let force_open = self.force_state(path);
                 let summary = format!("[{} items]", items.len());
                 self.container(ui, path, &name, summary, force_open, |w, path, ui| {
                     for (i, item) in items.iter().enumerate() {
@@ -300,9 +315,28 @@ impl Walk<'_> {
         }
     }
 
-    /// Force a container open when an active search has a match inside it.
-    fn container_open(&self, path: &[String]) -> Option<bool> {
-        if self.on_match(path) { Some(true) } else { None }
+    /// Force a container open only while searching and it's on the path to a
+    /// match. In browse mode we never force state — collapse-all is handled by
+    /// the id-namespace generation instead, so the user's manual expansions are
+    /// preserved and not fought every frame.
+    fn force_state(&self, path: &[String]) -> Option<bool> {
+        if self.mode != Mode::None && self.on_match(path) {
+            Some(true)
+        } else {
+            None
+        }
+    }
+
+    /// The CollapsingHeader id for a node: a transient `search:` namespace while
+    /// searching (so forced-open matches don't leak into the browse view when the
+    /// search clears), and a generation-stamped browse namespace otherwise (so
+    /// "Collapse all" resets everything by bumping the generation).
+    fn header_salt(&self, path: &[String]) -> String {
+        if self.mode == Mode::None {
+            format!("{}\u{1f}{}", self.generation, path.join("."))
+        } else {
+            format!("search\u{1f}{}", path.join("."))
+        }
     }
 
     /// A collapsing container header with a name label and a summary count.
@@ -325,10 +359,18 @@ impl Walk<'_> {
         } else {
             style::TEXT_NORMAL
         };
-        egui::CollapsingHeader::new(RichText::new(title).color(color))
-            .id_salt(path.join("."))
+        let salt = self.header_salt(path);
+        let resp = egui::CollapsingHeader::new(RichText::new(title).color(color))
+            .id_salt(salt)
             .open(force_open)
             .show(ui, |ui| build(self, path, ui));
+        let path_str = path.join(".");
+        resp.header_response.context_menu(|ui| {
+            if ui.button("Copy path").clicked() {
+                ui.ctx().copy_text(path_str.clone());
+                ui.close_menu();
+            }
+        });
     }
 
     /// An editable scalar leaf row. `is_match` highlights it and, in Reveal mode,
@@ -388,6 +430,20 @@ impl Walk<'_> {
             if let Some(v) = newval {
                 let label = known.unwrap_or_else(|| path.join("."));
                 self.edits.push((path.to_vec(), label, v));
+            }
+        });
+
+        // Right-click to copy the full path or value (no visual clutter).
+        let path_str = path.join(".");
+        let value = current.to_string();
+        row.response.context_menu(|ui| {
+            if ui.button("Copy path").clicked() {
+                ui.ctx().copy_text(path_str.clone());
+                ui.close_menu();
+            }
+            if ui.button("Copy value").clicked() {
+                ui.ctx().copy_text(value.clone());
+                ui.close_menu();
             }
         });
 
