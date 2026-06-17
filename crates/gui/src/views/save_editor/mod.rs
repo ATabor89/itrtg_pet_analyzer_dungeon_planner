@@ -31,6 +31,9 @@ pub struct SaveEditorState {
     tree_search: String,
     /// Raw tree search mode: reveal-in-place (true) vs filter (false).
     tree_reveal: bool,
+    /// The query we last auto-scrolled to in Reveal mode, so we scroll once per
+    /// query rather than yanking the viewport back every frame.
+    tree_scrolled_query: Option<String>,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -91,6 +94,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         current,
         tree_search,
         tree_reveal,
+        tree_scrolled_query,
         buffers,
         ..
     } = state;
@@ -123,9 +127,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                 .auto_shrink([false, false])
                 .show(ui, |ui| match *current {
                     SectionId::Resources => resources::show(ui, session, registry, buffers),
-                    SectionId::RawTree => {
-                        raw_tree::show(ui, session, registry, buffers, tree_search, tree_reveal)
-                    }
+                    SectionId::RawTree => raw_tree::show(
+                        ui,
+                        session,
+                        registry,
+                        buffers,
+                        tree_search,
+                        tree_reveal,
+                        tree_scrolled_query,
+                    ),
                 });
         });
     });
