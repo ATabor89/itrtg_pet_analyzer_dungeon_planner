@@ -29,6 +29,11 @@ pub struct SaveEditorState {
     registry: FieldRegistry,
     current: SectionId,
     tree_search: String,
+    /// Raw tree search mode: reveal-in-place (true) vs filter (false).
+    tree_reveal: bool,
+    /// The query we last auto-scrolled to in Reveal mode, so we scroll once per
+    /// query rather than yanking the viewport back every frame.
+    tree_scrolled_query: Option<String>,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -88,6 +93,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         registry,
         current,
         tree_search,
+        tree_reveal,
+        tree_scrolled_query,
         buffers,
         ..
     } = state;
@@ -120,15 +127,23 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                 .auto_shrink([false, false])
                 .show(ui, |ui| match *current {
                     SectionId::Resources => resources::show(ui, session, registry, buffers),
-                    SectionId::RawTree => {
-                        raw_tree::show(ui, session, registry, buffers, tree_search)
-                    }
+                    SectionId::RawTree => raw_tree::show(
+                        ui,
+                        session,
+                        registry,
+                        buffers,
+                        tree_search,
+                        tree_reveal,
+                        tree_scrolled_query,
+                    ),
                 });
         });
     });
 }
 
 fn header_bar(ui: &mut egui::Ui, state: &mut SaveEditorState) {
+    // Toolbar row: left-aligned so the action buttons are always visible (a
+    // long summary row used to squeeze them off the right edge).
     ui.horizontal(|ui| {
         ui.label(
             RichText::new("Save Editor")
@@ -136,9 +151,48 @@ fn header_bar(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                 .strong()
                 .size(16.0),
         );
+        ui.separator();
 
-        if let Some(s) = state.session.as_ref() {
-            ui.separator();
+        let has_session = state.session.is_some();
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if ui.button(RichText::new("📂 Load Save…").size(12.0)).clicked() {
+            load_from_file(state);
+        }
+
+        if has_session {
+            if ui
+                .button(RichText::new("💾 Save As… (full)").size(12.0))
+                .on_hover_text(
+                    "Write the full edited save — including your real identity — to a new \
+                     file. This is the one that loads back into the game.",
+                )
+                .clicked()
+            {
+                save_to_file(state, false);
+            }
+            if ui
+                .button(RichText::new("Save Redacted Copy…").size(12.0))
+                .on_hover_text("Write a copy with account identifiers scrubbed — for sharing.")
+                .clicked()
+            {
+                save_to_file(state, true);
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        if !has_session {
+            ui.label(
+                RichText::new("Drag a save file onto the window to load.")
+                    .color(style::TEXT_MUTED)
+                    .size(11.0),
+            );
+        }
+    });
+
+    // Summary row.
+    if let Some(s) = state.session.as_ref() {
+        ui.horizontal(|ui| {
             if let Some(name) = &s.source_name {
                 ui.label(RichText::new(name).color(style::TEXT_BRIGHT));
             }
@@ -160,7 +214,8 @@ fn header_bar(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     .size(12.0),
             );
             if !typed_ok {
-                summary.on_hover_text("Typed view unavailable for this save; raw editing still works.");
+                summary
+                    .on_hover_text("Typed view unavailable for this save; raw editing still works.");
             }
             if s.is_dirty() {
                 ui.label(
@@ -168,47 +223,13 @@ fn header_bar(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                         .color(style::WARNING),
                 );
             }
-        }
-
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                if state.session.is_some() {
-                    if ui
-                        .button(RichText::new("Save Redacted Copy…").size(12.0))
-                        .on_hover_text("Write a copy with account identifiers scrubbed")
-                        .clicked()
-                    {
-                        save_to_file(state, true);
-                    }
-                    if ui
-                        .button(RichText::new("Save As…").size(12.0))
-                        .on_hover_text("Write the edited save to a new file (defaults to edited_*.txt)")
-                        .clicked()
-                    {
-                        save_to_file(state, false);
-                    }
-                }
-                if ui.button(RichText::new("📂 Load Save…").size(12.0)).clicked() {
-                    load_from_file(state);
-                }
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                ui.label(
-                    RichText::new("Drag a save file onto the window to load (saving is desktop-only for now).")
-                        .color(style::TEXT_MUTED)
-                        .size(11.0),
-                );
-            }
         });
-    });
 
-    if state.session.is_some() {
         ui.label(
             RichText::new(
                 "⚠ A loaded save holds your real account identifiers in memory; it is never \
-                 written to app state. Use “Save Redacted Copy” to share one.",
+                 written to app state. “Save As” keeps them (so it loads in-game); use \
+                 “Save Redacted Copy” to share.",
             )
             .color(style::WARNING)
             .size(11.0),
@@ -315,15 +336,13 @@ fn load_from_file(state: &mut SaveEditorState) {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+/// Encode the (optionally redacted) save, round-trip validate it, and write it
+/// out — to a file via the native dialog, or as a browser download on wasm.
 fn save_to_file(state: &mut SaveEditorState, redacted: bool) {
     let default_name = if redacted {
         "edited_redacted_save.txt"
     } else {
         "edited_save.txt"
-    };
-    let Some(path) = rfd::FileDialog::new().set_file_name(default_name).save_file() else {
-        return;
     };
 
     let status = {
@@ -333,23 +352,45 @@ fn save_to_file(state: &mut SaveEditorState, redacted: bool) {
         } else {
             Ok(session.encode())
         };
-        let validate = |enc: &str| {
-            if redacted {
-                session.validate_encoded_redacted(enc)
-            } else {
-                session.validate_encoded(enc)
-            }
-        };
         match encoded {
-            Err(e) => (format!("Encode failed: {e}"), true),
-            Ok(enc) => match validate(&enc) {
-                Err(e) => (format!("Validation failed — not written: {e}"), true),
-                Ok(()) => match std::fs::write(&path, enc) {
-                    Ok(()) => (format!("Wrote {}", path.display()), false),
-                    Err(e) => (format!("Write failed: {e}"), true),
-                },
-            },
+            Err(e) => Some((format!("Encode failed: {e}"), true)),
+            Ok(enc) => {
+                let validated = if redacted {
+                    session.validate_encoded_redacted(&enc)
+                } else {
+                    session.validate_encoded(&enc)
+                };
+                match validated {
+                    Err(e) => Some((format!("Validation failed — not written: {e}"), true)),
+                    Ok(()) => output_save(default_name, &enc),
+                }
+            }
         }
     };
-    state.status = Some(status);
+    // `output_save` returns `None` when the user cancels the dialog (leave the
+    // previous status untouched).
+    if let Some(status) = status {
+        state.status = Some(status);
+    }
+}
+
+/// Native: prompt for a path and write the file. Returns `None` if cancelled.
+#[cfg(not(target_arch = "wasm32"))]
+fn output_save(default_name: &str, encoded: &str) -> Option<(String, bool)> {
+    let path = rfd::FileDialog::new()
+        .set_file_name(default_name)
+        .save_file()?;
+    Some(match std::fs::write(&path, encoded) {
+        Ok(()) => (format!("Wrote {}", path.display()), false),
+        Err(e) => (format!("Write failed: {e}"), true),
+    })
+}
+
+/// WASM: trigger a browser download of the encoded save.
+#[cfg(target_arch = "wasm32")]
+fn output_save(default_name: &str, encoded: &str) -> Option<(String, bool)> {
+    Some(match crate::platform::download_text(default_name, encoded) {
+        Ok(()) => (format!("Downloaded {default_name}"), false),
+        Err(e) => (format!("Download failed: {e}"), true),
+    })
 }

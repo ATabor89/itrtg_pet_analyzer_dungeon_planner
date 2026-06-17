@@ -1989,6 +1989,7 @@ dependencies = [
  "save-parser",
  "serde",
  "serde_yaml",
+ "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "wiki-extractor",
