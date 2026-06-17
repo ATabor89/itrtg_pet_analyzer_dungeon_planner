@@ -279,6 +279,23 @@ pub fn spacedim_name(id: u32) -> Option<&'static str> {
     }
 }
 
+/// Equipment quality letter for the raw quality id. Player-confirmed ladder
+/// (2026-06-17): F E D C B A S SS SSS for ids 0…8.
+pub fn quality_name(quality: u32) -> Option<&'static str> {
+    Some(match quality {
+        0 => "F",
+        1 => "E",
+        2 => "D",
+        3 => "C",
+        4 => "B",
+        5 => "A",
+        6 => "S",
+        7 => "SS",
+        8 => "SSS",
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

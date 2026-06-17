@@ -31,6 +31,9 @@ pub enum Resolve {
     Material,
     /// Equipment *type* id → `items::equipment_type_name`.
     Equipment,
+    /// A whole equipment element struct → "Name Quality+Plus" (the editor reads
+    /// the element's `a`/`c`/`b` directly; the key field is ignored).
+    EquipmentNode,
     /// Equipment *instance* id → look it up in `X.R` and name its type.
     EquipmentInstance,
     /// Monument id → `items::monument_name`.
@@ -247,7 +250,7 @@ const fn elem(key: &'static str, resolve: Resolve) -> Option<ElementName> {
 /// Every block, consumed by the save editor to build tree labels.
 pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "b"], name: "Pet", plural: "Pets", is_list: true, element_name: elem("a", Resolve::Literal), fields: PET_FIELDS },
-    BlockSchema { base: &["X", "R"], name: "Equipment", plural: "Equipment", is_list: true, element_name: elem("a", Resolve::Equipment), fields: EQUIPMENT_FIELDS },
+    BlockSchema { base: &["X", "R"], name: "Equipment", plural: "Equipment", is_list: true, element_name: elem("a", Resolve::EquipmentNode), fields: EQUIPMENT_FIELDS },
     BlockSchema { base: &["X", "Q"], name: "Material", plural: "Materials", is_list: true, element_name: elem("a", Resolve::Material), fields: MATERIAL_FIELDS },
     BlockSchema { base: &["X", "002"], name: "Gem", plural: "Gems", is_list: true, element_name: elem("a", Resolve::Element), fields: GEM_FIELDS },
     BlockSchema { base: &["X", "S"], name: "Dungeon Team", plural: "Dungeon Teams", is_list: true, element_name: elem("i", Resolve::Literal), fields: DUNGEON_TEAM_FIELDS },
