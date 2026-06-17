@@ -1986,6 +1986,7 @@ dependencies = [
  "pet-importer",
  "reqwest",
  "rfd",
+ "save-parser",
  "serde",
  "serde_yaml",
  "wasm-bindgen-futures",

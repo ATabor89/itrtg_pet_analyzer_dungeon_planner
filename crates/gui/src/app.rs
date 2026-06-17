@@ -4,7 +4,7 @@ use crate::data::DataStore;
 use crate::platform;
 use crate::state::{self, AppState};
 use crate::style;
-use crate::views::{analyzer, chamber, dungeon, log_viewer};
+use crate::views::{analyzer, chamber, dungeon, log_viewer, save_editor};
 use itrtg_planner::growth::GrowthRates;
 use itrtg_planner::merge::CampaignContext;
 
@@ -18,6 +18,7 @@ enum Tab {
     DungeonPlanner,
     DungeonLog,
     Chamber,
+    SaveEditor,
 }
 
 pub struct App {
@@ -27,6 +28,7 @@ pub struct App {
     dungeon_state: dungeon::DungeonState,
     chamber_state: chamber::ChamberState,
     log_viewer_state: log_viewer::LogViewerState,
+    save_editor_state: save_editor::SaveEditorState,
     show_import_dialog: bool,
     import_text: String,
     /// Last successfully persisted serialization of `AppState`. Used by
@@ -80,6 +82,7 @@ impl App {
             dungeon_state,
             chamber_state,
             log_viewer_state: log_viewer::LogViewerState::default(),
+            save_editor_state: save_editor::SaveEditorState::default(),
             show_import_dialog: false,
             import_text: String::new(),
             last_saved_yaml,
@@ -185,9 +188,11 @@ impl eframe::App for App {
                                     Some((format!("Wiki parse error: {e}"), true));
                             }
                         }
+                    } else if self.save_editor_state.try_load(&text, fname) {
+                        self.tab = Tab::SaveEditor;
                     } else {
                         self.data.import_status = Some((
-                            "Unrecognized file format. Expected pet export, wiki source, or dungeon log HTML."
+                            "Unrecognized file format. Expected pet export, wiki source, dungeon log HTML, or a save file."
                                 .to_string(),
                             true,
                         ));
@@ -245,6 +250,15 @@ impl eframe::App for App {
                     .clicked()
                 {
                     self.tab = Tab::Chamber;
+                }
+                if ui
+                    .selectable_label(
+                        self.tab == Tab::SaveEditor,
+                        RichText::new("Save Editor").size(14.0),
+                    )
+                    .clicked()
+                {
+                    self.tab = Tab::SaveEditor;
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -393,6 +407,9 @@ impl eframe::App for App {
                         include_class: true,
                     };
                     chamber::show(ui, &mut self.chamber_state, &self.data, &ctx, &rates);
+                }
+                Tab::SaveEditor => {
+                    save_editor::show(ui, &mut self.save_editor_state);
                 }
             }
         });
