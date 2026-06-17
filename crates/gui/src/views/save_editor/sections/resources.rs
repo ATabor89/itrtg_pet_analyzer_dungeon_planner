@@ -35,7 +35,7 @@ pub fn show(
         .show(ui, |ui| {
             for field in registry.for_section(SectionId::Resources) {
                 let key = field.path.join(".");
-                let current = session.value(field.path);
+                let current = session.value(&field.path);
 
                 // Label column (with the help text as a hover tooltip).
                 let mut label = ui.label(RichText::new(field.name).color(style::TEXT_BRIGHT));
@@ -50,11 +50,13 @@ pub fn show(
                         ui.label(RichText::new("— (absent in this save)").color(style::TEXT_MUTED));
                     }
                     Some(current) => match field.kind {
-                        FieldKind::Bool => bool_editor(ui, session, field.path, field.name, &current),
+                        FieldKind::Bool => {
+                            bool_editor(ui, session, &field.path, field.name, &current)
+                        }
                         FieldKind::Number | FieldKind::Text => text_editor(
                             ui,
                             session,
-                            field.path,
+                            &field.path,
                             field.name,
                             field.kind,
                             &current,
