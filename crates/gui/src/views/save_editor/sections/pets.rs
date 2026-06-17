@@ -12,12 +12,13 @@
 //! a lightweight owned snapshot (`PetRow`) is built first, then the session is
 //! free to be mutated on Apply.
 
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use eframe::egui::{self, RichText};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::{Class, Element};
-use save_parser::edit::apply_factor;
+use save_parser::edit::{apply_delta, apply_factor};
 
 use crate::style;
 use crate::views::save_editor::session::EditSession;
@@ -53,11 +54,11 @@ impl Field {
         }
     }
 
-    /// Growth supports multiply; levels support add.
-    fn second_op(self) -> OpKind {
+    /// Ops offered for this field (growth can multiply *or* add a flat amount).
+    fn allowed_ops(self) -> &'static [OpKind] {
         match self {
-            Field::Growth => OpKind::Mul,
-            _ => OpKind::Add,
+            Field::Growth => &[OpKind::Set, OpKind::Mul, OpKind::Add],
+            _ => &[OpKind::Set, OpKind::Add],
         }
     }
 }
@@ -67,6 +68,43 @@ enum OpKind {
     Set,
     Mul,
     Add,
+}
+
+/// Sortable table columns.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SortCol {
+    Name,
+    Element,
+    Class,
+    Growth,
+    Normal,
+    Dungeon,
+    ClassLvl,
+}
+
+/// Stable order for the element column (None sorts last).
+fn element_order(e: Option<Element>) -> u8 {
+    match e {
+        Some(Element::Fire) => 0,
+        Some(Element::Water) => 1,
+        Some(Element::Wind) => 2,
+        Some(Element::Earth) => 3,
+        Some(Element::Neutral) => 4,
+        Some(Element::All) => 5,
+        None => 6,
+    }
+}
+
+fn cmp_rows(a: &PetRow, b: &PetRow, col: SortCol) -> Ordering {
+    match col {
+        SortCol::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        SortCol::Element => element_order(a.element).cmp(&element_order(b.element)),
+        SortCol::Class => a.class_id.cmp(&b.class_id),
+        SortCol::Growth => a.growth.partial_cmp(&b.growth).unwrap_or(Ordering::Equal),
+        SortCol::Normal => a.normal.cmp(&b.normal),
+        SortCol::Dungeon => a.dungeon.cmp(&b.dungeon),
+        SortCol::ClassLvl => a.class_lvl.cmp(&b.class_lvl),
+    }
 }
 
 /// (label, save class id). Classless is id 0.
@@ -162,6 +200,7 @@ pub struct PetEditState {
     f_class_min: String,
     f_class_max: String,
     f_growth_min: String,
+    f_growth_max: String,
 
     // Selection + staged batch.
     selected: HashSet<usize>,
@@ -176,9 +215,23 @@ pub struct PetEditState {
     /// In-progress text for editable override cells.
     cell_buffers: HashMap<(usize, Field), String>,
 
+    /// Column sort: `(column, ascending)`; `None` = save order.
+    sort: Option<(SortCol, bool)>,
+
     /// Set by the Apply button, consumed next in `show`.
     apply_requested: bool,
     status: Option<(String, bool)>,
+}
+
+impl PetEditState {
+    /// Cycle a column's sort: none → ascending → descending → none.
+    fn cycle_sort(&mut self, col: SortCol) {
+        self.sort = match self.sort {
+            Some((c, true)) if c == col => Some((col, false)),
+            Some((c, false)) if c == col => None,
+            _ => Some((col, true)),
+        };
+    }
 }
 
 pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PetEditState) {
@@ -216,7 +269,14 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PetEditState)
         })
         .collect();
 
-    let filtered: Vec<usize> = (0..rows.len()).filter(|&i| passes_filter(st, &rows[i])).collect();
+    let mut filtered: Vec<usize> =
+        (0..rows.len()).filter(|&i| passes_filter(st, &rows[i])).collect();
+    if let Some((col, asc)) = st.sort {
+        filtered.sort_by(|&a, &b| {
+            let o = cmp_rows(&rows[a], &rows[b], col);
+            if asc { o } else { o.reverse() }
+        });
+    }
 
     filter_bar(ui, st, rows.len(), filtered.len());
     ui.separator();
@@ -273,6 +333,11 @@ fn passes_filter(st: &PetEditState, r: &PetRow) -> bool {
     }
     if let Some(min) = parse_f64(&st.f_growth_min)
         && r.growth < min
+    {
+        return false;
+    }
+    if let Some(max) = parse_f64(&st.f_growth_max)
+        && r.growth > max
     {
         return false;
     }
@@ -345,6 +410,8 @@ fn filter_bar(ui: &mut egui::Ui, st: &mut PetEditState, total: usize, shown: usi
         range_input(ui, "Class", &mut st.f_class_min, &mut st.f_class_max);
         ui.label("Growth ≥");
         ui.add(egui::TextEdit::singleline(&mut st.f_growth_min).desired_width(70.0));
+        ui.label("≤");
+        ui.add(egui::TextEdit::singleline(&mut st.f_growth_max).desired_width(70.0));
         if ui.button("× clear").clicked() {
             let selected = std::mem::take(&mut st.selected);
             *st = PetEditState::default();
@@ -401,13 +468,13 @@ fn bulk_panel(ui: &mut egui::Ui, st: &mut PetEditState, filtered: &[usize]) {
                     }
                 }
                 if let Some((kind, value)) = st.ops.get_mut(&field) {
-                    let second = field.second_op();
                     egui::ComboBox::from_id_salt(("pet_op_kind", field.label()))
                         .selected_text(op_label(*kind))
                         .width(70.0)
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(kind, OpKind::Set, "Set");
-                            ui.selectable_value(kind, second, op_label(second));
+                            for &k in field.allowed_ops() {
+                                ui.selectable_value(kind, k, op_label(k));
+                            }
                         });
                     ui.add(egui::TextEdit::singleline(value).desired_width(110.0));
                 } else {
@@ -466,10 +533,10 @@ fn bulk_target(st: &PetEditState, row: &PetRow, field: Field) -> Option<String> 
     let (kind, value) = st.ops.get(&field)?;
     match (kind, field) {
         (OpKind::Set, _) => Some(value.trim().to_string()),
-        (OpKind::Mul, _) => {
-            let f = parse_f64(value)?;
-            apply_factor(&row.raw_growth, f).ok()
-        }
+        // Mul applies only to growth.
+        (OpKind::Mul, _) => apply_factor(&row.raw_growth, parse_f64(value)?).ok(),
+        // Growth + flat amount (fractional ok); levels + integer (overflow-safe).
+        (OpKind::Add, Field::Growth) => apply_delta(&row.raw_growth, parse_f64(value)?).ok(),
         (OpKind::Add, _) => {
             let add = parse_u64(value)?;
             let cur = row.current(field).parse::<u64>().ok()?;
@@ -487,6 +554,10 @@ fn effective_target(st: &PetEditState, row: &PetRow, field: Field) -> Option<Str
 }
 
 fn table(ui: &mut egui::Ui, st: &mut PetEditState, rows: &[PetRow], filtered: &[usize]) {
+    // The header reads the sort by value and reports a click into a local, so it
+    // doesn't borrow `st` (the body needs `&mut st`).
+    let current_sort = st.sort;
+    let mut sort_click: Option<SortCol> = None;
     TableBuilder::new(ui)
         .striped(true)
         .column(Column::auto()) // checkbox
@@ -498,9 +569,21 @@ fn table(ui: &mut egui::Ui, st: &mut PetEditState, rows: &[PetRow], filtered: &[
         .column(Column::initial(120.0)) // dungeon
         .column(Column::remainder()) // class lvl
         .header(20.0, |mut h| {
-            for title in ["", "Name", "Elem", "Class", "Growth", "Normal", "Dungeon", "Class Lvl"] {
+            h.col(|_| {}); // checkbox column
+            let cols = [
+                ("Name", SortCol::Name),
+                ("Elem", SortCol::Element),
+                ("Class", SortCol::Class),
+                ("Growth", SortCol::Growth),
+                ("Normal", SortCol::Normal),
+                ("Dungeon", SortCol::Dungeon),
+                ("Class Lvl", SortCol::ClassLvl),
+            ];
+            for (title, col) in cols {
                 h.col(|ui| {
-                    ui.label(RichText::new(title).strong().size(12.0));
+                    if sort_header(ui, current_sort, title, col) {
+                        sort_click = Some(col);
+                    }
                 });
             }
         })
@@ -539,6 +622,31 @@ fn table(ui: &mut egui::Ui, st: &mut PetEditState, rows: &[PetRow], filtered: &[
                 tr.col(|ui| field_cell(ui, st, row, Field::ClassLvl, selected));
             });
         });
+
+    if let Some(col) = sort_click {
+        st.cycle_sort(col);
+    }
+}
+
+/// A clickable column header showing the current sort arrow. Returns whether it
+/// was clicked (the caller cycles the sort).
+fn sort_header(
+    ui: &mut egui::Ui,
+    current: Option<(SortCol, bool)>,
+    title: &str,
+    col: SortCol,
+) -> bool {
+    let arrow = match current {
+        Some((c, true)) if c == col => " ▲",
+        Some((c, false)) if c == col => " ▼",
+        _ => "",
+    };
+    ui.add(
+        egui::Button::new(RichText::new(format!("{title}{arrow}")).strong().size(12.0))
+            .frame(false),
+    )
+    .on_hover_text("Click to sort (asc → desc → off)")
+    .clicked()
 }
 
 /// A field cell. Read-only current value for unselected rows; an editable
@@ -700,6 +808,14 @@ mod tests {
         let mut st = PetEditState::default();
         st.ops.insert(Field::Dungeon, (OpKind::Add, "5".into()));
         assert_eq!(bulk_target(&st, &row(), Field::Dungeon).as_deref(), Some("25"));
+    }
+
+    #[test]
+    fn bulk_add_growth_flat() {
+        let mut st = PetEditState::default();
+        st.ops.insert(Field::Growth, (OpKind::Add, "50".into()));
+        // raw_growth "100" + 50 → "150" (integer-preserving via apply_delta).
+        assert_eq!(bulk_target(&st, &row(), Field::Growth).as_deref(), Some("150"));
     }
 
     #[test]
