@@ -10,9 +10,9 @@ scalars in the `X` (pet) block or root; consumables may be material-inventory
 |--------|-----------|------------------------|--------|
 | ~~Pet Tokens~~ | Unlock / evolve pets | **DONE: `p.I`** (token-count diff 5→6). `SaveFile.pet_tokens`. | ✅ |
 | ~~Class Change Tokens~~ (CC Token) | Re-class an evolved pet for free | **DONE: `p.023`** (diff 8→10). `SaveFile.class_change_tokens`. | ✅ |
-| **Lucky Draws** | Gacha-style draw | `x.071` already = lucky draws **opened** (lifetime); the **unopened** draw count is a separate, unlocated field. | Partial |
+| ~~Lucky Draws~~ | Gacha-style draw | **DONE: `p.K`** (unopened; 6→2→0 diff). `x.071` = opened lifetime. `SaveFile.lucky_draws`. | ✅ |
 | **Ultimate Shadow Summon** | Summon currency/item | Diff a gain/use. | TODO |
-| **Godly Liquid** | Consumable; ×2 creating speed while active (Main Stats: "bonus from godly liquids (×2)") | Count likely a scalar or `X.Q` entry; an *active* timer may be separate. | TODO |
+| ~~Godly Liquid~~ | Consumable; ×2 creating speed (Main Stats: "bonus from godly liquids (×2)") | **DONE: `p.b`** (0→1 diff). `SaveFile.godly_liquid`. V2/Chakra likely adjacent `p.*` — diff to confirm. | ✅ |
 | **Godly Liquid V2** | Stronger variant | As above. | TODO |
 | **Chakra Pill** | Consumable; ×2 building speed (Main Stats: "bonus from chakra pills (×2)") | As above. | TODO |
 | **Chakra Pill V2** | Stronger variant | As above. | TODO |

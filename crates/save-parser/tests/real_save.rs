@@ -768,6 +768,10 @@ fn pet_and_class_change_tokens() {
     assert_eq!(save.class_change_tokens, Some(9));
     // X.Y = free experience (confirmed in-game by a save-edit of X.Y → 1e9).
     assert_eq!(save.free_experience, Some(30855));
+    // p.K = unopened Lucky Draws, p.b = Godly Liquid (3-save Lucky-Draw diff:
+    // p.K 6→2→0, p.b 0→1 when a draw yielded a Godly Liquid).
+    assert_eq!(save.lucky_draws, Some(0));
+    assert_eq!(save.godly_liquid, Some(133));
 }
 
 #[test]
