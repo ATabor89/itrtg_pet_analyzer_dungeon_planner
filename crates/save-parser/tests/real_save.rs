@@ -772,6 +772,11 @@ fn pet_and_class_change_tokens() {
     // p.K 6→2→0, p.b 0→1 when a draw yielded a Godly Liquid).
     assert_eq!(save.lucky_draws, Some(0));
     assert_eq!(save.godly_liquid, Some(133));
+    // Boost consumables (Steam diff): p.m/d/n/e. Values in the reference save.
+    assert_eq!(save.godly_liquid_v2, Some(44)); // p.m
+    assert_eq!(save.chakra_pill, Some(158)); // p.d
+    assert_eq!(save.chakra_pill_v2, Some(42)); // p.n
+    assert_eq!(save.ultimate_shadow_summon, Some(20)); // p.e
 }
 
 #[test]
@@ -860,6 +865,8 @@ const ALL_SAVE_PATHS: &[&str] = &[
     "save_new_rebirth_mid_training/ManualSave_2026-06-13.txt",
     "save_new_rebirth_mid_training/ManualSave_2026-06-13-second.txt",
     "save_pet_stone_tbs/ManualSave_2026-06-16.txt",
+    "Steam/Consumables/1_ManualSave.txt",
+    "Steam/Consumables/2_ManualSave.txt",
 ];
 
 fn read_raw_save(rel: &str) -> Option<String> {
