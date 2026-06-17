@@ -19,6 +19,7 @@ pub mod container;
 pub mod edit;
 pub mod formulas;
 pub mod items;
+pub mod labels;
 pub mod lzf;
 pub mod model;
 pub mod raw;
