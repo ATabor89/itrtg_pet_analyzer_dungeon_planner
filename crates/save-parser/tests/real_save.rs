@@ -1006,6 +1006,7 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
             ScalarEdit::parse("p.025", "75"),
         ],
         &[],
+        &[],
     )
     .expect("edit should succeed");
 
@@ -1023,12 +1024,12 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
     assert_eq!(edited.god_name.as_deref(), Some("RedactedGod"));
 
     // Editing must never silently no-op a missing field.
-    assert!(edit_save(&raw, &[ScalarEdit::parse("p.nonexistent", "1")], &[]).is_err());
+    assert!(edit_save(&raw, &[ScalarEdit::parse("p.nonexistent", "1")], &[], &[]).is_err());
 
     // The `stones` named target (X.y) resolves and round-trips.
     let stones_path = save_parser::edit::named_target("stones").expect("stones target");
     let stones_edit = ScalarEdit::set(&stones_path.join("."), "424242");
-    let (encoded2, applied2) = edit_save(&raw, &[stones_edit], &[]).expect("stones edit");
+    let (encoded2, applied2) = edit_save(&raw, &[stones_edit], &[], &[]).expect("stones edit");
     assert_eq!(applied2[0].old, "267028"); // Main Stats export pet stones
     assert_eq!(
         save_parser::parse_save(&encoded2).unwrap().pet_stones,
@@ -1038,7 +1039,7 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
     // --mul on a real field, and the by-content list selector: 10× Salamander's
     // growth (X.b element with a=Salamander, field E).
     let (encoded3, applied3) =
-        edit_save(&raw, &[ScalarEdit::mul("X.b.a=Salamander.E", 10.0)], &[]).expect("mul edit");
+        edit_save(&raw, &[ScalarEdit::mul("X.b.a=Salamander.E", 10.0)], &[], &[]).expect("mul edit");
     let sal = save_parser::parse_save(&encoded3)
         .unwrap()
         .pet_by_name("Salamander")
@@ -1058,6 +1059,7 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
             MaterialGrant { id: "117".into(), count: "5".into() },
             MaterialGrant { id: "9990".into(), count: "777".into() },
         ],
+        &[],
     )
     .expect("material grant");
     let m4 = save_parser::parse_save(&encoded4).unwrap();
@@ -1065,6 +1067,24 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
     assert_eq!(count_of(117), Some(5)); // existing Ant stack set
     assert_eq!(count_of(9990), Some(777)); // new stack appended
     assert!(applied4.iter().any(|a| a.path == "X.Q.a=9990.b" && a.old == "(absent)"));
+
+    // Equip grant: add a Magic Stick SSS+20 (type 51) on pet 0 and equip it in
+    // the weapon slot. The new instance lands in X.R and the pet points at it.
+    use save_parser::edit::EquipGrant;
+    let (encoded5, applied5) = edit_save(
+        &raw,
+        &[],
+        &[],
+        &[EquipGrant { pet_index: 0, slot: 'e', type_id: 51, plus: 20, quality: 8 }],
+    )
+    .expect("equip grant");
+    let m5 = save_parser::parse_save(&encoded5).unwrap();
+    let wid = m5.pets[0].weapon_id.expect("pet 0 has a weapon");
+    let inst = m5.equipment_by_instance_id(wid).expect("instance exists in X.R");
+    assert_eq!(inst.type_name(), Some("Magic Stick"));
+    assert_eq!(inst.quality_name(), Some("SSS"));
+    assert_eq!(inst.plus, 20);
+    assert_eq!(applied5[0].path, "X.b.0.w.e");
 }
 
 #[test]
