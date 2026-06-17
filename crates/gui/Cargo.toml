@@ -12,6 +12,7 @@ itrtg-models = { path = "../models" }
 itrtg-planner = { path = "../planner" }
 pet-importer = { path = "../pet-importer", default-features = false }
 wiki-extractor = { path = "../wiki-extractor", default-features = false }
+save-parser = { path = "../save-parser" }
 
 eframe = "0.31"
 egui_extras = { version = "0.31", features = ["default"] }
