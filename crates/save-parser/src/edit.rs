@@ -178,8 +178,8 @@ fn max_instance_id(root: &raw::Raw) -> u32 {
 /// Multiply a numeric save value (verbatim text) by `factor`, returning the new
 /// verbatim text. Integer-looking inputs that stay whole stay integers; anything
 /// else is formatted as a float (the game re-parses doubles, so an exact byte
-/// match isn't required).
-fn apply_factor(current: &str, factor: f64) -> Result<String> {
+/// match isn't required). Reused by the GUI's bulk pet editor for "× growth".
+pub fn apply_factor(current: &str, factor: f64) -> Result<String> {
     let v: f64 = current
         .parse()
         .with_context(|| format!("value {current:?} is not numeric — can't multiply"))?;
