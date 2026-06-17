@@ -57,8 +57,18 @@ pub struct SaveFile {
     /// separate tracker `x.071`.
     pub lucky_draws: Option<u64>,
     /// Godly Liquid (regular, root `p.b`) — the ×2-creating-speed consumable.
-    /// Confirmed 2026-06-16 by the same diff (0 → 1 when a draw yielded one).
+    /// Confirmed 2026-06-16 by the same diff (0 → 1 when a draw yielded one),
+    /// re-confirmed by the Steam consumables diff (151 → 141).
     pub godly_liquid: Option<u64>,
+    /// The remaining boost consumables, all in `root.p`, confirmed 2026-06-16 by
+    /// a Steam save diff (`Steam/Consumables/`) with distinct deltas. NB: this
+    /// corrected two earlier guesses — `p.e` was tentatively a TBS field and
+    /// `p.d` looked creation-count-ish (both just happened to match by value).
+    pub godly_liquid_v2: Option<u64>,
+    pub chakra_pill: Option<u64>,
+    pub chakra_pill_v2: Option<u64>,
+    /// Ultimate Shadow Summon (root `p.e`), confirmed by the same diff (19→18).
+    pub ultimate_shadow_summon: Option<u64>,
     /// Pet food counts (root `X.c`/`X.d`/`X.e`) and chocolate (root `X.v`).
     /// These are dedicated fields, not material-inventory entries. An absent
     /// field reads as 0.
@@ -908,6 +918,10 @@ impl SaveFile {
             free_experience: root.get_path(&["X", "Y"]).and_then(Node::as_u64),
             lucky_draws: root.get_path(&["p", "K"]).and_then(Node::as_u64),
             godly_liquid: root.get_path(&["p", "b"]).and_then(Node::as_u64),
+            godly_liquid_v2: root.get_path(&["p", "m"]).and_then(Node::as_u64),
+            chakra_pill: root.get_path(&["p", "d"]).and_then(Node::as_u64),
+            chakra_pill_v2: root.get_path(&["p", "n"]).and_then(Node::as_u64),
+            ultimate_shadow_summon: root.get_path(&["p", "e"]).and_then(Node::as_u64),
             puny_food: get_u64(x, "c"),
             strong_food: get_u64(x, "d"),
             mighty_food: get_u64(x, "e"),
