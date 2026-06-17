@@ -47,6 +47,11 @@ pub struct SaveFile {
     /// Class Change Tokens (root `p.023`) — re-class an evolved pet for free.
     /// Confirmed 2026-06-16 by the same diff pair (8 → 10).
     pub class_change_tokens: Option<u64>,
+    /// Free experience (root `X.Y`, capital) — the pool of pet exp you can
+    /// freely apply. Confirmed 2026-06-16: a save-edit of `X.Y` to 1e9 showed
+    /// the matching free-exp value in-game. (NB: `X.Y` ≠ `X.y`, which is pet
+    /// stones.)
+    pub free_experience: Option<u64>,
     /// Pet food counts (root `X.c`/`X.d`/`X.e`) and chocolate (root `X.v`).
     /// These are dedicated fields, not material-inventory entries. An absent
     /// field reads as 0.
@@ -893,6 +898,7 @@ impl SaveFile {
             crafting_queue_slots: get_u32(x, "032"),
             pet_tokens: root.get_path(&["p", "I"]).and_then(Node::as_u64),
             class_change_tokens: root.get_path(&["p", "023"]).and_then(Node::as_u64),
+            free_experience: root.get_path(&["X", "Y"]).and_then(Node::as_u64),
             puny_food: get_u64(x, "c"),
             strong_food: get_u64(x, "d"),
             mighty_food: get_u64(x, "e"),
