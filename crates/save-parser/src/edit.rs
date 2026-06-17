@@ -175,22 +175,35 @@ fn max_instance_id(root: &raw::Raw) -> u32 {
         .unwrap_or(0)
 }
 
-/// Multiply a numeric save value (verbatim text) by `factor`, returning the new
-/// verbatim text. Integer-looking inputs that stay whole stay integers; anything
-/// else is formatted as a float (the game re-parses doubles, so an exact byte
-/// match isn't required). Reused by the GUI's bulk pet editor for "× growth".
+/// Format a numeric result back to verbatim text, preserving int-vs-float shape:
+/// an integer-looking input that stays whole stays an integer; anything else is
+/// a float (the game re-parses doubles, so an exact byte match isn't required).
+fn format_numeric(current: &str, r: f64) -> Result<String> {
+    anyhow::ensure!(r.is_finite(), "result of editing {current:?} is not finite");
+    let looks_integer = !current.contains(['.', 'e', 'E']);
+    Ok(if looks_integer && r.fract() == 0.0 && r.abs() < 9.0e18 {
+        format!("{}", r as i64)
+    } else {
+        format!("{r}")
+    })
+}
+
+/// Multiply a numeric save value (verbatim text) by `factor`. Reused by the
+/// GUI's bulk pet editor for "× growth".
 pub fn apply_factor(current: &str, factor: f64) -> Result<String> {
     let v: f64 = current
         .parse()
         .with_context(|| format!("value {current:?} is not numeric — can't multiply"))?;
-    let r = v * factor;
-    anyhow::ensure!(r.is_finite(), "multiplying {current:?} by {factor} is not finite");
-    let looks_integer = !current.contains(['.', 'e', 'E']);
-    if looks_integer && r.fract() == 0.0 && r.abs() < 9.0e18 {
-        Ok(format!("{}", r as i64))
-    } else {
-        Ok(format!("{r}"))
-    }
+    format_numeric(current, v * factor)
+}
+
+/// Add `delta` to a numeric save value (verbatim text). Reused by the GUI's bulk
+/// pet editor for "+ growth".
+pub fn apply_delta(current: &str, delta: f64) -> Result<String> {
+    let v: f64 = current
+        .parse()
+        .with_context(|| format!("value {current:?} is not numeric — can't add"))?;
+    format_numeric(current, v + delta)
 }
 
 /// What an applied edit changed, for reporting back to the user.
@@ -359,6 +372,13 @@ mod tests {
     fn apply_factor_rejects_non_numeric() {
         assert!(apply_factor("True", 2.0).is_err());
         assert!(apply_factor("Salamander", 2.0).is_err());
+    }
+
+    #[test]
+    fn apply_delta_adds_preserving_type() {
+        assert_eq!(apply_delta("100", 50.0).unwrap(), "150"); // int stays int
+        assert_eq!(apply_delta("66841.5", 0.5).unwrap(), "66842");
+        assert!(apply_delta("Salamander", 1.0).is_err());
     }
 
     #[test]
