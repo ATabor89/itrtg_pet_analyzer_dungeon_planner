@@ -13,8 +13,10 @@ set -euo pipefail
 
 # `edited_*.txt` are normally gitignored, but a `git add -f` could stage one —
 # content-check them too (defense in depth alongside the gitignore rule).
+# Match any staged .txt whose basename looks like a save: contains "ManualSave"
+# or "SaveItRtG" anywhere (e.g. `1_ManualSave.txt`), or starts with `edited_`.
 saves=$(git diff --cached --name-only --diff-filter=AM \
-        | grep -E '(^|/)(ManualSave|edited_)[^/]*\.txt$' || true)
+        | grep -iE '(^|/)(edited_[^/]*|[^/]*(manualsave|saveitrtg)[^/]*)\.txt$' || true)
 [ -z "$saves" ] && exit 0
 
 echo "pre-commit: verifying staged save files are redacted…"
