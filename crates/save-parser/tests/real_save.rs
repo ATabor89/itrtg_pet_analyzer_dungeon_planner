@@ -766,6 +766,8 @@ fn pet_and_class_change_tokens() {
     // TBS-pixels twin of p.D (both 3 here only by coincidence).
     assert_eq!(save.pet_tokens, Some(3));
     assert_eq!(save.class_change_tokens, Some(9));
+    // X.Y = free experience (confirmed in-game by a save-edit of X.Y → 1e9).
+    assert_eq!(save.free_experience, Some(30855));
 }
 
 #[test]
