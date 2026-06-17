@@ -101,7 +101,7 @@ is implemented; it isn't needed for that round trip.)
 | `x` | list of 8 **campaign slots** | `d` = `&`-joined pet ids (10 per slot), `e` = 43,200,000 ms = 12 h, `f` = total bonus, `c` = timestamp, `i` = RNG seed |
 | `y` | pet stones | 267,028 ✓ Main Stats |
 | `z` | **cumulative pet stones spent** | fresh-save diff: `y` −750,000 / `z` +750,000 when buying 2 Dungeon Loot + 1 Dungeon Exp (= 2·275k + 200k) ✓ |
-| `Y` (capital) | **free experience** — *candidate* | 30,855 (advanced save) vs 26 (fresh) — behaves like an accumulating pool; the player reported free exp = 26 on the fresh save. Best-guess, pending in-game confirmation (the other 26-valued scalars `root.e.g`=0-in-advanced and `032.b.j` fit worse). |
+| `Y` (capital) | **free experience** | **Confirmed** 2026-06-16: editing `X.Y` to 1e9 showed the matching free-exp value in-game (30,855 advanced / 26 fresh). `SaveFile.free_experience`. (`X.Y` ≠ `X.y` = pet stones.) |
 | `P` | list of 3 **active dungeon runs** | `a` = dungeon id (2,3,5), `c` = 43,200,000 ms, `d` = depth-ish, seeds in `e`/`j` |
 | `Q` | list of 69 — **material inventory** (`a`=item id, `b`=count) | export-confirmed: 117=Ant 192,164 ✓, 159=Strategy Book 2,840 ✓, 166=Honey 787 ✓, 174=Acorn 24,727 ✓. Full id→name table (incl. the prior project's identifications: Herb/Iron Ore/…/Soul of Sylph) lives in `crates/save-parser/src/items.rs` |
 | `R` | list of 209 — **owned pet equipment** | see equipment struct |
