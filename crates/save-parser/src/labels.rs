@@ -10,6 +10,11 @@
 //! keyed struct (Baal-Slayer parts). Keys are relative to the element and may be
 //! dotted for nested structs (e.g. a pet's `w.d.b` is its class level).
 //!
+//! Fields and elements can carry a [`Resolve`] hint: an id that the editor turns
+//! into a human name (monument id → "Mighty Statue", class id → "Mage", an
+//! equipment instance id → the item it points at). A block's `element_name` says
+//! how to title each element (a pet by its name, a monument by its id).
+//!
 //! **Keep this in step with `model.rs`:** when you identify a new field there,
 //! add a line here. The save-editor coverage test checks every key resolves on a
 //! real save (so a key that exists *nowhere* is caught), and a single entry
@@ -17,11 +22,47 @@
 //! land on another real key in the same struct — for that, cross-check the key
 //! letters against `from_tree` in `model.rs`.
 
+/// How an id field is turned into a human name by the editor.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Resolve {
+    /// The value is already the name (e.g. a pet's name string).
+    Literal,
+    /// Material / item id → `items::material_name`.
+    Material,
+    /// Equipment *type* id → `items::equipment_type_name`.
+    Equipment,
+    /// Equipment *instance* id → look it up in `X.R` and name its type.
+    EquipmentInstance,
+    /// Monument id → `items::monument_name`.
+    Monument,
+    /// Might id → `items::might_name`.
+    Might,
+    /// Creation id → `items::creation_name`.
+    Creation,
+    /// SpaceDim element id → `items::spacedim_name`.
+    SpaceDim,
+    /// Research id → `model::research_name`.
+    Research,
+    /// Class id → `model::class_from_id`.
+    Class,
+    /// Element id → `model::element_from_id`.
+    Element,
+}
+
 /// One labeled field within a block element. `key` is the path *relative to the
 /// element*, dot-joined for nested structs (`"w.d.b"`).
 pub struct FieldLabel {
     pub key: &'static str,
     pub label: &'static str,
+    /// If set, the field is an id the editor annotates with a resolved name.
+    pub resolve: Option<Resolve>,
+}
+
+/// How to title each element of a block from one of its fields.
+pub struct ElementName {
+    /// Which field (relative key) holds the id/name.
+    pub key: &'static str,
+    pub resolve: Resolve,
 }
 
 /// A block of same-shaped data in the tree.
@@ -35,13 +76,23 @@ pub struct BlockSchema {
     /// `true` when `base` is a list addressed by index (fields live at
     /// `base.<index>.key`); `false` for a single struct (`base.key`).
     pub is_list: bool,
+    /// How to title each element (e.g. a pet by its name). `None` = just `[i]`.
+    pub element_name: Option<ElementName>,
     /// The labeled fields of each element / of the struct.
     pub fields: &'static [FieldLabel],
 }
 
+/// A plain labeled field.
 macro_rules! lbl {
     ($k:literal, $l:literal) => {
-        FieldLabel { key: $k, label: $l }
+        FieldLabel { key: $k, label: $l, resolve: None }
+    };
+}
+
+/// A labeled id field that resolves to a name.
+macro_rules! lblr {
+    ($k:literal, $l:literal, $r:expr) => {
+        FieldLabel { key: $k, label: $l, resolve: Some($r) }
     };
 }
 
@@ -63,36 +114,37 @@ pub const PET_FIELDS: &[FieldLabel] = &[
     lbl!("G", "Partner Days"),
     lbl!("H", "Working Exp (ms)"),
     lbl!("w", "Dungeon & Class"),
-    lbl!("w.a", "Element Id"),
+    lblr!("w.a", "Element Id", Resolve::Element),
     lbl!("w.b", "Dungeon Level"),
     lbl!("w.c", "Dungeon Exp (current)"),
     lbl!("w.d", "Class"),
-    lbl!("w.d.a", "Class Id"),
+    lblr!("w.d.a", "Class Id", Resolve::Class),
     lbl!("w.d.b", "Class Level"),
     lbl!("w.d.c", "Class Exp (current)"),
-    lbl!("w.e", "Weapon (instance id)"),
-    lbl!("w.f", "Armor (instance id)"),
-    lbl!("w.g", "Accessory (instance id)"),
+    lblr!("w.e", "Weapon (instance id)", Resolve::EquipmentInstance),
+    lblr!("w.f", "Armor (instance id)", Resolve::EquipmentInstance),
+    lblr!("w.g", "Accessory (instance id)", Resolve::EquipmentInstance),
 ];
 
 /// Owned equipment instances — `X.R.<index>`.
 pub const EQUIPMENT_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Type Id"),
+    lblr!("a", "Type Id", Resolve::Equipment),
     lbl!("b", "Plus Level"),
     lbl!("c", "Quality"),
     lbl!("d", "Instance Id"),
     lbl!("e", "Plus Cap"),
     lbl!("f", "Gem Level"),
-    lbl!("g", "Gem Element Id"),
+    lblr!("g", "Gem Element Id", Resolve::Element),
     lbl!("h", "Instance Id (mirror)"),
 ];
 
 /// Material / item stacks — `X.Q.<index>`.
-pub const MATERIAL_FIELDS: &[FieldLabel] = &[lbl!("a", "Item Id"), lbl!("b", "Count")];
+pub const MATERIAL_FIELDS: &[FieldLabel] =
+    &[lblr!("a", "Item Id", Resolve::Material), lbl!("b", "Count")];
 
 /// Gem inventory — `X.002.<index>`.
 pub const GEM_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Element Id"),
+    lblr!("a", "Element Id", Resolve::Element),
     lbl!("b", "Level"),
     lbl!("c", "Count"),
 ];
@@ -116,7 +168,7 @@ pub const CAMPAIGN_FIELDS: &[FieldLabel] = &[
 
 /// Adventure-mode researches — `032.H.a.<index>`.
 pub const RESEARCH_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Research Id"),
+    lblr!("a", "Research Id", Resolve::Research),
     lbl!("b", "Level"),
     lbl!("f", "Max Level"),
     lbl!("c", "In Progress"),
@@ -125,7 +177,7 @@ pub const RESEARCH_FIELDS: &[FieldLabel] = &[
 
 /// Creations — `i.<index>`.
 pub const CREATION_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Creation Id"),
+    lblr!("a", "Creation Id", Resolve::Creation),
     lbl!("d", "Current Amount"),
     lbl!("e", "Clone Cost"),
     lbl!("g", "Total Created"),
@@ -135,7 +187,7 @@ pub const CREATION_FIELDS: &[FieldLabel] = &[
 /// Monuments — `D.<index>`. The `e` sub-struct holds the monument's *upgrade*
 /// (the level/next-at/spread that FINDINGS previously had as "unlocated").
 pub const MONUMENT_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Monument Id"),
+    lblr!("a", "Monument Id", Resolve::Monument),
     lbl!("b", "Level"),
     lbl!("g", "Next At"),
     lbl!("h", "Spread"),
@@ -150,7 +202,7 @@ pub const MONUMENT_FIELDS: &[FieldLabel] = &[
 
 /// Mights — `V.<index>`.
 pub const MIGHT_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Might Id"),
+    lblr!("a", "Might Id", Resolve::Might),
     lbl!("b", "Level"),
     lbl!("m", "Next At"),
     lbl!("n", "Spread"),
@@ -163,7 +215,7 @@ pub const MIGHT_FIELDS: &[FieldLabel] = &[
 
 /// SpaceDim / Light-Dimension elements — `009.b.<index>`.
 pub const SPACEDIM_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Element Id"),
+    lblr!("a", "Element Id", Resolve::SpaceDim),
     lbl!("b", "Clones Allocated"),
     lbl!("c", "Level"),
     lbl!("d", "Next At"),
@@ -187,19 +239,24 @@ pub const TBS_FIELDS: &[FieldLabel] = &[
     lbl!("f", "Feet Level"),
 ];
 
+/// Title each element from one of its fields (id → name).
+const fn elem(key: &'static str, resolve: Resolve) -> Option<ElementName> {
+    Some(ElementName { key, resolve })
+}
+
 /// Every block, consumed by the save editor to build tree labels.
 pub const BLOCKS: &[BlockSchema] = &[
-    BlockSchema { base: &["X", "b"], name: "Pet", plural: "Pets", is_list: true, fields: PET_FIELDS },
-    BlockSchema { base: &["X", "R"], name: "Equipment", plural: "Equipment", is_list: true, fields: EQUIPMENT_FIELDS },
-    BlockSchema { base: &["X", "Q"], name: "Material", plural: "Materials", is_list: true, fields: MATERIAL_FIELDS },
-    BlockSchema { base: &["X", "002"], name: "Gem", plural: "Gems", is_list: true, fields: GEM_FIELDS },
-    BlockSchema { base: &["X", "S"], name: "Dungeon Team", plural: "Dungeon Teams", is_list: true, fields: DUNGEON_TEAM_FIELDS },
-    BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, fields: CAMPAIGN_FIELDS },
-    BlockSchema { base: &["032", "H", "a"], name: "Research", plural: "Researches", is_list: true, fields: RESEARCH_FIELDS },
-    BlockSchema { base: &["i"], name: "Creation", plural: "Creations", is_list: true, fields: CREATION_FIELDS },
-    BlockSchema { base: &["D"], name: "Monument", plural: "Monuments", is_list: true, fields: MONUMENT_FIELDS },
-    BlockSchema { base: &["V"], name: "Might", plural: "Mights", is_list: true, fields: MIGHT_FIELDS },
-    BlockSchema { base: &["009", "b"], name: "SpaceDim Element", plural: "SpaceDim Elements", is_list: true, fields: SPACEDIM_FIELDS },
-    BlockSchema { base: &["K", "l"], name: "Divinity Upgrade", plural: "Divinity Upgrades", is_list: true, fields: DIVINITY_UPGRADE_FIELDS },
-    BlockSchema { base: &["S"], name: "Baal Slayer Parts", plural: "Baal Slayer Parts", is_list: false, fields: TBS_FIELDS },
+    BlockSchema { base: &["X", "b"], name: "Pet", plural: "Pets", is_list: true, element_name: elem("a", Resolve::Literal), fields: PET_FIELDS },
+    BlockSchema { base: &["X", "R"], name: "Equipment", plural: "Equipment", is_list: true, element_name: elem("a", Resolve::Equipment), fields: EQUIPMENT_FIELDS },
+    BlockSchema { base: &["X", "Q"], name: "Material", plural: "Materials", is_list: true, element_name: elem("a", Resolve::Material), fields: MATERIAL_FIELDS },
+    BlockSchema { base: &["X", "002"], name: "Gem", plural: "Gems", is_list: true, element_name: elem("a", Resolve::Element), fields: GEM_FIELDS },
+    BlockSchema { base: &["X", "S"], name: "Dungeon Team", plural: "Dungeon Teams", is_list: true, element_name: elem("i", Resolve::Literal), fields: DUNGEON_TEAM_FIELDS },
+    BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: None, fields: CAMPAIGN_FIELDS },
+    BlockSchema { base: &["032", "H", "a"], name: "Research", plural: "Researches", is_list: true, element_name: elem("a", Resolve::Research), fields: RESEARCH_FIELDS },
+    BlockSchema { base: &["i"], name: "Creation", plural: "Creations", is_list: true, element_name: elem("a", Resolve::Creation), fields: CREATION_FIELDS },
+    BlockSchema { base: &["D"], name: "Monument", plural: "Monuments", is_list: true, element_name: elem("a", Resolve::Monument), fields: MONUMENT_FIELDS },
+    BlockSchema { base: &["V"], name: "Might", plural: "Mights", is_list: true, element_name: elem("a", Resolve::Might), fields: MIGHT_FIELDS },
+    BlockSchema { base: &["009", "b"], name: "SpaceDim Element", plural: "SpaceDim Elements", is_list: true, element_name: elem("a", Resolve::SpaceDim), fields: SPACEDIM_FIELDS },
+    BlockSchema { base: &["K", "l"], name: "Divinity Upgrade", plural: "Divinity Upgrades", is_list: true, element_name: None, fields: DIVINITY_UPGRADE_FIELDS },
+    BlockSchema { base: &["S"], name: "Baal Slayer Parts", plural: "Baal Slayer Parts", is_list: false, element_name: None, fields: TBS_FIELDS },
 ];
