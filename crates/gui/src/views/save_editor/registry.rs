@@ -142,7 +142,7 @@ fn label(path: Vec<&'static str>, name: &'static str) -> FieldDef {
 /// container, one for each element, and one per labeled field.
 fn push_block(out: &mut Vec<FieldDef>, block: &BlockSchema) {
     let mut element: Vec<&'static str> = block.base.to_vec();
-    out.push(label(element.clone(), block.name)); // the block container
+    out.push(label(element.clone(), block.plural)); // the block/list container
     if block.is_list {
         element.push("*"); // each element
         out.push(label(element.clone(), block.name));
