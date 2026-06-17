@@ -554,13 +554,19 @@ save-edit <in> edited_save.txt --set X.Q.a=117.b 99999           # material by i
 save-edit <in> edited_save.txt --mul X.b.a=Salamander.E 10       # 10× a pet's growth
 save-edit <in> edited_save.txt --material 2 400000               # add/set an X.Q stack
 save-edit <in> edited_save.txt --equip 65 e 51 20 8              # add+equip Magic Stick SSS+20 (weapon)
+save-edit <in> edited_save.txt --add-equip 79 20 8              # add Legendary Hammer SSS+20 to inventory (unequipped)
 ```
 
 `--material <id> <count>` upserts an `X.Q` inventory stack (adds it if absent;
 creates the list on a fresh account). `--equip <pet-idx> <slot e/f/g> <type>
 <plus> <quality>` creates a new `X.R` equipment instance (`{a:type,b:plus,
-c:quality,d/h:new id,e:20,f:0,g:0,i:0}`) and equips it in the pet's `w.<slot>`.
-Both build the list from an empty field if needed (`ensure_list`).
+c:quality,d/h:new id,e:20,f:0,g:0,i:0}`) and equips it in the pet's `w.<slot>`;
+`--add-equip <type> <plus> <quality>` creates the instance but leaves it
+unequipped in `X.R`. Both build the list from an empty field if needed
+(`ensure_list`). Equip-slot note: a slot is **not** always the catalog `type` —
+e.g. **Ear Muffs** (type 86, catalogued "Weapon") actually equips in the
+**accessory** slot (`w.g`) in real saves, so crafters carry their hammer/pot in
+`w.e` and Ear Muffs in `w.g` without conflict.
 
 Output goes to a NEW file (never in place; the bin refuses `in == out`), is
 self-verified (re-decoded and the edited paths re-read), and **must be named
