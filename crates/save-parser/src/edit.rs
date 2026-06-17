@@ -34,10 +34,12 @@ pub struct MaterialGrant {
 /// cap, `f`/`g` gem = 0, `i=0`).
 #[derive(Debug, Clone)]
 pub struct EquipGrant {
-    /// Index of the pet in `X.b`.
-    pub pet_index: u32,
-    /// Slot field on the pet's `w`: `e` weapon, `f` armor, `g` accessory.
-    pub slot: char,
+    /// Pet to equip on (index in `X.b`) and its slot (`e` weapon, `f` armor,
+    /// `g` accessory). Set **both** to equip; leave **both** `None` to add the
+    /// instance to the `X.R` inventory unequipped. (A half-specified pair —
+    /// one `Some`, one `None` — is treated as inventory-only.)
+    pub pet_index: Option<u32>,
+    pub slot: Option<char>,
     /// Equipment type id (`a`), e.g. 51 = Magic Stick.
     pub type_id: u32,
     /// Plus level (`b`).
@@ -259,22 +261,33 @@ pub fn edit_save(
     if !equips.is_empty() {
         let mut next_id = max_instance_id(&root) + 1;
         for eq in equips {
-            // Append the instance to X.R (created if the slot list is empty).
+            // Append the instance to X.R (created if the list is empty).
             let id = next_id;
             next_id += 1;
             ensure_list(&mut root, "R")?.push(equip_instance(id, eq));
-            // Equip it in the pet's slot.
-            let pet = eq.pet_index.to_string();
-            let slot = eq.slot.to_string();
             let id_str = id.to_string();
-            let old = root
-                .set_scalar_path(&["X", "b", &pet, "w", &slot], &id_str)
-                .with_context(|| format!("equip pet {pet} slot {slot}"))?;
-            applied.push(AppliedEdit {
-                path: format!("X.b.{pet}.w.{slot}"),
-                old,
-                new: id_str,
-            });
+            match (eq.pet_index, eq.slot) {
+                (Some(pet), Some(slot)) => {
+                    let pet = pet.to_string();
+                    let slot = slot.to_string();
+                    let old = root
+                        .set_scalar_path(&["X", "b", &pet, "w", &slot], &id_str)
+                        .with_context(|| format!("equip pet {pet} slot {slot}"))?;
+                    applied.push(AppliedEdit {
+                        path: format!("X.b.{pet}.w.{slot}"),
+                        old,
+                        new: id_str,
+                    });
+                }
+                // Inventory-only: instance added to X.R, not equipped. Report a
+                // verifiable path (the new instance's type, found by its id) so
+                // the self-check below can confirm it.
+                _ => applied.push(AppliedEdit {
+                    path: format!("X.R.d={id_str}.a"),
+                    old: "(added)".into(),
+                    new: eq.type_id.to_string(),
+                }),
+            }
         }
     }
 
