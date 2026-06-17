@@ -198,10 +198,27 @@ impl EditSession {
     /// verification in the `save-edit` CLI.
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub fn validate_encoded(&self, encoded: &str) -> Result<()> {
+        self.validate_filtered(encoded, false)
+    }
+
+    /// Like [`validate_encoded`](Self::validate_encoded), but for a redacted
+    /// copy: pending edits to root identity fields are skipped, since redaction
+    /// intentionally overwrites those with placeholders (a user could have
+    /// edited e.g. `W` in the raw tree, and the redacted copy must still win).
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub fn validate_encoded_redacted(&self, encoded: &str) -> Result<()> {
+        self.validate_filtered(encoded, true)
+    }
+
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    fn validate_filtered(&self, encoded: &str, skip_identity: bool) -> Result<()> {
         let decoded = container::decode_container(encoded)
             .context("re-decoding the written save for validation")?;
         let root = raw::parse(&decoded.plaintext);
         for edit in &self.pending {
+            if skip_identity && is_identity_path(&edit.path) {
+                continue;
+            }
             let path: Vec<&str> = edit.path.iter().map(|s| s.as_str()).collect();
             let got = match root.get_path(&path) {
                 Some(Raw::Scalar(s)) => Some(s.as_str()),
@@ -218,6 +235,15 @@ impl EditSession {
         }
         Ok(())
     }
+}
+
+/// Is this a single-segment path naming a root identity field (`W`, `s`,
+/// `001`–`004`)? Those are intentionally overwritten by redaction.
+fn is_identity_path(path: &[String]) -> bool {
+    path.len() == 1
+        && redact::IDENTITY_FIELDS
+            .iter()
+            .any(|(key, _)| *key == path[0])
 }
 
 /// Re-derive the typed model from a raw tree (serialize → tree-parse → extract).
@@ -290,6 +316,34 @@ mod tests {
         session.undo(0).unwrap();
         assert_eq!(session.value(&["p", "j"]).as_deref(), Some("100"));
         assert!(session.pending().is_empty());
+    }
+
+    #[test]
+    fn redacted_validation_tolerates_an_edited_identity_field() {
+        // A root with an identity field `W` (god name) plus `p.j`.
+        let root = Raw::Struct(vec![
+            ("W".to_string(), Field::Value(Raw::Scalar("RealGodName".into()))),
+            (
+                "p".to_string(),
+                Field::Value(Raw::Base64(Box::new(Raw::Struct(vec![(
+                    "j".to_string(),
+                    Field::Value(Raw::Scalar("100".into())),
+                )])))),
+            ),
+        ]);
+        let mut session = EditSession::load(&encoded(&root), None).unwrap();
+
+        // User edits the identity field in the raw tree, then exports a redacted
+        // copy. Redaction overwrites `W` with a placeholder, so the plain
+        // validator would (correctly) refuse — the redacted validator must not.
+        session.set_scalar(&["W"], "God Name", "EditedName").unwrap();
+        let (enc, _changes) = session.encode_redacted().unwrap();
+        assert!(session.validate_encoded(&enc).is_err());
+        session.validate_encoded_redacted(&enc).unwrap();
+
+        // The redacted output really carries the placeholder, not either name.
+        let reloaded = EditSession::load(&enc, None).unwrap();
+        assert_eq!(reloaded.value(&["W"]).as_deref(), Some("RedactedGod"));
     }
 
     #[test]

@@ -30,7 +30,8 @@ pub struct SaveEditorState {
     current: SectionId,
     tree_search: String,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
-    /// used by every section so edits keep their cursor across frames.
+    /// used by every section so edits keep their cursor across frames. Assumes
+    /// one editor per path per frame (only one section renders at a time).
     buffers: HashMap<String, String>,
     status: Option<(String, bool)>,
 }
@@ -146,17 +147,21 @@ fn header_bar(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     .color(style::TEXT_MUTED)
                     .size(11.0),
             );
+            let typed_ok = s.derived().is_some();
             let pets = s
                 .derived()
                 .map(|d| d.pets.len().to_string())
                 .unwrap_or_else(|| "—".into());
             let gp = s.value(&["p", "j"]).unwrap_or_else(|| "—".into());
             let stones = s.value(&["X", "y"]).unwrap_or_else(|| "—".into());
-            ui.label(
+            let summary = ui.label(
                 RichText::new(format!("{pets} pets · GP {gp} · stones {stones}"))
                     .color(style::TEXT_MUTED)
                     .size(12.0),
             );
+            if !typed_ok {
+                summary.on_hover_text("Typed view unavailable for this save; raw editing still works.");
+            }
             if s.is_dirty() {
                 ui.label(
                     RichText::new(format!("● {} pending", s.pending().len()))
@@ -328,9 +333,16 @@ fn save_to_file(state: &mut SaveEditorState, redacted: bool) {
         } else {
             Ok(session.encode())
         };
+        let validate = |enc: &str| {
+            if redacted {
+                session.validate_encoded_redacted(enc)
+            } else {
+                session.validate_encoded(enc)
+            }
+        };
         match encoded {
             Err(e) => (format!("Encode failed: {e}"), true),
-            Ok(enc) => match session.validate_encoded(&enc) {
+            Ok(enc) => match validate(&enc) {
                 Err(e) => (format!("Validation failed — not written: {e}"), true),
                 Ok(()) => match std::fs::write(&path, enc) {
                     Ok(()) => (format!("Wrote {}", path.display()), false),
