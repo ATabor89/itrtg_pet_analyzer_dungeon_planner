@@ -211,6 +211,7 @@ fn seed() -> Vec<FieldDef> {
         def(&["P"], "Current God Fight", Text, RawTree, ""),
         def(&["025"], "Fishing", Text, RawTree, ""),
         def(&["009"], "SpaceDim (Light Dimension)", Text, RawTree, ""),
+        def(&["009", "d"], "Light Clone Resets", Number, RawTree, "Resets the escalating Light Clone cost (009.d)"),
         def(&["032"], "Adventure / Research", Text, RawTree, ""),
         def(&["K"], "Divinity Generator", Text, RawTree, ""),
 

@@ -1065,19 +1065,10 @@ impl EquipmentItem {
         crate::items::equipment_type_name(self.type_id)
     }
 
-    /// Quality letter. Verified against exports: 8=SSS, 7=SS, 6=S, 5=A, 4=B;
-    /// 3=C and 2=D are inferred from the wiki's quality ladder.
+    /// Quality letter (F E D C B A S SS SSS for 0…8) — see
+    /// [`crate::items::quality_name`].
     pub fn quality_name(&self) -> Option<&'static str> {
-        Some(match self.quality {
-            2 => "D",
-            3 => "C",
-            4 => "B",
-            5 => "A",
-            6 => "S",
-            7 => "SS",
-            8 => "SSS",
-            _ => return None,
-        })
+        crate::items::quality_name(self.quality)
     }
 
     /// Quality multiplier on the catalogued A+0 stat percentages:
