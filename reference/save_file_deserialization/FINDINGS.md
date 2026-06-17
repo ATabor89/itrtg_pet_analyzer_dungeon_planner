@@ -240,6 +240,7 @@ Kongregate save bought up one upgrade at a time, diffing each step (the bulk in
 | `p.033` | 0/1 | **Optimal Campaigns** | **Confirmed** (0→1) |
 | `p.034` | 0/1 | **Auto Worker Clones** | **Confirmed** (0→1) |
 | `p.008` | bool | **Config Half Stats** ("Custom Pet Clones") | **Confirmed** (F→T) |
+| `p.V` | bool | **Refrigerator** (keep food on rebirth) | **Confirmed** (F→T diff) |
 | `p.Y` | bool | **Pet Half Stats** (GP upgrade; prereq for Config Half Stats) | **Confirmed** (F→T) |
 | `p.B`, `p.U` | bool | **Improved Next At** (base, GP) + **Improved Next At For Challenges** — buying the for-challenges upgrade also grants the base one (player confirmed base reads as already-purchased on the GP page), so both flip together; which key is base vs for-challenges is TBD | **Confirmed** (F→T) |
 | `p.I` | currency | **Pet Tokens** (5→6 diff) | **Confirmed** |
