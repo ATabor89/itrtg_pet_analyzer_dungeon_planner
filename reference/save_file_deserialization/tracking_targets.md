@@ -23,9 +23,14 @@ on either (buy with pet stones).
 
 ## Future
 
-- **Individual challenges** — track per-challenge state (completions, the spent
-  `Chp X boost` levels) once past Baal. Candidate blocks: `root.015` (list of
-  ~118 {id, …}) and the `root.y/z/A/B` achievement-style lists.
+- **Individual challenges** — per-challenge completion counts. **Day-Pet
+  Challenge** is the score-based one and lives at **`x.049`** (3,664,035,884 ≈
+  the player's 3.664e9 ✓). The plain *completion counts* (AAC 10/25, Monument
+  Multi 13/40, Pet Level 12/25, …) are **not yet located**: they are *not* in
+  `root.x` (12 and 10 don't appear there) and *not* in `root.015` (that list is
+  id/flag pairs `{a=id,b=1,c=0}`, not completions). Best path: run a challenge
+  (e.g. UBC), watch one completion tick +1, diff to find the field/block, then
+  mass-tweak completions deterministically to map the rest.
 - **Baal / TBS progression** — the player is pushing to beat Baal to move more
   of these counters; revisit `root.T` (Baal Slayer), `root.S` (TBS levels),
   `root.P` (current god) deltas afterward.
