@@ -265,17 +265,24 @@ mod tests {
             Some(star) => {
                 let base = &pat[..star];
                 let suffix = &pat[star + 1..];
-                let len = match session.root().get_path(base) {
-                    Some(Raw::List(items)) => items.len(),
-                    _ => return false,
-                };
-                (0..len).any(|i| {
-                    let idx = i.to_string();
-                    let mut full: Vec<&str> = base.to_vec();
-                    full.push(idx.as_str());
-                    full.extend(suffix.iter().copied());
-                    session.path_exists(&full)
-                })
+                match session.root().get_path(base) {
+                    Some(Raw::List(items)) => (0..items.len()).any(|i| {
+                        let idx = i.to_string();
+                        let mut full: Vec<&str> = base.to_vec();
+                        full.push(idx.as_str());
+                        full.extend(suffix.iter().copied());
+                        session.path_exists(&full)
+                    }),
+                    // A 1-element list re-parses as a lone struct (list_or_single):
+                    // the element *is* the struct at `base`, so the field sits at
+                    // `base ++ suffix` with no index.
+                    Some(Raw::Struct(_)) => {
+                        let mut full: Vec<&str> = base.to_vec();
+                        full.extend(suffix.iter().copied());
+                        session.path_exists(&full)
+                    }
+                    _ => false,
+                }
             }
         }
     }
