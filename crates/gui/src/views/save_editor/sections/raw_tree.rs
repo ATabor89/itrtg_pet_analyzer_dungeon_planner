@@ -331,6 +331,10 @@ impl Walk<'_> {
     /// searching (so forced-open matches don't leak into the browse view when the
     /// search clears), and a generation-stamped browse namespace otherwise (so
     /// "Collapse all" resets everything by bumping the generation).
+    ///
+    /// While a search is active *all* containers use the transient namespace, so
+    /// any manual expand/collapse done mid-search (e.g. poking at a neighbor in
+    /// Reveal mode) is also discarded when the search clears — by design.
     fn header_salt(&self, path: &[String]) -> String {
         if self.mode == Mode::None {
             format!("{}\u{1f}{}", self.generation, path.join("."))
