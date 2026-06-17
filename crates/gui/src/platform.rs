@@ -147,6 +147,41 @@ fn local_storage_set(key: &str, value: &str) -> Result<(), String> {
 }
 
 // =============================================================================
+// File download (WASM) — trigger a browser "Save As" for generated text
+// =============================================================================
+
+/// Trigger a browser download of `contents` as `filename`. WASM only; on native
+/// the save editor writes via the `rfd` file dialog instead.
+#[cfg(target_arch = "wasm32")]
+pub fn download_text(filename: &str, contents: &str) -> Result<(), String> {
+    use wasm_bindgen::JsCast;
+
+    let document = web_sys::window()
+        .and_then(|w| w.document())
+        .ok_or("no document")?;
+
+    // Blob([contents]) → object URL → a temporary <a download> we click.
+    let parts = js_sys::Array::new();
+    parts.push(&wasm_bindgen::JsValue::from_str(contents));
+    let blob = web_sys::Blob::new_with_str_sequence(&parts).map_err(|_| "blob creation failed")?;
+    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(|_| "object URL failed")?;
+
+    let anchor = document
+        .create_element("a")
+        .map_err(|_| "anchor creation failed")?
+        .dyn_into::<web_sys::HtmlAnchorElement>()
+        .map_err(|_| "anchor cast failed")?;
+    anchor.set_href(&url);
+    anchor.set_download(filename);
+    // `click()` dispatches synchronously, so the browser has begun the download
+    // before we revoke the object URL on the same tick — safe, not premature.
+    anchor.click();
+
+    let _ = web_sys::Url::revoke_object_url(&url);
+    Ok(())
+}
+
+// =============================================================================
 // Platform queries
 // =============================================================================
 

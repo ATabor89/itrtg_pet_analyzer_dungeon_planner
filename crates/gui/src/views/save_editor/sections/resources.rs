@@ -29,7 +29,7 @@ pub fn show(
     ui.add_space(6.0);
 
     egui::Grid::new("resources_grid")
-        .num_columns(3)
+        .num_columns(2)
         .spacing([16.0, 6.0])
         .striped(true)
         .show(ui, |ui| {
@@ -37,8 +37,12 @@ pub fn show(
                 let key = field.path.join(".");
                 let current = session.value(field.path);
 
-                // Label column.
-                ui.label(RichText::new(field.name).color(style::TEXT_BRIGHT));
+                // Label column (with the help text as a hover tooltip).
+                let mut label = ui.label(RichText::new(field.name).color(style::TEXT_BRIGHT));
+                if let Some(help) = field.help {
+                    label = label.on_hover_text(help);
+                }
+                let _ = label;
 
                 // Editor column.
                 match current {
@@ -58,17 +62,18 @@ pub fn show(
                         ),
                     },
                 }
-
-                // Help / path column.
-                let hint = field.help.unwrap_or("");
-                ui.label(RichText::new(hint).color(style::TEXT_MUTED).size(11.0));
                 ui.end_row();
             }
         });
 }
 
+/// Uniform width for a resource input when it isn't being edited.
+const FIELD_WIDTH: f32 = 220.0;
+
 /// A validated text editor for a numeric/text scalar. Commits on focus-out when
-/// the value is valid (for `Number`, parseable); reverts otherwise.
+/// the value is valid (for `Number`, parseable); reverts otherwise. The box is a
+/// uniform width at rest and grows to fit the value while focused, so long
+/// values are fully visible when you're editing them.
 #[allow(clippy::too_many_arguments)]
 fn text_editor(
     ui: &mut egui::Ui,
@@ -79,9 +84,18 @@ fn text_editor(
     current: &str,
     buf: &mut String,
 ) {
+    let id = egui::Id::new(("save_editor_resource", path.join(".")));
+    let focused = ui.memory(|m| m.has_focus(id));
+    let width = if focused {
+        // ~8px per monospace char, clamped so it never gets absurd.
+        ((buf.chars().count() as f32 + 2.0) * 8.0).clamp(FIELD_WIDTH, 540.0)
+    } else {
+        FIELD_WIDTH
+    };
     let resp = ui.add(
         egui::TextEdit::singleline(buf)
-            .desired_width(200.0)
+            .id(id)
+            .desired_width(width)
             .font(egui::TextStyle::Monospace),
     );
 
