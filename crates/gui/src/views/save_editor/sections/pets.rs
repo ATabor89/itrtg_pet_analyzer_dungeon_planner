@@ -131,7 +131,8 @@ struct PetRow {
     class_id: u32,
     unlocked: bool,
     growth: f64,
-    /// Exact stored value strings, for precise edits (avoids f64 round-tripping).
+    /// The exact stored growth (`E`) string — used for display, the multiply
+    /// base, and the skip-compare, so none of them round-trip through f64.
     raw_growth: String,
     normal: u32,
     dungeon: u32,
@@ -191,21 +192,27 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PetEditState)
         );
         return;
     };
-    let rows: Vec<PetRow> = save
-        .pets
-        .iter()
-        .enumerate()
-        .map(|(index, p)| PetRow {
-            index,
-            name: p.name.clone(),
-            element: p.element,
-            class_id: p.class.map(class_id).unwrap_or(0),
-            unlocked: p.unlocked,
-            growth: p.growth,
-            raw_growth: format!("{}", p.growth),
-            normal: p.normal_level,
-            dungeon: p.dungeon_level,
-            class_lvl: p.class_level,
+    let rows: Vec<PetRow> = (0..save.pets.len())
+        .map(|index| {
+            let p = &save.pets[index];
+            // The exact stored growth string (not the round-tripped f64), so
+            // display and the skip-compare match the real `E` value.
+            let idx = index.to_string();
+            let raw_growth = session
+                .value(&["X", "b", &idx, "E"])
+                .unwrap_or_else(|| format!("{}", p.growth));
+            PetRow {
+                index,
+                name: p.name.clone(),
+                element: p.element,
+                class_id: p.class.map(class_id).unwrap_or(0),
+                unlocked: p.unlocked,
+                growth: p.growth,
+                raw_growth,
+                normal: p.normal_level,
+                dungeon: p.dungeon_level,
+                class_lvl: p.class_level,
+            }
         })
         .collect();
 
@@ -466,7 +473,7 @@ fn bulk_target(st: &PetEditState, row: &PetRow, field: Field) -> Option<String> 
         (OpKind::Add, _) => {
             let add = parse_u64(value)?;
             let cur = row.current(field).parse::<u64>().ok()?;
-            Some((cur + add).to_string())
+            cur.checked_add(add).map(|v| v.to_string())
         }
     }
 }
