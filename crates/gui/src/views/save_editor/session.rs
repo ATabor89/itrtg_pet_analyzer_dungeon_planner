@@ -97,6 +97,13 @@ impl EditSession {
         &self.root
     }
 
+    /// Whether `path` resolves to any node (scalar or container). Used to check
+    /// registry coverage, including block-level labels that aren't scalars.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn path_exists(&self, path: &[&str]) -> bool {
+        self.root.get_path(path).is_some()
+    }
+
     /// The current scalar text at `path`, or `None` if the path is absent, names
     /// a non-scalar, or is an empty field.
     pub fn value(&self, path: &[&str]) -> Option<String> {
