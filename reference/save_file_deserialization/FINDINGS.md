@@ -243,6 +243,8 @@ Kongregate save bought up one upgrade at a time, diffing each step (the bulk in
 | `p.B`, `p.U` | bool | **Improved Next At** (base, GP) + **Improved Next At For Challenges** — buying the for-challenges upgrade also grants the base one (player confirmed base reads as already-purchased on the GP page), so both flip together; which key is base vs for-challenges is TBD | **Confirmed** (F→T) |
 | `p.I` | currency | **Pet Tokens** (5→6 diff) | **Confirmed** |
 | `p.023` | currency | **Class Change Tokens** (8→10 diff) | **Confirmed** |
+| `p.K` | currency | **Lucky Draws** (unopened; 6→2→0 diff). *Opened* lifetime = `x.071`. | **Confirmed** |
+| `p.b` | consumable | **Godly Liquid** (regular; 0→1 when a draw gave one) | **Confirmed** |
 | `p.016` `p.030` `p.014` | — | unidentified, permanent | — |
 
 Plus **`X.032`** (count) = **Crafting Queue Slot** (0→1, cost 500k ✓) — outside

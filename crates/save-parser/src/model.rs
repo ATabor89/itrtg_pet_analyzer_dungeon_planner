@@ -52,6 +52,13 @@ pub struct SaveFile {
     /// the matching free-exp value in-game. (NB: `X.Y` ≠ `X.y`, which is pet
     /// stones.)
     pub free_experience: Option<u64>,
+    /// Unopened Lucky Draws (root `p.K`). Confirmed 2026-06-16 by a 3-save diff
+    /// (6 → 2 → 0 as the player used them). The *opened* lifetime count is the
+    /// separate tracker `x.071`.
+    pub lucky_draws: Option<u64>,
+    /// Godly Liquid (regular, root `p.b`) — the ×2-creating-speed consumable.
+    /// Confirmed 2026-06-16 by the same diff (0 → 1 when a draw yielded one).
+    pub godly_liquid: Option<u64>,
     /// Pet food counts (root `X.c`/`X.d`/`X.e`) and chocolate (root `X.v`).
     /// These are dedicated fields, not material-inventory entries. An absent
     /// field reads as 0.
@@ -899,6 +906,8 @@ impl SaveFile {
             pet_tokens: root.get_path(&["p", "I"]).and_then(Node::as_u64),
             class_change_tokens: root.get_path(&["p", "023"]).and_then(Node::as_u64),
             free_experience: root.get_path(&["X", "Y"]).and_then(Node::as_u64),
+            lucky_draws: root.get_path(&["p", "K"]).and_then(Node::as_u64),
+            godly_liquid: root.get_path(&["p", "b"]).and_then(Node::as_u64),
             puny_food: get_u64(x, "c"),
             strong_food: get_u64(x, "d"),
             mighty_food: get_u64(x, "e"),
