@@ -105,9 +105,10 @@ const fn def(
 /// The seed registry. Start with the high-confidence flat scalars from
 /// FINDINGS.md; grow this as sections are added.
 fn seed() -> Vec<FieldDef> {
-    use FieldKind::Number;
-    use SectionId::Resources;
+    use FieldKind::{Number, Text};
+    use SectionId::{RawTree, Resources};
     vec![
+        // -- Resources & currencies (the structured section) --
         // God-power block (root `p`).
         def(&["p", "j"], "Available God Power", Number, Resources, "Spendable GP (root p.j)"),
         def(&["p", "v"], "God Power Spent", Number, Resources, "Lifetime GP spent (p.v)"),
@@ -123,6 +124,29 @@ fn seed() -> Vec<FieldDef> {
         def(&["025", "a"], "Fish Power", Number, Resources, "025.a"),
         def(&["e", "a"], "Shadow Clones (current)", Number, Resources, "e.a"),
         def(&["e", "b"], "Shadow Clones (max)", Number, Resources, "e.b"),
+
+        // -- Tree labels only (not yet a structured section) --
+        // Top-level blocks: label the container so the tree is scannable.
+        def(&["X"], "Pets / Pet System", Text, RawTree, "All pets, equipment, materials, teams, campaigns"),
+        def(&["p"], "God Power", Text, RawTree, "God-power block"),
+        def(&["D"], "Monuments", Text, RawTree, "Mighty Statue … White Hole"),
+        def(&["V"], "Mights", Text, RawTree, "14 mights"),
+        def(&["i"], "Creations", Text, RawTree, "Shadow Clone … Universe"),
+        def(&["K"], "Divinity Generator", Text, RawTree, ""),
+        def(&["T"], "Baal Slayer", Text, RawTree, ""),
+        def(&["P"], "Current God Fight", Text, RawTree, ""),
+        def(&["e"], "Shadow Clones", Text, RawTree, ""),
+        def(&["025"], "Fishing", Text, RawTree, ""),
+        // Identity & meta (root scalars).
+        def(&["W"], "God Name", Text, RawTree, "In-game deity name (identity)"),
+        def(&["s"], "Account Login", Text, RawTree, "Linked Steam/Kongregate account (identity)"),
+        def(&["g"], "God Title", Text, RawTree, ""),
+        def(&["c"], "Saved (unix seconds)", Number, RawTree, ""),
+        def(&["005"], "Saved (unix ms)", Number, RawTree, ""),
+        def(&["001"], "Steam id64", Text, RawTree, "identity"),
+        def(&["002"], "Steam persona name", Text, RawTree, "identity"),
+        def(&["003"], "Account / guest id", Text, RawTree, "identity"),
+        def(&["004"], "Steam display name", Text, RawTree, "identity"),
     ]
 }
 
@@ -141,16 +165,17 @@ mod tests {
         EditSession::load(&raw, None).expect("reference save decodes")
     }
 
-    /// Every seeded path must resolve to a scalar in a real save — guards
-    /// against typo'd or stale paths, in the spirit of the planner's
-    /// `test_campaign_bonus_coverage`.
+    /// Every seeded path must resolve in a real save — guards against typo'd or
+    /// stale paths, in the spirit of the planner's `test_campaign_bonus_coverage`.
+    /// Uses `path_exists` (not `value`) so block-level container labels, which
+    /// aren't scalars, are covered too.
     #[test]
     fn every_registry_path_resolves() {
         let session = fixture_session();
         let registry = FieldRegistry::new();
         let mut missing = Vec::new();
         for field in &registry.fields {
-            if session.value(field.path).is_none() {
+            if !session.path_exists(field.path) {
                 missing.push(format!("{} ({})", field.path.join("."), field.name));
             }
         }
