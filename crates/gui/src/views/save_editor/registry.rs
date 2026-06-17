@@ -13,7 +13,7 @@
 
 use std::collections::HashMap;
 
-use save_parser::labels::{BLOCKS, BlockSchema};
+use save_parser::labels::{BLOCKS, BlockSchema, Resolve};
 
 /// Which editor section a field is surfaced in (also the left-nav identity).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -60,6 +60,10 @@ pub struct FieldDef {
     pub kind: FieldKind,
     pub section: SectionId,
     pub help: Option<&'static str>,
+    /// If this is an id scalar, how to resolve it to a name.
+    pub resolve: Option<Resolve>,
+    /// If this is an element container, `(child key, resolve)` for its title.
+    pub element_name: Option<(&'static str, Resolve)>,
 }
 
 /// The registry of known fields, indexed by pattern length for fast lookup.
@@ -124,6 +128,8 @@ fn def(
         kind,
         section,
         help: if help.is_empty() { None } else { Some(help) },
+        resolve: None,
+        element_name: None,
     }
 }
 
@@ -135,22 +141,34 @@ fn label(path: Vec<&'static str>, name: &'static str) -> FieldDef {
         kind: FieldKind::Text,
         section: SectionId::RawTree,
         help: None,
+        resolve: None,
+        element_name: None,
     }
 }
 
 /// Expand one model block into wildcard patterns: a label for the block
-/// container, one for each element, and one per labeled field.
+/// container, one for each element (carrying its name-resolution hint), and one
+/// per labeled field (carrying its id-resolution hint, if any).
 fn push_block(out: &mut Vec<FieldDef>, block: &BlockSchema) {
     let mut element: Vec<&'static str> = block.base.to_vec();
     out.push(label(element.clone(), block.plural)); // the block/list container
     if block.is_list {
         element.push("*"); // each element
-        out.push(label(element.clone(), block.name));
+        let mut el = label(element.clone(), block.name);
+        el.element_name = block.element_name.as_ref().map(|e| (e.key, e.resolve));
+        out.push(el);
+    } else if let Some(e) = &block.element_name {
+        // Single struct: attach the name hint to the block container itself.
+        if let Some(last) = out.last_mut() {
+            last.element_name = Some((e.key, e.resolve));
+        }
     }
     for fl in block.fields {
         let mut p = element.clone();
         p.extend(fl.key.split('.'));
-        out.push(label(p, fl.label));
+        let mut def = label(p, fl.label);
+        def.resolve = fl.resolve;
+        out.push(def);
     }
 }
 

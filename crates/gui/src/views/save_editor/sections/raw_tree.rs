@@ -20,11 +20,83 @@
 use std::collections::{HashMap, HashSet};
 
 use eframe::egui::{self, RichText};
+use itrtg_models::{Class, Element};
+use save_parser::labels::Resolve;
 use save_parser::raw::{Field, Raw};
+use save_parser::{items, model};
 
 use crate::style;
 use crate::views::save_editor::registry::FieldRegistry;
 use crate::views::save_editor::session::EditSession;
+
+/// Turn an id field's raw value into a human name, per its [`Resolve`] hint.
+/// `root` is the whole tree, needed to chase an equipment-instance id into `X.R`.
+fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
+    let v = value.trim();
+    match resolve {
+        Resolve::Literal => (!v.is_empty()).then(|| v.to_string()),
+        Resolve::Material => items::material_name(v.parse().ok()?).map(str::to_string),
+        Resolve::Equipment => items::equipment_type_name(v.parse().ok()?).map(str::to_string),
+        Resolve::Monument => items::monument_name(v.parse().ok()?).map(str::to_string),
+        Resolve::Might => items::might_name(v.parse().ok()?).map(str::to_string),
+        Resolve::Creation => items::creation_name(v.parse().ok()?).map(str::to_string),
+        Resolve::SpaceDim => items::spacedim_name(v.parse().ok()?).map(str::to_string),
+        Resolve::Research => model::research_name(v.parse().ok()?).map(str::to_string),
+        Resolve::Element => model::element_from_id(v.parse().ok()?).map(element_name),
+        Resolve::Class => model::class_from_id(v.parse().ok()?).map(class_name),
+        Resolve::EquipmentInstance => resolve_equipment_instance(v, root),
+    }
+}
+
+fn element_name(e: Element) -> String {
+    match e {
+        Element::Fire => "Fire",
+        Element::Water => "Water",
+        Element::Wind => "Wind",
+        Element::Earth => "Earth",
+        Element::Neutral => "Neutral",
+        Element::All => "All",
+    }
+    .to_string()
+}
+
+fn class_name(c: Class) -> String {
+    match c {
+        Class::Adventurer => "Adventurer",
+        Class::Blacksmith => "Blacksmith",
+        Class::Alchemist => "Alchemist",
+        Class::Defender => "Defender",
+        Class::Supporter => "Supporter",
+        Class::Rogue => "Rogue",
+        Class::Assassin => "Assassin",
+        Class::Mage => "Mage",
+        Class::Wildcard => "Wildcard",
+    }
+    .to_string()
+}
+
+/// Find the equipment instance with id `value` in `X.R` and name its type
+/// (with plus/quality when available), e.g. "Magic Stick +20 q8".
+fn resolve_equipment_instance(value: &str, root: &Raw) -> Option<String> {
+    let instance: u32 = value.parse().ok()?;
+    let Raw::List(list) = root.get_path(&["X", "R"])? else {
+        return None;
+    };
+    let item = list.iter().find(|it| scalar_u32(it, "d") == Some(instance))?;
+    let type_id = scalar_u32(item, "a")?;
+    let name = items::equipment_type_name(type_id).unwrap_or("Equipment");
+    match (scalar_u32(item, "b"), scalar_u32(item, "c")) {
+        (Some(plus), Some(quality)) => Some(format!("{name} +{plus} q{quality}")),
+        _ => Some(name.to_string()),
+    }
+}
+
+fn scalar_u32(node: &Raw, key: &str) -> Option<u32> {
+    match node.get(key) {
+        Some(Raw::Scalar(s)) => s.parse().ok(),
+        _ => None,
+    }
+}
 
 /// A staged edit gathered during the walk: (path, label, new value).
 type StagedEdit = (Vec<String>, String, String);
@@ -113,6 +185,7 @@ pub fn show(
     let mut edits: Vec<StagedEdit> = Vec::new();
     let mut scrolled = false;
     {
+        let root = session.root();
         let mut walk = Walk {
             registry,
             buffers,
@@ -123,9 +196,10 @@ pub fn show(
             want_scroll,
             scrolled: &mut scrolled,
             generation: *generation,
+            root,
         };
         let mut path: Vec<String> = Vec::new();
-        if let Raw::Struct(fields) = session.root().peel() {
+        if let Raw::Struct(fields) = root.peel() {
             for (key, field) in fields {
                 walk.render_field(ui, &mut path, key, field);
             }
@@ -245,6 +319,8 @@ struct Walk<'a> {
     /// Browse-mode id namespace generation; bumped by "Collapse all" so every
     /// container gets a fresh, default-collapsed id.
     generation: u64,
+    /// The whole tree, for cross-references (equipment-instance id → item).
+    root: &'a Raw,
 }
 
 impl Walk<'_> {
@@ -252,6 +328,25 @@ impl Walk<'_> {
     fn known_name(&self, path: &[String]) -> Option<&'static str> {
         let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
         self.registry.lookup(&p).map(|d| d.name)
+    }
+
+    /// Resolve a human title for an element container from one of its children
+    /// (a pet by its name, a monument by its id), if the schema says how.
+    fn element_label(&self, path: &[String], value: &Raw) -> Option<String> {
+        let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
+        let (key, resolve) = self.registry.lookup(&p)?.element_name?;
+        let child = match value.get(key)? {
+            Raw::Scalar(s) => s.as_str(),
+            _ => return None,
+        };
+        resolve_name(resolve, child, self.root)
+    }
+
+    /// If `path` names an id scalar, resolve its value to a name annotation.
+    fn scalar_annotation(&self, path: &[String], value: &str) -> Option<String> {
+        let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
+        let resolve = self.registry.lookup(&p)?.resolve?;
+        resolve_name(resolve, value, self.root)
     }
 
     /// Is this node a match or ancestor-of-match (from the pre-pass)?
@@ -289,8 +384,9 @@ impl Walk<'_> {
                     return;
                 }
                 let force_open = self.force_state(path);
+                let extra = self.element_label(path, value);
                 let summary = format!("{{{} fields}}", fields.len());
-                self.container(ui, path, &name, summary, force_open, |w, path, ui| {
+                self.container(ui, path, &name, extra, summary, force_open, |w, path, ui| {
                     for (k, f) in fields {
                         w.render_field(ui, path, k, f);
                     }
@@ -301,8 +397,9 @@ impl Walk<'_> {
                     return;
                 }
                 let force_open = self.force_state(path);
+                let extra = self.element_label(path, value);
                 let summary = format!("[{} items]", items.len());
-                self.container(ui, path, &name, summary, force_open, |w, path, ui| {
+                self.container(ui, path, &name, extra, summary, force_open, |w, path, ui| {
                     for (i, item) in items.iter().enumerate() {
                         path.push(i.to_string());
                         w.render_value(ui, path, NodeName::Index(i), item);
@@ -344,21 +441,28 @@ impl Walk<'_> {
     }
 
     /// A collapsing container header with a name label and a summary count.
+    #[allow(clippy::too_many_arguments)]
     fn container(
         &mut self,
         ui: &mut egui::Ui,
         path: &mut Vec<String>,
         name: &NodeName,
+        extra: Option<String>,
         summary: String,
         force_open: Option<bool>,
         build: impl FnOnce(&mut Walk, &mut Vec<String>, &mut egui::Ui),
     ) {
         let known = self.known_name(path);
-        let title = match known {
-            Some(n) => format!("{}  ·  {}   {}", n, name.display(), summary),
-            None => format!("{}   {}", name.display(), summary),
+        let title = match (&extra, known) {
+            // resolved name (e.g. "Robot") · type label · node · summary
+            (Some(e), Some(n)) => format!("{}  ·  {} {}   {}", e, n, name.display(), summary),
+            (Some(e), None) => format!("{}  ·  {}   {}", e, name.display(), summary),
+            (None, Some(n)) => format!("{}  ·  {}   {}", n, name.display(), summary),
+            (None, None) => format!("{}   {}", name.display(), summary),
         };
-        let color = if known.is_some() {
+        let color = if extra.is_some() {
+            style::TEXT_BRIGHT
+        } else if known.is_some() {
             style::ACCENT
         } else {
             style::TEXT_NORMAL
@@ -388,6 +492,7 @@ impl Walk<'_> {
         is_match: bool,
     ) {
         let known = self.known_name(path).map(|s| s.to_string());
+        let annotation = self.scalar_annotation(path, current);
         let key = path.join(".");
         let row = ui.horizontal(|ui| {
             match &known {
@@ -427,6 +532,9 @@ impl Walk<'_> {
                     // Mirror changes made elsewhere (structured sections, undo).
                     *buf = current.to_string();
                 }
+            }
+            if let Some(a) = &annotation {
+                ui.label(RichText::new(format!("→ {a}")).color(style::SUCCESS));
             }
             if is_match {
                 ui.label(RichText::new("◀").color(style::WARNING).small());
@@ -496,6 +604,44 @@ mod tests {
         assert!(m.contains("e"), "ancestor block marked");
         assert!(m.contains("e.a"), "leaf matched by its label");
         assert!(m.contains("e.b"));
+    }
+
+    #[test]
+    fn resolves_ids_to_names() {
+        let empty = Raw::Struct(vec![]);
+        // Class / element ids via the model tables.
+        assert_eq!(resolve_name(Resolve::Class, "8", &empty).as_deref(), Some("Mage"));
+        assert_eq!(resolve_name(Resolve::Element, "1", &empty).as_deref(), Some("Fire"));
+        // Monument id matches the items table (don't hardcode the name).
+        assert_eq!(
+            resolve_name(Resolve::Monument, "0", &empty),
+            save_parser::items::monument_name(0).map(str::to_string)
+        );
+        // A literal is returned as-is; an unknown id resolves to nothing.
+        assert_eq!(resolve_name(Resolve::Literal, "Robot", &empty).as_deref(), Some("Robot"));
+        assert!(resolve_name(Resolve::Material, "not-a-number", &empty).is_none());
+    }
+
+    #[test]
+    fn resolves_equipment_instance_across_the_tree() {
+        // A pet's weapon id (704) points at an equipment instance in X.R.
+        let root = Raw::Struct(vec![(
+            "X".into(),
+            Field::Value(Raw::Base64(Box::new(Raw::Struct(vec![(
+                "R".into(),
+                Field::Value(Raw::List(vec![Raw::Struct(vec![
+                    ("a".into(), scalar("51")),  // type id
+                    ("b".into(), scalar("20")),  // plus
+                    ("c".into(), scalar("8")),   // quality
+                    ("d".into(), scalar("704")), // instance id
+                ])])),
+            )])))),
+        )]);
+        let got = resolve_name(Resolve::EquipmentInstance, "704", &root).expect("resolves");
+        assert!(got.contains("+20"), "shows plus level: {got}");
+        assert!(got.contains("q8"), "shows quality: {got}");
+        // Unknown instance id → no annotation.
+        assert!(resolve_name(Resolve::EquipmentInstance, "999", &root).is_none());
     }
 
     /// A value/key match is included; unrelated siblings are not.
