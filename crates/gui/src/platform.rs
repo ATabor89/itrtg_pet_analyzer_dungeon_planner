@@ -173,6 +173,8 @@ pub fn download_text(filename: &str, contents: &str) -> Result<(), String> {
         .map_err(|_| "anchor cast failed")?;
     anchor.set_href(&url);
     anchor.set_download(filename);
+    // `click()` dispatches synchronously, so the browser has begun the download
+    // before we revoke the object URL on the same tick — safe, not premature.
     anchor.click();
 
     let _ = web_sys::Url::revoke_object_url(&url);
