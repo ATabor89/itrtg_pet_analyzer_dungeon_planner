@@ -32,7 +32,9 @@ fn usage() {
     eprintln!("  --material <id> <n> set/add a material-inventory count by item id (X.Q)");
     eprintln!("  --equip <pet-idx> <slot> <type> <plus> <quality>");
     eprintln!("                      add an equipment instance and equip it (slot: e/f/g)");
-    eprintln!("                      (list paths: index `X.Q.17.b` or selector `X.Q.a=117.b`)");
+    eprintln!("  --add-equip <type> <plus> <quality>");
+    eprintln!("                      add an equipment instance to inventory (unequipped)");
+    eprintln!("  list paths in <path>: index `X.Q.17.b` or selector `X.Q.a=117.b`");
 }
 
 fn main() -> ExitCode {
@@ -112,8 +114,30 @@ fn main() -> ExitCode {
                     eprintln!("--equip args invalid (slot must be e/f/g, others numeric)");
                     return ExitCode::FAILURE;
                 };
-                equips.push(EquipGrant { pet_index, slot: slot_ch, type_id, plus, quality });
+                equips.push(EquipGrant {
+                    pet_index: Some(pet_index),
+                    slot: Some(slot_ch),
+                    type_id,
+                    plus,
+                    quality,
+                });
                 i += 6;
+            }
+            "--add-equip" => {
+                let (Some(ty), Some(plus), Some(q)) =
+                    (args.get(i + 1), args.get(i + 2), args.get(i + 3))
+                else {
+                    eprintln!("--add-equip needs <type> <plus> <quality>");
+                    return ExitCode::FAILURE;
+                };
+                let (Ok(type_id), Ok(plus), Ok(quality)) =
+                    (ty.parse::<u32>(), plus.parse::<u32>(), q.parse::<u32>())
+                else {
+                    eprintln!("--add-equip args must be numeric");
+                    return ExitCode::FAILURE;
+                };
+                equips.push(EquipGrant { pet_index: None, slot: None, type_id, plus, quality });
+                i += 4;
             }
             other if other.starts_with("--") => {
                 eprintln!("unknown flag: {other}");

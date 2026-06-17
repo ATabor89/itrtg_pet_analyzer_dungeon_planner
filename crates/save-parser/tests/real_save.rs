@@ -1075,7 +1075,11 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
         &raw,
         &[],
         &[],
-        &[EquipGrant { pet_index: 0, slot: 'e', type_id: 51, plus: 20, quality: 8 }],
+        &[
+            EquipGrant { pet_index: Some(0), slot: Some('e'), type_id: 51, plus: 20, quality: 8 },
+            // Inventory-only: a Legendary Hammer (type 79) not equipped.
+            EquipGrant { pet_index: None, slot: None, type_id: 79, plus: 20, quality: 8 },
+        ],
     )
     .expect("equip grant");
     let m5 = save_parser::parse_save(&encoded5).unwrap();
@@ -1085,6 +1089,9 @@ fn save_edit_sets_gp_and_preserves_the_rest() {
     assert_eq!(inst.quality_name(), Some("SSS"));
     assert_eq!(inst.plus, 20);
     assert_eq!(applied5[0].path, "X.b.0.w.e");
+    // The unequipped Legendary Hammer instance exists in X.R but isn't on a pet.
+    assert!(m5.equipment.iter().any(|e| e.type_name() == Some("Legendary Hammer") && e.plus == 20));
+    assert!(applied5.iter().any(|a| a.path.starts_with("X.R.d=")));
 }
 
 #[test]
