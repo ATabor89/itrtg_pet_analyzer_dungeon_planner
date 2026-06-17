@@ -12,8 +12,10 @@
 //!
 //! **Keep this in step with `model.rs`:** when you identify a new field there,
 //! add a line here. The save-editor coverage test checks every key resolves on a
-//! real save, so a typo is caught, and a single entry labels every element of
-//! the block.
+//! real save (so a key that exists *nowhere* is caught), and a single entry
+//! labels every element of the block. It cannot catch a typo that happens to
+//! land on another real key in the same struct — for that, cross-check the key
+//! letters against `from_tree` in `model.rs`.
 
 /// One labeled field within a block element. `key` is the path *relative to the
 /// element*, dot-joined for nested structs (`"w.d.b"`).
