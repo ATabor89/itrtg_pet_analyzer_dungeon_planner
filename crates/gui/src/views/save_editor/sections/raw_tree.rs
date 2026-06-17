@@ -45,7 +45,26 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::Element => model::element_from_id(v.parse().ok()?).map(element_name),
         Resolve::Class => model::class_from_id(v.parse().ok()?).map(class_name),
         Resolve::EquipmentInstance => resolve_equipment_instance(v, root),
+        // Node-based: handled directly in `element_label`, never as a scalar.
+        Resolve::EquipmentNode => None,
     }
+}
+
+/// Format an equipment element struct as "Name Quality+Plus" (e.g.
+/// "Magic Stick SSS+20"); the +plus is omitted at +0.
+fn equip_label(node: &Raw) -> Option<String> {
+    let type_id = scalar_u32(node, "a")?;
+    let name = items::equipment_type_name(type_id).unwrap_or("Equipment");
+    let mut s = name.to_string();
+    if let Some(q) = scalar_u32(node, "c").and_then(items::quality_name) {
+        s.push(' ');
+        s.push_str(q);
+    }
+    match scalar_u32(node, "b") {
+        Some(plus) if plus > 0 => s.push_str(&format!("+{plus}")),
+        _ => {}
+    }
+    Some(s)
 }
 
 fn element_name(e: Element) -> String {
@@ -75,20 +94,25 @@ fn class_name(c: Class) -> String {
     .to_string()
 }
 
-/// Find the equipment instance with id `value` in `X.R` and name its type
-/// (with plus/quality when available), e.g. "Magic Stick +20 q8".
+/// Resolve a pet's equipment-slot id (`w.e`/`w.f`/`w.g`) to the item, e.g.
+/// "Magic Stick SSS+20". A slot value of 0 means **empty** (no annotation).
+///
+/// Matches on the **mirror** id (`h`) first, then the instance id (`d`): in
+/// practice `h` is the reliable unique id (a `d` of 0 shows up on many items in
+/// real saves), so matching `h` avoids resolving an empty slot to the wrong item.
 fn resolve_equipment_instance(value: &str, root: &Raw) -> Option<String> {
     let instance: u32 = value.parse().ok()?;
+    if instance == 0 {
+        return None; // 0 = empty slot
+    }
     let Raw::List(list) = root.get_path(&["X", "R"])? else {
         return None;
     };
-    let item = list.iter().find(|it| scalar_u32(it, "d") == Some(instance))?;
-    let type_id = scalar_u32(item, "a")?;
-    let name = items::equipment_type_name(type_id).unwrap_or("Equipment");
-    match (scalar_u32(item, "b"), scalar_u32(item, "c")) {
-        (Some(plus), Some(quality)) => Some(format!("{name} +{plus} q{quality}")),
-        _ => Some(name.to_string()),
-    }
+    let item = list
+        .iter()
+        .find(|it| scalar_u32(it, "h") == Some(instance))
+        .or_else(|| list.iter().find(|it| scalar_u32(it, "d") == Some(instance)))?;
+    equip_label(item)
 }
 
 fn scalar_u32(node: &Raw, key: &str) -> Option<u32> {
@@ -335,6 +359,10 @@ impl Walk<'_> {
     fn element_label(&self, path: &[String], value: &Raw) -> Option<String> {
         let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
         let (key, resolve) = self.registry.lookup(&p)?.element_name?;
+        // Node-based titles read the whole element, not a single child scalar.
+        if resolve == Resolve::EquipmentNode {
+            return equip_label(value);
+        }
         let child = match value.get(key)? {
             Raw::Scalar(s) => s.as_str(),
             _ => return None,
@@ -494,15 +522,20 @@ impl Walk<'_> {
         let known = self.known_name(path).map(|s| s.to_string());
         let annotation = self.scalar_annotation(path, current);
         let key = path.join(".");
+        let path_str = path.join(".");
+        let value_str = current.to_string();
         let row = ui.horizontal(|ui| {
-            match &known {
+            // The name/key label carries the copy menu — right-clicking the value
+            // box hits egui's own text context menu instead.
+            let label_resp = match &known {
                 Some(n) => {
-                    ui.label(RichText::new(n).color(style::ACCENT).strong());
-                    ui.label(
+                    let r1 = ui.label(RichText::new(n).color(style::ACCENT).strong());
+                    let r2 = ui.label(
                         RichText::new(format!("· {}", name.display()))
                             .color(style::TEXT_MUTED)
                             .monospace(),
                     );
+                    r1 | r2
                 }
                 None => {
                     let color = if is_match {
@@ -510,9 +543,21 @@ impl Walk<'_> {
                     } else {
                         style::TEXT_NORMAL
                     };
-                    ui.label(RichText::new(name.display()).color(color).monospace());
+                    ui.label(RichText::new(name.display()).color(color).monospace())
                 }
-            }
+            };
+            label_resp
+                .on_hover_text("Right-click to copy path / value")
+                .context_menu(|ui| {
+                    if ui.button("Copy path").clicked() {
+                        ui.ctx().copy_text(path_str.clone());
+                        ui.close_menu();
+                    }
+                    if ui.button("Copy value").clicked() {
+                        ui.ctx().copy_text(value_str.clone());
+                        ui.close_menu();
+                    }
+                });
 
             let mut newval: Option<String> = None;
             {
@@ -542,20 +587,6 @@ impl Walk<'_> {
             if let Some(v) = newval {
                 let label = known.unwrap_or_else(|| path.join("."));
                 self.edits.push((path.to_vec(), label, v));
-            }
-        });
-
-        // Right-click to copy the full path or value (no visual clutter).
-        let path_str = path.join(".");
-        let value = current.to_string();
-        row.response.context_menu(|ui| {
-            if ui.button("Copy path").clicked() {
-                ui.ctx().copy_text(path_str.clone());
-                ui.close_menu();
-            }
-            if ui.button("Copy value").clicked() {
-                ui.ctx().copy_text(value.clone());
-                ui.close_menu();
             }
         });
 
@@ -624,7 +655,8 @@ mod tests {
 
     #[test]
     fn resolves_equipment_instance_across_the_tree() {
-        // A pet's weapon id (704) points at an equipment instance in X.R.
+        // The mirror id (h) is the reliable unique one; `d` can be 0 on real
+        // saves. A slot value of 0 means empty.
         let root = Raw::Struct(vec![(
             "X".into(),
             Field::Value(Raw::Base64(Box::new(Raw::Struct(vec![(
@@ -632,15 +664,18 @@ mod tests {
                 Field::Value(Raw::List(vec![Raw::Struct(vec![
                     ("a".into(), scalar("51")),  // type id
                     ("b".into(), scalar("20")),  // plus
-                    ("c".into(), scalar("8")),   // quality
-                    ("d".into(), scalar("704")), // instance id
+                    ("c".into(), scalar("8")),   // quality (SSS)
+                    ("d".into(), scalar("0")),   // duplicated/zero instance id
+                    ("h".into(), scalar("858")), // unique mirror id
                 ])])),
             )])))),
         )]);
-        let got = resolve_name(Resolve::EquipmentInstance, "704", &root).expect("resolves");
-        assert!(got.contains("+20"), "shows plus level: {got}");
-        assert!(got.contains("q8"), "shows quality: {got}");
-        // Unknown instance id → no annotation.
+        let got = resolve_name(Resolve::EquipmentInstance, "858", &root).expect("via mirror");
+        assert!(got.contains("SSS"), "quality letter: {got}");
+        assert!(got.contains("+20"), "plus level: {got}");
+        assert!(!got.contains("q8"), "no raw quality id: {got}");
+        // 0 = empty slot → no annotation (even though an item has d==0).
+        assert!(resolve_name(Resolve::EquipmentInstance, "0", &root).is_none());
         assert!(resolve_name(Resolve::EquipmentInstance, "999", &root).is_none());
     }
 
