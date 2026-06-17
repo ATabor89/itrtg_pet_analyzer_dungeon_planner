@@ -101,6 +101,7 @@ is implemented; it isn't needed for that round trip.)
 | `x` | list of 8 **campaign slots** | `d` = `&`-joined pet ids (10 per slot), `e` = 43,200,000 ms = 12 h, `f` = total bonus, `c` = timestamp, `i` = RNG seed |
 | `y` | pet stones | 267,028 ✓ Main Stats |
 | `z` | **cumulative pet stones spent** | fresh-save diff: `y` −750,000 / `z` +750,000 when buying 2 Dungeon Loot + 1 Dungeon Exp (= 2·275k + 200k) ✓ |
+| `Y` (capital) | **free experience** — *candidate* | 30,855 (advanced save) vs 26 (fresh) — behaves like an accumulating pool; the player reported free exp = 26 on the fresh save. Best-guess, pending in-game confirmation (the other 26-valued scalars `root.e.g`=0-in-advanced and `032.b.j` fit worse). |
 | `P` | list of 3 **active dungeon runs** | `a` = dungeon id (2,3,5), `c` = 43,200,000 ms, `d` = depth-ish, seeds in `e`/`j` |
 | `Q` | list of 69 — **material inventory** (`a`=item id, `b`=count) | export-confirmed: 117=Ant 192,164 ✓, 159=Strategy Book 2,840 ✓, 166=Honey 787 ✓, 174=Acorn 24,727 ✓. Full id→name table (incl. the prior project's identifications: Herb/Iron Ore/…/Soul of Sylph) lives in `crates/save-parser/src/items.rs` |
 | `R` | list of 209 — **owned pet equipment** | see equipment struct |
@@ -551,7 +552,15 @@ save-edit <in> edited_save.txt --gp 999999999 --stones 999999999  # named target
 save-edit <in> edited_save.txt --set p.025 75                     # dotted path
 save-edit <in> edited_save.txt --set X.Q.a=117.b 99999           # material by id
 save-edit <in> edited_save.txt --mul X.b.a=Salamander.E 10       # 10× a pet's growth
+save-edit <in> edited_save.txt --material 2 400000               # add/set an X.Q stack
+save-edit <in> edited_save.txt --equip 65 e 51 20 8              # add+equip Magic Stick SSS+20 (weapon)
 ```
+
+`--material <id> <count>` upserts an `X.Q` inventory stack (adds it if absent;
+creates the list on a fresh account). `--equip <pet-idx> <slot e/f/g> <type>
+<plus> <quality>` creates a new `X.R` equipment instance (`{a:type,b:plus,
+c:quality,d/h:new id,e:20,f:0,g:0,i:0}`) and equips it in the pet's `w.<slot>`.
+Both build the list from an empty field if needed (`ensure_list`).
 
 Output goes to a NEW file (never in place; the bin refuses `in == out`), is
 self-verified (re-decoded and the edited paths re-read), and **must be named

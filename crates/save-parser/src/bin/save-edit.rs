@@ -20,7 +20,7 @@
 
 use std::process::ExitCode;
 
-use save_parser::edit::{edit_save, named_target, EditOp, MaterialGrant, ScalarEdit};
+use save_parser::edit::{edit_save, named_target, EditOp, EquipGrant, MaterialGrant, ScalarEdit};
 
 fn usage() {
     eprintln!("Usage: save-edit <in-save> <out-save> [--gp <n>] [--set <path> <value>] [--mul <path> <factor>]...");
@@ -30,6 +30,8 @@ fn usage() {
     eprintln!("  --set <path> <val>  set any scalar by dotted path, e.g. --set p.025 75");
     eprintln!("  --mul <path> <f>    multiply a numeric value, e.g. --mul X.b.a=Salamander.E 10");
     eprintln!("  --material <id> <n> set/add a material-inventory count by item id (X.Q)");
+    eprintln!("  --equip <pet-idx> <slot> <type> <plus> <quality>");
+    eprintln!("                      add an equipment instance and equip it (slot: e/f/g)");
     eprintln!("                      (list paths: index `X.Q.17.b` or selector `X.Q.a=117.b`)");
 }
 
@@ -41,6 +43,7 @@ fn main() -> ExitCode {
     let mut positionals: Vec<&str> = Vec::new();
     let mut edits: Vec<ScalarEdit> = Vec::new();
     let mut materials: Vec<MaterialGrant> = Vec::new();
+    let mut equips: Vec<EquipGrant> = Vec::new();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -88,6 +91,30 @@ fn main() -> ExitCode {
                 });
                 i += 3;
             }
+            "--equip" => {
+                let (Some(pet), Some(slot), Some(ty), Some(plus), Some(q)) = (
+                    args.get(i + 1),
+                    args.get(i + 2),
+                    args.get(i + 3),
+                    args.get(i + 4),
+                    args.get(i + 5),
+                ) else {
+                    eprintln!("--equip needs <pet-index> <slot> <type> <plus> <quality>");
+                    return ExitCode::FAILURE;
+                };
+                let (Ok(pet_index), Some(slot_ch), Ok(type_id), Ok(plus), Ok(quality)) = (
+                    pet.parse::<u32>(),
+                    slot.chars().next().filter(|c| "efg".contains(*c)),
+                    ty.parse::<u32>(),
+                    plus.parse::<u32>(),
+                    q.parse::<u32>(),
+                ) else {
+                    eprintln!("--equip args invalid (slot must be e/f/g, others numeric)");
+                    return ExitCode::FAILURE;
+                };
+                equips.push(EquipGrant { pet_index, slot: slot_ch, type_id, plus, quality });
+                i += 6;
+            }
             other if other.starts_with("--") => {
                 eprintln!("unknown flag: {other}");
                 usage();
@@ -108,7 +135,7 @@ fn main() -> ExitCode {
         }
     };
 
-    if edits.is_empty() && materials.is_empty() {
+    if edits.is_empty() && materials.is_empty() && equips.is_empty() {
         eprintln!("No edits requested (use --gp or --set).");
         usage();
         return ExitCode::FAILURE;
@@ -149,7 +176,7 @@ fn main() -> ExitCode {
         }
     };
 
-    let (encoded, applied) = match edit_save(&raw, &edits, &materials) {
+    let (encoded, applied) = match edit_save(&raw, &edits, &materials, &equips) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("Edit failed: {e:#}");

@@ -27,6 +27,25 @@ pub struct MaterialGrant {
     pub count: String,
 }
 
+/// Grant a piece of equipment to a pet: create a new instance in the `X.R`
+/// equipment list and equip it in the pet's chosen slot. Instance ids are
+/// allocated above the highest existing one. The new instance is built like the
+/// game's (`a` type, `b` plus, `c` quality, `d`/`h` instance id, `e=20` plus
+/// cap, `f`/`g` gem = 0, `i=0`).
+#[derive(Debug, Clone)]
+pub struct EquipGrant {
+    /// Index of the pet in `X.b`.
+    pub pet_index: u32,
+    /// Slot field on the pet's `w`: `e` weapon, `f` armor, `g` accessory.
+    pub slot: char,
+    /// Equipment type id (`a`), e.g. 51 = Magic Stick.
+    pub type_id: u32,
+    /// Plus level (`b`).
+    pub plus: u32,
+    /// Quality (`c`): 8 = SSS, 6 = S, 5 = A, …
+    pub quality: u32,
+}
+
 /// What to do to the scalar a [`ScalarEdit`] points at.
 #[derive(Debug, Clone)]
 pub enum EditOp {
@@ -76,6 +95,82 @@ fn peel_owned(r: raw::Raw) -> raw::Raw {
         raw::Raw::Base64(inner) => peel_owned(*inner),
         other => other,
     }
+}
+
+/// Borrow the `X.<key>` list, normalizing an empty field or a lone struct (a
+/// 1-element list with no `&` separator) into a real list first. Used for the
+/// material inventory (`Q`) and equipment (`R`).
+fn ensure_list<'a>(root: &'a mut raw::Raw, key: &str) -> Result<&'a mut Vec<raw::Raw>> {
+    let x = root.get_path_mut(&["X"]).context("save has no X block")?;
+    let raw::Raw::Struct(fields) = x else {
+        anyhow::bail!("X is not a struct");
+    };
+    let entry = fields
+        .iter_mut()
+        .find(|(k, _)| k == key)
+        .with_context(|| format!("X has no {key} field"))?;
+    match &mut entry.1 {
+        raw::Field::Value(raw::Raw::List(_)) => {}
+        f @ (raw::Field::EmptyColon | raw::Field::EmptyBare) => {
+            *f = raw::Field::Value(raw::Raw::List(Vec::new()));
+        }
+        raw::Field::Value(v) if matches!(v.peel(), raw::Raw::Struct(_)) => {
+            let only = std::mem::replace(v, raw::Raw::List(Vec::new()));
+            if let raw::Raw::List(items) = v {
+                items.push(peel_owned(only));
+            }
+        }
+        raw::Field::Value(_) => anyhow::bail!("X.{key} is present but not a list"),
+    }
+    match &mut entry.1 {
+        raw::Field::Value(raw::Raw::List(items)) => Ok(items),
+        _ => unreachable!("X.{key} normalized to a list above"),
+    }
+}
+
+/// A material-inventory element `{a:id, b:count}`.
+fn material_entry(id: &str, count: &str) -> raw::Raw {
+    let val = |s: &str| raw::Field::Value(raw::Raw::Scalar(s.to_string()));
+    raw::Raw::Struct(vec![("a".into(), val(id)), ("b".into(), val(count))])
+}
+
+/// An equipment instance shaped like the game's (see the `EquipmentItem` docs):
+/// `a` type, `b` plus, `c` quality, `d`/`h` instance id, `e=20` plus cap,
+/// `f`/`g` gem = 0, `i=0`.
+fn equip_instance(id: u32, eq: &EquipGrant) -> raw::Raw {
+    let val = |s: String| raw::Field::Value(raw::Raw::Scalar(s));
+    raw::Raw::Struct(vec![
+        ("a".into(), val(eq.type_id.to_string())),
+        ("b".into(), val(eq.plus.to_string())),
+        ("c".into(), val(eq.quality.to_string())),
+        ("d".into(), val(id.to_string())),
+        ("e".into(), val("20".into())),
+        ("f".into(), val("0".into())),
+        ("g".into(), val("0".into())),
+        ("h".into(), val(id.to_string())),
+        ("i".into(), val("0".into())),
+    ])
+}
+
+/// Highest equipment instance id (`d`) in `X.R`, or 0 if none. Tolerates an
+/// empty/absent `R`, a list, or a lone struct (1-element list).
+fn max_instance_id(root: &raw::Raw) -> u32 {
+    let Some(r) = root.get_path(&["X", "R"]) else {
+        return 0;
+    };
+    let elems: &[raw::Raw] = match r {
+        raw::Raw::List(items) => items,
+        raw::Raw::Struct(_) => std::slice::from_ref(r),
+        _ => return 0,
+    };
+    elems
+        .iter()
+        .filter_map(|e| match e.get("d") {
+            Some(raw::Raw::Scalar(s)) => s.parse::<u32>().ok(),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 /// Multiply a numeric save value (verbatim text) by `factor`, returning the new
@@ -129,44 +224,16 @@ pub fn edit_save(
     raw_save: &str,
     edits: &[ScalarEdit],
     materials: &[MaterialGrant],
+    equips: &[EquipGrant],
 ) -> Result<(String, Vec<AppliedEdit>)> {
     let decoded = container::decode_container(raw_save).context("decode save container")?;
     let mut root = raw::parse(&decoded.plaintext);
 
-    let mut applied = Vec::with_capacity(edits.len() + materials.len());
+    let mut applied = Vec::with_capacity(edits.len() + materials.len() + equips.len());
 
-    // Material grants: set-or-add an entry in the X.Q inventory list. On a
-    // fresh account X.Q can be an *empty field* (no list yet) — turn it into a
-    // list so the first grant has somewhere to go.
+    // Material grants: set-or-add an entry in the X.Q inventory list.
     for mat in materials {
-        let x = root.get_path_mut(&["X"]).context("save has no X block")?;
-        let raw::Raw::Struct(xfields) = x else {
-            anyhow::bail!("X is not a struct");
-        };
-        let q_field = &mut xfields
-            .iter_mut()
-            .find(|(k, _)| k == "Q")
-            .context("X has no Q (material inventory) field")?
-            .1;
-        match q_field {
-            raw::Field::Value(raw::Raw::List(_)) => {}
-            raw::Field::EmptyColon | raw::Field::EmptyBare => {
-                *q_field = raw::Field::Value(raw::Raw::List(Vec::new()));
-            }
-            // A lone struct is a 1-element list (no `&` separator); normalize it
-            // to a real list so the upsert can append.
-            raw::Field::Value(v) if matches!(v.peel(), raw::Raw::Struct(_)) => {
-                let only = std::mem::replace(v, raw::Raw::List(Vec::new()));
-                let elem = peel_owned(only);
-                if let raw::Raw::List(items) = v {
-                    items.push(elem);
-                }
-            }
-            raw::Field::Value(_) => anyhow::bail!("X.Q is present but not a list"),
-        }
-        let raw::Field::Value(raw::Raw::List(items)) = q_field else {
-            unreachable!("X.Q normalized to a list above");
-        };
+        let items = ensure_list(&mut root, "Q")?;
         let existing = items
             .iter()
             .position(|e| matches!(e.get("a"), Some(raw::Raw::Scalar(s)) if *s == mat.id));
@@ -177,10 +244,7 @@ pub fn edit_save(
                 prev
             }
             None => {
-                items.push(raw::Raw::Struct(vec![
-                    ("a".into(), raw::Field::Value(raw::Raw::Scalar(mat.id.clone()))),
-                    ("b".into(), raw::Field::Value(raw::Raw::Scalar(mat.count.clone()))),
-                ]));
+                items.push(material_entry(&mat.id, &mat.count));
                 "(absent)".into()
             }
         };
@@ -189,6 +253,29 @@ pub fn edit_save(
             old,
             new: mat.count.clone(),
         });
+    }
+
+    // Equipment grants: append a new instance to X.R and equip it on the pet.
+    if !equips.is_empty() {
+        let mut next_id = max_instance_id(&root) + 1;
+        for eq in equips {
+            // Append the instance to X.R (created if the slot list is empty).
+            let id = next_id;
+            next_id += 1;
+            ensure_list(&mut root, "R")?.push(equip_instance(id, eq));
+            // Equip it in the pet's slot.
+            let pet = eq.pet_index.to_string();
+            let slot = eq.slot.to_string();
+            let id_str = id.to_string();
+            let old = root
+                .set_scalar_path(&["X", "b", &pet, "w", &slot], &id_str)
+                .with_context(|| format!("equip pet {pet} slot {slot}"))?;
+            applied.push(AppliedEdit {
+                path: format!("X.b.{pet}.w.{slot}"),
+                old,
+                new: id_str,
+            });
+        }
     }
 
     for edit in edits {
@@ -276,6 +363,7 @@ mod tests {
             &save,
             &[],
             &[MaterialGrant { id: "5".into(), count: "400000".into() }],
+            &[],
         )
         .expect("single grant to empty X.Q should succeed");
         assert_eq!(applied[0].old, "(absent)");
