@@ -21,18 +21,24 @@ pub enum SectionId {
     #[default]
     Resources,
     Pets,
+    Equipment,
     RawTree,
 }
 
 impl SectionId {
     /// Sections shown in the left nav, in order.
-    pub const ALL: &'static [SectionId] =
-        &[SectionId::Resources, SectionId::Pets, SectionId::RawTree];
+    pub const ALL: &'static [SectionId] = &[
+        SectionId::Resources,
+        SectionId::Pets,
+        SectionId::Equipment,
+        SectionId::RawTree,
+    ];
 
     pub fn title(self) -> &'static str {
         match self {
             SectionId::Resources => "Resources & Currencies",
             SectionId::Pets => "Pets",
+            SectionId::Equipment => "Equipment",
             SectionId::RawTree => "Raw Save Tree",
         }
     }

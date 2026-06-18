@@ -21,7 +21,7 @@ use eframe::egui::{self, RichText};
 use crate::style;
 use registry::{FieldRegistry, SectionId};
 use session::EditSession;
-use sections::{pets, raw_tree, resources};
+use sections::{equipment, pets, raw_tree, resources};
 
 #[derive(Default)]
 pub struct SaveEditorState {
@@ -37,6 +37,7 @@ pub struct SaveEditorState {
     /// Browse-mode collapsing-id generation; "Collapse all" bumps it.
     tree_generation: u64,
     pets: pets::PetEditState,
+    equipment: equipment::EquipEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -100,6 +101,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         tree_scrolled_query,
         tree_generation,
         pets: pet_state,
+        equipment: equip_state,
         buffers,
         ..
     } = state;
@@ -133,6 +135,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                 .show(ui, |ui| match *current {
                     SectionId::Resources => resources::show(ui, session, registry, buffers),
                     SectionId::Pets => pets::show(ui, session, pet_state),
+                    SectionId::Equipment => equipment::show(ui, session, equip_state),
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,
