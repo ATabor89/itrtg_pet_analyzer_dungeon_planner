@@ -123,6 +123,10 @@ pub struct SaveFile {
     pub anni_cake_bonus_percent: Option<f64>,
     /// Adventure-mode researches (root `032.H.a`), in id order.
     pub researches: Vec<Research>,
+    /// Adventure-mode inventory (root `032.d`), in save order.
+    pub adventure_inventory: Vec<AdventureItem>,
+    /// Adventure-mode cores (root `032.G`), in save order.
+    pub cores: Vec<Core>,
     /// Creations (root `i`), in id order.
     pub creations: Vec<Creation>,
     /// Monuments (root `D`), in id order.
@@ -277,6 +281,52 @@ impl MaterialStack {
     /// Display name from the known id table, if this id has been identified.
     pub fn name(&self) -> Option<&'static str> {
         crate::items::material_name(self.item_id)
+    }
+}
+
+/// One Adventure-mode inventory stack (`032.d[i]`): `a` = item id, `b` = count.
+/// A separate id namespace from the main `X.Q` materials. (`c`/`d` are 0 in
+/// every observed entry — unidentified.)
+#[derive(Debug, Clone, Copy)]
+pub struct AdventureItem {
+    pub item_id: u32,
+    pub count: u64,
+}
+
+impl AdventureItem {
+    /// Display name from the adventure-item id table, if identified.
+    pub fn name(&self) -> Option<&'static str> {
+        crate::items::adventure_item_name(self.item_id)
+    }
+}
+
+/// One Adventure-mode **core** (`032.G[i]`). A core is identified by the enemy
+/// that drops it plus a quality, e.g. "Slime SSS". Player-decoded 2026-06-18:
+/// `a` = enemy id, `c` = count, `d` = quality on the **same 0–8 F→SSS ladder as
+/// equipment** (verified entry-by-entry against the in-game core list). `b` was
+/// 1 in every observed entry — unidentified, kept in [`Self::raw`].
+#[derive(Debug, Clone)]
+pub struct Core {
+    /// Enemy id (`a`) — resolve with [`crate::items::adventure_enemy_name`].
+    pub enemy_id: u32,
+    /// Number of these cores held (`c`).
+    pub count: u64,
+    /// Quality (`d`), same ids as equipment: 0=F … 8=SSS
+    /// ([`crate::items::quality_name`]).
+    pub quality: u32,
+    /// The raw node, for the unidentified `b` field.
+    pub raw: Node,
+}
+
+impl Core {
+    /// Enemy name (e.g. "Slime"), if the id is recognized.
+    pub fn enemy_name(&self) -> Option<&'static str> {
+        crate::items::adventure_enemy_name(self.enemy_id)
+    }
+
+    /// Quality letter (F … SSS), if recognized.
+    pub fn quality_name(&self) -> Option<&'static str> {
+        crate::items::quality_name(self.quality)
     }
 }
 
@@ -924,6 +974,34 @@ impl SaveFile {
             })
             .unwrap_or_default();
 
+        let adventure_inventory = root
+            .get_path(&["032", "d"])
+            .map(|l| {
+                l.list_or_single()
+                    .iter()
+                    .map(|n| AdventureItem {
+                        item_id: get_u32(n, "a"),
+                        count: get_u64(n, "b"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let cores = root
+            .get_path(&["032", "G"])
+            .map(|l| {
+                l.list_or_single()
+                    .iter()
+                    .map(|n| Core {
+                        enemy_id: get_u32(n, "a"),
+                        count: get_u64(n, "c"),
+                        quality: get_u32(n, "d"),
+                        raw: n.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         let creations = root
             .get("i")
             .map(|l| {
@@ -1091,6 +1169,8 @@ impl SaveFile {
             earth_eater_planets_rebirth: root.get("018").and_then(Node::as_u64),
             anni_cake_bonus_percent: root.get("033").and_then(Node::as_f64),
             researches,
+            adventure_inventory,
+            cores,
             creations,
             monuments,
             mights,

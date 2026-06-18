@@ -49,13 +49,28 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::DivinityUpgrade => {
             items::divinity_upgrade_name(v.parse().ok()?).map(str::to_string)
         }
+        Resolve::AdventureItem => items::adventure_item_name(v.parse().ok()?).map(str::to_string),
+        Resolve::AdventureEnemy => items::adventure_enemy_name(v.parse().ok()?).map(str::to_string),
         Resolve::Research => model::research_name(v.parse().ok()?).map(str::to_string),
         Resolve::Element => model::element_from_id(v.parse().ok()?).map(element_name),
         Resolve::Class => model::class_from_id(v.parse().ok()?).map(class_name),
         Resolve::EquipmentInstance => resolve_equipment_instance(v, root),
         // Node-based: handled directly in `element_label`, never as a scalar.
-        Resolve::EquipmentNode => None,
+        Resolve::EquipmentNode | Resolve::CoreNode => None,
     }
+}
+
+/// Format a core element struct as "Enemy Quality" (e.g. "Slime SSS"); falls
+/// back to "Core" / omits the quality when an id is unknown.
+fn core_label(node: &Raw) -> Option<String> {
+    let enemy_id = scalar_u32(node, "a")?;
+    let name = items::adventure_enemy_name(enemy_id).unwrap_or("Core");
+    let mut s = name.to_string();
+    if let Some(q) = scalar_u32(node, "d").and_then(items::quality_name) {
+        s.push(' ');
+        s.push_str(q);
+    }
+    Some(s)
 }
 
 /// Format an equipment element struct as "Name Quality+Plus" (e.g.
@@ -371,6 +386,9 @@ impl Walk<'_> {
         if resolve == Resolve::EquipmentNode {
             return equip_label(value);
         }
+        if resolve == Resolve::CoreNode {
+            return core_label(value);
+        }
         let child = match value.get(key)? {
             Raw::Scalar(s) => s.as_str(),
             _ => return None,
@@ -665,6 +683,21 @@ mod tests {
             resolve_name(Resolve::Skill, "0", &empty),
             save_parser::items::skill_name(0).map(str::to_string)
         );
+        // Adventure item / core-enemy ids (separate namespaces).
+        assert_eq!(
+            resolve_name(Resolve::AdventureItem, "3", &empty),
+            save_parser::items::adventure_item_name(3).map(str::to_string)
+        );
+        assert_eq!(
+            resolve_name(Resolve::AdventureEnemy, "50", &empty),
+            save_parser::items::adventure_enemy_name(50).map(str::to_string)
+        );
+        // A core element struct titles as "Enemy Quality".
+        let core = Raw::Struct(vec![
+            ("a".into(), scalar("50")), // Slime
+            ("d".into(), scalar("8")),  // SSS
+        ]);
+        assert_eq!(core_label(&core).as_deref(), Some("Slime SSS"));
         assert_eq!(
             resolve_name(Resolve::Monster, "33", &empty),
             save_parser::items::monster_name(33).map(str::to_string)
