@@ -21,7 +21,7 @@ use eframe::egui::{self, RichText};
 use crate::style;
 use registry::{FieldRegistry, SectionId};
 use session::EditSession;
-use sections::{equipment, inventory, pets, raw_tree, resources};
+use sections::{equipment, gems, inventory, pets, raw_tree, resources};
 
 #[derive(Default)]
 pub struct SaveEditorState {
@@ -39,6 +39,7 @@ pub struct SaveEditorState {
     pets: pets::PetEditState,
     equipment: equipment::EquipEditState,
     inventory: inventory::InventoryEditState,
+    gems: gems::GemEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -104,6 +105,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         pets: pet_state,
         equipment: equip_state,
         inventory: inv_state,
+        gems: gem_state,
         buffers,
         ..
     } = state;
@@ -139,6 +141,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     SectionId::Pets => pets::show(ui, session, pet_state),
                     SectionId::Equipment => equipment::show(ui, session, equip_state),
                     SectionId::Inventory => inventory::show(ui, session, inv_state),
+                    SectionId::Gems => gems::show(ui, session, gem_state),
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,
@@ -293,6 +296,7 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
             let mut undo: Option<usize> = None;
             let mut undo_added: Option<usize> = None;
             let mut undo_added_material: Option<usize> = None;
+            let mut undo_added_gem: Option<usize> = None;
             // Cap the height so a huge batch doesn't run off-screen — scroll within.
             egui::ScrollArea::vertical()
                 .max_height(240.0)
@@ -381,6 +385,26 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
                                 }
                             });
                     }
+
+                    if !session.added_gems().is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("Added gems").color(style::TEXT_MUTED).size(11.0));
+                        egui::Grid::new("save_editor_added_gem_grid")
+                            .num_columns(2)
+                            .spacing([12.0, 4.0])
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for (i, g) in session.added_gems().iter().enumerate() {
+                                    ui.label(
+                                        RichText::new(format!("+ {}", g.label)).color(style::SUCCESS),
+                                    );
+                                    if ui.small_button("undo").clicked() {
+                                        undo_added_gem = Some(i);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    }
                 });
             if let Some(i) = undo {
                 let _ = session.undo(i);
@@ -390,6 +414,9 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
             }
             if let Some(i) = undo_added_material {
                 session.undo_added_material(i);
+            }
+            if let Some(i) = undo_added_gem {
+                session.undo_added_gem(i);
             }
         });
 }

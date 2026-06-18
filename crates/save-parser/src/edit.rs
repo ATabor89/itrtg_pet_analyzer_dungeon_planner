@@ -102,7 +102,7 @@ fn peel_owned(r: raw::Raw) -> raw::Raw {
 /// Borrow the `X.<key>` list, normalizing an empty field or a lone struct (a
 /// 1-element list with no `&` separator) into a real list first. Used for the
 /// material inventory (`Q`) and equipment (`R`).
-fn ensure_list<'a>(root: &'a mut raw::Raw, key: &str) -> Result<&'a mut Vec<raw::Raw>> {
+pub fn ensure_list<'a>(root: &'a mut raw::Raw, key: &str) -> Result<&'a mut Vec<raw::Raw>> {
     let x = root.get_path_mut(&["X"]).context("save has no X block")?;
     let raw::Raw::Struct(fields) = x else {
         anyhow::bail!("X is not a struct");
@@ -135,6 +135,20 @@ fn ensure_list<'a>(root: &'a mut raw::Raw, key: &str) -> Result<&'a mut Vec<raw:
 /// (the GUI inventory editor upserts: edit the existing stack, else append).
 pub fn add_material(root: &mut raw::Raw, item_id: u32, count: &str) -> Result<()> {
     ensure_list(root, "Q")?.push(material_entry(&item_id.to_string(), count));
+    Ok(())
+}
+
+/// Append a new gem stack `{a:element, b:level, c:count}` to `X.002` (creating
+/// the list if absent). The caller checks the (element, level) isn't already
+/// present (the GUI gem editor upserts).
+pub fn add_gem(root: &mut raw::Raw, element: u32, level: u32, count: &str) -> Result<()> {
+    let val = |s: String| raw::Field::Value(raw::Raw::Scalar(s));
+    let stack = raw::Raw::Struct(vec![
+        ("a".into(), val(element.to_string())),
+        ("b".into(), val(level.to_string())),
+        ("c".into(), val(count.to_string())),
+    ]);
+    ensure_list(root, "002")?.push(stack);
     Ok(())
 }
 
