@@ -131,10 +131,13 @@ pub struct SaveFile {
     pub mights: Vec<Might>,
     /// SpaceDim / Light-Dimension elements (root `009.b`), in display order.
     pub spacedim: Vec<SpaceDimElement>,
-    /// Physical training skills (root `h`), in display order.
-    pub physical_skills: Vec<TrainingSkill>,
-    /// Mystic training skills (root `j`), in display order.
-    pub mystic_skills: Vec<TrainingSkill>,
+    /// Physical conditioning exercises (root `h`), in display order — these
+    /// raise the Physical stat and have no usage count of their own.
+    pub physical_trainings: Vec<TrainingEntry>,
+    /// Skills (root `j`), in display order — these raise the Mystic stat and
+    /// carry the "Special"-menu usage count that drives both their own and the
+    /// index-matched Physical's training cap.
+    pub skills: Vec<TrainingEntry>,
     /// Monsters fought for Battle/Divinity (root `k`), in display order.
     pub monsters: Vec<Monster>,
     /// Divinity Generator (root `K`): the running divinity total and its
@@ -398,34 +401,48 @@ impl SpaceDimElement {
     }
 }
 
-/// One training skill — Physical (root `h`) or Mystic (root `j`). Both blocks
-/// share the same struct shape; resolve the name with
-/// [`crate::items::physical_skill_name`] / [`crate::items::mystic_skill_name`]
-/// (the id `a` is the 0-based list position = the screen order).
+/// One training entry — a Physical conditioning exercise (root `h`) or a Skill
+/// (root `j`). Both blocks share the same struct shape; resolve the name with
+/// [`crate::items::physical_training_name`] / [`crate::items::skill_name`] (the
+/// id `a` is the 0-based list position = the screen order).
 ///
 /// `level` (`b`) and `clones` (`c`) were player-confirmed 2026-06-18 by taking
-/// clones off some Physical skills while leaving Mystic synced and watching both
-/// fields diverge as expected. The byte-identical `b` between Physical[i] and
-/// Mystic[i] in a fully-reduced Steam save is the in-game "Sync" toggle keeping
-/// clone counts (and thus levels) equal, not a shared value. The `d` field (0 in
-/// every observed entry) and the Mystic-only `e` sub-struct stay in [`Self::raw`]
-/// pending identification.
+/// clones off some Physicals while leaving the synced Skills alone and watching
+/// both fields diverge as expected. The byte-identical `b` between Physical[i]
+/// and Skill[i] in a fully-reduced Steam save is the in-game "Sync" toggle
+/// keeping clone counts (and thus levels) equal, not a shared value.
+///
+/// Only **Skills** carry the `e` sub-struct (the Physical side has none): `e.a`
+/// is the skill id again and `e.b` is the [`usage_count`](Self::usage_count).
+/// The game derives the training **cap** (clones needed to max training speed)
+/// from that usage count, and applies it to *both* the Skill and the
+/// index-matched Physical — which is why the data lives only on the Skills side.
+/// The `d` field (0 in every observed entry) and `e.c` (a small stable int) stay
+/// in [`Self::raw`] pending identification.
 #[derive(Debug, Clone)]
-pub struct TrainingSkill {
-    /// Skill id / list position (`a`).
+pub struct TrainingEntry {
+    /// Skill / training id = list position (`a`).
     pub id: u32,
     /// Current level (`b`).
     pub level: u64,
-    /// Clones allocated to this skill (`c`). All `1` on a fully-reduced Steam
+    /// Clones allocated to this entry (`c`). All `1` on a fully-reduced Steam
     /// save (training caps drop to a single clone over time); a Kongregate save
-    /// shows the real per-skill spread.
+    /// shows the real per-entry spread.
     pub clones: u32,
-    /// The raw node, for the unidentified `d` field (and the Mystic `e` struct).
+    /// "Special"-menu usage count (`e.b`) — how many times the Skill has been
+    /// used (auto-trains ~1/min; manual fights add more). Drives the training
+    /// cap for this Skill *and* the index-matched Physical. `None` on Physical
+    /// entries, which have no `e` sub-struct. Player-confirmed 2026-06-18 by
+    /// copying one save's `e.b` onto a fresh save and watching both the Skill's
+    /// and the matching Physical's caps drop to 1 clone, matching the in-game
+    /// "Usage Count" tooltip.
+    pub usage_count: Option<u64>,
+    /// The raw node, for the unidentified `d` field (and `e.c` on Skills).
     pub raw: Node,
 }
 
 /// One monster fought to generate Battle and Divinity (root `k`). Same outer
-/// shape as [`TrainingSkill`]; resolve the name with
+/// shape as [`TrainingEntry`]; resolve the name with
 /// [`crate::items::monster_name`] (`a` is the 0-based list position).
 #[derive(Debug, Clone)]
 pub struct Monster {
@@ -926,23 +943,24 @@ impl SaveFile {
             })
             .unwrap_or_default();
 
-        let parse_skills = |key: &str| {
+        let parse_trainings = |key: &str| {
             root.get(key)
                 .map(|l| {
                     l.list_or_single()
                         .iter()
-                        .map(|n| TrainingSkill {
+                        .map(|n| TrainingEntry {
                             id: get_u32(n, "a"),
                             level: get_u64(n, "b"),
                             clones: get_u32(n, "c"),
+                            usage_count: n.get("e").and_then(|e| e.get("b")).and_then(Node::as_u64),
                             raw: n.clone(),
                         })
                         .collect()
                 })
                 .unwrap_or_default()
         };
-        let physical_skills = parse_skills("h");
-        let mystic_skills = parse_skills("j");
+        let physical_trainings = parse_trainings("h");
+        let skills = parse_trainings("j");
 
         let monsters = root
             .get("k")
@@ -1022,8 +1040,8 @@ impl SaveFile {
             monuments,
             mights,
             spacedim,
-            physical_skills,
-            mystic_skills,
+            physical_trainings,
+            skills,
             monsters,
             divinity_generator,
             baal_power: root.get_path(&["T", "h"]).and_then(Node::as_u64),
