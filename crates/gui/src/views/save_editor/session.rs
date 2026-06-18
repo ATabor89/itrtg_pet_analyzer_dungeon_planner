@@ -11,6 +11,7 @@
 
 use anyhow::{Context, Result, bail};
 use save_parser::container::{self, ContainerFormat};
+use save_parser::edit;
 use save_parser::model::SaveFile;
 use save_parser::raw::{self, Raw};
 use save_parser::redact;
@@ -31,6 +32,20 @@ pub struct PendingEdit {
     pub new: String,
 }
 
+/// A newly-created equipment instance (not representable as a scalar edit, since
+/// it appends a list element to `X.R`). Tracked alongside [`PendingEdit`] so it
+/// shows in the pending panel and can be undone.
+#[derive(Clone)]
+pub struct AddedEquip {
+    /// The assigned instance id (its `d`/`h`).
+    pub instance_id: u32,
+    /// Human label, e.g. "Magic Stick SSS+20".
+    pub label: String,
+    /// If equipped on creation: the pet slot path it set and that slot's original
+    /// value (to restore on undo).
+    pub slot: Option<(Vec<String>, String)>,
+}
+
 /// A loaded save plus all in-progress edits.
 pub struct EditSession {
     /// File name the save was loaded from, for display.
@@ -46,6 +61,8 @@ pub struct EditSession {
     /// the typed model can't fully parse is still editable.
     derived: Option<SaveFile>,
     pending: Vec<PendingEdit>,
+    /// Equipment instances created this session (see [`AddedEquip`]).
+    added: Vec<AddedEquip>,
     /// Set when an edit invalidates `derived`; cleared by `rederive_if_needed`.
     dirty_derived: bool,
 }
@@ -65,6 +82,7 @@ impl EditSession {
             root,
             derived,
             pending: Vec::new(),
+            added: Vec::new(),
             dirty_derived: false,
         })
     }
@@ -87,8 +105,76 @@ impl EditSession {
         &self.pending
     }
 
+    /// Equipment instances created this session.
+    pub fn added(&self) -> &[AddedEquip] {
+        &self.added
+    }
+
     pub fn is_dirty(&self) -> bool {
-        !self.pending.is_empty()
+        !self.pending.is_empty() || !self.added.is_empty()
+    }
+
+    /// Total staged changes (scalar edits + created equipment).
+    pub fn change_count(&self) -> usize {
+        self.pending.len() + self.added.len()
+    }
+
+    /// Create a new equipment instance (appended to `X.R`), optionally equipping
+    /// it on a pet slot. Returns the assigned instance id. Tracked in [`added`]
+    /// for the pending panel / undo.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_equipment(
+        &mut self,
+        type_id: u32,
+        plus: u32,
+        quality: u32,
+        gem_level: u32,
+        gem_element: u32,
+        label: impl Into<String>,
+        equip: Option<(usize, &str)>,
+    ) -> Result<u32> {
+        let id =
+            edit::add_equip_instance(&mut self.root, type_id, plus, quality, gem_level, gem_element)?;
+        let slot = match equip {
+            Some((pet, slot_key)) => {
+                let pet = pet.to_string();
+                let path = vec!["X".to_string(), "b".to_string(), pet, "w".to_string(), slot_key.to_string()];
+                let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
+                let original = self.root.set_scalar_path(&p, &id.to_string())?;
+                Some((path, original))
+            }
+            None => None,
+        };
+        self.added.push(AddedEquip {
+            instance_id: id,
+            label: label.into(),
+            slot,
+        });
+        self.dirty_derived = true;
+        Ok(id)
+    }
+
+    /// Undo a created equipment instance (by index into [`added`]): remove its
+    /// `X.R` element and restore any slot it was equipped into.
+    pub fn undo_added(&mut self, index: usize) {
+        let Some(entry) = self.added.get(index).cloned() else {
+            return;
+        };
+        // Restore the pet slot first (if equipped).
+        if let Some((path, original)) = &entry.slot {
+            let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
+            let _ = self.root.set_scalar_path(&p, original);
+        }
+        // Remove the X.R element whose mirror id `h` matches.
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["X", "R"])
+            && let Some(pos) = items.iter().position(|it| {
+                matches!(it.get("h"), Some(Raw::Scalar(s)) if s.parse::<u32>().ok() == Some(entry.instance_id))
+            })
+        {
+            items.remove(pos);
+        }
+        self.added.remove(index);
+        self.dirty_derived = true;
     }
 
     /// The canonical tree, for read-only traversal (the raw tree navigator).
@@ -240,6 +326,15 @@ impl EditSession {
                 );
             }
         }
+        // Each created instance must be present in the re-decoded X.R.
+        for a in &self.added {
+            let present = matches!(root.get_path(&["X", "R"]), Some(Raw::List(items))
+                if items.iter().any(|it| matches!(it.get("h"),
+                    Some(Raw::Scalar(s)) if s.parse::<u32>().ok() == Some(a.instance_id))));
+            if !present {
+                bail!("validation failed: created item #{} missing after round-trip", a.instance_id);
+            }
+        }
         Ok(())
     }
 }
@@ -283,6 +378,71 @@ mod tests {
 
     fn encoded(root: &Raw) -> String {
         encode_container(&root.serialize(), "V2")
+    }
+
+    fn sc(s: &str) -> Field {
+        Field::Value(Raw::Scalar(s.into()))
+    }
+    fn b64(r: Raw) -> Field {
+        Field::Value(Raw::Base64(Box::new(r)))
+    }
+    /// An equipment instance with id `d` (mirrored in `h`).
+    fn instance(d: &str) -> Raw {
+        Raw::Struct(vec![("a".into(), sc("51")), ("d".into(), sc(d)), ("h".into(), sc(d))])
+    }
+    /// A pet whose weapon slot `w.e` holds `e`.
+    fn pet(e: &str) -> Raw {
+        Raw::Struct(vec![(
+            "w".into(),
+            b64(Raw::Struct(vec![
+                ("e".into(), sc(e)),
+                ("f".into(), sc("0")),
+                ("g".into(), sc("0")),
+            ])),
+        )])
+    }
+    /// A root with X.R (two instances, d=5,8) and X.b (two pets) — two elements
+    /// each so the lists don't collapse to a lone struct.
+    fn equip_root() -> Raw {
+        let x = Raw::Struct(vec![
+            ("R".into(), Field::Value(Raw::List(vec![instance("5"), instance("8")]))),
+            ("b".into(), Field::Value(Raw::List(vec![pet("0"), pet("0")]))),
+        ]);
+        Raw::Struct(vec![("X".into(), b64(x))])
+    }
+
+    #[test]
+    fn add_equipment_appends_with_fresh_id_and_undoes() {
+        let mut s = EditSession::load(&encoded(&equip_root()), None).unwrap();
+        let id = s.add_equipment(51, 20, 8, 3, 1, "Magic Stick SSS+20", None).unwrap();
+        assert_eq!(id, 9); // max d (8) + 1
+        assert_eq!(s.added().len(), 1);
+        assert!(s.is_dirty());
+        // New element at X.R[2] with the gem fields.
+        assert_eq!(s.value(&["X", "R", "2", "a"]).as_deref(), Some("51"));
+        assert_eq!(s.value(&["X", "R", "2", "h"]).as_deref(), Some("9"));
+        assert_eq!(s.value(&["X", "R", "2", "f"]).as_deref(), Some("3"));
+        assert_eq!(s.value(&["X", "R", "2", "g"]).as_deref(), Some("1"));
+
+        // Round-trips and validates.
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+
+        s.undo_added(0);
+        assert!(s.added().is_empty());
+        assert!(s.value(&["X", "R", "2", "a"]).is_none()); // removed
+    }
+
+    #[test]
+    fn add_equipment_equips_pet_and_restores_on_undo() {
+        let mut s = EditSession::load(&encoded(&equip_root()), None).unwrap();
+        let id = s
+            .add_equipment(51, 0, 8, 0, 0, "Magic Stick", Some((0, "e")))
+            .unwrap();
+        assert_eq!(s.value(&["X", "b", "0", "w", "e"]), Some(id.to_string()));
+        s.undo_added(0);
+        assert_eq!(s.value(&["X", "b", "0", "w", "e"]).as_deref(), Some("0")); // restored
+        assert!(s.value(&["X", "R", "2", "a"]).is_none()); // instance removed
     }
 
     #[test]
