@@ -44,6 +44,12 @@ pub enum Resolve {
     Creation,
     /// SpaceDim element id → `items::spacedim_name`.
     SpaceDim,
+    /// Physical training-skill id → `items::physical_skill_name`.
+    PhysicalSkill,
+    /// Mystic training-skill id → `items::mystic_skill_name`.
+    MysticSkill,
+    /// Monster id → `items::monster_name`.
+    Monster,
     /// Research id → `model::research_name`.
     Research,
     /// Class id → `model::class_from_id`.
@@ -226,6 +232,30 @@ pub const SPACEDIM_FIELDS: &[FieldLabel] = &[
     lbl!("f", "Spread"),
 ];
 
+/// Physical training skills — `h.<index>`. The `d` field (always 0 so far) is
+/// left unlabeled pending identification.
+pub const PHYSICAL_SKILL_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Skill Id", Resolve::PhysicalSkill),
+    lbl!("b", "Level"),
+    lbl!("c", "Clones Allocated"),
+];
+
+/// Mystic training skills — `j.<index>`. The Mystic-only `e` sub-struct is left
+/// unlabeled pending identification (the player suspects it relates to training
+/// caps; not yet confirmed).
+pub const MYSTIC_SKILL_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Skill Id", Resolve::MysticSkill),
+    lbl!("b", "Level"),
+    lbl!("c", "Clones Allocated"),
+];
+
+/// Monsters (fought for Battle/Divinity) — `k.<index>`.
+pub const MONSTER_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Monster Id", Resolve::Monster),
+    lbl!("b", "Defeated"),
+    lbl!("c", "Clones Allocated"),
+];
+
 /// Divinity Generator upgrade tracks — `K.l.<index>`.
 pub const DIVINITY_UPGRADE_FIELDS: &[FieldLabel] = &[
     lbl!("a", "Upgrade Id"),
@@ -260,6 +290,9 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["D"], name: "Monument", plural: "Monuments", is_list: true, element_name: elem("a", Resolve::Monument), fields: MONUMENT_FIELDS },
     BlockSchema { base: &["V"], name: "Might", plural: "Mights", is_list: true, element_name: elem("a", Resolve::Might), fields: MIGHT_FIELDS },
     BlockSchema { base: &["009", "b"], name: "SpaceDim Element", plural: "SpaceDim Elements", is_list: true, element_name: elem("a", Resolve::SpaceDim), fields: SPACEDIM_FIELDS },
+    BlockSchema { base: &["h"], name: "Physical Skill", plural: "Physical Skills", is_list: true, element_name: elem("a", Resolve::PhysicalSkill), fields: PHYSICAL_SKILL_FIELDS },
+    BlockSchema { base: &["j"], name: "Mystic Skill", plural: "Mystic Skills", is_list: true, element_name: elem("a", Resolve::MysticSkill), fields: MYSTIC_SKILL_FIELDS },
+    BlockSchema { base: &["k"], name: "Monster", plural: "Monsters", is_list: true, element_name: elem("a", Resolve::Monster), fields: MONSTER_FIELDS },
     BlockSchema { base: &["K", "l"], name: "Divinity Upgrade", plural: "Divinity Upgrades", is_list: true, element_name: None, fields: DIVINITY_UPGRADE_FIELDS },
     BlockSchema { base: &["S"], name: "Baal Slayer Parts", plural: "Baal Slayer Parts", is_list: false, element_name: None, fields: TBS_FIELDS },
 ];
