@@ -288,6 +288,11 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
                 return;
             }
             let mut undo: Option<usize> = None;
+            // Cap the height so a huge batch doesn't run off-screen — scroll within.
+            egui::ScrollArea::vertical()
+                .max_height(240.0)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
             egui::Grid::new("save_editor_pending_grid")
                 .num_columns(4)
                 .spacing([12.0, 4.0])
@@ -311,6 +316,7 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
                         }
                         ui.end_row();
                     }
+                });
                 });
             if let Some(i) = undo {
                 let _ = session.undo(i);
