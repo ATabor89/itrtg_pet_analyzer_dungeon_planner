@@ -122,51 +122,61 @@ pub fn material_name(id: u32) -> Option<&'static str> {
 /// {23, 26, 30, 52, 56} pair with {Iron Pot, Flood Spear, Leeching Sword,
 /// Tree Axe, Hurricane Bow} — equip one in-game to resolve.
 pub fn equipment_type_name(type_id: u32) -> Option<&'static str> {
-    Some(match type_id {
-        // armor
-        3 => "Titanium Armor",
-        5 => "Flame Armor",  // equipped on Bag 2026-06-13 (instance 7)
-        8 => "Flood Armor",  // equipped on Cupid 2026-06-13 (instance 10)
-        12 => "Forest Armor",
-        13 => "Feather Vest",
-        15 => "Hurricane Armor",
-        // weapons
-        18 => "Titanium Sword",
-        21 => "Inferno Sword",
-        22 => "Water Spear",  // equipped on Nugget 2026-06-13 (instance 122)
-        29 => "Storm Bow",
-        47 => "Shaping Hammer",
-        50 => "Journeying Stick",
-        51 => "Magic Stick",
-        54 => "Magic Pot",
-        57 => "Ego Sword",
-        60 => "Bursting Knives",
-        79 => "Legendary Hammer", // "Legend Hammer" in the in-game inventory
-        83 => "Exploding Knives",
-        // accessories
-        33 => "Titanium Ring",
-        36 => "Inferno Gloves",
-        39 => "Tsunami Necklace",
-        40 => "Wood Bracelet",
-        41 => "Tree Bracelet",  // equipped on Meteor 2026-06-13 (instance 3)
-        44 => "Storm Ring",     // equipped on Bag 2026-06-13 (instance 173); resolves the Magic Hammer|Storm Ring tie
-        45 => "Hurricane Ring",
-        61 => "Alchemist Cape",
-        86 => "Ear Muffs",
-        // 300-series: event/special gear
-        300 => "Candy Cane",
-        301 => "Spectrometers",
-        302 => "Master Gloves",
-        303 => "Learning Coat",
-        304 => "Magic Egg",
-        305 => "Creators Vest",
-        306 => "Godly Hammer",
-        307 => "Merry Mantle",
-        309 => "Growing Love Pendant",
-        311 => "Christmas Boots",
-        _ => return None,
-    })
+    EQUIPMENT_TYPES
+        .iter()
+        .find(|(id, _, _)| *id == type_id)
+        .map(|(_, name, _)| *name)
 }
+
+/// Every known equipment type: `(type id, name, slot category)`. The single
+/// source for both [`equipment_type_name`] and [`equipment_category`], and the
+/// type list the editor's equipment builder offers. The 300-series event gear
+/// categories are cross-checked against `data/equipment_catalog.yaml`.
+pub const EQUIPMENT_TYPES: &[(u32, &str, EquipCategory)] = {
+    use EquipCategory::{Accessory, Armor, Weapon};
+    &[
+        // -- Armor --
+        (3, "Titanium Armor", Armor),
+        (5, "Flame Armor", Armor),
+        (8, "Flood Armor", Armor),
+        (12, "Forest Armor", Armor),
+        (13, "Feather Vest", Armor),
+        (15, "Hurricane Armor", Armor),
+        (303, "Learning Coat", Armor),
+        (305, "Creators Vest", Armor),
+        (307, "Merry Mantle", Armor),
+        // -- Weapons --
+        (18, "Titanium Sword", Weapon),
+        (21, "Inferno Sword", Weapon),
+        (22, "Water Spear", Weapon),
+        (29, "Storm Bow", Weapon),
+        (47, "Shaping Hammer", Weapon),
+        (50, "Journeying Stick", Weapon),
+        (51, "Magic Stick", Weapon),
+        (54, "Magic Pot", Weapon),
+        (57, "Ego Sword", Weapon),
+        (60, "Bursting Knives", Weapon),
+        (79, "Legendary Hammer", Weapon), // "Legend Hammer" in-game
+        (83, "Exploding Knives", Weapon),
+        (300, "Candy Cane", Weapon),
+        (304, "Magic Egg", Weapon),
+        (306, "Godly Hammer", Weapon),
+        // -- Accessories --
+        (33, "Titanium Ring", Accessory),
+        (36, "Inferno Gloves", Accessory),
+        (39, "Tsunami Necklace", Accessory),
+        (40, "Wood Bracelet", Accessory),
+        (41, "Tree Bracelet", Accessory),
+        (44, "Storm Ring", Accessory),
+        (45, "Hurricane Ring", Accessory),
+        (61, "Alchemist Cape", Accessory),
+        (86, "Ear Muffs", Accessory),
+        (301, "Spectrometers", Accessory),
+        (302, "Master Gloves", Accessory),
+        (309, "Growing Love Pendant", Accessory),
+        (311, "Christmas Boots", Accessory),
+    ]
+};
 
 /// Creation name by id (root `i` list order; user-transcribed 2026-06-11,
 /// anchored by Next Ats values: Light 12,000, Village 90, Town 60, Moon 10,
@@ -297,17 +307,13 @@ impl EquipCategory {
     }
 }
 
-/// The slot category of an equipment *type* id. Base items are grouped per the
-/// `equipment_type_name` table; the 300-series event gear is cross-checked
-/// against `data/equipment_catalog.yaml`. `None` for unknown ids.
+/// The slot category of an equipment *type* id (from [`EQUIPMENT_TYPES`]).
+/// `None` for unknown ids.
 pub fn equipment_category(type_id: u32) -> Option<EquipCategory> {
-    use EquipCategory::*;
-    Some(match type_id {
-        3 | 5 | 8 | 12 | 13 | 15 | 303 | 305 | 307 => Armor,
-        18 | 21 | 22 | 29 | 47 | 50 | 51 | 54 | 57 | 60 | 79 | 83 | 300 | 304 | 306 => Weapon,
-        33 | 36 | 39 | 40 | 41 | 44 | 45 | 61 | 86 | 301 | 302 | 309 | 311 => Accessory,
-        _ => return None,
-    })
+    EQUIPMENT_TYPES
+        .iter()
+        .find(|(id, _, _)| *id == type_id)
+        .map(|(_, _, cat)| *cat)
 }
 
 /// Equipment quality letter for the raw quality id. Player-confirmed ladder
