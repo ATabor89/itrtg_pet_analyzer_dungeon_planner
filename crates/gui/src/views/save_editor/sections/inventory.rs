@@ -55,6 +55,7 @@ pub struct InventoryEditState {
     cell_buffers: HashMap<usize, String>,
     sort: Option<(ISort, bool)>,
     add: AddItemState,
+    pending_delete: Option<usize>,
 
     apply_requested: bool,
     status: Option<(String, bool)>,
@@ -132,6 +133,15 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut InventoryEdit
     }
 
     table(ui, st, &rows, &filtered);
+
+    if let Some(idx) = st.pending_delete.take()
+        && let Some(row) = rows.iter().find(|r| r.index == idx)
+    {
+        let label = row_name(row);
+        if let Err(e) = session.delete_material(idx, label) {
+            st.status = Some((format!("Delete failed: {e}"), true));
+        }
+    }
 }
 
 fn passes_filter(st: &InventoryEditState, r: &InvRow) -> bool {
@@ -277,7 +287,8 @@ fn table(ui: &mut egui::Ui, st: &mut InventoryEditState, rows: &[InvRow], filter
         .column(Column::auto()) // checkbox
         .column(Column::initial(220.0)) // item
         .column(Column::initial(70.0)) // id
-        .column(Column::remainder()) // quantity
+        .column(Column::initial(140.0)) // quantity
+        .column(Column::remainder()) // delete
         .header(20.0, |mut h| {
             h.col(|_| {});
             for (title, col) in [("Item", ISort::Item), ("Id", ISort::Id), ("Quantity", ISort::Quantity)] {
@@ -287,6 +298,7 @@ fn table(ui: &mut egui::Ui, st: &mut InventoryEditState, rows: &[InvRow], filter
                     }
                 });
             }
+            h.col(|_| {});
         })
         .body(|body| {
             body.rows(22.0, filtered.len(), |mut tr| {
@@ -315,6 +327,11 @@ fn table(ui: &mut egui::Ui, st: &mut InventoryEditState, rows: &[InvRow], filter
                         bulk::override_cell(ui, row.index, &default, &row.raw_count, &mut st.cell_buffers, &mut st.overrides);
                     } else {
                         ui.label(RichText::new(&row.raw_count).monospace().size(11.0));
+                    }
+                });
+                tr.col(|ui| {
+                    if ui.small_button("×").on_hover_text("Delete this stack").clicked() {
+                        st.pending_delete = Some(row.index);
                     }
                 });
             });
