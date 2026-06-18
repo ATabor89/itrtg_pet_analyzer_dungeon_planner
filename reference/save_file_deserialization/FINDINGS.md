@@ -483,9 +483,12 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
   (prior-project table + export-confirmed + the 2026-06-10 full inventory
   transcription: 16/17 = Health Potion X/S, 19 = Antidote — correcting the
   prior table's "Nothing"; real Nothing is 119 — and 21 = Torch).
-  Remaining: the five count-1 ids {130,160,164,167,168} ↔ {Not Nothing,
-  Absolutely Nothing, Aether Ring +28, Food Journal One, Food Journal Two}
-  (set known, assignment unknown). The **T4 materials are resolved** (save-edit
+  Remaining: the count-1 ids {160,164,167,168} ↔ {Not Nothing, Absolutely
+  Nothing, Food Journal One, Food Journal Two} (set known, assignment unknown).
+  **130 = Aether Ring** (player-confirmed 2026-06-18; base ring on a fresh save
+  is id 130; the in-game "+N" boss-kill suffix is the same id 130 with a dynamic
+  name, not consecutive ids since 131=Sun Stone) and **162 = Monster Blood**.
+  The **T4 materials are resolved** (save-edit
   probe 2026-06-16, counts 41–45 read off in-game): 131=Sun Stone, 132=Jungle
   Stone, 133=Sky Stone, 134=Mythril, 135=Ocean Stone — now in `items.rs`.
 - Equipment *type* id ↔ name: solved for everything equipped, derived by
