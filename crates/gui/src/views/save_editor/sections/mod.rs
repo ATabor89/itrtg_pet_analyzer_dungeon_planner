@@ -5,6 +5,7 @@
 pub mod bulk;
 pub mod equip_builder;
 pub mod equipment;
+pub mod inventory;
 pub mod pets;
 pub mod raw_tree;
 pub mod resources;
