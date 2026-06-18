@@ -879,16 +879,38 @@ fn divinity_generator_upgrades_match_notes() {
     };
     assert_eq!(levels(&rb1), vec![81, 81, 81]);
     assert_eq!(levels(&rb2), vec![188, 188, 188]);
-    // Per-track multipliers (1, 2, 2) and ids (0, 1, 2) are stable.
+    // Ids (0, 1, 2) resolve to the upgrade names; per-track spreads are 1, 2, 2.
     let upgrades = &rb2.divinity_generator.as_ref().unwrap().upgrades;
     assert_eq!(
         upgrades.iter().map(|u| u.id).collect::<Vec<_>>(),
         vec![0, 1, 2]
     );
     assert_eq!(
-        upgrades.iter().map(|u| u.multiplier).collect::<Vec<_>>(),
+        upgrades.iter().filter_map(|u| u.name()).collect::<Vec<_>>(),
+        vec!["Capacity", "Divinity Gain", "Converting Speed"]
+    );
+    assert_eq!(
+        upgrades.iter().map(|u| u.spread).collect::<Vec<_>>(),
         vec![1, 2, 2]
     );
+    // "Next at" (`f`) is a fixed 512 here — the upgrade's level target — while
+    // the level is mid-climb at 188 (so next_at is not just a level mirror).
+    assert!(upgrades.iter().all(|u| u.next_at == 512));
+    assert!(upgrades.iter().all(|u| u.level < u.next_at));
+}
+
+#[test]
+fn divinity_total_capacity_clones_and_storage() {
+    let save = require_save!();
+    // Total Divinity lives at root `a`, not in the K block.
+    assert!(save.total_divinity.unwrap() > 1e17);
+    let dg = save.divinity_generator.as_ref().unwrap();
+    // K.g is the capacity currently in use (a large float), distinct from the
+    // root-`a` total; K.c worker clones; K.n stone storage.
+    assert!(dg.capacity_in_use > 0.0);
+    assert!(dg.capacity_in_use != save.total_divinity.unwrap());
+    assert_eq!(dg.worker_clones, 1_208_848);
+    assert!(dg.stone_storage > 1e15);
 }
 
 #[test]

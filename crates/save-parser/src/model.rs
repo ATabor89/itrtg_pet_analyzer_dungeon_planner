@@ -140,8 +140,13 @@ pub struct SaveFile {
     pub skills: Vec<TrainingEntry>,
     /// Monsters fought for Battle/Divinity (root `k`), in display order.
     pub monsters: Vec<Monster>,
-    /// Divinity Generator (root `K`): the running divinity total and its
-    /// three upgrade tracks. `None` if the block is absent.
+    /// Total Divinity (root `a`) — the running divinity balance, a very large
+    /// float. Player-confirmed 2026-06-18 by editing it (E+19 → E+29) and seeing
+    /// the in-game total change. (The Divinity Generator's `K.g` is only the
+    /// amount currently held in the generator, not this total.)
+    pub total_divinity: Option<f64>,
+    /// Divinity Generator (root `K`): capacity in use, worker clones, stone
+    /// storage, and the three upgrade tracks. `None` if the block is absent.
     pub divinity_generator: Option<DivinityGenerator>,
     /// Unspent Baal Power (root `T.h`) — the Baal Slayer currency.
     pub baal_power: Option<u64>,
@@ -456,25 +461,48 @@ pub struct Monster {
     pub raw: Node,
 }
 
-/// The Divinity Generator (root `K`). Decoded 2026-06-13: the three upgrade
-/// levels moved 81 → 188 together between that day's two saves.
+/// The Divinity Generator (root `K`). Decoded 2026-06-13 (upgrade levels moved
+/// 81 → 188 together); the capacity/clones/storage fields were player-confirmed
+/// 2026-06-18. The running **total** divinity is *not* here — it is the root `a`
+/// scalar ([`SaveFile::total_divinity`]); `K.g` is only the amount currently
+/// held in the generator.
 #[derive(Debug, Clone)]
 pub struct DivinityGenerator {
-    /// Running divinity total (`K.g`); a very large float.
-    pub total: f64,
+    /// Capacity currently in use (`K.g`) — how much divinity is held in the
+    /// generator right now, not the total or the cap. A very large float. The
+    /// total *capacity* (the cap) isn't stored nearby and is likely computed at
+    /// runtime from the Capacity upgrade level.
+    pub capacity_in_use: f64,
+    /// Worker Clones allocated to the Divinity Generator (`K.c`).
+    pub worker_clones: u64,
+    /// Stones held in the generator's Stone Storage (`K.n`); a large float. As
+    /// with capacity, the storage *cap* isn't stored nearby (likely computed).
+    pub stone_storage: f64,
     /// The three upgrade tracks (`K.l`), in id order.
     pub upgrades: Vec<DivinityUpgrade>,
 }
 
-/// One Divinity Generator upgrade (`K.l[i]`).
+/// One Divinity Generator upgrade (`K.l[i]`). The three tracks are
+/// 0 = Capacity, 1 = Divinity Gain, 2 = Converting Speed
+/// ([`crate::items::divinity_upgrade_name`]); identical struct shape.
 #[derive(Debug, Clone, Copy)]
 pub struct DivinityUpgrade {
     /// Upgrade id (`a`), 0–2.
     pub id: u32,
     /// Current level (`b`).
     pub level: u64,
-    /// Per-level multiplier (`g`): 1, 2, 2 for the three tracks.
-    pub multiplier: u64,
+    /// "Next at" level (`f`) — player-confirmed 2026-06-18.
+    pub next_at: u64,
+    /// Clone-spread priority (`g`): 1, 2, 2 for the three tracks
+    /// (player-confirmed 2026-06-18 — earlier mislabeled a per-level multiplier).
+    pub spread: u32,
+}
+
+impl DivinityUpgrade {
+    /// Display name (Capacity / Divinity Gain / Converting Speed), if recognized.
+    pub fn name(&self) -> Option<&'static str> {
+        crate::items::divinity_upgrade_name(self.id)
+    }
 }
 
 /// Unused-GP god-stat allocation split (root `p.r/s/t/u`), in percent.
@@ -978,7 +1006,9 @@ impl SaveFile {
             .unwrap_or_default();
 
         let divinity_generator = root.get("K").map(|k| DivinityGenerator {
-            total: k.get("g").and_then(Node::as_f64).unwrap_or(0.0),
+            capacity_in_use: k.get("g").and_then(Node::as_f64).unwrap_or(0.0),
+            worker_clones: get_u64(k, "c"),
+            stone_storage: k.get("n").and_then(Node::as_f64).unwrap_or(0.0),
             upgrades: k
                 .get("l")
                 .map(|l| {
@@ -987,7 +1017,8 @@ impl SaveFile {
                         .map(|n| DivinityUpgrade {
                             id: get_u32(n, "a"),
                             level: get_u64(n, "b"),
-                            multiplier: get_u64(n, "g"),
+                            next_at: get_u64(n, "f"),
+                            spread: get_u32(n, "g"),
                         })
                         .collect()
                 })
@@ -1043,6 +1074,7 @@ impl SaveFile {
             physical_trainings,
             skills,
             monsters,
+            total_divinity: root.get("a").and_then(Node::as_f64),
             divinity_generator,
             baal_power: root.get_path(&["T", "h"]).and_then(Node::as_u64),
             current_god_number: root.get_path(&["P", "c"]).and_then(Node::as_u32),

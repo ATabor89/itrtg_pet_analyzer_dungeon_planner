@@ -74,7 +74,7 @@ is implemented; it isn't needed for that round trip.)
 | `V` | **mights** (14 — `items::might_name`) | `b` = **current level** (specials all 64 = the user's "at level 64" ✓; Σ levels = 3,200 = the in-game White Tiger unlock progress ✓ — 25,000 needed, resets per rebirth), `m` = next-at, `n` = spread ratio. Specials 8–13: `e`=True, `g` = base unleash duration (+1 s/level: 30+64 = 94 s ✓), `i`/`j`/`k` = HP-recovery/Attack/Mystic % (Transformation Aura 200/200/200 ✓). "Total Might" (100,983) is the all-rebirths global at `x.129`/`p.F` |
 | `O` | statistics mirror | `O.030` = light clones ✓ |
 | `009` | **SpaceDim** (Light Dimension) | `009.a` = light clones (= the count allocated to the one active element); `009.b` = the 20-element list (see its section); `009.d` = **Light Clone Resets available** (player-tested 2026-06-17 — a reset rolls the escalating Light-Clone Baal-Power cost back to 1/clone: first 500 cost 1 BP each, next 500 cost 2 each, …); `009.e` = spacedim total. Per-element levels confirmed against the 2026-06-13 notes (Fusion Torch 18→70, Dyson 22→23, Quantum Genesis 2→6) |
-| `K` | **Divinity Generator** | `K.g` = total divinity (huge double); `K.l` = list of 3 upgrades, `b` = level (all three 81→188 between the 2026-06-13 saves ✓), `c` = cost-ish, `d` = accumulator, `g` = multiplier (1/2/2) |
+| `K` | **Divinity Generator** | `K.g` = **capacity currently in use** (huge double — how much divinity is held *now*, NOT the total; the total is root `a`. The total *capacity* cap isn't stored nearby — likely computed). `K.c` = **Worker Clones** allocated to the generator (1,208,848 ✓). `K.n` = **Stone Storage** amount (huge double; its cap also not stored nearby). `K.l` = list of 3 upgrades — **0 = Capacity, 1 = Divinity Gain, 2 = Converting Speed** — `b` = level (all three 81→188 between the 2026-06-13 saves ✓), **`f` = next-at**, **`g` = spread (1/2/2)** (was mislabeled "multiplier"); `c`/`d`/`e`/`h` still unidentified. All the 06-18 reads player-confirmed |
 | `P` | **current god fight** (≠ `X.P` active dungeon runs) | `P.c` = current god number = highest **P. Baal defeated + 1** (44→49 as the user went from "defeated 43" to "defeated 48" ✓); `P.b` = that god's HP-scale double (grows ~10× per few gods), `P.d` = `P.b`/10 |
 | `T` | **Baal Slayer block** | `T.h` = **unspent Baal Power** (0→334 ✓); `T.f` = list of 5 staggered countdown timers (1 h apart); `T.k` = list of 5 TBS tracks; see open items |
 | `024` | quests block | `024.d` = Quest Points (4,553 ✓ s2 export) |
@@ -86,8 +86,10 @@ is implemented; it isn't needed for that round trip.)
 | `X` | **the whole pet system** | see below |
 | `Z` (bool), `001`=Steam id64, `002`=Steam persona name, `003`=account/guest id (`a_…`), `004`=Steam display name, `005`=save ms-timestamp, `006`=init log | identity in `001..004` redacted in committed saves; `005`/`006` kept | player-confirmed |
 
-(Unlabeled root keys not yet investigated: `a`,`b`,`d` big doubles, `A`,`B`,`D`,
-`K`,`O`,`P`,`Q`,`S`,`T`,`V` blocks, etc.)
+Root `a` = **Total Divinity** (the running divinity balance; player-confirmed
+2026-06-18 by editing E+19 → E+29 and watching the in-game total change).
+(Other unlabeled root keys not yet investigated: `b`,`d` big doubles, `A`,`B`,
+`O`,`Q` blocks, etc.)
 
 ## `X` — pet system
 
