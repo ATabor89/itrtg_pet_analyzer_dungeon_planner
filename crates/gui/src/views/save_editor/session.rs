@@ -206,6 +206,7 @@ impl EditSession {
         let mut cleared = Vec::new();
         let pet_count = match self.root.get_path(&["X", "b"]) {
             Some(Raw::List(p)) => p.len(),
+            Some(Raw::Struct(_)) => 1, // a 1-element list re-parses as a lone struct
             _ => 0,
         };
         for pi in 0..pet_count {
