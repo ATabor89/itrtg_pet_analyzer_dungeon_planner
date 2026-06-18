@@ -160,7 +160,8 @@ impl EditSession {
     }
 
     /// Undo a created material stack (by index into [`added_materials`]): remove
-    /// the `X.Q` element whose `a` matches.
+    /// the `X.Q` element whose `a` matches, and drop any scalar edits that were
+    /// staged against that stack (they'd otherwise dangle and fail validation).
     pub fn undo_added_material(&mut self, index: usize) {
         let Some(entry) = self.added_materials.get(index).cloned() else {
             return;
@@ -172,8 +173,19 @@ impl EditSession {
         {
             items.remove(pos);
         }
+        // Quantity edits on this stack use the `a=<id>` selector path.
+        let sel = format!("a={}", entry.item_id);
+        self.drop_pending_with_prefix(&["X", "Q", &sel]);
         self.added_materials.remove(index);
         self.dirty_derived = true;
+    }
+
+    /// Drop pending scalar edits whose path begins with `prefix` (used when an
+    /// undone addition removes the element those edits targeted).
+    fn drop_pending_with_prefix(&mut self, prefix: &[&str]) {
+        self.pending.retain(|e| {
+            !(e.path.len() >= prefix.len() && e.path.iter().zip(prefix).all(|(a, b)| a == b))
+        });
     }
 
     /// Create a new equipment instance (appended to `X.R`), optionally equipping
@@ -223,12 +235,20 @@ impl EditSession {
             let _ = self.root.set_scalar_path(&p, original);
         }
         // Remove the X.R element whose mirror id `h` matches.
+        let mut removed_pos = None;
         if let Some(Raw::List(items)) = self.root.get_path_mut(&["X", "R"])
             && let Some(pos) = items.iter().position(|it| {
                 matches!(it.get("h"), Some(Raw::Scalar(s)) if s.parse::<u32>().ok() == Some(entry.instance_id))
             })
         {
             items.remove(pos);
+            removed_pos = Some(pos);
+        }
+        // Drop any scalar edits staged against this (index-addressed) instance.
+        // Created instances are appended last, so removing one doesn't shift the
+        // indices of edits on pre-existing instances.
+        if let Some(pos) = removed_pos {
+            self.drop_pending_with_prefix(&["X", "R", &pos.to_string()]);
         }
         self.added.remove(index);
         self.dirty_derived = true;
@@ -511,6 +531,22 @@ mod tests {
         s.undo_added_material(0);
         assert!(s.added_materials().is_empty());
         assert!(s.value(&["X", "Q", "a=999", "b"]).is_none());
+    }
+
+    #[test]
+    fn undo_added_material_drops_dependent_pending_edit() {
+        let mut s = EditSession::load(&encoded(&mat_root()), None).unwrap();
+        s.set_material(999, "5", "Item 999").unwrap(); // creates the stack
+        // Then edit its quantity (as the inventory page's Apply would).
+        s.set_scalar(&["X", "Q", "a=999", "b"], "Item 999", "50").unwrap();
+        assert_eq!(s.pending().len(), 1);
+
+        s.undo_added_material(0);
+        assert!(s.added_materials().is_empty());
+        assert_eq!(s.pending().len(), 0, "dependent edit dropped, not dangling");
+        // The save still validates (no edit pointing at the removed stack).
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
     }
 
     #[test]
