@@ -96,9 +96,10 @@ impl StatRow {
 pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut StatEditState, cfg: &StatConfig) {
     ui.heading(cfg.title);
 
+    // These blocks always have many entries, so `h`/`j`/`k` parse as real lists;
+    // index-path edits below rely on that (a lone struct would need a selector).
     let count = match session.root().get_path(&[cfg.list_key]) {
         Some(Raw::List(items)) => items.len(),
-        Some(Raw::Struct(_)) => 1, // a 1-element list re-parses as a lone struct
         _ => 0,
     };
     let rows: Vec<StatRow> = (0..count)
