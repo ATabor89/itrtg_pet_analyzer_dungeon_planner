@@ -24,6 +24,9 @@ pub enum SectionId {
     Equipment,
     Inventory,
     Gems,
+    Physical,
+    Skills,
+    Monsters,
     RawTree,
 }
 
@@ -35,6 +38,9 @@ impl SectionId {
         SectionId::Equipment,
         SectionId::Inventory,
         SectionId::Gems,
+        SectionId::Physical,
+        SectionId::Skills,
+        SectionId::Monsters,
         SectionId::RawTree,
     ];
 
@@ -45,6 +51,9 @@ impl SectionId {
             SectionId::Equipment => "Equipment",
             SectionId::Inventory => "Inventory",
             SectionId::Gems => "Gems",
+            SectionId::Physical => "Physical",
+            SectionId::Skills => "Skills",
+            SectionId::Monsters => "Monsters",
             SectionId::RawTree => "Raw Save Tree",
         }
     }
