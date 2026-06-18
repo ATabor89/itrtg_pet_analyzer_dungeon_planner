@@ -387,7 +387,7 @@ factor in the normal-stats global multiplier.
 | `c` | **level** |
 | `d` | **next-at** (player-set target level — see the note below) |
 | `e` | progress / accumulated clones toward next level |
-| `f` | **spread** (the 20…1 priority value shown in-game) |
+| `f` | **spread** (player-set ratio for the "spread" button — not a fixed priority; see the note below) |
 
 Verified end-to-end against the 2026-06-13 notes: save 1 Quantum Genesis
 `c`=2, Fusion Torch `c`=18 (b=70,362 — all light clones), Dyson `c`=22; save 2
@@ -396,18 +396,29 @@ matches the notes' Next-At/Spread columns. Levels reset per rebirth.
 
 ### "Next At" and "Spread" — the clone-spread menus (player-clarified 2026-06-18)
 
-The `next_at`/`spread` pair shows up in every menu where you allocate Worker
-Clones across a list of things — **Monuments** (`D`), **Mights** (`V`), **SpaceDim**
-(`009.b`), **Divinity Generator upgrades** (`K.l`), etc. Both are **player set**,
-not game-computed:
+Both are **player-set**, not game-computed, and largely **independent** of each
+other. The `next_at`/`spread` pair shows up in every menu where you allocate
+Worker Clones across a list of things — **Monuments** (`D`), **Mights** (`V`),
+**SpaceDim** (`009.b`), **Divinity Generator upgrades** (`K.l`), etc.
 
-- **Next At** is a *target level*. The auto-spread levels an item up to its Next
-  At, then moves that menu's clones to the next item in priority order. When
-  every item has reached its Next At, the clones allocated to that menu go
-  **idle**. (This is why `K.l[i].f` read a constant 512 while the level climbed
-  toward it — the player rarely changes these until pushing for higher values.)
-- **Spread** is the priority order the auto-spread follows (the visible
-  20…1-style ranking).
+- **Spread** is a *ratio* used by the "spread" button: pressing it distributes
+  the menu's clones in proportion to each item's spread value (an item with
+  spread 2 gets twice the clones of one with spread 1). Any value is allowed —
+  high spreads level a chosen item faster. It is **not** a fixed priority rank
+  (the earlier "20…1 priority" reading was wrong; those numbers are just the
+  player's chosen ratios).
+- **Next At** is a *target level*. An item keeps leveling until it reaches its
+  Next At, then clones move on to the next item — either by rolling down the list
+  as you manually dump all clones into one thing, or via the spread button (which
+  simply skips anything already at its target). Once every item is at its Next At,
+  the menu's allocated clones go **idle**. (This is why `K.l[i].f` read a constant
+  512 while the level climbed toward it — players rarely change these until
+  pushing for higher values.)
+
+**Creations** (`i`) reuse the **Next At** idea but not the clone allocation:
+creating is passive, so Next At only sequences *what* gets created ("create Light
+until its target, then Stone until its, …"), typically set to the per-rebirth
+creation achievement breakpoints. Creations have no spread.
 
 ## `root.T` — Baal Slayer (decoded 2026-06-13)
 
