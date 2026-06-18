@@ -50,6 +50,8 @@ pub enum Resolve {
     Skill,
     /// Monster id → `items::monster_name`.
     Monster,
+    /// Divinity Generator upgrade id → `items::divinity_upgrade_name`.
+    DivinityUpgrade,
     /// Research id → `model::research_name`.
     Research,
     /// Class id → `model::class_from_id`.
@@ -260,11 +262,13 @@ pub const MONSTER_FIELDS: &[FieldLabel] = &[
     lbl!("c", "Clones Allocated"),
 ];
 
-/// Divinity Generator upgrade tracks — `K.l.<index>`.
+/// Divinity Generator upgrade tracks — `K.l.<index>` (0 = Capacity, 1 = Divinity
+/// Gain, 2 = Converting Speed). `c`/`d`/`e`/`h` stay unlabeled pending ID.
 pub const DIVINITY_UPGRADE_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Upgrade Id"),
+    lblr!("a", "Upgrade Id", Resolve::DivinityUpgrade),
     lbl!("b", "Level"),
-    lbl!("g", "Multiplier"),
+    lbl!("f", "Next At"),
+    lbl!("g", "Spread"),
 ];
 
 /// Baal-Slayer (TBS) component levels — single struct at `S`.
@@ -297,6 +301,6 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["h"], name: "Physical", plural: "Physical", is_list: true, element_name: elem("a", Resolve::PhysicalTraining), fields: PHYSICAL_FIELDS },
     BlockSchema { base: &["j"], name: "Skill", plural: "Skills", is_list: true, element_name: elem("a", Resolve::Skill), fields: SKILL_FIELDS },
     BlockSchema { base: &["k"], name: "Monster", plural: "Monsters", is_list: true, element_name: elem("a", Resolve::Monster), fields: MONSTER_FIELDS },
-    BlockSchema { base: &["K", "l"], name: "Divinity Upgrade", plural: "Divinity Upgrades", is_list: true, element_name: None, fields: DIVINITY_UPGRADE_FIELDS },
+    BlockSchema { base: &["K", "l"], name: "Divinity Upgrade", plural: "Divinity Upgrades", is_list: true, element_name: elem("a", Resolve::DivinityUpgrade), fields: DIVINITY_UPGRADE_FIELDS },
     BlockSchema { base: &["S"], name: "Baal Slayer Parts", plural: "Baal Slayer Parts", is_list: false, element_name: None, fields: TBS_FIELDS },
 ];

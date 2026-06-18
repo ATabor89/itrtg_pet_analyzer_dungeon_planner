@@ -423,6 +423,13 @@ pub fn monster_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// Divinity Generator upgrade name by id (root `K.l` list order, 0-based).
+/// Player-confirmed 2026-06-18.
+pub fn divinity_upgrade_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 3] = ["Capacity", "Divinity Gain", "Converting Speed"];
+    NAMES.get(id as usize).copied()
+}
+
 /// Equipment slot category.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EquipCategory {
@@ -565,6 +572,14 @@ mod tests {
         assert_eq!(physical_training_name(28), None);
         assert_eq!(skill_name(28), None);
         assert_eq!(monster_name(34), None);
+    }
+
+    #[test]
+    fn divinity_upgrade_names() {
+        assert_eq!(divinity_upgrade_name(0), Some("Capacity"));
+        assert_eq!(divinity_upgrade_name(1), Some("Divinity Gain"));
+        assert_eq!(divinity_upgrade_name(2), Some("Converting Speed"));
+        assert_eq!(divinity_upgrade_name(3), None);
     }
 
     #[test]
