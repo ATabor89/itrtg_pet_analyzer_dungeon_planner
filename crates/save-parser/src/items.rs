@@ -433,19 +433,42 @@ pub fn divinity_upgrade_name(id: u32) -> Option<&'static str> {
 /// Adventure-mode inventory item name by id (the `032.d` namespace — distinct
 /// from the main `X.Q` materials and from the core/enemy ids). Player-identified
 /// 2026-06-18 by matching the save's `032.d` list (id `a`, count `b`) against the
-/// in-game Adventure inventory. Only the items the player currently holds are
-/// known; other ids return `None`.
+/// in-game Adventure inventory (a full 32-item Steam export plus Flask from a
+/// Kongregate save). Ids cluster by material family (raw / refined / enhanced /
+/// jewel). Ids not held in those saves return `None`.
 pub fn adventure_item_name(id: u32) -> Option<&'static str> {
     Some(match id {
         1 => "Sticky Fluid",
         2 => "Rough Hide",
         3 => "Bag of Sand",
+        4 => "Heat",
         50 => "Cloth",
+        51 => "Leather",
+        52 => "Paper",
         53 => "Common Herb",
+        54 => "Uncommon Herb",
+        57 => "Godly Herb",
         58 => "Common Mana Herb",
-        63 => "Flask",
+        59 => "Uncommon Mana Herb",
+        62 => "Godly Mana Herb",
+        63 => "Flask", // Kongregate save only (no Steam save held it)
+        64 => "Small Bottle",
+        68 => "Fire Flower",
         100 => "Scrap Metal",
+        101 => "Iron Ore",
+        120 => "Metal Bar",
+        121 => "Iron Bar",
         150 => "Pine Plank",
+        151 => "Beech Plank",
+        199 => "Golden Chestnut",
+        200 => "Refined Cloth",
+        201 => "Refined Leather",
+        220 => "Refined Metal",
+        221 => "Refined Iron",
+        240 => "Enhanced Pine",
+        241 => "Enhanced Beech",
+        260 => "Enhanced Paper",
+        261 => "Fire Jewel",
         265 => "Dark Jewel",
         266 => "Light Jewel",
         _ => return None,
@@ -454,13 +477,17 @@ pub fn adventure_item_name(id: u32) -> Option<&'static str> {
 
 /// Adventure-mode **enemy** name by id (the `032.G` core namespace — a core is
 /// "<enemy> <quality>", e.g. "Slime SSS"). Distinct from both the adventure-item
-/// ids and the training Monster list. Player-identified 2026-06-18; only the
-/// enemies whose cores the player holds are known.
+/// ids and the training Monster list. Player-identified 2026-06-18 from a Steam
+/// save holding cores from all seven of these enemies.
 pub fn adventure_enemy_name(id: u32) -> Option<&'static str> {
     Some(match id {
         50 => "Slime",
+        53 => "Astaroth", // core namespace; id 53 is "Common Herb" as an item
         63 => "Goblin",
+        64 => "Ghoul",
         69 => "Imp",
+        72 => "Wraith",
+        87 => "Shinigami",
         _ => return None,
     })
 }
@@ -619,18 +646,27 @@ mod tests {
 
     #[test]
     fn adventure_item_and_enemy_names() {
-        // Adventure items (032.d namespace).
+        // Adventure items (032.d namespace) — full 32-item Steam set + Flask.
         assert_eq!(adventure_item_name(1), Some("Sticky Fluid"));
-        assert_eq!(adventure_item_name(3), Some("Bag of Sand"));
+        assert_eq!(adventure_item_name(4), Some("Heat"));
+        assert_eq!(adventure_item_name(63), Some("Flask"));
+        assert_eq!(adventure_item_name(261), Some("Fire Jewel"));
         assert_eq!(adventure_item_name(266), Some("Light Jewel"));
         assert_eq!(adventure_item_name(9999), None);
-        // Cores' enemy namespace is separate: id 53 is "Common Herb" as an item
-        // but an enemy id in the core list, and id 50 is "Cloth" vs "Slime".
+        // The two namespaces collide on ids and must stay separate: 50 is
+        // "Cloth" (item) vs "Slime" (enemy); 53 is "Common Herb" vs "Astaroth";
+        // 64 is "Small Bottle" vs "Ghoul".
         assert_eq!(adventure_item_name(50), Some("Cloth"));
         assert_eq!(adventure_enemy_name(50), Some("Slime"));
-        assert_eq!(adventure_enemy_name(63), Some("Goblin"));
+        assert_eq!(adventure_item_name(53), Some("Common Herb"));
+        assert_eq!(adventure_enemy_name(53), Some("Astaroth"));
+        assert_eq!(adventure_item_name(64), Some("Small Bottle"));
+        assert_eq!(adventure_enemy_name(64), Some("Ghoul"));
+        // All seven held enemies resolve.
         assert_eq!(adventure_enemy_name(69), Some("Imp"));
-        assert_eq!(adventure_enemy_name(53), None); // unknown enemy id (≠ item 53)
+        assert_eq!(adventure_enemy_name(72), Some("Wraith"));
+        assert_eq!(adventure_enemy_name(87), Some("Shinigami"));
+        assert_eq!(adventure_enemy_name(9999), None);
         // Core quality reuses the equipment 0–8 F→SSS ladder.
         assert_eq!(quality_name(6), Some("S"));
         assert_eq!(quality_name(8), Some("SSS"));
