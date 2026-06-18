@@ -232,26 +232,37 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
         st.cell_buffers.clear();
     }
 
-    // Equipment builder (create a new instance, standalone).
-    if let Some(built) = equip_builder::builder_window(ui.ctx(), &mut st.builder, None) {
+    // Equipment builder (create standalone instances, with a quantity).
+    if let Some(built) =
+        equip_builder::builder_window(ui.ctx(), &mut st.builder, equip_builder::BuilderMode::Add)
+    {
         let name = items::equipment_type_name(built.type_id).unwrap_or("Equipment");
         let qual = items::quality_name(built.quality).unwrap_or("");
         let plus = if built.plus > 0 { format!("+{}", built.plus) } else { String::new() };
         let label = format!("{name} {qual}{plus}");
-        st.status = Some(
+        let mut created = 0;
+        let mut err = None;
+        for _ in 0..built.quantity {
             match session.add_equipment(
                 built.type_id,
                 built.plus,
                 built.quality,
                 built.gem_level,
                 built.gem_element,
-                label,
+                label.clone(),
                 None,
             ) {
-                Ok(id) => (format!("Created instance #{id} — see Pending changes"), false),
-                Err(e) => (format!("Create failed: {e}"), true),
-            },
-        );
+                Ok(_) => created += 1,
+                Err(e) => {
+                    err = Some(e.to_string());
+                    break;
+                }
+            }
+        }
+        st.status = Some(match err {
+            Some(e) => (format!("Created {created}, then failed: {e}"), true),
+            None => (format!("Created {created} × {label} — see Pending changes"), false),
+        });
     }
 
     table(ui, st, &rows, &filtered);
