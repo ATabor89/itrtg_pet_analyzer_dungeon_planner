@@ -130,6 +130,14 @@ fn ensure_list<'a>(root: &'a mut raw::Raw, key: &str) -> Result<&'a mut Vec<raw:
     }
 }
 
+/// Append a new material stack `{a:id, b:count}` to `X.Q` (creating the list if
+/// absent). The caller is responsible for checking the id isn't already present
+/// (the GUI inventory editor upserts: edit the existing stack, else append).
+pub fn add_material(root: &mut raw::Raw, item_id: u32, count: &str) -> Result<()> {
+    ensure_list(root, "Q")?.push(material_entry(&item_id.to_string(), count));
+    Ok(())
+}
+
 /// A material-inventory element `{a:id, b:count}`.
 fn material_entry(id: &str, count: &str) -> raw::Raw {
     let val = |s: &str| raw::Field::Value(raw::Raw::Scalar(s.to_string()));

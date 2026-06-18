@@ -109,6 +109,12 @@ pub fn material_name(id: u32) -> Option<&'static str> {
     })
 }
 
+/// Every known material id and name, for the inventory editor's "add item"
+/// picker. Built by scanning the [`material_name`] table (ids are sparse).
+pub fn known_materials() -> Vec<(u32, &'static str)> {
+    (0..=400).filter_map(|id| material_name(id).map(|n| (id, n))).collect()
+}
+
 /// Look up the display name for an equipment *type* id (the `X.R[i].a`
 /// namespace — distinct from material ids).
 ///
@@ -342,6 +348,16 @@ pub fn quality_name(quality: u32) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn known_materials_lists_named_ids() {
+        let mats = known_materials();
+        assert!(mats.len() > 30);
+        assert!(mats.contains(&(117, "Ant")));
+        assert!(mats.contains(&(130, "Aether Ring")));
+        // Only named ids appear.
+        assert!(mats.iter().all(|(id, _)| material_name(*id).is_some()));
+    }
 
     #[test]
     fn equipment_categories() {
