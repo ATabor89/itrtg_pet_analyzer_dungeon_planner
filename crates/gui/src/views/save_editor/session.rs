@@ -62,6 +62,20 @@ pub struct AddedGem {
     pub label: String,
 }
 
+/// A loaded list element removed this session, kept so the deletion shows in the
+/// pending panel and can be undone (re-inserted).
+#[derive(Clone)]
+pub struct RemovedElement {
+    /// The list it came from (`["X","R"]` / `["X","Q"]` / `["X","002"]`).
+    pub list: Vec<&'static str>,
+    /// The removed node, for re-insertion on undo.
+    pub element: Raw,
+    pub label: String,
+    /// Pet slots that referenced a removed equipment instance (cleared to `0` on
+    /// delete, restored on undo) — so nothing dangles.
+    cleared_slots: Vec<(Vec<String>, String)>,
+}
+
 /// A loaded save plus all in-progress edits.
 pub struct EditSession {
     /// File name the save was loaded from, for display.
@@ -83,6 +97,8 @@ pub struct EditSession {
     added_materials: Vec<AddedMaterial>,
     /// Gem stacks created this session (see [`AddedGem`]).
     added_gems: Vec<AddedGem>,
+    /// Loaded list elements deleted this session (see [`RemovedElement`]).
+    removed: Vec<RemovedElement>,
     /// Set when an edit invalidates `derived`; cleared by `rederive_if_needed`.
     dirty_derived: bool,
 }
@@ -105,6 +121,7 @@ impl EditSession {
             added: Vec::new(),
             added_materials: Vec::new(),
             added_gems: Vec::new(),
+            removed: Vec::new(),
             dirty_derived: false,
         })
     }
@@ -142,16 +159,182 @@ impl EditSession {
         &self.added_gems
     }
 
+    /// Loaded list elements deleted this session.
+    pub fn removed(&self) -> &[RemovedElement] {
+        &self.removed
+    }
+
     pub fn is_dirty(&self) -> bool {
         !self.pending.is_empty()
             || !self.added.is_empty()
             || !self.added_materials.is_empty()
             || !self.added_gems.is_empty()
+            || !self.removed.is_empty()
     }
 
-    /// Total staged changes (scalar edits + created equipment + added items/gems).
+    /// Total staged changes (scalar edits + created/added + deleted).
     pub fn change_count(&self) -> usize {
-        self.pending.len() + self.added.len() + self.added_materials.len() + self.added_gems.len()
+        self.pending.len()
+            + self.added.len()
+            + self.added_materials.len()
+            + self.added_gems.len()
+            + self.removed.len()
+    }
+
+    /// Delete the equipment instance at `X.R.<index>`. If it's a session-created
+    /// instance, this just undoes its creation; otherwise it clears the slot of
+    /// any pet equipping it (so nothing dangles) and tracks the removal for undo.
+    pub fn delete_equipment(&mut self, index: usize, label: impl Into<String>) -> Result<()> {
+        edit::ensure_list(&mut self.root, "R")?;
+        let element = self
+            .root
+            .get_path(&["X", "R", &index.to_string()])
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("no equipment at index {index}"))?;
+        let h = scalar_u32(&element, "h");
+        let d = scalar_u32(&element, "d");
+
+        // A session-created instance → undo its creation (restores any slot it set).
+        if let Some(h) = h
+            && let Some(ai) = self.added.iter().position(|a| a.instance_id == h)
+        {
+            self.undo_added(ai);
+            return Ok(());
+        }
+
+        // Clear pet slots referencing this loaded instance (by mirror `h`, or `d`).
+        let mut cleared = Vec::new();
+        let pet_count = match self.root.get_path(&["X", "b"]) {
+            Some(Raw::List(p)) => p.len(),
+            _ => 0,
+        };
+        for pi in 0..pet_count {
+            for slot in ["e", "f", "g"] {
+                let path = vec![
+                    "X".to_string(),
+                    "b".to_string(),
+                    pi.to_string(),
+                    "w".to_string(),
+                    slot.to_string(),
+                ];
+                let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
+                let cur = match self.root.get_path(&p) {
+                    Some(Raw::Scalar(s)) => s.parse::<u32>().ok(),
+                    _ => None,
+                };
+                if let Some(c) = cur
+                    && c != 0
+                    && (Some(c) == h || Some(c) == d)
+                {
+                    let orig = self.root.set_scalar_path(&p, "0")?;
+                    // Drop any pending edit on this slot (now cleared) so it
+                    // doesn't conflict; undo restores `orig` directly.
+                    self.drop_pending_with_prefix(&p);
+                    cleared.push((path.clone(), orig));
+                }
+            }
+        }
+
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["X", "R"])
+            && index < items.len()
+        {
+            items.remove(index);
+        }
+        self.reindex_pending_after_removal(&["X", "R"], index);
+        self.removed.push(RemovedElement {
+            list: vec!["X", "R"],
+            element,
+            label: label.into(),
+            cleared_slots: cleared,
+        });
+        self.dirty_derived = true;
+        Ok(())
+    }
+
+    /// Delete the material stack at `X.Q.<index>` (or undo its creation if it was
+    /// added this session).
+    pub fn delete_material(&mut self, index: usize, label: impl Into<String>) -> Result<()> {
+        edit::ensure_list(&mut self.root, "Q")?;
+        let element = self
+            .root
+            .get_path(&["X", "Q", &index.to_string()])
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("no material at index {index}"))?;
+        let item_id = scalar_u32(&element, "a");
+        if let Some(id) = item_id
+            && let Some(ai) = self.added_materials.iter().position(|m| m.item_id == id)
+        {
+            self.undo_added_material(ai);
+            return Ok(());
+        }
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["X", "Q"])
+            && index < items.len()
+        {
+            items.remove(index);
+        }
+        // Material edits are selector-addressed; drop just this stack's edits.
+        if let Some(id) = item_id {
+            self.drop_pending_with_prefix(&["X", "Q", &format!("a={id}")]);
+        }
+        self.removed.push(RemovedElement {
+            list: vec!["X", "Q"],
+            element,
+            label: label.into(),
+            cleared_slots: Vec::new(),
+        });
+        self.dirty_derived = true;
+        Ok(())
+    }
+
+    /// Delete the gem stack at `X.002.<index>` (or undo its creation if added
+    /// this session).
+    pub fn delete_gem(&mut self, index: usize, label: impl Into<String>) -> Result<()> {
+        edit::ensure_list(&mut self.root, "002")?;
+        let element = self
+            .root
+            .get_path(&["X", "002", &index.to_string()])
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("no gem at index {index}"))?;
+        let el = scalar_u32(&element, "a");
+        let lv = scalar_u32(&element, "b");
+        if let (Some(e), Some(l)) = (el, lv)
+            && let Some(ai) = self.added_gems.iter().position(|g| g.element_id == e && g.level == l)
+        {
+            self.undo_added_gem(ai);
+            return Ok(());
+        }
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["X", "002"])
+            && index < items.len()
+        {
+            items.remove(index);
+        }
+        self.reindex_pending_after_removal(&["X", "002"], index);
+        self.removed.push(RemovedElement {
+            list: vec!["X", "002"],
+            element,
+            label: label.into(),
+            cleared_slots: Vec::new(),
+        });
+        self.dirty_derived = true;
+        Ok(())
+    }
+
+    /// Undo a deletion (by index into [`removed`]): re-insert the element (at the
+    /// end — order is content-addressed, not positional) and restore any pet
+    /// slots that were cleared.
+    pub fn undo_removed(&mut self, index: usize) {
+        let Some(entry) = self.removed.get(index).cloned() else {
+            return;
+        };
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&entry.list) {
+            items.push(entry.element);
+        }
+        for (path, orig) in &entry.cleared_slots {
+            let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
+            let _ = self.root.set_scalar_path(&p, orig);
+        }
+        self.removed.remove(index);
+        self.dirty_derived = true;
     }
 
     /// Set the count of the gem stack (element, level) — upsert. Edits the
@@ -684,6 +867,52 @@ mod tests {
         s.undo_added_gem(0);
         assert!(s.added_gems().is_empty());
         assert!(s.value(&["X", "002", "2", "a"]).is_none());
+    }
+
+    #[test]
+    fn delete_equipment_clears_equipped_pet_slot_and_undo_restores() {
+        // Pet 0 has weapon = instance id 5 (loaded), instances are d=5,8.
+        let x = Raw::Struct(vec![
+            ("R".into(), Field::Value(Raw::List(vec![instance("5"), instance("8")]))),
+            ("b".into(), Field::Value(Raw::List(vec![pet("5"), pet("0")]))),
+        ]);
+        let root = Raw::Struct(vec![("X".into(), b64(x))]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+        assert_eq!(s.value(&["X", "b", "0", "w", "e"]).as_deref(), Some("5"));
+
+        s.delete_equipment(0, "Magic Stick").unwrap(); // X.R[0] has h=5
+        assert_eq!(s.removed().len(), 1);
+        assert_eq!(s.value(&["X", "b", "0", "w", "e"]).as_deref(), Some("0")); // cleared
+        assert_eq!(s.value(&["X", "R", "0", "d"]).as_deref(), Some("8")); // d=5 gone
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+
+        s.undo_removed(0);
+        assert!(s.removed().is_empty());
+        assert_eq!(s.value(&["X", "b", "0", "w", "e"]).as_deref(), Some("5")); // restored
+    }
+
+    #[test]
+    fn delete_material_and_undo_restores() {
+        let mut s = EditSession::load(&encoded(&mat_root()), None).unwrap();
+        s.delete_material(0, "Ant").unwrap(); // X.Q[0] = id 117
+        assert_eq!(s.removed().len(), 1);
+        assert!(s.value(&["X", "Q", "a=117", "a"]).is_none());
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+        s.undo_removed(0);
+        assert!(s.removed().is_empty());
+        assert_eq!(s.value(&["X", "Q", "a=117", "a"]).as_deref(), Some("117"));
+    }
+
+    #[test]
+    fn delete_just_created_equipment_undoes_creation() {
+        let mut s = EditSession::load(&encoded(&equip_root()), None).unwrap();
+        s.add_equipment(51, 0, 8, 0, 0, "Magic Stick", None).unwrap(); // appended at X.R[2]
+        assert_eq!(s.added().len(), 1);
+        s.delete_equipment(2, "Magic Stick").unwrap();
+        assert!(s.added().is_empty()); // creation undone
+        assert!(s.removed().is_empty()); // not tracked as a separate removal
     }
 
     #[test]

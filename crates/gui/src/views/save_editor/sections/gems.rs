@@ -65,6 +65,7 @@ pub struct GemEditState {
     cell_buffers: HashMap<usize, String>,
     sort: Option<(GSort, bool)>,
     add: AddGemState,
+    pending_delete: Option<usize>,
 
     apply_requested: bool,
     status: Option<(String, bool)>,
@@ -128,6 +129,15 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut GemEditState)
     }
 
     table(ui, st, &rows, &filtered);
+
+    if let Some(idx) = st.pending_delete.take()
+        && let Some(row) = rows.iter().find(|r| r.index == idx)
+    {
+        let label = format!("{} L{}", element_name(row.element_id), row.level);
+        if let Err(e) = session.delete_gem(idx, label) {
+            st.status = Some((format!("Delete failed: {e}"), true));
+        }
+    }
 }
 
 fn passes_filter(st: &GemEditState, r: &GemRow) -> bool {
@@ -262,7 +272,8 @@ fn table(ui: &mut egui::Ui, st: &mut GemEditState, rows: &[GemRow], filtered: &[
         .column(Column::auto())
         .column(Column::initial(120.0)) // element
         .column(Column::initial(80.0)) // level
-        .column(Column::remainder()) // count
+        .column(Column::initial(140.0)) // count
+        .column(Column::remainder()) // delete
         .header(20.0, |mut h| {
             h.col(|_| {});
             for (title, col) in [("Element", GSort::Element), ("Level", GSort::Level), ("Count", GSort::Count)] {
@@ -272,6 +283,7 @@ fn table(ui: &mut egui::Ui, st: &mut GemEditState, rows: &[GemRow], filtered: &[
                     }
                 });
             }
+            h.col(|_| {});
         })
         .body(|body| {
             body.rows(22.0, filtered.len(), |mut tr| {
@@ -299,6 +311,11 @@ fn table(ui: &mut egui::Ui, st: &mut GemEditState, rows: &[GemRow], filtered: &[
                         bulk::override_cell(ui, row.index, &default, &row.raw_count, &mut st.cell_buffers, &mut st.overrides);
                     } else {
                         ui.label(RichText::new(&row.raw_count).monospace().size(11.0));
+                    }
+                });
+                tr.col(|ui| {
+                    if ui.small_button("×").on_hover_text("Delete this stack").clicked() {
+                        st.pending_delete = Some(row.index);
                     }
                 });
             });
