@@ -325,9 +325,11 @@ fn apply(session: &mut EditSession, st: &GemEditState, rows: &[GemRow]) -> (Stri
             skipped += 1;
             continue;
         }
-        let i_str = i.to_string();
+        // Route through set_gem (upsert by element+level): it normalizes a
+        // lone-struct X.002 to a list, so the numeric-index edit path is valid
+        // even when the player has a single gem stack.
         let label = format!("{} L{} count", element_name(row.element_id), row.level);
-        if session.set_scalar(&["X", "002", &i_str, "c"], label, target.trim()).is_ok() {
+        if session.set_gem(row.element_id, row.level, target.trim(), label).is_ok() {
             staged += 1;
         } else {
             skipped += 1;
