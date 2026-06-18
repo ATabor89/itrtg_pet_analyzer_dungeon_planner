@@ -22,6 +22,7 @@ pub enum SectionId {
     Resources,
     Pets,
     Equipment,
+    Inventory,
     RawTree,
 }
 
@@ -31,6 +32,7 @@ impl SectionId {
         SectionId::Resources,
         SectionId::Pets,
         SectionId::Equipment,
+        SectionId::Inventory,
         SectionId::RawTree,
     ];
 
@@ -39,6 +41,7 @@ impl SectionId {
             SectionId::Resources => "Resources & Currencies",
             SectionId::Pets => "Pets",
             SectionId::Equipment => "Equipment",
+            SectionId::Inventory => "Inventory",
             SectionId::RawTree => "Raw Save Tree",
         }
     }

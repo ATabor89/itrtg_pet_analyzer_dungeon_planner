@@ -46,6 +46,14 @@ pub struct AddedEquip {
     pub slot: Option<(Vec<String>, String)>,
 }
 
+/// A newly-created material stack (appended to `X.Q`). Tracked like
+/// [`AddedEquip`] so it shows in the pending panel and can be undone.
+#[derive(Clone)]
+pub struct AddedMaterial {
+    pub item_id: u32,
+    pub label: String,
+}
+
 /// A loaded save plus all in-progress edits.
 pub struct EditSession {
     /// File name the save was loaded from, for display.
@@ -63,6 +71,8 @@ pub struct EditSession {
     pending: Vec<PendingEdit>,
     /// Equipment instances created this session (see [`AddedEquip`]).
     added: Vec<AddedEquip>,
+    /// Material stacks created this session (see [`AddedMaterial`]).
+    added_materials: Vec<AddedMaterial>,
     /// Set when an edit invalidates `derived`; cleared by `rederive_if_needed`.
     dirty_derived: bool,
 }
@@ -83,6 +93,7 @@ impl EditSession {
             derived,
             pending: Vec::new(),
             added: Vec::new(),
+            added_materials: Vec::new(),
             dirty_derived: false,
         })
     }
@@ -110,13 +121,59 @@ impl EditSession {
         &self.added
     }
 
-    pub fn is_dirty(&self) -> bool {
-        !self.pending.is_empty() || !self.added.is_empty()
+    /// Material stacks created this session.
+    pub fn added_materials(&self) -> &[AddedMaterial] {
+        &self.added_materials
     }
 
-    /// Total staged changes (scalar edits + created equipment).
+    pub fn is_dirty(&self) -> bool {
+        !self.pending.is_empty() || !self.added.is_empty() || !self.added_materials.is_empty()
+    }
+
+    /// Total staged changes (scalar edits + created equipment + added items).
     pub fn change_count(&self) -> usize {
-        self.pending.len() + self.added.len()
+        self.pending.len() + self.added.len() + self.added_materials.len()
+    }
+
+    /// Set the quantity of material `item_id` (upsert): edit the existing `X.Q`
+    /// stack if present, else create one. Returns whether a new stack was added.
+    pub fn set_material(
+        &mut self,
+        item_id: u32,
+        count: &str,
+        label: impl Into<String>,
+    ) -> Result<bool> {
+        let selector = format!("a={item_id}");
+        let exists = self.root.get_path(&["X", "Q", &selector, "a"]).is_some();
+        if exists {
+            self.set_scalar(&["X", "Q", &selector, "b"], label, count)?;
+            Ok(false)
+        } else {
+            edit::add_material(&mut self.root, item_id, count)?;
+            self.added_materials.push(AddedMaterial {
+                item_id,
+                label: label.into(),
+            });
+            self.dirty_derived = true;
+            Ok(true)
+        }
+    }
+
+    /// Undo a created material stack (by index into [`added_materials`]): remove
+    /// the `X.Q` element whose `a` matches.
+    pub fn undo_added_material(&mut self, index: usize) {
+        let Some(entry) = self.added_materials.get(index).cloned() else {
+            return;
+        };
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["X", "Q"])
+            && let Some(pos) = items.iter().position(|it| {
+                matches!(it.get("a"), Some(Raw::Scalar(s)) if s.parse::<u32>().ok() == Some(entry.item_id))
+            })
+        {
+            items.remove(pos);
+        }
+        self.added_materials.remove(index);
+        self.dirty_derived = true;
     }
 
     /// Create a new equipment instance (appended to `X.R`), optionally equipping
@@ -335,6 +392,12 @@ impl EditSession {
                 bail!("validation failed: created item #{} missing after round-trip", a.instance_id);
             }
         }
+        // Each created material stack must be present in X.Q.
+        for m in &self.added_materials {
+            if root.get_path(&["X", "Q", &format!("a={}", m.item_id), "a"]).is_none() {
+                bail!("validation failed: added item id {} missing after round-trip", m.item_id);
+            }
+        }
         Ok(())
     }
 }
@@ -409,6 +472,45 @@ mod tests {
             ("b".into(), Field::Value(Raw::List(vec![pet("0"), pet("0")]))),
         ]);
         Raw::Struct(vec![("X".into(), b64(x))])
+    }
+
+    /// A material stack `{a:id, b:count}`.
+    fn mat(id: &str, count: &str) -> Raw {
+        Raw::Struct(vec![("a".into(), sc(id)), ("b".into(), sc(count))])
+    }
+    /// A root with X.Q holding two material stacks.
+    fn mat_root() -> Raw {
+        let x = Raw::Struct(vec![(
+            "Q".into(),
+            Field::Value(Raw::List(vec![mat("117", "10"), mat("159", "20")])),
+        )]);
+        Raw::Struct(vec![("X".into(), b64(x))])
+    }
+
+    #[test]
+    fn set_material_updates_existing_stack() {
+        let mut s = EditSession::load(&encoded(&mat_root()), None).unwrap();
+        let created = s.set_material(117, "500", "Ant").unwrap();
+        assert!(!created);
+        assert_eq!(s.value(&["X", "Q", "a=117", "b"]).as_deref(), Some("500"));
+        assert_eq!(s.pending().len(), 1); // a scalar edit, not an addition
+        assert!(s.added_materials().is_empty());
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+    }
+
+    #[test]
+    fn set_material_creates_new_stack_and_undoes() {
+        let mut s = EditSession::load(&encoded(&mat_root()), None).unwrap();
+        let created = s.set_material(999, "5", "Item 999").unwrap();
+        assert!(created);
+        assert_eq!(s.added_materials().len(), 1);
+        assert_eq!(s.value(&["X", "Q", "a=999", "b"]).as_deref(), Some("5"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+        s.undo_added_material(0);
+        assert!(s.added_materials().is_empty());
+        assert!(s.value(&["X", "Q", "a=999", "b"]).is_none());
     }
 
     #[test]
