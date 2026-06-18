@@ -41,8 +41,10 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::Might => items::might_name(v.parse().ok()?).map(str::to_string),
         Resolve::Creation => items::creation_name(v.parse().ok()?).map(str::to_string),
         Resolve::SpaceDim => items::spacedim_name(v.parse().ok()?).map(str::to_string),
-        Resolve::PhysicalSkill => items::physical_skill_name(v.parse().ok()?).map(str::to_string),
-        Resolve::MysticSkill => items::mystic_skill_name(v.parse().ok()?).map(str::to_string),
+        Resolve::PhysicalTraining => {
+            items::physical_training_name(v.parse().ok()?).map(str::to_string)
+        }
+        Resolve::Skill => items::skill_name(v.parse().ok()?).map(str::to_string),
         Resolve::Monster => items::monster_name(v.parse().ok()?).map(str::to_string),
         Resolve::Research => model::research_name(v.parse().ok()?).map(str::to_string),
         Resolve::Element => model::element_from_id(v.parse().ok()?).map(element_name),
@@ -651,14 +653,14 @@ mod tests {
             resolve_name(Resolve::Monument, "0", &empty),
             save_parser::items::monument_name(0).map(str::to_string)
         );
-        // Training-skill / monster ids via the items tables.
+        // Physical-training / skill / monster ids via the items tables.
         assert_eq!(
-            resolve_name(Resolve::PhysicalSkill, "0", &empty),
-            save_parser::items::physical_skill_name(0).map(str::to_string)
+            resolve_name(Resolve::PhysicalTraining, "0", &empty),
+            save_parser::items::physical_training_name(0).map(str::to_string)
         );
         assert_eq!(
-            resolve_name(Resolve::MysticSkill, "0", &empty),
-            save_parser::items::mystic_skill_name(0).map(str::to_string)
+            resolve_name(Resolve::Skill, "0", &empty),
+            save_parser::items::skill_name(0).map(str::to_string)
         );
         assert_eq!(
             resolve_name(Resolve::Monster, "33", &empty),

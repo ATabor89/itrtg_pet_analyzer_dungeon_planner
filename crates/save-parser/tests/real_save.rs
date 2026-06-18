@@ -815,22 +815,22 @@ fn spacedim_levels_match_notes() {
 }
 
 #[test]
-fn training_skills_and_monsters_decode() {
+fn training_and_monster_blocks_decode() {
     let save = require_save!();
-    // List lengths match the in-game training/monster screens (the player may
-    // gain one extra challenge-unlocked skill later, growing h/j).
-    assert_eq!(save.physical_skills.len(), 28);
-    assert_eq!(save.mystic_skills.len(), 28);
+    // List lengths match the in-game Physical/Skills/Monsters screens (the
+    // player may gain one extra challenge-unlocked skill later, growing h/j).
+    assert_eq!(save.physical_trainings.len(), 28);
+    assert_eq!(save.skills.len(), 28);
     assert_eq!(save.monsters.len(), 34);
 
     // `a` is the 0-based list position; names resolve in screen order.
-    assert_eq!(save.physical_skills[0].id, 0);
+    assert_eq!(save.physical_trainings[0].id, 0);
     assert_eq!(
-        save_parser::items::physical_skill_name(save.physical_skills[0].id),
+        save_parser::items::physical_training_name(save.physical_trainings[0].id),
         Some("Running")
     );
     assert_eq!(
-        save_parser::items::mystic_skill_name(save.mystic_skills[0].id),
+        save_parser::items::skill_name(save.skills[0].id),
         Some("Double Punch")
     );
     assert_eq!(
@@ -840,19 +840,27 @@ fn training_skills_and_monsters_decode() {
 
     // Clones are all 1 on this fully-reduced Steam save (training caps drop to a
     // single clone over time); `d` is the still-unidentified 0 field.
-    assert!(save.physical_skills.iter().all(|s| s.clones == 1));
+    assert!(save.physical_trainings.iter().all(|s| s.clones == 1));
     assert!(save.monsters.iter().all(|m| m.clones == 1));
-    assert_eq!(save.physical_skills[0].raw.get("d").and_then(|n| n.as_u64()), Some(0));
+    assert_eq!(save.physical_trainings[0].raw.get("d").and_then(|n| n.as_u64()), Some(0));
+
+    // Usage count (`e.b`) is present on every Skill and absent on Physicals.
+    assert!(save.skills.iter().all(|s| s.usage_count.is_some()));
+    assert!(save.physical_trainings.iter().all(|p| p.usage_count.is_none()));
+    // Time Manipulation (last Skill) had the large usage count noted in-game.
+    assert!(save.skills[27].usage_count.unwrap() > 800_000);
 }
 
 #[test]
-fn training_skill_levels_advance_across_saves() {
+fn skill_levels_advance_across_saves() {
     let s1 = require_save!();
     let s2 = require_second_save!();
-    // The in-game "Sync" toggle keeps Physical[i] and Mystic[i] at identical
-    // levels, and every skill's level advances between the two saves.
-    assert_eq!(s1.physical_skills[0].level, s1.mystic_skills[0].level);
-    assert!(s2.physical_skills[0].level > s1.physical_skills[0].level);
+    // The in-game "Sync" toggle keeps Physical[i] and Skill[i] at identical
+    // levels, and every entry's level advances between the two saves. The Skill
+    // usage count (the cap driver) climbs too.
+    assert_eq!(s1.physical_trainings[0].level, s1.skills[0].level);
+    assert!(s2.physical_trainings[0].level > s1.physical_trainings[0].level);
+    assert!(s2.skills[0].usage_count.unwrap() > s1.skills[0].usage_count.unwrap());
     assert!(s2.monsters[0].defeated > s1.monsters[0].defeated);
 }
 
