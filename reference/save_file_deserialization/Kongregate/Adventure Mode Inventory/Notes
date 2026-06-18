@@ -1,0 +1,38 @@
+Adventure Mode Inventory is found at: 032.d
+
+For each entry in the list, it appears that `a` is the ID and `b` is the quantity.
+
+Current inventory items and quantities:
+    Bag of Sand: 1055
+    Cloth: 977
+    Common Herb: 3109
+    Common Mana Herb: 1159
+    Dark Jewel: 6
+    Flask: 320
+    Light Jewel: 1
+    Pine Plank: 747
+    Rough Hide: 945
+    Scrap Metal: 566
+    Sticky Fluid: 1877
+
+Adventure Mode Cores Inventory is found at: 032.G
+
+For each entry in the list, it appears that `a` is the ID and `c` is the quantity. `d` seems like it represents the quality of the core. From spot checking the first few entries in the save file's list, they appear to be in the same order as in the game. The quantities are matching. The main difference between these first few are `d`, which likely means it's the quality. If quality is the same as equipment, then it starts at 0 and goes to 8 through F -> E -> D -> C -> B -> A -> S -> SS -> SSS.
+
+The current core inventory items and quantities, in game order (which likely matches the order in the save file):
+
+Slime E: 6
+Slime D: 7
+Slime F: 78
+Slime B: 2
+Slime S: 9
+Imp SSS: 3
+Goblin S: 11
+Slime SS: 10
+Imp S: 12
+Imp SS: 7
+Goblin SS: 9
+Goblin SSS: 2
+Slime A: 7
+IMp A: 1
+Goblin A: 2
