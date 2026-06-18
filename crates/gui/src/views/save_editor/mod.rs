@@ -21,7 +21,7 @@ use eframe::egui::{self, RichText};
 use crate::style;
 use registry::{FieldRegistry, SectionId};
 use session::EditSession;
-use sections::{equipment, pets, raw_tree, resources};
+use sections::{equipment, inventory, pets, raw_tree, resources};
 
 #[derive(Default)]
 pub struct SaveEditorState {
@@ -38,6 +38,7 @@ pub struct SaveEditorState {
     tree_generation: u64,
     pets: pets::PetEditState,
     equipment: equipment::EquipEditState,
+    inventory: inventory::InventoryEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -102,6 +103,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         tree_generation,
         pets: pet_state,
         equipment: equip_state,
+        inventory: inv_state,
         buffers,
         ..
     } = state;
@@ -136,6 +138,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     SectionId::Resources => resources::show(ui, session, registry, buffers),
                     SectionId::Pets => pets::show(ui, session, pet_state),
                     SectionId::Equipment => equipment::show(ui, session, equip_state),
+                    SectionId::Inventory => inventory::show(ui, session, inv_state),
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,
@@ -289,6 +292,7 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
             }
             let mut undo: Option<usize> = None;
             let mut undo_added: Option<usize> = None;
+            let mut undo_added_material: Option<usize> = None;
             // Cap the height so a huge batch doesn't run off-screen — scroll within.
             egui::ScrollArea::vertical()
                 .max_height(240.0)
@@ -351,12 +355,41 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
                                 }
                             });
                     }
+
+                    if !session.added_materials().is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("Added items").color(style::TEXT_MUTED).size(11.0));
+                        egui::Grid::new("save_editor_added_mat_grid")
+                            .num_columns(3)
+                            .spacing([12.0, 4.0])
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for (i, m) in session.added_materials().iter().enumerate() {
+                                    ui.label(
+                                        RichText::new(format!("+ {}", m.label)).color(style::SUCCESS),
+                                    );
+                                    ui.label(
+                                        RichText::new(format!("id {}", m.item_id))
+                                            .color(style::TEXT_MUTED)
+                                            .monospace()
+                                            .size(11.0),
+                                    );
+                                    if ui.small_button("undo").clicked() {
+                                        undo_added_material = Some(i);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    }
                 });
             if let Some(i) = undo {
                 let _ = session.undo(i);
             }
             if let Some(i) = undo_added {
                 session.undo_added(i);
+            }
+            if let Some(i) = undo_added_material {
+                session.undo_added_material(i);
             }
         });
 }
