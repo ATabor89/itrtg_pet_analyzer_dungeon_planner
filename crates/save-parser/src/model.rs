@@ -336,8 +336,12 @@ pub struct Monument {
     /// it (clones then spill to the next thing in the list); diverges while
     /// building (Black Hole: level 110 vs next-at 140 in save 2).
     pub level: u64,
-    /// "Next at" level (`g`). (The paired upgrade's next-at/level from the
-    /// export is not stored in this entry — location unknown.)
+    /// Player-set **target level** (`g`) for the auto clone-spread: this
+    /// monument levels until it reaches `next_at`, then the build menu's clones
+    /// advance to the next monument; once every monument is at its target the
+    /// allocated clones go idle (player-clarified 2026-06-18). NB the paired
+    /// upgrade's own next-at/level is not stored in this entry — location
+    /// unknown.
     pub next_at: u64,
     /// Clone-spread ratio (`h`) used by the spread-clones button.
     pub spread: u32,
@@ -358,7 +362,9 @@ pub struct Might {
     /// mights is the White Tiger unlock progress (25,000 needed; this
     /// account: 3,200 ✓ matching the in-game unlock screen).
     pub level: u64,
-    /// "Next at" level (`m`).
+    /// Player-set **target level** (`m`) for the auto clone-spread — same
+    /// mechanic as [`Monument::next_at`] (level up to it, then clones move to
+    /// the next might; all-at-target ⇒ idle).
     pub next_at: u64,
     /// Clone-spread ratio (`n`).
     pub spread: u32,
@@ -391,7 +397,9 @@ pub struct SpaceDimElement {
     pub clones: u64,
     /// Current level (`c`).
     pub level: u64,
-    /// "Next at" clone count (`d`).
+    /// Player-set **target level** (`d`) for the auto clone-spread — same
+    /// mechanic as [`Monument::next_at`] (this element levels up to it, then the
+    /// menu's clones advance to the next element; all-at-target ⇒ idle).
     pub next_at: u64,
     /// Accumulated clones toward the next level (`e`).
     pub progress: f64,
@@ -491,7 +499,10 @@ pub struct DivinityUpgrade {
     pub id: u32,
     /// Current level (`b`).
     pub level: u64,
-    /// "Next at" level (`f`) — player-confirmed 2026-06-18.
+    /// Player-set **target level** (`f`) for the auto clone-spread — same
+    /// mechanic as [`Monument::next_at`]. Player-confirmed 2026-06-18: it held a
+    /// constant 512 (the target) while the level climbed 81 → 188 → 512, then the
+    /// upgrade's clones would advance to the next track.
     pub next_at: u64,
     /// Clone-spread priority (`g`): 1, 2, 2 for the three tracks
     /// (player-confirmed 2026-06-18 — earlier mislabeled a per-level multiplier).

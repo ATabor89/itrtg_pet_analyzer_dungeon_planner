@@ -385,7 +385,7 @@ factor in the normal-stats global multiplier.
 | `a` | element id = display order (1 = Controlled Entropy … 20 = Self Replicating AI) |
 | `b` | light clones allocated to this element (only the active one is nonzero) |
 | `c` | **level** |
-| `d` | **next-at** (clones to next level) |
+| `d` | **next-at** (player-set target level — see the note below) |
 | `e` | progress / accumulated clones toward next level |
 | `f` | **spread** (the 20…1 priority value shown in-game) |
 
@@ -393,6 +393,21 @@ Verified end-to-end against the 2026-06-13 notes: save 1 Quantum Genesis
 `c`=2, Fusion Torch `c`=18 (b=70,362 — all light clones), Dyson `c`=22; save 2
 Fusion Torch `c`=70, Dyson 23, Quantum Genesis 6, etc. — and every `d`/`f`
 matches the notes' Next-At/Spread columns. Levels reset per rebirth.
+
+### "Next At" and "Spread" — the clone-spread menus (player-clarified 2026-06-18)
+
+The `next_at`/`spread` pair shows up in every menu where you allocate Worker
+Clones across a list of things — **Monuments** (`D`), **Mights** (`V`), **SpaceDim**
+(`009.b`), **Divinity Generator upgrades** (`K.l`), etc. Both are **player set**,
+not game-computed:
+
+- **Next At** is a *target level*. The auto-spread levels an item up to its Next
+  At, then moves that menu's clones to the next item in priority order. When
+  every item has reached its Next At, the clones allocated to that menu go
+  **idle**. (This is why `K.l[i].f` read a constant 512 while the level climbed
+  toward it — the player rarely changes these until pushing for higher values.)
+- **Spread** is the priority order the auto-spread follows (the visible
+  20…1-style ranking).
 
 ## `root.T` — Baal Slayer (decoded 2026-06-13)
 
