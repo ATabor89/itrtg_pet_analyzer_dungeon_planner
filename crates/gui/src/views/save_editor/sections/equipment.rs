@@ -138,6 +138,8 @@ pub struct EquipEditState {
     cell_buffers: HashMap<(usize, EField), String>,
     sort: Option<(ESort, bool)>,
     builder: EquipBuilderState,
+    /// Row (X.R index) the user clicked "×" to delete, consumed in `show`.
+    pending_delete: Option<usize>,
 
     apply_requested: bool,
     status: Option<(String, bool)>,
@@ -266,6 +268,15 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
     }
 
     table(ui, st, &rows, &filtered);
+
+    if let Some(idx) = st.pending_delete.take()
+        && let Some(row) = rows.iter().find(|r| r.index == idx)
+    {
+        let label = row.name.clone();
+        if let Err(e) = session.delete_equipment(idx, label) {
+            st.status = Some((format!("Delete failed: {e}"), true));
+        }
+    }
 }
 
 fn passes_filter(st: &EquipEditState, r: &EquipRow) -> bool {
@@ -511,7 +522,8 @@ fn table(ui: &mut egui::Ui, st: &mut EquipEditState, rows: &[EquipRow], filtered
         .column(Column::initial(110.0)) // plus
         .column(Column::initial(150.0)) // gem
         .column(Column::initial(150.0)) // equipped
-        .column(Column::remainder()) // instance id
+        .column(Column::initial(54.0)) // instance id
+        .column(Column::remainder()) // delete
         .header(20.0, |mut h| {
             h.col(|_| {});
             let cols = [
@@ -531,6 +543,7 @@ fn table(ui: &mut egui::Ui, st: &mut EquipEditState, rows: &[EquipRow], filtered
             h.col(|ui| {
                 ui.label(RichText::new("Inst").strong().size(12.0));
             });
+            h.col(|_| {});
         })
         .body(|body| {
             body.rows(22.0, filtered.len(), |mut tr| {
@@ -563,6 +576,11 @@ fn table(ui: &mut egui::Ui, st: &mut EquipEditState, rows: &[EquipRow], filtered
                 });
                 tr.col(|ui| {
                     ui.label(RichText::new(row.mirror_id.to_string()).color(style::TEXT_MUTED).size(11.0));
+                });
+                tr.col(|ui| {
+                    if ui.small_button("×").on_hover_text("Delete this item").clicked() {
+                        st.pending_delete = Some(row.index);
+                    }
                 });
             });
         });
