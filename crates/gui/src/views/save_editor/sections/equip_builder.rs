@@ -1,6 +1,9 @@
 //! Shared equipment builder: a modal window to create a new equipment instance
-//! (type, quality, plus, gem). Used by the Equipment page ("Add equipment") and
-//! (later) the Pets page ("give to a pet", slot-locked via `lock`).
+//! (type, quality, plus, gem). Two modes:
+//! - [`BuilderMode::Add`] — the Equipment page: a category filter + a quantity,
+//!   creates N unequipped instances.
+//! - [`BuilderMode::GiveToPets`] — the Pets page: a slot picker (which also
+//!   filters the type list), one instance per selected pet equipped in that slot.
 
 use eframe::egui::{self, RichText};
 use save_parser::items::{self, EquipCategory};
@@ -19,6 +22,24 @@ fn element_name(id: u32) -> &'static str {
     ELEMENT_CHOICES.iter().find(|(_, i)| *i == id).map_or("?", |(l, _)| *l)
 }
 
+/// (label, pet slot key, category) — index into this is `st.slot`.
+const SLOTS: &[(&str, &str, EquipCategory)] = &[
+    ("Weapon", "e", EquipCategory::Weapon),
+    ("Armor", "f", EquipCategory::Armor),
+    ("Accessory", "g", EquipCategory::Accessory),
+];
+
+const CATEGORIES: &[EquipCategory] =
+    &[EquipCategory::Weapon, EquipCategory::Armor, EquipCategory::Accessory];
+
+/// What the builder is being used for.
+pub enum BuilderMode {
+    /// Add standalone equipment to inventory.
+    Add,
+    /// Give one new item to each of `count` selected pets.
+    GiveToPets { count: usize },
+}
+
 #[derive(Default)]
 pub struct EquipBuilderState {
     pub open: bool,
@@ -28,14 +49,21 @@ pub struct EquipBuilderState {
     plus: u32,
     gem_level: u32,
     gem_element: u32,
+    /// Add-mode type-list category filter (`None` = any).
+    category: Option<EquipCategory>,
+    /// Give-mode slot index into [`SLOTS`].
+    slot: usize,
+    /// Add-mode quantity.
+    quantity: u32,
 }
 
 impl EquipBuilderState {
-    /// Open the builder, resetting to sensible defaults (SSS, +0, no gem).
+    /// Open the builder, resetting to sensible defaults (SSS, +0, no gem, qty 1).
     pub fn open(&mut self) {
         *self = EquipBuilderState {
             open: true,
             quality: 8,
+            quantity: 1,
             ..EquipBuilderState::default()
         };
     }
@@ -48,31 +76,77 @@ pub struct BuiltEquip {
     pub quality: u32,
     pub gem_level: u32,
     pub gem_element: u32,
+    /// Add mode: how many to create. Give mode: 1.
+    pub quantity: u32,
+    /// Give mode: the pet slot key to equip into. Add mode: `None`.
+    pub slot_key: Option<&'static str>,
 }
 
 /// Show the builder window while `st.open`. Returns `Some` on Create.
-/// `lock` restricts the type list to one slot category (for the give-to-pet use).
 pub fn builder_window(
     ctx: &egui::Context,
     st: &mut EquipBuilderState,
-    lock: Option<EquipCategory>,
+    mode: BuilderMode,
 ) -> Option<BuiltEquip> {
     if !st.open {
         return None;
     }
+    let give = matches!(mode, BuilderMode::GiveToPets { .. });
+    let title = match mode {
+        BuilderMode::Add => "Create Equipment".to_string(),
+        BuilderMode::GiveToPets { count } => format!("Give Equipment to {count} pets"),
+    };
+    // The type list is filtered by the chosen category (Add) or slot (Give).
+    let lock = if give {
+        Some(SLOTS[st.slot].2)
+    } else {
+        st.category
+    };
+
     let mut built = None;
     let mut close = false;
     let mut window_open = true;
 
-    egui::Window::new("Create Equipment")
+    egui::Window::new(title)
         .collapsible(false)
         .resizable(false)
         .open(&mut window_open)
         .show(ctx, |ui| {
-            // Type picker (filtered by `lock`, searchable).
+            // Slot (give) or category (add) filter.
+            ui.horizontal(|ui| {
+                if give {
+                    ui.label("Slot:");
+                    egui::ComboBox::from_id_salt("eqbuild_slot")
+                        .selected_text(SLOTS[st.slot].0)
+                        .show_ui(ui, |ui| {
+                            for (i, (label, _, _)) in SLOTS.iter().enumerate() {
+                                ui.selectable_value(&mut st.slot, i, *label);
+                            }
+                        });
+                } else {
+                    ui.label("Category:");
+                    egui::ComboBox::from_id_salt("eqbuild_cat")
+                        .selected_text(st.category.map_or("Any", EquipCategory::name))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut st.category, None, "Any");
+                            for &c in CATEGORIES {
+                                ui.selectable_value(&mut st.category, Some(c), c.name());
+                            }
+                        });
+                }
+            });
+
+            // Type picker (filtered by `lock`, searchable). Clear the selection if
+            // it no longer matches the filter.
+            if let Some(l) = lock
+                && st.type_id.and_then(items::equipment_category) != Some(l)
+            {
+                st.type_id = None;
+            }
             ui.horizontal(|ui| {
                 ui.label("Type:");
-                let current = st.type_id.and_then(items::equipment_type_name).unwrap_or("— pick a type —");
+                let current =
+                    st.type_id.and_then(items::equipment_type_name).unwrap_or("— pick a type —");
                 egui::ComboBox::from_id_salt("eqbuild_type")
                     .selected_text(current)
                     .width(200.0)
@@ -127,19 +201,27 @@ pub fn builder_window(
                 }
             });
 
+            // Quantity (Add mode only — Give mode is one per selected pet).
+            if !give {
+                ui.horizontal(|ui| {
+                    ui.label("Quantity:");
+                    ui.add(egui::DragValue::new(&mut st.quantity).range(1..=99));
+                });
+            }
+
             ui.separator();
             ui.horizontal(|ui| {
                 let can_create = st.type_id.is_some();
-                if ui
-                    .add_enabled(can_create, egui::Button::new("Create"))
-                    .clicked()
-                {
+                let action = if give { "Give" } else { "Create" };
+                if ui.add_enabled(can_create, egui::Button::new(action)).clicked() {
                     built = st.type_id.map(|type_id| BuiltEquip {
                         type_id,
                         plus: st.plus,
                         quality: st.quality,
                         gem_level: st.gem_level,
                         gem_element: st.gem_element,
+                        quantity: if give { 1 } else { st.quantity.max(1) },
+                        slot_key: give.then(|| SLOTS[st.slot].1),
                     });
                     close = true;
                 }

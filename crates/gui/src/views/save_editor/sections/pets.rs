@@ -21,6 +21,7 @@ use itrtg_models::{Class, Element};
 use save_parser::edit::{apply_delta, apply_factor};
 
 use super::bulk::{self, OpKind};
+use super::equip_builder::{self, EquipBuilderState};
 use crate::style;
 use crate::views::save_editor::session::EditSession;
 
@@ -213,6 +214,8 @@ pub struct PetEditState {
 
     /// Column sort: `(column, ascending)`; `None` = save order.
     sort: Option<(SortCol, bool)>,
+    /// The shared equipment builder, used here in give-to-pets mode.
+    builder: EquipBuilderState,
 
     /// Set by the Apply button, consumed next in `show`.
     apply_requested: bool,
@@ -284,6 +287,15 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PetEditState)
         st.ops.clear();
         st.op_class = None;
         st.cell_buffers.clear();
+    }
+
+    // Give equipment to the selected pets (one new instance each).
+    if let Some(built) = equip_builder::builder_window(
+        ui.ctx(),
+        &mut st.builder,
+        equip_builder::BuilderMode::GiveToPets { count: st.selected.len() },
+    ) {
+        st.status = Some(give_equipment(session, st, &rows, &built));
     }
 
     table(ui, st, &rows, &filtered);
@@ -509,15 +521,72 @@ fn bulk_panel(ui: &mut egui::Ui, st: &mut PetEditState, filtered: &[usize]) {
 
     let has_ops = !st.ops.is_empty() || st.op_class.is_some() || !st.overrides.is_empty()
         || !st.class_overrides.is_empty();
-    let can_apply = !st.selected.is_empty() && has_ops;
-    if ui
-        .add_enabled(
-            can_apply,
-            egui::Button::new(format!("Apply to {} pets", st.selected.len())),
-        )
-        .clicked()
-    {
-        st.apply_requested = true;
+    let n = st.selected.len();
+    ui.horizontal(|ui| {
+        if ui
+            .add_enabled(
+                !st.selected.is_empty() && has_ops,
+                egui::Button::new(format!("Apply to {n} pets")),
+            )
+            .clicked()
+        {
+            st.apply_requested = true;
+        }
+        if ui
+            .add_enabled(
+                !st.selected.is_empty(),
+                egui::Button::new(format!("Give equipment to {n}…")),
+            )
+            .on_hover_text("Create one new item per selected pet and equip it")
+            .clicked()
+        {
+            st.builder.open();
+        }
+    });
+}
+
+/// Give one new equipment instance to each selected pet (equipped in the chosen
+/// slot). Returns a status message.
+fn give_equipment(
+    session: &mut EditSession,
+    st: &PetEditState,
+    rows: &[PetRow],
+    built: &equip_builder::BuiltEquip,
+) -> (String, bool) {
+    let Some(slot) = built.slot_key else {
+        return ("No slot chosen".into(), true);
+    };
+    let names: HashMap<usize, &str> = rows.iter().map(|r| (r.index, r.name.as_str())).collect();
+    let eq_name = save_parser::items::equipment_type_name(built.type_id).unwrap_or("Equipment");
+    let qual = save_parser::items::quality_name(built.quality).unwrap_or("");
+    let plus = if built.plus > 0 { format!("+{}", built.plus) } else { String::new() };
+
+    let mut selected: Vec<usize> = st.selected.iter().copied().collect();
+    selected.sort_unstable();
+    let total = selected.len();
+    let mut given = 0;
+    for i in selected {
+        let pet = names.get(&i).copied().unwrap_or("pet");
+        let label = format!("{eq_name} {qual}{plus} → {pet}");
+        if session
+            .add_equipment(
+                built.type_id,
+                built.plus,
+                built.quality,
+                built.gem_level,
+                built.gem_element,
+                label,
+                Some((i, slot)),
+            )
+            .is_ok()
+        {
+            given += 1;
+        }
+    }
+    if given < total {
+        (format!("Gave {eq_name} to {given}/{total} pets ({} failed)", total - given), true)
+    } else {
+        (format!("Gave {eq_name} to {given} pets — see Pending changes"), false)
     }
 }
 
