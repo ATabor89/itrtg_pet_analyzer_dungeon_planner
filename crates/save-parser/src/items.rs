@@ -301,6 +301,124 @@ pub fn spacedim_name(id: u32) -> Option<&'static str> {
     }
 }
 
+/// Physical training-skill name by id (root `h` list order, 0-based).
+///
+/// The list order is the in-game Physical training screen, transcribed by the
+/// player 2026-06-18. A challenge eventually unlocks one extra skill the player
+/// doesn't have yet, so a future save may carry one more element than there are
+/// names here — unknown ids return `None` and the editor falls back to the index.
+pub fn physical_skill_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 28] = [
+        "Running",
+        "Sit Ups",
+        "Push Ups",
+        "Swimming",
+        "Long Jumps",
+        "Shadow Boxing",
+        "Jump Rope",
+        "Climb Mountains",
+        "Run in Water",
+        "Meditate",
+        "Throw Spears",
+        "Smash Rocks",
+        "Run with Weights",
+        "Walk on Tightropes",
+        "Swim with Weights",
+        "Dive with Sharks",
+        "Jump on Trees",
+        "Walk on Water",
+        "Walk with 10x Gravity",
+        "Run with 50x Gravity",
+        "Move Mountains",
+        "Learn to Fly",
+        "Fly Around the World",
+        "Carry Mountains",
+        "Fly to the Moon",
+        "Fly Around the Universe",
+        "Smash Meteorites",
+        "Train on Dimension X",
+    ];
+    NAMES.get(id as usize).copied()
+}
+
+/// Mystic training-skill name by id (root `j` list order, 0-based). Same caveat
+/// as [`physical_skill_name`] about a future challenge-unlocked skill.
+pub fn mystic_skill_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 28] = [
+        "Double Punch",
+        "High Kick",
+        "Dodge",
+        "Shadow Fist",
+        "Focused Breathing",
+        "Raging Fist",
+        "Defensive Aura",
+        "Misdirection",
+        "Whirling Foot",
+        "Invisible Hand",
+        "Dragon Fist",
+        "Offense Aura",
+        "Elemental Manipulation",
+        "Earth Armor",
+        "Ice Wall",
+        "Clairvoyance",
+        "Aura Ball",
+        "Mystic Mode",
+        "108 Fists of Destiny",
+        "Big Bang",
+        "God Speed",
+        "Teleport",
+        "Transformation Aura",
+        "Gear Eyes",
+        "Reflection Barrier",
+        "Ionioi Hero Summon",
+        "Unlimited Creation Works",
+        "Time Manipulation",
+    ];
+    NAMES.get(id as usize).copied()
+}
+
+/// Monster name by id (root `k` list order, 0-based) — the creatures fought to
+/// generate Battle and Divinity. Transcribed by the player 2026-06-18.
+pub fn monster_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 34] = [
+        "Slimy",
+        "Frog",
+        "Bunny",
+        "Goblin",
+        "Wolf",
+        "Kobold",
+        "Big Burger",
+        "Skeleton",
+        "Zombie",
+        "Harpy",
+        "Orc",
+        "Mummy",
+        "Fighting Turtle",
+        "Ape",
+        "Salamander",
+        "Golem",
+        "Dullahan",
+        "Succubus",
+        "Minotaurus",
+        "Devil",
+        "Gargoyle",
+        "Demon",
+        "Vampire",
+        "Lamia",
+        "Dragon",
+        "Behemoth",
+        "Valkyrie",
+        "Nine Tailed Fox",
+        "Genbu",
+        "Byakko",
+        "Suzaku",
+        "Seiryuu",
+        "Godzilla",
+        "Monster Queen",
+    ];
+    NAMES.get(id as usize).copied()
+}
+
 /// Equipment slot category.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EquipCategory {
@@ -424,6 +542,25 @@ mod tests {
         assert_eq!(equipment_type_name(8), Some("Flood Armor"));
         assert_eq!(equipment_type_name(22), Some("Water Spear"));
         assert_eq!(equipment_type_name(41), Some("Tree Bracelet"));
+    }
+
+    #[test]
+    fn training_and_monster_names() {
+        // Counts match the reference save's list lengths (h=28, j=28, k=34).
+        assert_eq!((0..28).filter_map(physical_skill_name).count(), 28);
+        assert_eq!((0..28).filter_map(mystic_skill_name).count(), 28);
+        assert_eq!((0..34).filter_map(monster_name).count(), 34);
+        // Endpoints (0-based ids).
+        assert_eq!(physical_skill_name(0), Some("Running"));
+        assert_eq!(physical_skill_name(27), Some("Train on Dimension X"));
+        assert_eq!(mystic_skill_name(0), Some("Double Punch"));
+        assert_eq!(mystic_skill_name(27), Some("Time Manipulation"));
+        assert_eq!(monster_name(0), Some("Slimy"));
+        assert_eq!(monster_name(33), Some("Monster Queen"));
+        // Out-of-range (e.g. a future challenge-unlocked skill) falls through.
+        assert_eq!(physical_skill_name(28), None);
+        assert_eq!(mystic_skill_name(28), None);
+        assert_eq!(monster_name(34), None);
     }
 
     #[test]
