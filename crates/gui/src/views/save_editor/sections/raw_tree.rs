@@ -46,6 +46,9 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         }
         Resolve::Skill => items::skill_name(v.parse().ok()?).map(str::to_string),
         Resolve::Monster => items::monster_name(v.parse().ok()?).map(str::to_string),
+        Resolve::DivinityUpgrade => {
+            items::divinity_upgrade_name(v.parse().ok()?).map(str::to_string)
+        }
         Resolve::Research => model::research_name(v.parse().ok()?).map(str::to_string),
         Resolve::Element => model::element_from_id(v.parse().ok()?).map(element_name),
         Resolve::Class => model::class_from_id(v.parse().ok()?).map(class_name),
