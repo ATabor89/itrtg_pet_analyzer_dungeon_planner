@@ -389,8 +389,11 @@ mod tests {
     #[test]
     fn unknown_ids_return_none() {
         assert_eq!(material_name(0), None);
-        assert_eq!(material_name(130), None); // singleton set, unassigned
+        assert_eq!(material_name(160), None); // singleton set, still unassigned
         assert_eq!(material_name(9999), None);
+        // 130 (Aether Ring) and 162 (Monster Blood) are now known.
+        assert_eq!(material_name(130), Some("Aether Ring"));
+        assert_eq!(material_name(162), Some("Monster Blood"));
     }
 
     #[test]
