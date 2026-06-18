@@ -138,20 +138,48 @@ fn material_entry(id: &str, count: &str) -> raw::Raw {
 
 /// An equipment instance shaped like the game's (see the `EquipmentItem` docs):
 /// `a` type, `b` plus, `c` quality, `d`/`h` instance id, `e=20` plus cap,
-/// `f`/`g` gem = 0, `i=0`.
-fn equip_instance(id: u32, eq: &EquipGrant) -> raw::Raw {
+/// `f` gem level, `g` gem element, `i=0`.
+fn instance_struct(
+    id: u32,
+    type_id: u32,
+    plus: u32,
+    quality: u32,
+    gem_level: u32,
+    gem_element: u32,
+) -> raw::Raw {
     let val = |s: String| raw::Field::Value(raw::Raw::Scalar(s));
     raw::Raw::Struct(vec![
-        ("a".into(), val(eq.type_id.to_string())),
-        ("b".into(), val(eq.plus.to_string())),
-        ("c".into(), val(eq.quality.to_string())),
+        ("a".into(), val(type_id.to_string())),
+        ("b".into(), val(plus.to_string())),
+        ("c".into(), val(quality.to_string())),
         ("d".into(), val(id.to_string())),
         ("e".into(), val("20".into())),
-        ("f".into(), val("0".into())),
-        ("g".into(), val("0".into())),
+        ("f".into(), val(gem_level.to_string())),
+        ("g".into(), val(gem_element.to_string())),
         ("h".into(), val(id.to_string())),
         ("i".into(), val("0".into())),
     ])
+}
+
+fn equip_instance(id: u32, eq: &EquipGrant) -> raw::Raw {
+    instance_struct(id, eq.type_id, eq.plus, eq.quality, 0, 0)
+}
+
+/// Append a new equipment instance to `X.R` (creating the list if absent) and
+/// return its freshly-assigned instance id (above the current max). Reused by
+/// the GUI equipment builder.
+pub fn add_equip_instance(
+    root: &mut raw::Raw,
+    type_id: u32,
+    plus: u32,
+    quality: u32,
+    gem_level: u32,
+    gem_element: u32,
+) -> Result<u32> {
+    let id = max_instance_id(root) + 1;
+    ensure_list(root, "R")?
+        .push(instance_struct(id, type_id, plus, quality, gem_level, gem_element));
+    Ok(id)
 }
 
 /// Highest equipment instance id (`d`) in `X.R`, or 0 if none. Tolerates an
@@ -406,5 +434,23 @@ mod tests {
             root.get_path(&["X", "Q", "a=5", "b"]),
             Some(&raw::Raw::Scalar("400000".into()))
         );
+    }
+
+    #[test]
+    fn add_equip_instance_to_empty_inventory() {
+        use base64::Engine as _;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        // Minimal save: X with an EMPTY R field.
+        let x_inner = b64.encode("y:0;R:;".as_bytes());
+        let plaintext = format!("X:{x_inner};");
+        let mut root = raw::parse(&plaintext);
+
+        let id = add_equip_instance(&mut root, 51, 20, 8, 3, 1).unwrap();
+        assert_eq!(id, 1); // empty list → max 0 + 1
+        // Fields landed, including the gem.
+        assert_eq!(root.get_path(&["X", "R", "a=51", "b"]), Some(&raw::Raw::Scalar("20".into())));
+        assert_eq!(root.get_path(&["X", "R", "a=51", "c"]), Some(&raw::Raw::Scalar("8".into())));
+        assert_eq!(root.get_path(&["X", "R", "a=51", "f"]), Some(&raw::Raw::Scalar("3".into())));
+        assert_eq!(root.get_path(&["X", "R", "a=51", "h"]), Some(&raw::Raw::Scalar("1".into())));
     }
 }
