@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use eframe::egui::{self, RichText};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::Element;
-use save_parser::items;
+use save_parser::items::{self, EquipCategory};
 
 use super::bulk::{self, OpKind};
 use crate::style;
@@ -69,6 +69,18 @@ fn element_name(id: u32) -> &'static str {
         .map_or("?", |(l, _)| *l)
 }
 
+fn slot_category(slot: &str) -> Option<EquipCategory> {
+    match slot {
+        "weapon" => Some(EquipCategory::Weapon),
+        "armor" => Some(EquipCategory::Armor),
+        "accessory" => Some(EquipCategory::Accessory),
+        _ => None,
+    }
+}
+
+const CATEGORIES: &[EquipCategory] =
+    &[EquipCategory::Weapon, EquipCategory::Armor, EquipCategory::Accessory];
+
 fn element_id(e: Element) -> u32 {
     match e {
         Element::Neutral => 0,
@@ -84,6 +96,7 @@ fn element_id(e: Element) -> u32 {
 struct EquipRow {
     index: usize,
     name: String,
+    category: Option<EquipCategory>,
     quality: u32,
     plus: u32,
     gem_level: u32,
@@ -106,6 +119,7 @@ impl EquipRow {
 #[derive(Default)]
 pub struct EquipEditState {
     f_name: String,
+    f_category: Option<EquipCategory>,
     f_quality_min: String,
     f_quality_max: String,
     f_plus_min: String,
@@ -160,17 +174,23 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
                 .value(&["X", "R", &idx, "h"])
                 .and_then(|s| s.trim().parse().ok())
                 .unwrap_or(e.instance_id);
+            let equipped_on = equipped.get(&mirror_id).cloned();
+            // Category from the type table, falling back to the equipped slot
+            // (so an unknown type that's equipped is still categorized).
+            let category = items::equipment_category(e.type_id)
+                .or_else(|| equipped_on.as_ref().and_then(|(_, slot)| slot_category(slot)));
             EquipRow {
                 index,
                 name: items::equipment_type_name(e.type_id)
                     .map(str::to_string)
                     .unwrap_or_else(|| format!("Type {}", e.type_id)),
+                category,
                 quality: e.quality,
                 plus: e.plus,
                 gem_level: e.gem_level,
                 gem_element_id: e.gem_element.map(element_id).unwrap_or(0),
                 mirror_id,
-                equipped_on: equipped.get(&mirror_id).cloned(),
+                equipped_on,
             }
         })
         .collect();
@@ -211,6 +231,11 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
 fn passes_filter(st: &EquipEditState, r: &EquipRow) -> bool {
     if !st.f_name.trim().is_empty()
         && !r.name.to_lowercase().contains(&st.f_name.trim().to_lowercase())
+    {
+        return false;
+    }
+    if let Some(cat) = st.f_category
+        && r.category != Some(cat)
     {
         return false;
     }
@@ -270,6 +295,14 @@ fn cmp_rows(a: &EquipRow, b: &EquipRow, col: ESort) -> Ordering {
 fn filter_bar(ui: &mut egui::Ui, st: &mut EquipEditState, total: usize, shown: usize) {
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new("Filter:").color(style::TEXT_MUTED));
+        egui::ComboBox::from_id_salt("eq_f_category")
+            .selected_text(st.f_category.map_or("Any slot", EquipCategory::name))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut st.f_category, None, "Any slot");
+                for &c in CATEGORIES {
+                    ui.selectable_value(&mut st.f_category, Some(c), c.name());
+                }
+            });
         ui.label("type");
         ui.add(egui::TextEdit::singleline(&mut st.f_name).desired_width(120.0));
         ui.label("Quality");
@@ -633,6 +666,7 @@ mod tests {
         EquipRow {
             index: 2,
             name: "Magic Stick".into(),
+            category: Some(EquipCategory::Weapon),
             quality: 6,
             plus: 10,
             gem_level: 0,
