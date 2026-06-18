@@ -194,8 +194,10 @@ impl EditSession {
             return;
         };
         let mut removed_pos = None;
+        // `rposition` targets the appended (last) stack defensively, in case a
+        // save ever shipped a duplicate (element, level) (shouldn't happen).
         if let Some(Raw::List(items)) = self.root.get_path_mut(&["X", "002"])
-            && let Some(pos) = items.iter().position(|it| {
+            && let Some(pos) = items.iter().rposition(|it| {
                 scalar_u32(it, "a") == Some(entry.element_id)
                     && scalar_u32(it, "b") == Some(entry.level)
             })
@@ -204,7 +206,7 @@ impl EditSession {
             removed_pos = Some(pos);
         }
         if let Some(pos) = removed_pos {
-            self.drop_pending_with_prefix(&["X", "002", &pos.to_string()]);
+            self.reindex_pending_after_removal(&["X", "002"], pos);
         }
         self.added_gems.remove(index);
         self.dirty_derived = true;
@@ -256,10 +258,33 @@ impl EditSession {
     }
 
     /// Drop pending scalar edits whose path begins with `prefix` (used when an
-    /// undone addition removes the element those edits targeted).
+    /// undone addition removes a *selector-addressed* element, e.g. a material
+    /// `X.Q.a=<id>`; other selector edits are unaffected by the removal).
     fn drop_pending_with_prefix(&mut self, prefix: &[&str]) {
         self.pending.retain(|e| {
             !(e.path.len() >= prefix.len() && e.path.iter().zip(prefix).all(|(a, b)| a == b))
+        });
+    }
+
+    /// Fix index-addressed pending edits after removing element `removed_pos`
+    /// from the list at `list_prefix` (e.g. `["X","R"]`): drop edits on the
+    /// removed element and decrement the index of edits on later elements, which
+    /// have shifted down by one. Keeps validation/round-trip consistent.
+    fn reindex_pending_after_removal(&mut self, list_prefix: &[&str], removed_pos: usize) {
+        let plen = list_prefix.len();
+        self.pending.retain_mut(|e| {
+            if e.path.len() > plen
+                && e.path[..plen].iter().zip(list_prefix).all(|(a, b)| a == b)
+                && let Ok(idx) = e.path[plen].parse::<usize>()
+            {
+                if idx == removed_pos {
+                    return false;
+                }
+                if idx > removed_pos {
+                    e.path[plen] = (idx - 1).to_string();
+                }
+            }
+            true
         });
     }
 
@@ -319,11 +344,10 @@ impl EditSession {
             items.remove(pos);
             removed_pos = Some(pos);
         }
-        // Drop any scalar edits staged against this (index-addressed) instance.
-        // Created instances are appended last, so removing one doesn't shift the
-        // indices of edits on pre-existing instances.
+        // Re-index pending edits: drop edits on the removed instance and shift
+        // edits on later instances down one (X.R is index-addressed).
         if let Some(pos) = removed_pos {
-            self.drop_pending_with_prefix(&["X", "R", &pos.to_string()]);
+            self.reindex_pending_after_removal(&["X", "R"], pos);
         }
         self.added.remove(index);
         self.dirty_derived = true;
@@ -660,6 +684,25 @@ mod tests {
         s.undo_added_gem(0);
         assert!(s.added_gems().is_empty());
         assert!(s.value(&["X", "002", "2", "a"]).is_none());
+    }
+
+    #[test]
+    fn undo_added_gem_reindexes_dependent_pending() {
+        let mut s = EditSession::load(&encoded(&gem_root()), None).unwrap();
+        s.set_gem(2, 5, "3", "Water L5").unwrap(); // A → idx 2
+        s.set_gem(3, 3, "4", "Earth L3").unwrap(); // B → idx 3
+        // Edit B's count (stages a pending edit at X.002.3.c).
+        s.set_gem(3, 3, "99", "Earth L3 count").unwrap();
+        assert_eq!(s.pending().len(), 1);
+
+        // Undo A. B shifts from idx 3 → idx 2; its pending edit must follow.
+        s.undo_added_gem(0);
+        assert_eq!(s.added_gems().len(), 1);
+        assert_eq!(s.value(&["X", "002", "2", "a"]).as_deref(), Some("3")); // B (Earth) now idx 2
+        assert_eq!(s.value(&["X", "002", "2", "c"]).as_deref(), Some("99"));
+        // Validates — the re-indexed pending edit resolves, not dangling.
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
     }
 
     #[test]
