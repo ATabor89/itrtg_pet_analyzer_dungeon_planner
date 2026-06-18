@@ -194,6 +194,8 @@ pub struct PetEditState {
     f_element: Option<Element>,
     f_class: Option<u32>,
     f_unlocked: Option<bool>,
+    /// A pet has a class iff it is evolved (the only way to get one).
+    f_evolved: Option<bool>,
     f_name: String,
     f_dungeon_min: String,
     f_dungeon_max: String,
@@ -320,6 +322,11 @@ fn passes_filter(st: &PetEditState, r: &PetRow) -> bool {
     {
         return false;
     }
+    if let Some(ev) = st.f_evolved
+        && (r.class_id != 0) != ev
+    {
+        return false;
+    }
     if !st.f_name.trim().is_empty()
         && !r.name.to_lowercase().contains(&st.f_name.trim().to_lowercase())
     {
@@ -400,6 +407,18 @@ fn filter_bar(ui: &mut egui::Ui, st: &mut PetEditState, total: usize, shown: usi
                 ui.selectable_value(&mut st.f_unlocked, None, "Any");
                 ui.selectable_value(&mut st.f_unlocked, Some(true), "Unlocked");
                 ui.selectable_value(&mut st.f_unlocked, Some(false), "Locked");
+            });
+        // Evolved (a pet has a class iff it's evolved).
+        egui::ComboBox::from_id_salt("pet_f_evolved")
+            .selected_text(match st.f_evolved {
+                None => "Any",
+                Some(true) => "Evolved",
+                Some(false) => "Not evolved",
+            })
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut st.f_evolved, None, "Any");
+                ui.selectable_value(&mut st.f_evolved, Some(true), "Evolved");
+                ui.selectable_value(&mut st.f_evolved, Some(false), "Not evolved");
             });
         ui.label("name");
         ui.add(egui::TextEdit::singleline(&mut st.f_name).desired_width(90.0));
