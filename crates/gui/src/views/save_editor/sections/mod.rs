@@ -10,3 +10,4 @@ pub mod inventory;
 pub mod pets;
 pub mod raw_tree;
 pub mod resources;
+pub mod stats;

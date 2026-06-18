@@ -21,7 +21,7 @@ use eframe::egui::{self, RichText};
 use crate::style;
 use registry::{FieldRegistry, SectionId};
 use session::EditSession;
-use sections::{equipment, gems, inventory, pets, raw_tree, resources};
+use sections::{equipment, gems, inventory, pets, raw_tree, resources, stats};
 
 #[derive(Default)]
 pub struct SaveEditorState {
@@ -40,6 +40,9 @@ pub struct SaveEditorState {
     equipment: equipment::EquipEditState,
     inventory: inventory::InventoryEditState,
     gems: gems::GemEditState,
+    physical: stats::StatEditState,
+    skills: stats::StatEditState,
+    monsters: stats::StatEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -106,6 +109,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         equipment: equip_state,
         inventory: inv_state,
         gems: gem_state,
+        physical: physical_state,
+        skills: skills_state,
+        monsters: monsters_state,
         buffers,
         ..
     } = state;
@@ -142,6 +148,13 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     SectionId::Equipment => equipment::show(ui, session, equip_state),
                     SectionId::Inventory => inventory::show(ui, session, inv_state),
                     SectionId::Gems => gems::show(ui, session, gem_state),
+                    SectionId::Physical => {
+                        stats::show(ui, session, physical_state, &stats::PHYSICAL)
+                    }
+                    SectionId::Skills => stats::show(ui, session, skills_state, &stats::SKILLS),
+                    SectionId::Monsters => {
+                        stats::show(ui, session, monsters_state, &stats::MONSTERS)
+                    }
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,
