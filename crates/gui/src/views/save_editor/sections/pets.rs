@@ -20,6 +20,7 @@ use egui_extras::{Column, TableBuilder};
 use itrtg_models::{Class, Element};
 use save_parser::edit::{apply_delta, apply_factor};
 
+use super::bulk::{self, OpKind};
 use crate::style;
 use crate::views::save_editor::session::EditSession;
 
@@ -61,13 +62,6 @@ impl Field {
             _ => &[OpKind::Set, OpKind::Add],
         }
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum OpKind {
-    Set,
-    Mul,
-    Add,
 }
 
 /// Sortable table columns.
@@ -223,17 +217,6 @@ pub struct PetEditState {
     /// Set by the Apply button, consumed next in `show`.
     apply_requested: bool,
     status: Option<(String, bool)>,
-}
-
-impl PetEditState {
-    /// Cycle a column's sort: none → ascending → descending → none.
-    fn cycle_sort(&mut self, col: SortCol) {
-        self.sort = match self.sort {
-            Some((c, true)) if c == col => Some((col, false)),
-            Some((c, false)) if c == col => None,
-            _ => Some((col, true)),
-        };
-    }
 }
 
 pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PetEditState) {
@@ -488,11 +471,11 @@ fn bulk_panel(ui: &mut egui::Ui, st: &mut PetEditState, filtered: &[usize]) {
                 }
                 if let Some((kind, value)) = st.ops.get_mut(&field) {
                     egui::ComboBox::from_id_salt(("pet_op_kind", field.label()))
-                        .selected_text(op_label(*kind))
+                        .selected_text(bulk::op_label(*kind))
                         .width(70.0)
                         .show_ui(ui, |ui| {
                             for &k in field.allowed_ops() {
-                                ui.selectable_value(kind, k, op_label(k));
+                                ui.selectable_value(kind, k, bulk::op_label(k));
                             }
                         });
                     ui.add(egui::TextEdit::singleline(value).desired_width(110.0));
@@ -535,14 +518,6 @@ fn bulk_panel(ui: &mut egui::Ui, st: &mut PetEditState, filtered: &[usize]) {
         .clicked()
     {
         st.apply_requested = true;
-    }
-}
-
-fn op_label(k: OpKind) -> &'static str {
-    match k {
-        OpKind::Set => "Set",
-        OpKind::Mul => "× Mul",
-        OpKind::Add => "+ Add",
     }
 }
 
@@ -600,7 +575,7 @@ fn table(ui: &mut egui::Ui, st: &mut PetEditState, rows: &[PetRow], filtered: &[
             ];
             for (title, col) in cols {
                 h.col(|ui| {
-                    if sort_header(ui, current_sort, title, col) {
+                    if bulk::sort_header(ui, current_sort, title, col) {
                         sort_click = Some(col);
                     }
                 });
@@ -643,29 +618,8 @@ fn table(ui: &mut egui::Ui, st: &mut PetEditState, rows: &[PetRow], filtered: &[
         });
 
     if let Some(col) = sort_click {
-        st.cycle_sort(col);
+        bulk::cycle_sort(&mut st.sort, col);
     }
-}
-
-/// A clickable column header showing the current sort arrow. Returns whether it
-/// was clicked (the caller cycles the sort).
-fn sort_header(
-    ui: &mut egui::Ui,
-    current: Option<(SortCol, bool)>,
-    title: &str,
-    col: SortCol,
-) -> bool {
-    let arrow = match current {
-        Some((c, true)) if c == col => " ▲",
-        Some((c, false)) if c == col => " ▼",
-        _ => "",
-    };
-    ui.add(
-        egui::Button::new(RichText::new(format!("{title}{arrow}")).strong().size(12.0))
-            .frame(false),
-    )
-    .on_hover_text("Click to sort (asc → desc → off)")
-    .clicked()
 }
 
 /// A field cell. Read-only current value for unselected rows; an editable
@@ -676,39 +630,16 @@ fn field_cell(ui: &mut egui::Ui, st: &mut PetEditState, row: &PetRow, field: Fie
         ui.label(RichText::new(current).monospace().size(11.0));
         return;
     }
-
     // The displayed default is the bulk-op result, or the current value if no op.
     let default = bulk_target(st, row, field).unwrap_or_else(|| current.clone());
-    let key = (row.index, field);
-    let overridden = st.overrides.contains_key(&key);
-
-    // Scope the `cell_buffers` borrow so it doesn't overlap `overrides` below.
-    let (changed, buf_val) = {
-        let buf = st.cell_buffers.entry(key).or_insert_with(|| default.clone());
-        if !overridden {
-            // Track the bulk-op default until the user explicitly overrides.
-            buf.clone_from(&default);
-        }
-        let resp = ui.add(
-            egui::TextEdit::singleline(buf)
-                .desired_width(96.0)
-                .font(egui::TextStyle::Monospace),
-        );
-        (resp.changed(), buf.clone())
-    };
-    if changed {
-        if buf_val.trim() == default.trim() {
-            st.overrides.remove(&key);
-        } else {
-            st.overrides.insert(key, buf_val);
-        }
-    }
-    // Mark a real change (differs from the current stored value).
-    let target = st.overrides.get(&key).cloned().unwrap_or(default);
-    if target.trim() != current.trim() {
-        ui.label(RichText::new("●").color(style::SUCCESS).small())
-            .on_hover_text(format!("{current} → {target}"));
-    }
+    bulk::override_cell(
+        ui,
+        (row.index, field),
+        &default,
+        &current,
+        &mut st.cell_buffers,
+        &mut st.overrides,
+    );
 }
 
 fn class_cell(ui: &mut egui::Ui, st: &mut PetEditState, row: &PetRow) {
