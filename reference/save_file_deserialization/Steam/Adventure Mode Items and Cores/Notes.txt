@@ -1,0 +1,44 @@
+Adventure Mode Item Inventory and Quantities
+
+Sticky Fluid: 14,368
+Rough Hide: 398,901
+Bag of Sand: 838,663
+Heat: 363,699
+Cloth: 36
+Leather: 28,925
+Paper: 700
+Common Herb: 205,423
+Uncommon Herb: 248,495
+Godly Herb: 1,901
+Common Mana Herb: 189,844
+Uncommon Mana Herb: 303,885
+Godly Mana Herb: 1,885
+Small Bottle: 8,861
+Fire Flower: 17,586
+Scrap Metal: 303,867
+Iron Ore: 68,303
+Metal Bar: 4,330
+Iron Bar: 37,048
+Pine Plank: 276,554
+Beech Plank: 173,050
+Golden Chestnut: 131
+Refined Cloth: 136
+Refined Leather: 75
+Refined Metal: 102
+Refined Iron: 4
+Enhanced Pine: 1
+Enhanced Beech: 5
+Enhanced Paper: 24
+Fire Jewel: 4,422
+Dark Jewel: 3,427
+Light Jewel: 3,329
+
+Cores, Quality, and Quantities
+
+Slime S: 512
+Imp S: 512
+Goblin S: 512
+Ghoul S: 512
+Wraith S: 512
+Astaroth S: 512
+Shinigami S: 512

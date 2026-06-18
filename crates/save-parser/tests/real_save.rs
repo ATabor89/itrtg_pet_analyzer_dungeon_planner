@@ -937,14 +937,19 @@ fn adventure_inventory_and_cores_decode() {
         Some("Bag of Sand")
     );
 
+    // Every item in this save's inventory now resolves to a name (the full
+    // 32-item Steam set is identified).
+    assert!(save.adventure_inventory.iter().all(|i| i.name().is_some()));
+
     // Cores: enemy id `a`, count `c`, quality `d` on the equipment ladder. In
-    // this save all seven are quality 6 (S); ids 50/63/69 are the known enemies.
+    // this save all seven are quality 6 (S), and every enemy id is now known.
     let slime = save.cores.iter().find(|c| c.enemy_id == 50).unwrap();
     assert_eq!(slime.enemy_name(), Some("Slime"));
     assert_eq!(slime.quality, 6);
     assert_eq!(slime.quality_name(), Some("S"));
     assert!(slime.count > 0);
     assert!(save.cores.iter().all(|c| c.quality <= 8));
+    assert!(save.cores.iter().all(|c| c.enemy_name().is_some()));
 }
 
 #[test]
@@ -973,6 +978,7 @@ const ALL_SAVE_PATHS: &[&str] = &[
     "save_pet_stone_tbs/ManualSave_2026-06-16.txt",
     "Steam/Consumables/1_ManualSave.txt",
     "Steam/Consumables/2_ManualSave.txt",
+    "Steam/Adventure Mode Items and Cores/ManualSave.txt",
 ];
 
 fn read_raw_save(rel: &str) -> Option<String> {

@@ -378,21 +378,23 @@ factor in the normal-stats global multiplier.
 
 `032.d` = **Adventure-mode inventory**: per entry `a` = item id, `b` = count
 (`c`/`d` = 0). A **separate id namespace** from the main `X.Q` materials *and*
-from the core enemy ids below (e.g. id 50 = Cloth here but Slime as a core, id 53
-= Common Herb but an enemy as a core). Names player-matched against the in-game
-inventory (`items::adventure_item_name`); only the held items are known so far:
-1 = Sticky Fluid, 2 = Rough Hide, 3 = Bag of Sand, 50 = Cloth, 53 = Common Herb,
-58 = Common Mana Herb, 63 = Flask, 100 = Scrap Metal, 150 = Pine Plank, 265 =
-Dark Jewel, 266 = Light Jewel.
+from the core enemy ids below (collisions: id 50 = Cloth here but Slime as a core,
+53 = Common Herb but Astaroth, 64 = Small Bottle but Ghoul). The full 32-item set
+is now identified (`items::adventure_item_name`, from a Steam export +
+`Notes.txt`), clustering by material family: 1–4 raw (Sticky Fluid / Rough Hide /
+Bag of Sand / Heat); 50–68 cloth/herbs/etc.; 100–121 metals; 150–151 planks;
+199–201 Golden Chestnut / Refined Cloth / Refined Leather; 220–221 Refined Metal /
+Iron; 240–241 Enhanced Pine / Beech; 260–261 Enhanced Paper / Fire Jewel; 265–266
+Dark / Light Jewel. (Id 63 = Flask appears only in the Kongregate save.)
 
 `032.G` = **cores** (the "<enemy> <quality>" drops): per entry `a` = enemy id,
 `c` = count, **`d` = quality on the same 0–8 F→SSS ladder as equipment**
 (verified entry-by-entry — Slime F=`d`0, E=1, D=2, B=4, A=5, S=6, SS=7, SSS=8);
-`b` = 1 in every entry (unidentified). Known enemy ids
-(`items::adventure_enemy_name`): 50 = Slime, 63 = Goblin, 69 = Imp; other ids in
-older saves (64, 72, 53, 87) are not yet named. Both decoded from a Kongregate
-save (`Kongregate/Adventure Mode Inventory/`, save gitignored — only its `Notes`
-is committed). Promoted to `SaveFile.adventure_inventory` / `cores`.
+`b` = 1 in every entry (unidentified). All seven enemy ids are now named
+(`items::adventure_enemy_name`): 50 = Slime, 53 = Astaroth, 63 = Goblin, 64 =
+Ghoul, 69 = Imp, 72 = Wraith, 87 = Shinigami. Decoded from a redacted Steam save
+(`Steam/Adventure Mode Items and Cores/`) plus the earlier Kongregate save.
+Promoted to `SaveFile.adventure_inventory` / `cores`.
 
 ## `root.009` — SpaceDim / Light Dimension (decoded 2026-06-13)
 
