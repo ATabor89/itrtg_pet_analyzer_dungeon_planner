@@ -563,6 +563,7 @@ fn give_equipment(
 
     let mut selected: Vec<usize> = st.selected.iter().copied().collect();
     selected.sort_unstable();
+    let total = selected.len();
     let mut given = 0;
     for i in selected {
         let pet = names.get(&i).copied().unwrap_or("pet");
@@ -582,7 +583,11 @@ fn give_equipment(
             given += 1;
         }
     }
-    (format!("Gave {eq_name} to {given} pets — see Pending changes"), false)
+    if given < total {
+        (format!("Gave {eq_name} to {given}/{total} pets ({} failed)", total - given), true)
+    } else {
+        (format!("Gave {eq_name} to {given} pets — see Pending changes"), false)
+    }
 }
 
 /// The bulk-op result for a field (no per-pet override), or `None` if no op is
