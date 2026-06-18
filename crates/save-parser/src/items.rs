@@ -88,11 +88,17 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         147 => "Secrets of the Wind",
         149 => "Soul of Sylph",
         153 => "Ale",
+        // Aether Ring (player-confirmed 2026-06-18 on a fresh/edited save: the
+        // base, no-boss-fights ring is id 130). The in-game "+N" suffix tracks
+        // boss kills and is almost certainly the SAME id 130 with a dynamic name
+        // (not consecutive ids — 131 is Sun Stone), so the old save's "Aether
+        // Ring +28" was also id 130. Resolves 130 from the singleton worklist.
+        130 => "Aether Ring",
+        162 => "Monster Blood", // player-confirmed 2026-06-18
         // Unidentified ids (worklist):
-        // - {130, 160, 164, 167, 168} all sit at count 1 and pair with the
-        //   five singleton inventory items {Not Nothing, Absolutely Nothing,
-        //   Aether Ring +28, Food Journal One, Food Journal Two} — set known,
-        //   per-id assignment unknown (all five predate the first save).
+        // - {160, 164, 167, 168} sit at count 1 and pair with the four singleton
+        //   items {Not Nothing, Absolutely Nothing, Food Journal One, Food
+        //   Journal Two} — set known, per-id assignment unknown.
         // - Present at count 0: 128, 129, 139, 140, 142–145, 148, 150.
         // 126–149 look like per-dungeon boss material families (Gnome/earth,
         // fire, wind) — the matching water family is presumably nearby.
