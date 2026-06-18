@@ -313,7 +313,12 @@ pub struct DungeonTeam {
 pub struct Creation {
     /// Creation id (`a`) — resolve with [`crate::items::creation_name`].
     pub id: u32,
-    /// "Next at" clone count (`i`), as shown in the Next Ats export.
+    /// Player-set **target count** (`i`) — the same "Next At" idea as the
+    /// clone-spread menus (see [`Monument::next_at`]), but creating is passive
+    /// (no clones allocated), so it only sequences *what* gets created ("create
+    /// this until `next_at`, then move to the next creation"). Typically set to
+    /// the per-rebirth creation achievement breakpoints. Shown in the Next Ats
+    /// export. (No spread — creations aren't clone-allocated.)
     pub next_at: u64,
     /// Current amount owned (`d`). The Shadow Clone entry equals the
     /// current clone count (capped at max clones).
@@ -336,14 +341,18 @@ pub struct Monument {
     /// it (clones then spill to the next thing in the list); diverges while
     /// building (Black Hole: level 110 vs next-at 140 in save 2).
     pub level: u64,
-    /// Player-set **target level** (`g`) for the auto clone-spread: this
-    /// monument levels until it reaches `next_at`, then the build menu's clones
-    /// advance to the next monument; once every monument is at its target the
-    /// allocated clones go idle (player-clarified 2026-06-18). NB the paired
-    /// upgrade's own next-at/level is not stored in this entry — location
-    /// unknown.
+    /// Player-set **target level** (`g`): the monument keeps leveling until it
+    /// reaches `next_at`, then the build menu's clones move on to the next
+    /// monument — either by rolling down the list as you manually dump clones,
+    /// or via the "spread" button (which skips anything already at its target).
+    /// Once every monument is at its Next At, the menu's allocated clones go
+    /// idle. Otherwise independent of [`spread`](Self::spread). Player-clarified
+    /// 2026-06-18. NB the paired upgrade's own next-at/level is not stored in
+    /// this entry — location unknown.
     pub next_at: u64,
-    /// Clone-spread ratio (`h`) used by the spread-clones button.
+    /// Clone-spread **ratio** (`h`) for the "spread" button — pressing it
+    /// distributes the menu's clones in proportion to each monument's ratio (any
+    /// value; higher ⇒ more clones ⇒ faster leveling). Not a fixed priority rank.
     pub spread: u32,
     /// Currently being built (`f`).
     pub building: bool,
@@ -362,11 +371,12 @@ pub struct Might {
     /// mights is the White Tiger unlock progress (25,000 needed; this
     /// account: 3,200 ✓ matching the in-game unlock screen).
     pub level: u64,
-    /// Player-set **target level** (`m`) for the auto clone-spread — same
-    /// mechanic as [`Monument::next_at`] (level up to it, then clones move to
-    /// the next might; all-at-target ⇒ idle).
+    /// Player-set **target level** (`m`) — same mechanic as
+    /// [`Monument::next_at`] (level up to it, then clones move to the next
+    /// might; all-at-target ⇒ idle).
     pub next_at: u64,
-    /// Clone-spread ratio (`n`).
+    /// Clone-spread **ratio** (`n`) for the "spread" button — same meaning as
+    /// [`Monument::spread`].
     pub spread: u32,
     /// True for the special "Unleash Might" abilities (ids 8–13) (`e`).
     pub special: bool,
@@ -397,13 +407,15 @@ pub struct SpaceDimElement {
     pub clones: u64,
     /// Current level (`c`).
     pub level: u64,
-    /// Player-set **target level** (`d`) for the auto clone-spread — same
-    /// mechanic as [`Monument::next_at`] (this element levels up to it, then the
-    /// menu's clones advance to the next element; all-at-target ⇒ idle).
+    /// Player-set **target level** (`d`) — same mechanic as
+    /// [`Monument::next_at`] (this element levels up to it, then the menu's
+    /// clones advance to the next element; all-at-target ⇒ idle).
     pub next_at: u64,
     /// Accumulated clones toward the next level (`e`).
     pub progress: f64,
-    /// Clone-spread priority (`f`), the 20…1 value shown in-game.
+    /// Clone-spread **ratio** (`f`) for the "spread" button — same meaning as
+    /// [`Monument::spread`] (any value; higher ⇒ more clones). The 20…1-looking
+    /// numbers are just the player's chosen ratios, not a fixed priority rank.
     pub spread: u32,
 }
 
@@ -499,13 +511,14 @@ pub struct DivinityUpgrade {
     pub id: u32,
     /// Current level (`b`).
     pub level: u64,
-    /// Player-set **target level** (`f`) for the auto clone-spread — same
-    /// mechanic as [`Monument::next_at`]. Player-confirmed 2026-06-18: it held a
-    /// constant 512 (the target) while the level climbed 81 → 188 → 512, then the
-    /// upgrade's clones would advance to the next track.
+    /// Player-set **target level** (`f`) — same mechanic as
+    /// [`Monument::next_at`]. Player-confirmed 2026-06-18: it held a constant 512
+    /// (the target) while the level climbed 81 → 188 → 512, before the upgrade's
+    /// clones would advance to the next track.
     pub next_at: u64,
-    /// Clone-spread priority (`g`): 1, 2, 2 for the three tracks
-    /// (player-confirmed 2026-06-18 — earlier mislabeled a per-level multiplier).
+    /// Clone-spread **ratio** (`g`) for the "spread" button: 1, 2, 2 for the
+    /// three tracks (player-confirmed 2026-06-18 — earlier mislabeled a per-level
+    /// multiplier). Same meaning as [`Monument::spread`].
     pub spread: u32,
 }
 
