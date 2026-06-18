@@ -914,6 +914,40 @@ fn divinity_total_capacity_clones_and_storage() {
 }
 
 #[test]
+fn adventure_inventory_and_cores_decode() {
+    let save = require_save!();
+    // 032.d adventure inventory (32 stacks in this save) and 032.G cores (7).
+    assert_eq!(save.adventure_inventory.len(), 32);
+    assert_eq!(save.cores.len(), 7);
+
+    // Known adventure-item ids resolve; quantities are read from `b`.
+    let sticky = save
+        .adventure_inventory
+        .iter()
+        .find(|i| i.item_id == 1)
+        .unwrap();
+    assert_eq!(sticky.name(), Some("Sticky Fluid"));
+    assert!(sticky.count > 0);
+    assert_eq!(
+        save.adventure_inventory
+            .iter()
+            .find(|i| i.item_id == 3)
+            .unwrap()
+            .name(),
+        Some("Bag of Sand")
+    );
+
+    // Cores: enemy id `a`, count `c`, quality `d` on the equipment ladder. In
+    // this save all seven are quality 6 (S); ids 50/63/69 are the known enemies.
+    let slime = save.cores.iter().find(|c| c.enemy_id == 50).unwrap();
+    assert_eq!(slime.enemy_name(), Some("Slime"));
+    assert_eq!(slime.quality, 6);
+    assert_eq!(slime.quality_name(), Some("S"));
+    assert!(slime.count > 0);
+    assert!(save.cores.iter().all(|c| c.quality <= 8));
+}
+
+#[test]
 fn baal_power_and_current_god_match_notes() {
     let (rb1, rb2) = require_rebirth_saves!();
     // Unspent Baal Power: spent (0) -> 334 after the Baal Slayer ran.

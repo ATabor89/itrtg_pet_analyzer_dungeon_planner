@@ -430,6 +430,41 @@ pub fn divinity_upgrade_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// Adventure-mode inventory item name by id (the `032.d` namespace — distinct
+/// from the main `X.Q` materials and from the core/enemy ids). Player-identified
+/// 2026-06-18 by matching the save's `032.d` list (id `a`, count `b`) against the
+/// in-game Adventure inventory. Only the items the player currently holds are
+/// known; other ids return `None`.
+pub fn adventure_item_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        1 => "Sticky Fluid",
+        2 => "Rough Hide",
+        3 => "Bag of Sand",
+        50 => "Cloth",
+        53 => "Common Herb",
+        58 => "Common Mana Herb",
+        63 => "Flask",
+        100 => "Scrap Metal",
+        150 => "Pine Plank",
+        265 => "Dark Jewel",
+        266 => "Light Jewel",
+        _ => return None,
+    })
+}
+
+/// Adventure-mode **enemy** name by id (the `032.G` core namespace — a core is
+/// "<enemy> <quality>", e.g. "Slime SSS"). Distinct from both the adventure-item
+/// ids and the training Monster list. Player-identified 2026-06-18; only the
+/// enemies whose cores the player holds are known.
+pub fn adventure_enemy_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        50 => "Slime",
+        63 => "Goblin",
+        69 => "Imp",
+        _ => return None,
+    })
+}
+
 /// Equipment slot category.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EquipCategory {
@@ -580,6 +615,25 @@ mod tests {
         assert_eq!(divinity_upgrade_name(1), Some("Divinity Gain"));
         assert_eq!(divinity_upgrade_name(2), Some("Converting Speed"));
         assert_eq!(divinity_upgrade_name(3), None);
+    }
+
+    #[test]
+    fn adventure_item_and_enemy_names() {
+        // Adventure items (032.d namespace).
+        assert_eq!(adventure_item_name(1), Some("Sticky Fluid"));
+        assert_eq!(adventure_item_name(3), Some("Bag of Sand"));
+        assert_eq!(adventure_item_name(266), Some("Light Jewel"));
+        assert_eq!(adventure_item_name(9999), None);
+        // Cores' enemy namespace is separate: id 53 is "Common Herb" as an item
+        // but an enemy id in the core list, and id 50 is "Cloth" vs "Slime".
+        assert_eq!(adventure_item_name(50), Some("Cloth"));
+        assert_eq!(adventure_enemy_name(50), Some("Slime"));
+        assert_eq!(adventure_enemy_name(63), Some("Goblin"));
+        assert_eq!(adventure_enemy_name(69), Some("Imp"));
+        assert_eq!(adventure_enemy_name(53), None); // unknown enemy id (≠ item 53)
+        // Core quality reuses the equipment 0–8 F→SSS ladder.
+        assert_eq!(quality_name(6), Some("S"));
+        assert_eq!(quality_name(8), Some("SSS"));
     }
 
     #[test]
