@@ -131,6 +131,12 @@ pub struct SaveFile {
     pub mights: Vec<Might>,
     /// SpaceDim / Light-Dimension elements (root `009.b`), in display order.
     pub spacedim: Vec<SpaceDimElement>,
+    /// Physical training skills (root `h`), in display order.
+    pub physical_skills: Vec<TrainingSkill>,
+    /// Mystic training skills (root `j`), in display order.
+    pub mystic_skills: Vec<TrainingSkill>,
+    /// Monsters fought for Battle/Divinity (root `k`), in display order.
+    pub monsters: Vec<Monster>,
     /// Divinity Generator (root `K`): the running divinity total and its
     /// three upgrade tracks. `None` if the block is absent.
     pub divinity_generator: Option<DivinityGenerator>,
@@ -390,6 +396,47 @@ impl SpaceDimElement {
     pub fn name(&self) -> Option<&'static str> {
         crate::items::spacedim_name(self.id)
     }
+}
+
+/// One training skill — Physical (root `h`) or Mystic (root `j`). Both blocks
+/// share the same struct shape; resolve the name with
+/// [`crate::items::physical_skill_name`] / [`crate::items::mystic_skill_name`]
+/// (the id `a` is the 0-based list position = the screen order).
+///
+/// `level` (`b`) and `clones` (`c`) were player-confirmed 2026-06-18 by taking
+/// clones off some Physical skills while leaving Mystic synced and watching both
+/// fields diverge as expected. The byte-identical `b` between Physical[i] and
+/// Mystic[i] in a fully-reduced Steam save is the in-game "Sync" toggle keeping
+/// clone counts (and thus levels) equal, not a shared value. The `d` field (0 in
+/// every observed entry) and the Mystic-only `e` sub-struct stay in [`Self::raw`]
+/// pending identification.
+#[derive(Debug, Clone)]
+pub struct TrainingSkill {
+    /// Skill id / list position (`a`).
+    pub id: u32,
+    /// Current level (`b`).
+    pub level: u64,
+    /// Clones allocated to this skill (`c`). All `1` on a fully-reduced Steam
+    /// save (training caps drop to a single clone over time); a Kongregate save
+    /// shows the real per-skill spread.
+    pub clones: u32,
+    /// The raw node, for the unidentified `d` field (and the Mystic `e` struct).
+    pub raw: Node,
+}
+
+/// One monster fought to generate Battle and Divinity (root `k`). Same outer
+/// shape as [`TrainingSkill`]; resolve the name with
+/// [`crate::items::monster_name`] (`a` is the 0-based list position).
+#[derive(Debug, Clone)]
+pub struct Monster {
+    /// Monster id / list position (`a`).
+    pub id: u32,
+    /// Number defeated (`b`).
+    pub defeated: u64,
+    /// Clones allocated to fighting this monster (`c`).
+    pub clones: u32,
+    /// The raw node, for the unidentified `d` field.
+    pub raw: Node,
 }
 
 /// The Divinity Generator (root `K`). Decoded 2026-06-13: the three upgrade
@@ -879,6 +926,39 @@ impl SaveFile {
             })
             .unwrap_or_default();
 
+        let parse_skills = |key: &str| {
+            root.get(key)
+                .map(|l| {
+                    l.list_or_single()
+                        .iter()
+                        .map(|n| TrainingSkill {
+                            id: get_u32(n, "a"),
+                            level: get_u64(n, "b"),
+                            clones: get_u32(n, "c"),
+                            raw: n.clone(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let physical_skills = parse_skills("h");
+        let mystic_skills = parse_skills("j");
+
+        let monsters = root
+            .get("k")
+            .map(|l| {
+                l.list_or_single()
+                    .iter()
+                    .map(|n| Monster {
+                        id: get_u32(n, "a"),
+                        defeated: get_u64(n, "b"),
+                        clones: get_u32(n, "c"),
+                        raw: n.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         let divinity_generator = root.get("K").map(|k| DivinityGenerator {
             total: k.get("g").and_then(Node::as_f64).unwrap_or(0.0),
             upgrades: k
@@ -942,6 +1022,9 @@ impl SaveFile {
             monuments,
             mights,
             spacedim,
+            physical_skills,
+            mystic_skills,
+            monsters,
             divinity_generator,
             baal_power: root.get_path(&["T", "h"]).and_then(Node::as_u64),
             current_god_number: root.get_path(&["P", "c"]).and_then(Node::as_u32),

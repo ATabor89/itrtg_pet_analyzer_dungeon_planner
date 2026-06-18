@@ -815,6 +815,48 @@ fn spacedim_levels_match_notes() {
 }
 
 #[test]
+fn training_skills_and_monsters_decode() {
+    let save = require_save!();
+    // List lengths match the in-game training/monster screens (the player may
+    // gain one extra challenge-unlocked skill later, growing h/j).
+    assert_eq!(save.physical_skills.len(), 28);
+    assert_eq!(save.mystic_skills.len(), 28);
+    assert_eq!(save.monsters.len(), 34);
+
+    // `a` is the 0-based list position; names resolve in screen order.
+    assert_eq!(save.physical_skills[0].id, 0);
+    assert_eq!(
+        save_parser::items::physical_skill_name(save.physical_skills[0].id),
+        Some("Running")
+    );
+    assert_eq!(
+        save_parser::items::mystic_skill_name(save.mystic_skills[0].id),
+        Some("Double Punch")
+    );
+    assert_eq!(
+        save_parser::items::monster_name(save.monsters[33].id),
+        Some("Monster Queen")
+    );
+
+    // Clones are all 1 on this fully-reduced Steam save (training caps drop to a
+    // single clone over time); `d` is the still-unidentified 0 field.
+    assert!(save.physical_skills.iter().all(|s| s.clones == 1));
+    assert!(save.monsters.iter().all(|m| m.clones == 1));
+    assert_eq!(save.physical_skills[0].raw.get("d").and_then(|n| n.as_u64()), Some(0));
+}
+
+#[test]
+fn training_skill_levels_advance_across_saves() {
+    let s1 = require_save!();
+    let s2 = require_second_save!();
+    // The in-game "Sync" toggle keeps Physical[i] and Mystic[i] at identical
+    // levels, and every skill's level advances between the two saves.
+    assert_eq!(s1.physical_skills[0].level, s1.mystic_skills[0].level);
+    assert!(s2.physical_skills[0].level > s1.physical_skills[0].level);
+    assert!(s2.monsters[0].defeated > s1.monsters[0].defeated);
+}
+
+#[test]
 fn divinity_generator_upgrades_match_notes() {
     let (rb1, rb2) = require_rebirth_saves!();
     // All three DivGen upgrades moved 81 -> 188 together.
