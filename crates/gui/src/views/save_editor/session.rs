@@ -54,6 +54,14 @@ pub struct AddedMaterial {
     pub label: String,
 }
 
+/// A newly-created gem stack (appended to `X.002`), keyed by element + level.
+#[derive(Clone)]
+pub struct AddedGem {
+    pub element_id: u32,
+    pub level: u32,
+    pub label: String,
+}
+
 /// A loaded save plus all in-progress edits.
 pub struct EditSession {
     /// File name the save was loaded from, for display.
@@ -73,6 +81,8 @@ pub struct EditSession {
     added: Vec<AddedEquip>,
     /// Material stacks created this session (see [`AddedMaterial`]).
     added_materials: Vec<AddedMaterial>,
+    /// Gem stacks created this session (see [`AddedGem`]).
+    added_gems: Vec<AddedGem>,
     /// Set when an edit invalidates `derived`; cleared by `rederive_if_needed`.
     dirty_derived: bool,
 }
@@ -94,6 +104,7 @@ impl EditSession {
             pending: Vec::new(),
             added: Vec::new(),
             added_materials: Vec::new(),
+            added_gems: Vec::new(),
             dirty_derived: false,
         })
     }
@@ -126,13 +137,77 @@ impl EditSession {
         &self.added_materials
     }
 
-    pub fn is_dirty(&self) -> bool {
-        !self.pending.is_empty() || !self.added.is_empty() || !self.added_materials.is_empty()
+    /// Gem stacks created this session.
+    pub fn added_gems(&self) -> &[AddedGem] {
+        &self.added_gems
     }
 
-    /// Total staged changes (scalar edits + created equipment + added items).
+    pub fn is_dirty(&self) -> bool {
+        !self.pending.is_empty()
+            || !self.added.is_empty()
+            || !self.added_materials.is_empty()
+            || !self.added_gems.is_empty()
+    }
+
+    /// Total staged changes (scalar edits + created equipment + added items/gems).
     pub fn change_count(&self) -> usize {
-        self.pending.len() + self.added.len() + self.added_materials.len()
+        self.pending.len() + self.added.len() + self.added_materials.len() + self.added_gems.len()
+    }
+
+    /// Set the count of the gem stack (element, level) — upsert. Edits the
+    /// existing `X.002` stack if present, else creates it. Returns whether a new
+    /// stack was added.
+    pub fn set_gem(
+        &mut self,
+        element_id: u32,
+        level: u32,
+        count: &str,
+        label: impl Into<String>,
+    ) -> Result<bool> {
+        // Normalize a lone-struct X.002 into a real list (byte-identical) so the
+        // index scan/path below are valid.
+        edit::ensure_list(&mut self.root, "002")?;
+        let idx = match self.root.get_path(&["X", "002"]) {
+            Some(Raw::List(items)) => items.iter().position(|it| {
+                scalar_u32(it, "a") == Some(element_id) && scalar_u32(it, "b") == Some(level)
+            }),
+            _ => None,
+        };
+        if let Some(idx) = idx {
+            self.set_scalar(&["X", "002", &idx.to_string(), "c"], label, count)?;
+            Ok(false)
+        } else {
+            edit::add_gem(&mut self.root, element_id, level, count)?;
+            self.added_gems.push(AddedGem {
+                element_id,
+                level,
+                label: label.into(),
+            });
+            self.dirty_derived = true;
+            Ok(true)
+        }
+    }
+
+    /// Undo a created gem stack (by index into [`added_gems`]).
+    pub fn undo_added_gem(&mut self, index: usize) {
+        let Some(entry) = self.added_gems.get(index).cloned() else {
+            return;
+        };
+        let mut removed_pos = None;
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["X", "002"])
+            && let Some(pos) = items.iter().position(|it| {
+                scalar_u32(it, "a") == Some(entry.element_id)
+                    && scalar_u32(it, "b") == Some(entry.level)
+            })
+        {
+            items.remove(pos);
+            removed_pos = Some(pos);
+        }
+        if let Some(pos) = removed_pos {
+            self.drop_pending_with_prefix(&["X", "002", &pos.to_string()]);
+        }
+        self.added_gems.remove(index);
+        self.dirty_derived = true;
     }
 
     /// Set the quantity of material `item_id` (upsert): edit the existing `X.Q`
@@ -418,7 +493,28 @@ impl EditSession {
                 bail!("validation failed: added item id {} missing after round-trip", m.item_id);
             }
         }
+        // Each created gem stack must be present in X.002 (matching element+level).
+        for g in &self.added_gems {
+            let present = matches!(root.get_path(&["X", "002"]), Some(Raw::List(items))
+                if items.iter().any(|it| scalar_u32(it, "a") == Some(g.element_id)
+                    && scalar_u32(it, "b") == Some(g.level)));
+            if !present {
+                bail!(
+                    "validation failed: added gem (element {}, level {}) missing after round-trip",
+                    g.element_id,
+                    g.level
+                );
+            }
+        }
         Ok(())
+    }
+}
+
+/// A struct field read as a `u32` (peeling base64), if it's a numeric scalar.
+fn scalar_u32(node: &Raw, key: &str) -> Option<u32> {
+    match node.get(key) {
+        Some(Raw::Scalar(s)) => s.parse().ok(),
+        _ => None,
     }
 }
 
@@ -531,6 +627,39 @@ mod tests {
         s.undo_added_material(0);
         assert!(s.added_materials().is_empty());
         assert!(s.value(&["X", "Q", "a=999", "b"]).is_none());
+    }
+
+    /// A gem stack `{a:element, b:level, c:count}`.
+    fn gem(element: &str, level: &str, count: &str) -> Raw {
+        Raw::Struct(vec![("a".into(), sc(element)), ("b".into(), sc(level)), ("c".into(), sc(count))])
+    }
+    /// A root with X.002 holding two gem stacks (Fire L1, Fire L10).
+    fn gem_root() -> Raw {
+        let x = Raw::Struct(vec![(
+            "002".into(),
+            Field::Value(Raw::List(vec![gem("1", "1", "5"), gem("1", "10", "2")])),
+        )]);
+        Raw::Struct(vec![("X".into(), b64(x))])
+    }
+
+    #[test]
+    fn set_gem_updates_existing_and_creates_new() {
+        let mut s = EditSession::load(&encoded(&gem_root()), None).unwrap();
+        // Update Fire L1 (index 0).
+        assert!(!s.set_gem(1, 1, "50", "Fire L1").unwrap());
+        assert_eq!(s.value(&["X", "002", "0", "c"]).as_deref(), Some("50"));
+        assert!(s.added_gems().is_empty());
+        // Create Water L5 (new stack, appended at index 2).
+        assert!(s.set_gem(2, 5, "3", "Water L5").unwrap());
+        assert_eq!(s.added_gems().len(), 1);
+        assert_eq!(s.value(&["X", "002", "2", "a"]).as_deref(), Some("2"));
+        assert_eq!(s.value(&["X", "002", "2", "b"]).as_deref(), Some("5"));
+        assert_eq!(s.value(&["X", "002", "2", "c"]).as_deref(), Some("3"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+        s.undo_added_gem(0);
+        assert!(s.added_gems().is_empty());
+        assert!(s.value(&["X", "002", "2", "a"]).is_none());
     }
 
     #[test]
