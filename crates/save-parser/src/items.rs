@@ -279,6 +279,37 @@ pub fn spacedim_name(id: u32) -> Option<&'static str> {
     }
 }
 
+/// Equipment slot category.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum EquipCategory {
+    Weapon,
+    Armor,
+    Accessory,
+}
+
+impl EquipCategory {
+    pub fn name(self) -> &'static str {
+        match self {
+            EquipCategory::Weapon => "Weapon",
+            EquipCategory::Armor => "Armor",
+            EquipCategory::Accessory => "Accessory",
+        }
+    }
+}
+
+/// The slot category of an equipment *type* id. Base items are grouped per the
+/// `equipment_type_name` table; the 300-series event gear is cross-checked
+/// against `data/equipment_catalog.yaml`. `None` for unknown ids.
+pub fn equipment_category(type_id: u32) -> Option<EquipCategory> {
+    use EquipCategory::*;
+    Some(match type_id {
+        3 | 5 | 8 | 12 | 13 | 15 | 303 | 305 | 307 => Armor,
+        18 | 21 | 22 | 29 | 47 | 50 | 51 | 54 | 57 | 60 | 79 | 83 | 300 | 304 | 306 => Weapon,
+        33 | 36 | 39 | 40 | 41 | 44 | 45 | 61 | 86 | 301 | 302 | 309 | 311 => Accessory,
+        _ => return None,
+    })
+}
+
 /// Equipment quality letter for the raw quality id. Player-confirmed ladder
 /// (2026-06-17): F E D C B A S SS SSS for ids 0…8.
 pub fn quality_name(quality: u32) -> Option<&'static str> {
@@ -299,6 +330,18 @@ pub fn quality_name(quality: u32) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn equipment_categories() {
+        use EquipCategory::*;
+        assert_eq!(equipment_category(51), Some(Weapon)); // Magic Stick
+        assert_eq!(equipment_category(300), Some(Weapon)); // Candy Cane
+        assert_eq!(equipment_category(5), Some(Armor)); // Flame Armor
+        assert_eq!(equipment_category(303), Some(Armor)); // Learning Coat
+        assert_eq!(equipment_category(44), Some(Accessory)); // Storm Ring
+        assert_eq!(equipment_category(309), Some(Accessory)); // Growing Love Pendant
+        assert_eq!(equipment_category(48), None); // unidentified type
+    }
 
     #[test]
     fn export_confirmed_ids() {
