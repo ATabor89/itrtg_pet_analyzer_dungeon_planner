@@ -229,7 +229,7 @@ fn header_bar(ui: &mut egui::Ui, state: &mut SaveEditorState) {
             }
             if s.is_dirty() {
                 ui.label(
-                    RichText::new(format!("● {} pending", s.pending().len()))
+                    RichText::new(format!("● {} pending", s.change_count()))
                         .color(style::WARNING),
                 );
             }
@@ -273,7 +273,7 @@ fn empty_prompt(ui: &mut egui::Ui) {
 }
 
 fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
-    let n = session.pending().len();
+    let n = session.change_count();
     let color = if n > 0 {
         style::WARNING
     } else {
@@ -288,38 +288,75 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
                 return;
             }
             let mut undo: Option<usize> = None;
+            let mut undo_added: Option<usize> = None;
             // Cap the height so a huge batch doesn't run off-screen — scroll within.
             egui::ScrollArea::vertical()
                 .max_height(240.0)
                 .auto_shrink([false, true])
                 .show(ui, |ui| {
-            egui::Grid::new("save_editor_pending_grid")
-                .num_columns(4)
-                .spacing([12.0, 4.0])
-                .striped(true)
-                .show(ui, |ui| {
-                    for (i, e) in session.pending().iter().enumerate() {
-                        ui.label(RichText::new(&e.label).color(style::TEXT_BRIGHT));
+                    egui::Grid::new("save_editor_pending_grid")
+                        .num_columns(4)
+                        .spacing([12.0, 4.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            for (i, e) in session.pending().iter().enumerate() {
+                                ui.label(RichText::new(&e.label).color(style::TEXT_BRIGHT));
+                                ui.label(
+                                    RichText::new(e.path.join("."))
+                                        .color(style::TEXT_MUTED)
+                                        .monospace()
+                                        .size(11.0),
+                                );
+                                ui.label(
+                                    RichText::new(format!(
+                                        "{} → {}",
+                                        trunc(&e.original),
+                                        trunc(&e.new)
+                                    ))
+                                    .monospace()
+                                    .size(11.0),
+                                );
+                                if ui.small_button("undo").clicked() {
+                                    undo = Some(i);
+                                }
+                                ui.end_row();
+                            }
+                        });
+
+                    if !session.added().is_empty() {
+                        ui.add_space(4.0);
                         ui.label(
-                            RichText::new(e.path.join("."))
-                                .color(style::TEXT_MUTED)
-                                .monospace()
-                                .size(11.0),
+                            RichText::new("Created equipment").color(style::TEXT_MUTED).size(11.0),
                         );
-                        ui.label(
-                            RichText::new(format!("{} → {}", trunc(&e.original), trunc(&e.new)))
-                                .monospace()
-                                .size(11.0),
-                        );
-                        if ui.small_button("undo").clicked() {
-                            undo = Some(i);
-                        }
-                        ui.end_row();
+                        egui::Grid::new("save_editor_added_grid")
+                            .num_columns(3)
+                            .spacing([12.0, 4.0])
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for (i, a) in session.added().iter().enumerate() {
+                                    ui.label(
+                                        RichText::new(format!("+ {}", a.label))
+                                            .color(style::SUCCESS),
+                                    );
+                                    ui.label(
+                                        RichText::new(format!("#{}", a.instance_id))
+                                            .color(style::TEXT_MUTED)
+                                            .monospace()
+                                            .size(11.0),
+                                    );
+                                    if ui.small_button("undo").clicked() {
+                                        undo_added = Some(i);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
                     }
-                });
                 });
             if let Some(i) = undo {
                 let _ = session.undo(i);
+            }
+            if let Some(i) = undo_added {
+                session.undo_added(i);
             }
         });
 }

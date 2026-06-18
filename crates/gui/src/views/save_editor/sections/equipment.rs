@@ -12,6 +12,7 @@ use itrtg_models::Element;
 use save_parser::items::{self, EquipCategory};
 
 use super::bulk::{self, OpKind};
+use super::equip_builder::{self, EquipBuilderState};
 use crate::style;
 use crate::views::save_editor::session::EditSession;
 
@@ -136,13 +137,19 @@ pub struct EquipEditState {
     gem_overrides: HashMap<usize, u32>,
     cell_buffers: HashMap<(usize, EField), String>,
     sort: Option<(ESort, bool)>,
+    builder: EquipBuilderState,
 
     apply_requested: bool,
     status: Option<(String, bool)>,
 }
 
 pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditState) {
-    ui.heading("Equipment");
+    ui.horizontal(|ui| {
+        ui.heading("Equipment");
+        if ui.button("➕ Add equipment").clicked() {
+            st.builder.open();
+        }
+    });
 
     let Some(save) = session.derived() else {
         ui.label(
@@ -223,6 +230,28 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
         st.ops.clear();
         st.op_gem_element = None;
         st.cell_buffers.clear();
+    }
+
+    // Equipment builder (create a new instance, standalone).
+    if let Some(built) = equip_builder::builder_window(ui.ctx(), &mut st.builder, None) {
+        let name = items::equipment_type_name(built.type_id).unwrap_or("Equipment");
+        let qual = items::quality_name(built.quality).unwrap_or("");
+        let plus = if built.plus > 0 { format!("+{}", built.plus) } else { String::new() };
+        let label = format!("{name} {qual}{plus}");
+        st.status = Some(
+            match session.add_equipment(
+                built.type_id,
+                built.plus,
+                built.quality,
+                built.gem_level,
+                built.gem_element,
+                label,
+                None,
+            ) {
+                Ok(id) => (format!("Created instance #{id} — see Pending changes"), false),
+                Err(e) => (format!("Create failed: {e}"), true),
+            },
+        );
     }
 
     table(ui, st, &rows, &filtered);
