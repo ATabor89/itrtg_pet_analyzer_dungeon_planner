@@ -52,6 +52,13 @@ pub enum Resolve {
     Monster,
     /// Divinity Generator upgrade id → `items::divinity_upgrade_name`.
     DivinityUpgrade,
+    /// Adventure-mode item id → `items::adventure_item_name`.
+    AdventureItem,
+    /// Adventure-mode enemy id (core) → `items::adventure_enemy_name`.
+    AdventureEnemy,
+    /// A whole core element struct → "Enemy Quality" (e.g. "Slime SSS"); the
+    /// editor reads the element's `a`/`d` directly. Like [`Resolve::EquipmentNode`].
+    CoreNode,
     /// Research id → `model::research_name`.
     Research,
     /// Class id → `model::class_from_id`.
@@ -177,6 +184,19 @@ pub const CAMPAIGN_FIELDS: &[FieldLabel] = &[
     lbl!("f", "Bonus"),
 ];
 
+/// Adventure-mode inventory — `032.d.<index>` (`c`/`d` are 0, unlabeled).
+pub const ADVENTURE_ITEM_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Item Id", Resolve::AdventureItem),
+    lbl!("b", "Count"),
+];
+
+/// Adventure-mode cores — `032.G.<index>`. `b` (always 1) is unlabeled.
+pub const CORE_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Enemy Id", Resolve::AdventureEnemy),
+    lbl!("c", "Count"),
+    lbl!("d", "Quality"),
+];
+
 /// Adventure-mode researches — `032.H.a.<index>`.
 pub const RESEARCH_FIELDS: &[FieldLabel] = &[
     lblr!("a", "Research Id", Resolve::Research),
@@ -294,6 +314,8 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "S"], name: "Dungeon Team", plural: "Dungeon Teams", is_list: true, element_name: elem("i", Resolve::Literal), fields: DUNGEON_TEAM_FIELDS },
     BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: None, fields: CAMPAIGN_FIELDS },
     BlockSchema { base: &["032", "H", "a"], name: "Research", plural: "Researches", is_list: true, element_name: elem("a", Resolve::Research), fields: RESEARCH_FIELDS },
+    BlockSchema { base: &["032", "d"], name: "Adventure Item", plural: "Adventure Inventory", is_list: true, element_name: elem("a", Resolve::AdventureItem), fields: ADVENTURE_ITEM_FIELDS },
+    BlockSchema { base: &["032", "G"], name: "Core", plural: "Cores", is_list: true, element_name: elem("a", Resolve::CoreNode), fields: CORE_FIELDS },
     BlockSchema { base: &["i"], name: "Creation", plural: "Creations", is_list: true, element_name: elem("a", Resolve::Creation), fields: CREATION_FIELDS },
     BlockSchema { base: &["D"], name: "Monument", plural: "Monuments", is_list: true, element_name: elem("a", Resolve::Monument), fields: MONUMENT_FIELDS },
     BlockSchema { base: &["V"], name: "Might", plural: "Mights", is_list: true, element_name: elem("a", Resolve::Might), fields: MIGHT_FIELDS },
