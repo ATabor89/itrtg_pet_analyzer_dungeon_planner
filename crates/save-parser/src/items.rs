@@ -1072,6 +1072,39 @@ pub fn quality_name(quality: u32) -> Option<&'static str> {
     })
 }
 
+/// Campaign-boost % a piece of campaign-boost gear gives the pet it's equipped
+/// on, at the given quality (`quality_id`: F=0…SSS=8) and upgrade `plus`.
+///
+/// From the game's C# (`DOBKHNKLLLM`): `base × (1 + quality_id) × (1 + plus)`,
+/// where the `CampaignBoost` effect's base is `0.088185 × factor` (the per-item
+/// factor `NJDOCOGAJEM`). Only the two campaign-boost items are covered (other
+/// gear gives different effects); returns `None` for anything else.
+///
+/// - **Magic Stick** (51): factor 3 → base `0.264555`. SSS+20 = 50.0%, matching
+///   its tooltip "(0.2646% × (1 + upgrade level) × quality multiplier)", up to 50%.
+/// - **Candy Cane** (300): factor 6 → base `0.52911` (2× Magic Stick). It's the
+///   only item upgradable to +30, and at **SSS** the game hardcodes three
+///   milestones — +20→101%, +25→125%, +30→150% — while every other level uses the
+///   general formula (SSS+21 = 0.52911·9·22 = 104.76%, player-confirmed).
+pub fn campaign_boost_pct(type_id: u32, quality_id: u32, plus: u32) -> Option<f64> {
+    // base = 0.088185 (CampaignBoost effect) × per-item factor.
+    let base = match type_id {
+        51 => 0.088_185 * 3.0,  // Magic Stick
+        300 => 0.088_185 * 6.0, // Candy Cane
+        _ => return None,
+    };
+    // Candy Cane's hardcoded SSS milestones (it alone reaches +30).
+    if type_id == 300 && quality_id == 8 {
+        match plus {
+            20 => return Some(101.0),
+            25 => return Some(125.0),
+            30 => return Some(150.0),
+            _ => {}
+        }
+    }
+    Some(base * (1.0 + quality_id as f64) * (1.0 + plus as f64))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1333,6 +1366,26 @@ mod tests {
         assert_eq!(gem_element_name(50), Some("Elemental"));
         assert_eq!(gem_element_name(99), Some("All"));
         assert_eq!(gem_element_name(7), None);
+    }
+
+    #[test]
+    fn campaign_boost_matches_ingame_values() {
+        let approx = |a: f64, b: f64| (a - b).abs() < 0.01;
+        // Magic Stick (51) SSS+20 = 50.0% ("up to 50%" per tooltip).
+        assert!(approx(campaign_boost_pct(51, 8, 20).unwrap(), 50.0));
+        // Candy Cane (300) SSS: hardcoded milestones + general formula between.
+        assert_eq!(campaign_boost_pct(300, 8, 20), Some(101.0));
+        assert!(approx(campaign_boost_pct(300, 8, 21).unwrap(), 104.76)); // player-confirmed
+        assert_eq!(campaign_boost_pct(300, 8, 25), Some(125.0));
+        assert_eq!(campaign_boost_pct(300, 8, 30), Some(150.0));
+        // Candy Cane is exactly 2× Magic Stick at the same quality/plus (away
+        // from the overrides).
+        assert!(approx(
+            campaign_boost_pct(300, 8, 21).unwrap(),
+            2.0 * campaign_boost_pct(51, 8, 21).unwrap()
+        ));
+        // Non-campaign-boost gear isn't covered.
+        assert_eq!(campaign_boost_pct(304, 8, 20), None); // Magic Egg
     }
 
     #[test]
