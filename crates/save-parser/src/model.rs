@@ -272,10 +272,20 @@ pub struct SavePet {
     /// `AIAOBIPOBFB`/`HDFIIPCPJCP` accessors in `Assembly-CSharp`.
     pub campaign_pref_primary: Option<u32>,
     pub campaign_pref_secondary: Option<u32>,
-    /// The pet's raw node, for the still-unidentified fields
-    /// (`s,x,z,A,C,D` numeric/flag accumulators; `d`/`e`/`f` are additive
-    /// growth components — total growth = `E + d + e + f`, see the game's
-    /// `MILFAIOPDAF()` — and `n` is a consumable growth pool).
+    /// Auto-feed setting (`x`) — the per-pet feeding mode. See
+    /// [`crate::items::feeding_setting_name`] (0 None, 1 Puny, 2 Strong,
+    /// 3 Mighty, 4 Chocolate, 5 Free, 6 Starve). Decoded from the pet class's
+    /// `CJMBBFKNFNF()` accessor in `Assembly-CSharp`.
+    pub feeding_setting: u32,
+    /// Vaccinated flag (`A`) — set once the pet has consumed a Vaccine item
+    /// (the Corona/Vaccina event mechanic), from the game's `CBNILFAJMAE()`.
+    pub vaccinated: bool,
+    /// The pet's raw node. The remaining fields are now identified but not
+    /// promoted: `d`/`e`/`f` are additive growth components (total growth =
+    /// `E + d + e + f`, the game's `MILFAIOPDAF()`); `n` is a consumable growth
+    /// pool; `s` is a recovery-cooldown countdown timer (ms; while >0 the pet
+    /// skips its update, health resets on expiry); `C` is a cosmetic skin/texture
+    /// index; `z` and `D` are serialized-but-unread vestigial flags.
     pub raw: Node,
 }
 
@@ -1311,6 +1321,12 @@ impl SavePet {
             .and_then(crate::items::campaign_type_name)
     }
 
+    /// Name of this pet's [`Self::feeding_setting`]
+    /// ([`crate::items::feeding_setting_name`]).
+    pub fn feeding_setting_name(&self) -> Option<&'static str> {
+        crate::items::feeding_setting_name(self.feeding_setting)
+    }
+
     fn from_node(node: &Node) -> Self {
         let w = node.get("w");
         let class_node = w.and_then(|w| w.get("d"));
@@ -1351,6 +1367,8 @@ impl SavePet {
             token_improved: get_u32(node, "B") == 1,
             campaign_pref_primary: get_u32(node, "t").checked_sub(1),
             campaign_pref_secondary: get_u32(node, "u").checked_sub(1),
+            feeding_setting: get_u32(node, "x"),
+            vaccinated: node.get("A").and_then(Node::as_bool).unwrap_or(false),
             raw: node.clone(),
         }
     }

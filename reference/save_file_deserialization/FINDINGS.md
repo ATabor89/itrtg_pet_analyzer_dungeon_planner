@@ -143,14 +143,18 @@ team roster:
 | `t`,`u` | **preferred campaign types** — the pet's "best campaign" specialties. `0` = none, else `items::campaign_type_name(value−1)` (the `AGGDKICFOAI` enum: Growth/Divinity/Food/Item/Level/Multiplier/GodPower/All/Event). `SavePet.campaign_pref_primary`/`_secondary`. | decoded from `DFLAKHONNPC.AIAOBIPOBFB`/`HDFIIPCPJCP`; Vampire t=1→Growth, Dog t=4→Item, Penguin t=7→GodPower ✓ |
 | `d`,`e`,`f` | **additive growth components** — total growth = `E + d + e + f` (the game's `MILFAIOPDAF()`); `d`,`e` reset together (rebirth?), `f` persists. Individual sources TBD. | `E` matched export for the checked pets because their `d/e/f` were ~0 |
 | `n` | **growth pool/reserve** (AGJPDMBDHHG): the add-growth method deducts spent growth from `n` and caps a spend to it; the training tick accumulates it. Precise name TBD. | |
-| `s`,`x`,`z`,`A`,`C`,`D` | meaning still ?, but **types pinned from C#**: `s` = long (a sentinel set to −34 during a level-up overflow), `x`/`C` = int, `z`/`A`/`D` = **bool** flags. | |
+| `x` | **feeding setting** — per-pet auto-feed mode: 0 None, 1 Puny, 2 Strong, 3 Mighty, 4 Chocolate, 5 Free, 6 Starve. `SavePet.feeding_setting`. | decoded from `DFLAKHONNPC.CJMBBFKNFNF()` |
+| `A` | **vaccinated flag** (bool) — set once the pet consumes a Vaccine item (Corona/Vaccina event). `SavePet.vaccinated`. | decoded from `CBNILFAJMAE()` |
+| `s` | **recovery-cooldown timer** (long, ms) — while >0 the pet skips its update tick; its Health resets when it expires (a dungeon death/recovery cooldown). | decoded from the per-tick update method |
+| `C` | **cosmetic skin/texture index** (int) — selects an alternate pet sprite (`0` = default). | property `PPEIMBAMGMJ` (Texture2D) |
+| `z`,`D` | **vestigial flags** (bool) — serialized/deserialized but never read in the pet class (legacy/compat). | |
 
-**Pet struct verified against `Assembly-CSharp`** (class `DFLAKHONNPC`, method
-`EBOFJJHOOLP`): the field set and per-key types above are exactly the game's. The
-pet has **no** keys `b`, `c`, or `i`. Type ids (`k`, `F`) are the `HFNFDKEMAIK`
-enum and the form (`y`) is the `ANHOKMNPAKI` enum — both transcribed into
-`crates/save-parser/src/items.rs` (`pet_type_name` / `elemental_form_name`); see
-the "Pet type & form enums" section below.
+**Pet struct FULLY decoded against `Assembly-CSharp`** (class `DFLAKHONNPC`,
+method `EBOFJJHOOLP`): every field is now identified — the field set and per-key
+types are exactly the game's. The pet has **no** keys `b`, `c`, or `i`. Type ids
+(`k`, `F`) are the `HFNFDKEMAIK` enum and the form (`y`) is the `ANHOKMNPAKI`
+enum — both transcribed into `crates/save-parser/src/items.rs` (`pet_type_name` /
+`elemental_form_name`); see the "Pet type & form enums" section below.
 
 For the normal-stats formula work (display-side model, the Anni Cake
 multiplier, open staircase questions), see `normal_stats_investigation.md`.
@@ -586,12 +590,12 @@ type/partner id in the reference roster resolves, and the elemental forms match.
 
 ## Open questions / next steps
 
-- Pet fields: most now **identified**. `g/h/j/o/p/q/r` (level/exp/health/clone
-  snapshots), `y/k/F/B` (form/type/partner/token), and now `t/u` (preferred
-  campaign types), `d/e/f` (additive growth components, total = E+d+e+f), `n`
-  (growth pool) are decoded — see the pet table. **Still unnamed**: `s` (long
-  sentinel), `x`/`C` (ints), `z`/`A`/`D` (bool flags) — chase their usage sites
-  (obfuscated names in `_cs_decomp/_PROGRESS.md`).
+- Pet fields: **fully decoded** (every key identified — see the pet table).
+  Beyond the long-known fields, the C# chase named: `t`/`u` (preferred campaign
+  types), `d`/`e`/`f` (additive growth components, total = E+d+e+f), `n` (growth
+  pool), `x` (feeding setting), `A` (vaccinated), `s` (recovery-cooldown timer),
+  `C` (cosmetic skin index), `z`/`D` (vestigial). Promoted to the typed model:
+  campaign prefs, `feeding_setting`, `vaccinated`.
 - HP/Attack/Defense/Speed/elemental affinities from the Pet Stats export do
   not appear literally in the save → derived at runtime. If we ever need them,
   we either keep using the export or reverse the formulas.
