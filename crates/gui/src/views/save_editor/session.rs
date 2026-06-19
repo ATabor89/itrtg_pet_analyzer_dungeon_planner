@@ -202,7 +202,11 @@ impl EditSession {
             return Ok(());
         }
 
-        // Clear pet slots referencing this loaded instance (by mirror `h`, or `d`).
+        // Clear pet slots referencing this loaded instance. Slots hold the equip
+        // id `d` (not the catalog id `h`), so match on `d` — matching `h` too
+        // could wrongly clear a slot that points at a *different* item whose `d`
+        // equals this item's `h` (the cross-field collision; see
+        // `resolve_equipment_instance`).
         let mut cleared = Vec::new();
         let pet_count = match self.root.get_path(&["X", "b"]) {
             Some(Raw::List(p)) => p.len(),
@@ -225,7 +229,7 @@ impl EditSession {
                 };
                 if let Some(c) = cur
                     && c != 0
-                    && (Some(c) == h || Some(c) == d)
+                    && Some(c) == d
                 {
                     let orig = self.root.set_scalar_path(&p, "0")?;
                     // Drop any pending edit on this slot (now cleared) so it
