@@ -129,6 +129,60 @@ fn parses_all_pets() {
 }
 
 #[test]
+fn pet_type_ids_all_resolve_to_names() {
+    use save_parser::items::pet_type_name;
+    let save = require_save!();
+    // Every type id in the roster, and every partner id (incl. 999=None), must
+    // resolve against the game's `HFNFDKEMAIK` enum.
+    for p in &save.pets {
+        assert!(
+            pet_type_name(p.type_id).is_some(),
+            "unmapped pet type id {} ({})",
+            p.type_id,
+            p.name
+        );
+        if let Some(pid) = p.partner_type_id {
+            assert!(pet_type_name(pid).is_some(), "unmapped partner id {pid}");
+        }
+    }
+    // Anchor spot-checks (display name → export-normalized type name).
+    assert_eq!(
+        save.pet_by_name("Salamander").unwrap().type_name(),
+        Some("Salamander")
+    );
+    assert_eq!(
+        save.pet_by_name("Rudolph").unwrap().type_name(), // export "Reindeer"
+        Some("Reindeer")
+    );
+    assert_eq!(
+        save.pet_by_name("Black Hole Chan").unwrap().type_name(), // export "BHC"
+        Some("BHC")
+    );
+    assert_eq!(pet_type_name(999), Some("None"));
+}
+
+#[test]
+fn elemental_form_names_resolve() {
+    let save = require_save!();
+    // 06-09 fixture forms (FINDINGS): Salamander y=19, Sylph y=24, Gnome y=14 —
+    // all the "…Final" form per the `ANHOKMNPAKI` enum.
+    assert_eq!(
+        save.pet_by_name("Salamander").unwrap().elemental_form_name(),
+        Some("SalamanderFinal")
+    );
+    assert_eq!(
+        save.pet_by_name("Sylph").unwrap().elemental_form_name(),
+        Some("SylphFinal")
+    );
+    assert_eq!(
+        save.pet_by_name("Gnome").unwrap().elemental_form_name(),
+        Some("GnomeFinal")
+    );
+    // Non-elemental pets carry form id 0 ("None").
+    assert_eq!(save.pet_by_name("Cat").unwrap().elemental_form_id, 0);
+}
+
+#[test]
 fn salamander_matches_exports() {
     let save = require_save!();
     let pet = save.pet_by_name("Salamander").expect("Salamander exists");
