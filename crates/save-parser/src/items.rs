@@ -64,6 +64,10 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         35 => "Hurricane Bar", // wind — count 4 ✓
         36 => "Forest Bar",    // earth
         37 => "Titanium Bar",  // neutral/crystal
+        // -- dungeon consumables: bombs & traps (player-confirmed 2026-06-18) --
+        30 => "Melting Bomb",
+        48 => "Nanotrap",
+        49 => "Freezing Bomb",
         // -- export-confirmed in the 2026-06-09 reference save --
         117 => "Ant",            // count 192,164 = Main Stats "Ants"
         159 => "Strategy Book",  // count 2,840 = Main Stats "Strategy Books"
@@ -83,6 +87,8 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         134 => "Mythril",
         135 => "Ocean Stone",
         138 => "Glowing Embers",
+        139 => "Igneous Bones",  // player-confirmed 2026-06-18 (was count-0)
+        140 => "Pliable Magma",  // player-confirmed 2026-06-18 (was count-0)
         141 => "Living Flame",
         146 => "Whispers of the Wind",
         147 => "Secrets of the Wind",
@@ -99,9 +105,11 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         // - {160, 164, 167, 168} sit at count 1 and pair with the four singleton
         //   items {Not Nothing, Absolutely Nothing, Food Journal One, Food
         //   Journal Two} — set known, per-id assignment unknown.
-        // - Present at count 0: 128, 129, 139, 140, 142–145, 148, 150.
+        // - Present at count 0: 128, 129, 142–145, 148, 150.
         // 126–149 look like per-dungeon boss material families (Gnome/earth,
-        // fire, wind) — the matching water family is presumably nearby.
+        // fire, wind) — the matching water family is presumably nearby. The
+        // fire family now has 138 Glowing Embers / 139 Igneous Bones /
+        // 140 Pliable Magma / 141 Living Flame.
         // Foods and gems are NOT in this namespace: Puny/Strong/Mighty Food
         // and Chocolate are dedicated save fields (X.c/d/e/v), gems live in
         // X.002 keyed by element id.
@@ -591,6 +599,18 @@ mod tests {
         assert_eq!(material_name(133), Some("Sky Stone"));
         assert_eq!(material_name(134), Some("Mythril"));
         assert_eq!(material_name(135), Some("Ocean Stone"));
+    }
+
+    #[test]
+    fn bombs_traps_and_fire_boss_materials() {
+        // Player-confirmed 2026-06-18.
+        assert_eq!(material_name(30), Some("Melting Bomb"));
+        assert_eq!(material_name(48), Some("Nanotrap"));
+        assert_eq!(material_name(49), Some("Freezing Bomb"));
+        // The fire boss-material family (138–141), with the two count-0 ids now
+        // named.
+        assert_eq!(material_name(139), Some("Igneous Bones"));
+        assert_eq!(material_name(140), Some("Pliable Magma"));
     }
 
     #[test]

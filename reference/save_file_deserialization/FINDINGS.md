@@ -541,6 +541,10 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
   The **T4 materials are resolved** (save-edit
   probe 2026-06-16, counts 41–45 read off in-game): 131=Sun Stone, 132=Jungle
   Stone, 133=Sky Stone, 134=Mythril, 135=Ocean Stone — now in `items.rs`.
+  Player-confirmed 2026-06-18: dungeon consumables **30=Melting Bomb,
+  48=Nanotrap, 49=Freezing Bomb**, and the two formerly-count-0 fire
+  boss-materials **139=Igneous Bones, 140=Pliable Magma** (rounding out the
+  138–141 fire family with Glowing Embers / Living Flame).
 - Equipment *type* id ↔ name: solved for everything equipped, derived by
   joining Pet Stats gear strings ↔ Pet Equips instance ids ↔ the save's `R`
   instance→type map (zero vote conflicts). 2026-06-13 the user equipped five
