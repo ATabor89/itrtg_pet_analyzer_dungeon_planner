@@ -64,6 +64,9 @@ pub struct ElementalEvoPlan {
     pub current_growth: i64,
     /// Minimum growth to be at *this* form to stay on track.
     pub min_growth_for_form: i64,
+    /// Growth the **next** upgrade (this form → next) will grant. `None` at the
+    /// final form (nothing left to upgrade).
+    pub next_upgrade_gain: Option<i64>,
     /// Total growth the remaining form upgrades will still grant (0 at final).
     pub remaining_form_gain: i64,
     /// Growth at the final form if you upgraded now without growing more.
@@ -454,10 +457,15 @@ impl MergedPet {
         let &min_growth_for_form = evo.min_growth.get(idx)?;
         let current_growth = export.growth as i64;
         let remaining_form_gain = ELEMENTAL_EVO_GROWTH - min_growth_for_form;
+        // The next upgrade's gain is the jump between this form's minimum and the
+        // next form's; absent at the final form.
+        let next_upgrade_gain =
+            evo.min_growth.get(idx + 1).map(|&next| next - min_growth_for_form);
         Some(ElementalEvoPlan {
             form,
             current_growth,
             min_growth_for_form,
+            next_upgrade_gain,
             remaining_form_gain,
             projected_final_growth: current_growth + remaining_form_gain,
             on_track: current_growth >= min_growth_for_form,
@@ -1614,6 +1622,8 @@ mod tests {
         assert_eq!(plan.min_growth_for_form, 12_226);
         assert!(!plan.on_track);
         assert_eq!(plan.shortfall, 12_226 - 5_000);
+        // V2 → V3 grants 32,224 − 12,226 = 19,998; remaining = 55,555 − 12,226.
+        assert_eq!(plan.next_upgrade_gain, Some(19_998));
         assert_eq!(plan.remaining_form_gain, 55_555 - 12_226);
         assert_eq!(plan.projected_final_growth, 5_000 + (55_555 - 12_226)); // < 55,555
         assert!(!plan.is_final_form);
@@ -1628,6 +1638,7 @@ mod tests {
         let plan = mk("Gnome", 60_000, "GnomeV4", false).elemental_evo_plan().unwrap();
         assert!(plan.is_final_form);
         assert_eq!(plan.min_growth_for_form, 55_555);
+        assert_eq!(plan.next_upgrade_gain, None); // nothing left to upgrade
         assert_eq!(plan.remaining_form_gain, 0);
         assert!(plan.on_track);
 
