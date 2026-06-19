@@ -384,6 +384,25 @@ is recorded and `k` is free to mean the class flag. `n` = the gem being set.
 
 ## `root.032` — adventure mode (partial)
 
+**Class = `EBIIBHGAOMA`** (root key `032`/`n32`, field `HHLPENMEPBL`; from the
+real root deserializer `PKCECBJFIHD.HPNLHANNDAM`). 43 top-level keys (skeleton
+mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
+
+- `b` = **the adventurer core** (`KPJFCPPKHDL`): `b`=level, `c`=exp, then a row of
+  stat/number fields (`d`,`j`,`k`,`l`,`n`,`o`,`p` — BigDouble; `q`,`r` int) and
+  several lists (`f`/`g`/`h`/`i`/`m`/`t`) + a sub-struct `s` (`BEFDMHPNDHH`) —
+  i.e. the adventurer's level/exp/stats and its skill/equip lists. (This is the
+  "skills/classes/experience/stats" surface.)
+- `H` (`OKLONIELNEN`) → `H.a` = **researches** (below).
+- `d` = **inventory** (below), `G` = **cores** (below).
+- Other sub-structs to map: `k` (`MANFDMLBOMG`), `n` (`JADFDPJGJPA`), `z`
+  (`NKAIFFEMNBO`), `V` (`GIDEBPNNIDA`); plus the **crafting/smithing/alchemy**
+  progression (Smelting/Forging/Enchanting/Selling — the structure seen in the
+  `DPJKKLGJHJE` blob), and many list keys (`c`/`j`/`m`/`t`/`L`/`R`/`U`) and bool
+  flags. **Next ticks:** decode the adventurer skill/class/stat sub-structs and
+  the crafting progressions; look for adv skill/class enums. (No clean
+  Smelting/Forging *enum* — those are field-based sub-structs.)
+
 `032.H.a` = **researches** (44 entries, id 0 is a placeholder): `a`=id,
 `b`=level, `c`=in-progress flag, `d`=progress, `f`=max level. Ids 1–43
 match the Main Stats export's "Researches" section in order, verified
