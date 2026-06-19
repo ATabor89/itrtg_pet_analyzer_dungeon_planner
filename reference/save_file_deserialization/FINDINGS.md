@@ -616,10 +616,13 @@ type/partner id in the reference roster resolves, and the elemental forms match.
   unknowns are the unnamed scalars in the root deserializer (`b`/`d` BigDouble,
   `l`/`m`/`n` int = 50/50/50, stat-cap divisors of unclear meaning; `U` long = 0)
   and Overflow Points (likely inside a stats sub-block) — all low-value.
-- Material id ↔ name: mostly solved in `crates/save-parser/src/items.rs`
-  (prior-project table + export-confirmed + the 2026-06-10 full inventory
-  transcription: 16/17 = Health Potion X/S, 19 = Antidote — correcting the
-  prior table's "Nothing"; real Nothing is 119 — and 21 = Torch).
+- Material id ↔ name: **`material_name` now transcribes the COMPLETE
+  `NCPJFPLCPPK` enum** (`items.rs`) — base materials, keys/alloys/runes, the four
+  elemental evolution-quest families (water/`Undine` 106–116, Gnome 126–129,
+  Salamander 138–145, Sylph 146–150), T4 stones, sparks 350–352, and the fishing
+  rods/baits/catches 500–567 — so every item names in the save editor.
+  Export-confirmed display spellings (16/17 Health Potion X/S, 19 Antidote, etc.)
+  are kept verbatim; foods 101–105 are the same enum but stored in `X.c/d/e/v`.
   The count-1 ids {160,164,167,168} are **resolved** from the `NCPJFPLCPPK` enum
   (the master material/item id table — X.Q item `a` casts to it): 160 = Not
   Nothing, 164 = Absolutely Nothing, 167 = Food Journal One, 168 = Food Journal
