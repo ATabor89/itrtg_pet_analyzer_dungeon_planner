@@ -914,6 +914,20 @@ fn divinity_total_capacity_clones_and_storage() {
 }
 
 #[test]
+fn token_improved_flag() {
+    let save = require_save!();
+    // Pet field `B` = the Pet-Token "Improvement" flag. The 06-09 export marks
+    // exactly 20 pets improved; the save's `B = 1` count matches.
+    let improved = save.pets.iter().filter(|p| p.token_improved).count();
+    assert_eq!(improved, 20);
+    // Spot-checks against the export's Improvement column.
+    assert!(save.pet_by_name("Hedgehog").unwrap().token_improved);
+    assert!(save.pet_by_name("Sphinx").unwrap().token_improved);
+    assert!(!save.pet_by_name("Mouse").unwrap().token_improved);
+    assert!(!save.pet_by_name("Dog").unwrap().token_improved);
+}
+
+#[test]
 fn elemental_pet_form_counter() {
     let save = require_save!();
     // `y` is the elemental-pet form counter: nonzero only for elemental pets,

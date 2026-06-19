@@ -137,7 +137,8 @@ team roster:
 | `G` | partner-related counter (bond level?) | only nonzero when F≠999 |
 | `H` | ? (only Cat: 10,920) | |
 | `y` | **elemental-pet form counter** — the evolved-form/upgrade level you advance via the pet's "quest". `0` for every non-elemental pet; **+1 per form** for elemental pets (player-decoded 2026-06-18 by upgrading Gnome/Salamander/Sylph one form each and diffing — `y` ticked +1 and base growth `E` jumped). Offset per pet, so *not* directly the displayed "V" number: Gnome `y−10`, Salamander `y−15`, Sylph `y−20` (06-09 fixture Gnome 14 / Salamander 19 / Sylph 24 are all form **V4**). The export "Other" column carries the human label (`GnomeV2`). `SavePet.elemental_form_id`. | Gnome=14, Salamander=19, Sylph=24, all non-elemental=0 |
-| `d`,`e`,`f`,`n`,`s`,`t`,`u`,`x`,`z`,`A`–`D` | ? | t: Vampire=1, Dog=4, Penguin=7 |
+| `B` | **token-improved flag** (0/1) — the Pet-Token "Improvement" applied (export "Improvement" = Yes). Player-decoded 2026-06-19 by improving one pet (Aurelius) and diffing — only `B` flipped 0→1 (plus its recomputed Health). `SavePet.token_improved`. | 06-09 fixture: exactly the 20 export-improved pets have `B=1` ✓ (count match + Hedgehog/Sphinx=1, Mouse/Dog=0) |
+| `d`,`e`,`f`,`n`,`s`,`t`,`u`,`x`,`z`,`A`,`C`,`D` | ? | t: Vampire=1, Dog=4, Penguin=7 |
 
 For the normal-stats formula work (display-side model, the Anni Cake
 multiplier, open staircase questions), see `normal_stats_investigation.md`.

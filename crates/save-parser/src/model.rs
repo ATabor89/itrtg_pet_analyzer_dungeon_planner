@@ -258,8 +258,14 @@ pub struct SavePet {
     /// `y−15`, Sylph `y−20` (reconciles the 06-09 fixture, where Gnome 14 /
     /// Salamander 19 / Sylph 24 are all form V4).
     pub elemental_form_id: u32,
+    /// Token-improved flag (`B`): the pet has had its Pet-Token improvement
+    /// applied (the export's "Improvement" column = "Yes"). Player-decoded
+    /// 2026-06-19 by improving one pet (Aurelius) and diffing — only `B` flipped
+    /// 0 → 1 (plus its recomputed Health). Cross-checked on the 06-09 fixture:
+    /// exactly the 20 pets the export marks improved have `B = 1`.
+    pub token_improved: bool,
     /// The pet's raw node, for the still-unidentified fields
-    /// (`d,e,f,n,s,t,u,x,z,A–D`).
+    /// (`d,e,f,n,s,t,u,x,z,A,C,D`).
     pub raw: Node,
 }
 
@@ -1300,6 +1306,7 @@ impl SavePet {
             current_exp: get_f64(node, "h"),
             working_experience_ms: get_u64(node, "H"),
             elemental_form_id: get_u32(node, "y"),
+            token_improved: get_u32(node, "B") == 1,
             raw: node.clone(),
         }
     }
