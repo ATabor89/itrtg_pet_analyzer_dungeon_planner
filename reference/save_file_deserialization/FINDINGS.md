@@ -18,8 +18,10 @@ Two platform variants wrap the **same** inner `base64(tree)`:
 ### Steam: `strip2(b64( len_le32 ++ gzip( b64( tree ) ) ))`
 
 1. The save file is base64 text **with 2 extra characters prepended** (here
-   `V2`). Strip the first 2 characters before decoding. (Purpose unknown —
-   possibly a version tag or junk salt. Worth checking against a second save.)
+   `V2`). Strip the first 2 characters before decoding. **This is a constant
+   literal version tag `"V2"`, not salt** — verified against `Assembly-CSharp`
+   serialization logic: the container writer (`HGAHFCFJLDN.CAPJIECENDO`) returns
+   `"V2" + base64(gzip(...))` unconditionally.
 2. Base64-decode. Result: `[0..3]` little-endian `int32` = uncompressed length
    (here 292,296), `[4..]` = a standard **gzip** stream.
 3. Gunzip → ASCII text which is itself **base64 again**.
@@ -138,7 +140,14 @@ team roster:
 | `H` | ? (only Cat: 10,920) | |
 | `y` | **elemental-pet form counter** — the evolved-form/upgrade level you advance via the pet's "quest". `0` for every non-elemental pet; **+1 per form** for elemental pets (player-decoded 2026-06-18 by upgrading Gnome/Salamander/Sylph one form each and diffing — `y` ticked +1 and base growth `E` jumped). Offset per pet, so *not* directly the displayed "V" number: Gnome `y−10`, Salamander `y−15`, Sylph `y−20` (06-09 fixture Gnome 14 / Salamander 19 / Sylph 24 are all form **V4**). The export "Other" column carries the human label (`GnomeV2`). `SavePet.elemental_form_id`. | Gnome=14, Salamander=19, Sylph=24, all non-elemental=0 |
 | `B` | **token-improved flag** (0/1) — the Pet-Token "Improvement" applied (export "Improvement" = Yes). Player-decoded 2026-06-19 by improving one pet (Aurelius) and diffing — only `B` flipped 0→1 (plus its recomputed Health). `SavePet.token_improved`. | 06-09 fixture: exactly the 20 export-improved pets have `B=1` ✓ (count match + Hedgehog/Sphinx=1, Mouse/Dog=0) |
-| `d`,`e`,`f`,`n`,`s`,`t`,`u`,`x`,`z`,`A`,`C`,`D` | ? | t: Vampire=1, Dog=4, Penguin=7 |
+| `d`,`e`,`f`,`n`,`s`,`t`,`u`,`x`,`z`,`A`,`C`,`D` | meaning still ?, but **types now pinned from C#** (pet deserializer `DFLAKHONNPC.EBOFJJHOOLP`): `d`/`e`/`f`/`n` = numbers (AGJPDMBDHHG/BigDouble), `s` = long, `t`/`u`/`x`/`C` = int, `z`/`A`/`B`/`D` = **bool**. So `B` (token-improved) is a genuine boolean, and `z`/`A`/`D` are three more unidentified flags. | t: Vampire=1, Dog=4, Penguin=7 |
+
+**Pet struct verified against `Assembly-CSharp`** (class `DFLAKHONNPC`, method
+`EBOFJJHOOLP`): the field set and per-key types above are exactly the game's. The
+pet has **no** keys `b`, `c`, or `i`. Type ids (`k`, `F`) are the `HFNFDKEMAIK`
+enum and the form (`y`) is the `ANHOKMNPAKI` enum — both transcribed into
+`crates/save-parser/src/items.rs` (`pet_type_name` / `elemental_form_name`); see
+the "Pet type & form enums" section below.
 
 For the normal-stats formula work (display-side model, the Anni Cake
 multiplier, open staircase questions), see `normal_stats_investigation.md`.
@@ -521,11 +530,63 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
 - GP, GP spent, total might, crystal power, pet stones, strategy books, ants,
   acorns all found at expected values.
 
+## Reading the format from `Assembly-CSharp` (the C# cross-check)
+
+The game is Unity/Mono, so `Assembly-CSharp.dll` decompiles cleanly. Decompiled
+to the gitignored scratch dir (`_cs_decomp/`, never committed — it's copyrighted
+game source). The assembly is **obfuscated** (class/field names are random
+letters) but the save **keys are not generated** — each (de)serializer passes
+literal key strings, so the code is a direct Rosetta Stone. Method/field names
+cited below are evidence pointers, **not** pasted source.
+
+Key facts about the framework (class `OMHGFFEADBC`):
+
+- Struct = `key:value;`, list = `&`-joined; the key constants are the literal
+  `"a".."z","A".."Z"` and the numeric `"001"…` strings.
+- The obfuscator emits **many decoy copies** of every (de)serializer, with junk
+  prose/enum string keys in dead branches. The **real** deserializer is always
+  the method named **`EBOFJJHOOLP(string)`** (clean single-char keys); the
+  serializer is `KFIDJLHOBCO()`. The value getter is `BDEAAELBJKM(arr, key)`;
+  typed readers wrap it (`…IJAHJNNEBEB`=int, `…LDNFLIFGNCH`=BigDouble,
+  `…PIPMKFFGFHO`=bool, etc.).
+- Class map confirmed: root = `PKCECBJFIHD`; root `X` (pet system) =
+  `MLILKGIALMB`; its `b` list element (the pet) = `DFLAKHONNPC`; pet `w`
+  (dungeon) = `CIEAPBPBCLL`, whose `d` (class) = `PJEGDBJIOAL`.
+
+A small helper, `_cs_decomp/_extract_fields.py`, scopes to a class's
+`EBOFJJHOOLP` and prints its key→(type, field) table (it misses enum-cast reads
+like `(HFNFDKEMAIK)…(arr,"k")` — read those by eye). Running progress notes live
+in `_cs_decomp/_PROGRESS.md` (also gitignored).
+
+### Pet type & form enums (authoritative)
+
+- **Pet type id** (pet `k`, partner `F`; 999 = None) = enum `HFNFDKEMAIK`,
+  transcribed to `items::pet_type_name`. 152 pets (ids 0–151) plus specials at
+  750–803 / 900–902 / 999. Every prior hand-derived anchor matches
+  (2=Cat, 25=Reindeer, 32=Pandora, 89=Salamander, 123=Vampire, 803=Serow).
+  Names are the **export-normalized** spellings (Reindeer, BHC, Firefox, …).
+- **Elemental form** (pet `y`) = enum `ANHOKMNPAKI`, transcribed to
+  `items::elemental_form_name`. This reveals the full **water/`Undine`** family
+  (`FailedUndine`, `UndineV1`–`V4`, `UndineFinal` = ids 3–8) — the family
+  `FINDINGS` previously guessed was "the unnamed count-0 block" — plus the
+  `Gnome`/`Salamander`/`Sylph` ladders and the `LostArm`/`LostBody`/`GrayChild`
+  specials. The fixture offsets all check out (Gnome `y`=14=GnomeFinal,
+  Salamander `y`=19=Final, Sylph `y`=24=Final). Note Salamander/Sylph start at
+  `V0` and Gnome at `V1`; each line ends in `…Final` (the displayed "V4").
+
+Both enums are regression-tested in `tests/real_save.rs`
+(`pet_type_ids_all_resolve_to_names`, `elemental_form_names_resolve`): every
+type/partner id in the reference roster resolves, and the elemental forms match.
+
 ## Open questions / next steps
 
-- Pet fields `d,e,f,g,h,j,n,o,p,q,r,s,t,u,x,y,z,A–D,H` — meaning unknown.
-  `g/h/j/o/p/q/r` presumably the stat-bonus / total-exp accumulators behind the
-  computed HP/Attack/etc. shown in exports (those stats are *not* stored).
+- Pet fields: `g/h/j/o/p/q/r` are now **identified** (normal level / current exp
+  / Health / the four training-clone stat snapshots — see the pet table) and
+  `y`/`k`/`F`/`B` are decoded. Still-unknown **meanings**: `d,e,f,n` (numbers),
+  `s` (long), `t,u,x,C` (ints), `z,A,D` (bools). The C# pins their **types**
+  (above); the remaining work is chasing each obfuscated field's *use* (tooltip
+  prose / evolution logic) to name it. The obfuscated field names to chase are in
+  `_cs_decomp/_PROGRESS.md`.
 - HP/Attack/Defense/Speed/elemental affinities from the Pet Stats export do
   not appear literally in the save → derived at runtime. If we ever need them,
   we either keep using the export or reverse the formulas.
@@ -550,7 +611,9 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
   Gnome/earth (126 Core Shard of Gnome, 127 Magic Soil, …), Salamander/fire
   (138 Glowing Embers, **139 Igneous Bones**, **140 Pliable Magma**, 141 Living
   Flame), Sylph/wind (146 Whispers, 147 Secrets, **148 Mysteries of the Wind**,
-  149 Soul of Sylph). The water family is presumably the unnamed count-0 block.
+  149 Soul of Sylph). The water family is the **`Undine`** line (now named from
+  the C# `ANHOKMNPAKI` form enum — see "Pet type & form enums"); its quest
+  materials are presumably the unnamed count-0 cluster.
 - Equipment *type* id ↔ name: solved for everything equipped, derived by
   joining Pet Stats gear strings ↔ Pet Equips instance ids ↔ the save's `R`
   instance→type map (zero vote conflicts). 2026-06-13 the user equipped five
@@ -566,7 +629,8 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
 - Challenge dungeons "available" (3/10 → 2/10 after using one attempt
   2026-06-13) is **not** a stored integer — no field went 3→2. It is computed
   (regen timer + used-counter), like an energy bar. Not yet located.
-- The 2 leading junk chars: constant? random? Compare with another save.
+- The 2 leading junk chars: **resolved** — constant literal version tag `"V2"`
+  (verified in `Assembly-CSharp`; see Container format).
 - Re-serialization (writing a save) untested — only needed if we ever want to
   edit saves, which is out of scope for the planner.
 - Token/evolution state (export "Other" column) — **partly located**: the
