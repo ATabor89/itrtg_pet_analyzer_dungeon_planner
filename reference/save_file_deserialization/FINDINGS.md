@@ -491,14 +491,14 @@ Example: instance 704 = "Inferno Sword + 10, SSS, Wind gem lv 10":
 
 | key | meaning | evidence |
 |-----|---------|----------|
-| `a` | item type id (21 = Inferno Sword, 51 = Magic Stick, 47 = …) | |
+| `a` | item type id — the `MBBDNNAMMHO` enum (`Assembly-CSharp`); ~110 types. Resolves the old {23,26,30,52,56} tie: **23=Flood Spear, 26=Tree Axe, 30=Hurricane Bow, 52=Iron Pot, 56=Leeching Sword**. Curated id→name+slot subset in `items::equipment_type_name` / `EQUIPMENT_TYPES`. | verified against `MBBDNNAMMHO` |
 | `b` | plus level (+10/+20/+13); stat multiplier = 1 + 0.05×plus | ✓ export + wiki scaling rule |
-| `c` | quality: A=5 baseline, ±1/step — full ladder **F=0 E=1 D=2 C=3 B=4 A=5 S=6 SS=7 SSS=8** (player-confirmed 2026-06-17); stat multiplier = 1 + (c−5)×0.1 | ✓ export + wiki ("C +8 ⇒ 0.8 × 1.4"; "SSS +20 ⇒ 1.3 × 2.0 = 2.6") |
+| `c` | quality: A=5 baseline, ±1/step — full ladder **F=0 E=1 D=2 C=3 B=4 A=5 S=6 SS=7 SSS=8** (player-confirmed 2026-06-17; matches enum `GBFGHANMFII`, which also names a 10th tier **`Ult`=9** — but the equipment loader **clamps stored quality to 8**, so 9 never persists); stat multiplier = 1 + (c−5)×0.1 | ✓ export + wiki + `GBFGHANMFII` |
 | `d`, `h` | **`d` = equip id** (what pet slots `w.e/f/g` reference; `0` = in inventory / unequipped), **`h` = always-unique catalog id** (never 0). Usually equal, **but not always** — and when they differ, **the slot follows `d`**. Proven 2026-06-19 on the 06-09 / Adventure Steam saves: 209/214 instances have a unique nonzero `h`, ~30 have `d=0` (all unequipped); the few *equipped* items with `d≠h` are 300-series **event gear**, and the pet's slot equals their `d`, not `h` (Vampire armor=`23`=Merry Mantle `d23`/`h136`; Bee armor=`21`=Creators Vest `d21`/`h126`; Raiju acc=`27`/Vampire acc=`25`=Christmas Boots), each matching the Pet Stats export exactly. So **resolve slots by `d` first** (`h` only as a fallback) — the earlier "`h` first" reading was backwards and mis-resolved an edited Kongregate save where a Legendary's `d=20` collided with a Magic Stick's `h=20`. `SavePet.weapon_id`/etc. and `EquipmentItem.instance_id` already key off `d`; the GUI tree resolver now does too. | referenced by pet `w.e/f/g` and Pet Equips export |
 | `e` | 20 when export shows "(20)" suffix, else 0 | awakening/max-plus cap? |
 | `f` | gem level (10) | ✓ |
-| `g` | gem element (4 = Wind gem, same element ids) | ✓ |
-| `i` | 0 always so far | ? |
+| `g` | gem element — enum `EMGELCMNFOL`: 0 Neutral, 1 Fire, 2 Water, 3 Earth, 4 Wind, **5 Dark, 6 Light, 50 Elemental, 99 All** (richer than the pet 0–4 element set) | ✓ + `EMGELCMNFOL` |
+| `i` | bool, false in every save so far (`PIPMKFFGFHO` reader) | ✓ type from C# |
 
 ## Save name → export name mapping
 
@@ -551,7 +551,10 @@ Key facts about the framework (class `OMHGFFEADBC`):
   `…PIPMKFFGFHO`=bool, etc.).
 - Class map confirmed: root = `PKCECBJFIHD`; root `X` (pet system) =
   `MLILKGIALMB`; its `b` list element (the pet) = `DFLAKHONNPC`; pet `w`
-  (dungeon) = `CIEAPBPBCLL`, whose `d` (class) = `PJEGDBJIOAL`.
+  (dungeon) = `CIEAPBPBCLL`, whose `d` (class) = `PJEGDBJIOAL`. X-list element
+  classes: `Q` (materials) = `GCJMGGFGKBN` (item `a` = `NCPJFPLCPPK` enum),
+  `R` (equipment) = `DOBKHNKLLLM` (type `a` = `MBBDNNAMMHO` enum), `S` (teams) =
+  `PCDCANGLENI`.
 
 A small helper, `_cs_decomp/_extract_fields.py`, scopes to a class's
 `EBOFJJHOOLP` and prints its key→(type, field) table (it misses enum-cast reads
@@ -598,6 +601,9 @@ type/partner id in the reference roster resolves, and the elemental forms match.
   prior table's "Nothing"; real Nothing is 119 — and 21 = Torch).
   Remaining: the count-1 ids {160,164,167,168} ↔ {Not Nothing, Absolutely
   Nothing, Food Journal One, Food Journal Two} (set known, assignment unknown).
+  **These are resolvable from the `NCPJFPLCPPK` enum** — the master material/item
+  id table (X.Q item `a` casts to it). Transcribing it is the next planned dig
+  and will name the whole X.Q namespace at once.
   **130 = Aether Ring** (player-confirmed 2026-06-18; base ring on a fresh save
   is id 130; the in-game "+N" boss-kill suffix is the same id 130 with a dynamic
   name, not consecutive ids since 131=Sun Stone) and **162 = Monster Blood**.
@@ -623,9 +629,10 @@ type/partner id in the reference roster resolves, and the elemental forms match.
   Storm Ring} tie). 2026-06-19, same method (Anteater/Salamander/Caterpillar):
   **48 = Magic Hammer** (the real one), **80 = Legendary Stick**, **81 =
   Legendary Pot** (the 79/80/81 Legendary crafting-weapon family). Now in
-  `items.rs::equipment_type_name`. Still ambiguous: {23,26,30,52,56} ↔ {Iron
-  Pot, Flood Spear, Leeching Sword, Tree Axe, Hurricane Bow} (set known,
-  assignment unknown) — equip one to resolve.
+  `items.rs::equipment_type_name`. **{23,26,30,52,56} now resolved** from the
+  `MBBDNNAMMHO` enum (23=Flood Spear, 26=Tree Axe, 30=Hurricane Bow, 52=Iron Pot,
+  56=Leeching Sword). The enum is the complete authoritative catalog (~110 types);
+  `EQUIPMENT_TYPES` remains the curated slot-categorized subset.
 - Challenge dungeons "available" (3/10 → 2/10 after using one attempt
   2026-06-13) is **not** a stored integer — no field went 3→2. It is computed
   (regen timer + used-counter), like an energy bar. Not yet located.
