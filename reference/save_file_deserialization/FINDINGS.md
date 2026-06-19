@@ -407,13 +407,19 @@ mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
   raw tree view (BlockSchema `["032","b"]`; `a`→Entity, `e`→Class resolve).
 - `H` (`OKLONIELNEN`) → `H.a` = **researches** (below).
 - `d` = **inventory** (below), `G` = **cores** (below).
-- Other sub-structs to map: `k` (`MANFDMLBOMG`), `n` (`JADFDPJGJPA`), `z`
-  (`NKAIFFEMNBO`), `V` (`GIDEBPNNIDA`); plus the **crafting/smithing/alchemy**
-  progression (Smelting/Forging/Enchanting/Selling — the structure seen in the
-  `DPJKKLGJHJE` blob), and many list keys (`c`/`j`/`m`/`t`/`L`/`R`/`U`) and bool
-  flags. **Next ticks:** decode the adventurer skill/class/stat sub-structs and
-  the crafting progressions; look for adv skill/class enums. (No clean
-  Smelting/Forging *enum* — those are field-based sub-structs.)
+- Sub-structs (markers from each class's `FromString`):
+  - `k` (`MANFDMLBOMG`) = **AdvCrafting** (smithing): `a` = craftable gear (enum
+    `LEIFLPFLEHJ` — ClothMantle/LeatherBelt/Blazing…/Aim… families), `b`/`g` =
+    material (enum `BFNFKADNAKD`), `c` = exp/progress, `d`/`e`/`f` = levels.
+  - `n` (`JADFDPJGJPA`) = **AdvAlchemy**: `a` = recipe (enum `DLCMNADKOJK`),
+    `c` = exp/progress, `d`/`e` = levels.
+  - `V` (`GIDEBPNNIDA`) = **Bestiary** (per-enemy kill records).
+  - `z` (`NKAIFFEMNBO`) = TBD (not a string-deserialized struct; investigate).
+  - The crafting **material** enum `BFNFKADNAKD` (107 ids: raw/refined/enhanced
+    tiers + jewels/pills) is the same namespace as `032.d` inventory and is now
+    complete in `items::adventure_item_name` (diff-verified). The craftable-gear
+    `LEIFLPFLEHJ` and alchemy-recipe `DLCMNADKOJK` enums are next to transcribe.
+  - Remaining list keys (`c`/`j`/`m`/`t`/`L`/`R`/`U`) + bool flags to map.
 
 `032.H.a` = **researches** (44 entries, id 0 is a placeholder): `a`=id,
 `b`=level, `c`=in-progress flag, `d`=progress, `f`=max level. Ids 1–43
