@@ -14,10 +14,21 @@
 //! equipment *type* ids used in `X.R` (equipment type 21 is the Inferno
 //! Sword; material 21 is something stackable and still unidentified).
 
-/// Look up the display name for a material/item id (the `X.Q` namespace).
+/// Look up the display name for a material/item id — the **complete
+/// `NCPJFPLCPPK` enum** (`Assembly-CSharp`), so every item names wherever its id
+/// appears (the `X.Q` material inventory and elsewhere). Names confirmed against
+/// in-game inventory / exports are kept verbatim; the rest are transcribed from
+/// the enum (PascalCase split, "of" lowercased to match the confirmed style).
+///
+/// Notes: foods 101–105 (Pet/Puny/Strong/Mighty Food, Chocolate) and gems are
+/// the same enum but live in dedicated save fields (`X.c/d/e/v`, `X.002`), not
+/// `X.Q`; they're named here for completeness. The elemental-pet evolution-quest
+/// material families are 106–116 (water/`Undine`), 126–129 (`Gnome`/earth),
+/// 138–145 (`Salamander`/fire), 146–150 (`Sylph`/wind). 33–37 bars: see the
+/// 2026-06-19 element-order bug fix (34 Forest / 36 Titanium / 37 Tsunami).
 pub fn material_name(id: u32) -> Option<&'static str> {
     Some(match id {
-        // -- prior-project, base materials --
+        // -- base materials (T1) --
         1 => "Herb",
         2 => "Iron Ore",
         3 => "Iron Bar",
@@ -32,114 +43,195 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         12 => "Whetstone",
         13 => "Sacred Stone",
         14 => "Phoenix Feather",
-        15 => "Health Potion",
         // 16/17/19/21 confirmed against the 2026-06-10 full inventory
-        // transcription (counts matched the second save). Note 19 was
-        // "Nothing" in the prior project's table — that was wrong; the
-        // Antidote count (128) matched id 19 exactly, and "Nothing" is 119.
+        // transcription; 19 = Antidote (the prior project wrongly had "Nothing";
+        // real Nothing is 119).
+        15 => "Health Potion",
         16 => "Health Potion X",
         17 => "Health Potion S",
+        18 => "Elixir",
         19 => "Antidote",
         20 => "Flying Boots",
         21 => "Torch",
         22 => "Ginger",
         23 => "Holy Water",
-        // -- prior-project, T3 materials (the "Magic" tier) --
+        // -- T3 "Magic" tier --
         24 => "Magic Fire Stone",
         25 => "Magic Wood",
         26 => "Magic Feather",
         27 => "Magic Ore",
         28 => "Magic Ice",
         29 => "Magic Herb",
-        // -- user-confirmed against live inventory (2026-06): talismans --
-        31 => "Lucky Talisman", // count 587 matched exactly
-        32 => "Wise Talisman",  // adjacent id, count 212 = the "200-something"
-        // -- elemental bars (crafted from the element's T1–T3 materials plus
-        //    Whetstones and Sacred Stones). Order is now from the game's
-        //    `NCPJFPLCPPK` enum. **Bug fix 2026-06-19:** the three 10-count
-        //    bars (34/36/37) were indistinguishable by count, so the prior
-        //    project guessed their element order and got it wrong — 34 was
-        //    "Tsunami", 36 "Forest", 37 "Titanium". The enum (corroborated by
-        //    `dungeon_recommendations.yaml`: the neutral Scrapyard event gives
-        //    a Titanium Bar, the Water Temple event a Tsunami Bar) sets them
-        //    straight. (33 Inferno / 35 Hurricane were already correct, pinned
-        //    by their distinct counts 5 / 4.) --
-        33 => "Inferno Bar",   // fire — count 5 ✓
-        34 => "Forest Bar",    // earth (was wrongly "Tsunami Bar")
-        35 => "Hurricane Bar", // wind — count 4 ✓
-        36 => "Titanium Bar",  // neutral (was wrongly "Forest Bar")
-        37 => "Tsunami Bar",   // water (was wrongly "Titanium Bar")
-        // -- dungeon consumables: bombs & traps (player-confirmed 2026-06-18) --
-        30 => "Melting Bomb",
-        48 => "Nanotrap",
-        49 => "Freezing Bomb",
-        // -- export-confirmed in the 2026-06-09 reference save --
-        117 => "Ant",            // count 192,164 = Main Stats "Ants"
-        159 => "Strategy Book",  // count 2,840 = Main Stats "Strategy Books"
-        166 => "Honey",          // count 787 = Main Stats "Honey"
-        174 => "Acorn",          // count 24,727 = Main Stats "Acorns"
-        // -- prior-project, special/dungeon items --
+        30 => "Melting Bomb", // dungeon consumable (player-confirmed 2026-06-18)
+        31 => "Lucky Talisman",
+        32 => "Wise Talisman",
+        // Elemental bars. 34/36/37 element order corrected 2026-06-19 from the
+        // enum (were Tsunami/Forest/Titanium); 33/35 were already right.
+        33 => "Inferno Bar",   // fire
+        34 => "Forest Bar",    // earth
+        35 => "Hurricane Bar", // wind
+        36 => "Titanium Bar",  // neutral
+        37 => "Tsunami Bar",   // water
+        // -- keys / alloys / runes / super talismans --
+        38 => "Golden Key",
+        39 => "Frost Key",
+        40 => "Magma Key",
+        41 => "Rainbow Key",
+        42 => "Mystic Key",
+        43 => "Golden Stone",
+        44 => "Frozen Alloy",
+        45 => "Magma Stone",
+        46 => "Rainbow Ore",
+        47 => "Transparent Stone",
+        48 => "Nanotrap",      // dungeon trap (player-confirmed 2026-06-18)
+        49 => "Freezing Bomb", // dungeon consumable (player-confirmed 2026-06-18)
+        50 => "Demonic Rune",
+        51 => "Holy Rune",
+        52 => "Super Lucky Talisman",
+        53 => "Very Wise Talisman",
+        // -- foods (stored in X.c/d/e/v, not X.Q — named for completeness) --
+        101 => "Pet Food",
+        102 => "Puny Food",
+        103 => "Strong Food",
+        104 => "Mighty Food",
+        105 => "Chocolate",
+        // -- water / Undine evolution-quest family --
+        106 => "Undine",
+        107 => "Body",
+        108 => "Mecha Arm",
+        109 => "Water Soul",
+        110 => "Purified Water",
+        111 => "Improved Water Soul",
+        112 => "Soulless Soul",
+        113 => "Soul of Undine",
+        114 => "Magic Soul of Undine",
+        115 => "Shadow Essence",
+        116 => "Magic Shadow Essence",
+        // -- export-confirmed / special items --
+        117 => "Ant",          // count 192,164 = Main Stats "Ants"
         118 => "Rebirth Bacon",
-        119 => "Nothing", // a second "Nothing" id; both appeared in-game
-        120 => "Cure",    // player-confirmed 2026-06-18
-        // -- elemental-pet evolution-quest materials. Each elemental pet
-        //    (Gnome/earth, Salamander/fire, Sylph/wind, …) has a "quest" where
-        //    you craft a family of items to give it. NOT dungeon-boss drops. --
-        126 => "Core Shard of Gnome", // Gnome / earth
-        127 => "Magic Soil",          // Gnome / earth
-        // T4 materials — resolved 2026-06-16 by a save-edit probe: the five
-        // count-32 stacks were set to distinct counts (41–45) and read off
-        // in-game by name.
+        119 => "Nothing",
+        120 => "Cure", // player-confirmed 2026-06-18
+        121 => "Vaccine",
+        122 => "Shiny Stone",
+        123 => "Horn of Balrog",
+        124 => "AF Coin",
+        125 => "Runestone",
+        // -- Gnome / earth evolution-quest family --
+        126 => "Core Shard of Gnome",
+        127 => "Magic Soil",
+        128 => "Soul of Gnome",
+        129 => "Magic Soul of Gnome",
+        130 => "Aether Ring", // base ring; the in-game "+N" suffix is dynamic
+        // -- T4 stones (save-edit probe 2026-06-16) --
         131 => "Sun Stone",
         132 => "Jungle Stone",
         133 => "Sky Stone",
         134 => "Mythril",
         135 => "Ocean Stone",
-        138 => "Glowing Embers",  // Salamander / fire
-        139 => "Igneous Bones",   // Salamander / fire (player-confirmed 2026-06-18)
-        140 => "Pliable Magma",   // Salamander / fire (player-confirmed 2026-06-18)
-        141 => "Living Flame",    // Salamander / fire
-        145 => "Prosthetic Tail", // Salamander upgrade item (player-confirmed 2026-06-18)
-        146 => "Whispers of the Wind",  // Sylph / wind
-        147 => "Secrets of the Wind",   // Sylph / wind
-        148 => "Mysteries of the Wind", // Sylph / wind (player-confirmed 2026-06-18)
-        149 => "Soul of Sylph",         // Sylph / wind
+        136 => "Dark Matter",
+        137 => "Angel Wing",
+        // -- Salamander / fire evolution-quest family --
+        138 => "Glowing Embers",
+        139 => "Igneous Bones",
+        140 => "Pliable Magma",
+        141 => "Living Flame",
+        142 => "Salamander Soul",
+        143 => "Magic Soul of Salamander",
+        144 => "Salamander Skin",
+        145 => "Prosthetic Tail",
+        // -- Sylph / wind evolution-quest family --
+        146 => "Whispers of the Wind",
+        147 => "Secrets of the Wind",
+        148 => "Mysteries of the Wind",
+        149 => "Soul of Sylph",
+        150 => "Magic Soul of Sylph",
+        // -- misc --
+        151 => "Fools Coin",
+        152 => "Shifting Scroll",
         153 => "Ale",
-        // Aether Ring (player-confirmed 2026-06-18 on a fresh/edited save: the
-        // base, no-boss-fights ring is id 130). The in-game "+N" suffix tracks
-        // boss kills and is almost certainly the SAME id 130 with a dynamic name
-        // (not consecutive ids — 131 is Sun Stone), so the old save's "Aether
-        // Ring +28" was also id 130. Resolves 130 from the singleton worklist.
-        130 => "Aether Ring",
-        160 => "Not Nothing",        // player-confirmed 2026-06-18; enum NotNothing
-        162 => "Monster Blood",      // player-confirmed 2026-06-18
-        164 => "Absolutely Nothing", // player-confirmed 2026-06-18; enum AbsolutelyNothing
-        // {167, 168} assignment resolved from the `NCPJFPLCPPK` enum (the prior
-        // worklist had the set but not the per-id mapping).
-        167 => "Food Journal One",   // enum FoodJournal1
-        168 => "Food Journal Two",   // enum FoodJournal2
-        // The formerly count-0 ids are also named by the enum: 128 Soul of
-        // Gnome, 129 Magic Soul of Gnome, 142 Salamander Soul, 143 Magic Soul
-        // of Salamander, 144 Salamander Skin, 150 Magic Soul of Sylph (the
-        // per-element evolution-quest "soul" tier). Left out of this table only
-        // because no reference save has held a nonzero count to double-check the
-        // display spelling against; add them when one does, or trust the enum.
-        // 126–149 are the elemental-pet evolution-quest / upgrade-item families
-        // (you craft items to advance each pet through its quest; these aren't
-        // strictly contiguous — e.g. Salamander's 145 Prosthetic Tail sits past
-        // its 138–141 quest materials):
-        // Gnome/earth (126–129), Salamander/fire (138–144 = Glowing Embers /
-        // Igneous Bones / Pliable Magma / Living Flame / Salamander Soul / Magic
-        // Soul of Salamander / Salamander Skin; 145 Prosthetic Tail),
-        // Sylph/wind (146–150 = Whispers / Secrets / Mysteries of the Wind /
-        // Soul of Sylph / Magic Soul of Sylph). The **water pet is `Undine`**
-        // (enum); its quest family is the 106–116 cluster (Undine / Body /
-        // Mecha Arm / Water Soul / Purified Water / … / Soul of Undine /
-        // Magic Soul of Undine), confirmed by the `NCPJFPLCPPK` enum — no longer
-        // a count-0 mystery.
-        // Foods and gems are NOT in this namespace: Puny/Strong/Mighty Food
-        // and Chocolate are dedicated save fields (X.c/d/e/v), gems live in
-        // X.002 keyed by element id.
+        154 => "Weird Glowing Rock",
+        155 => "Scroll of Beginnings",
+        156 => "Scroll of Trials Infinite",
+        157 => "Scroll of Trials Help",
+        158 => "Scroll Key",
+        159 => "Strategy Book", // count 2,840 = Main Stats "Strategy Books"
+        160 => "Not Nothing",
+        161 => "Shinier Stone",
+        162 => "Monster Blood",
+        163 => "Blood Potion",
+        164 => "Absolutely Nothing",
+        165 => "Craziness",
+        166 => "Honey", // count 787 = Main Stats "Honey"
+        167 => "Food Journal One",
+        168 => "Food Journal Two",
+        169 => "Shiny Metal Stone",
+        170 => "Shiny Water Stone",
+        171 => "Shiny Fire Stone",
+        172 => "Shiny Wind Stone",
+        173 => "Shiny Earth Stone",
+        174 => "Acorn", // count 24,727 = Main Stats "Acorns"
+        // -- adventure-research "spark" tier --
+        350 => "Spark of Genius",
+        351 => "Spark of Empathy",
+        352 => "Spark of Passion",
+        // -- fishing: rods / baits / catches (stored in the fishing block, not
+        //    X.Q — named for completeness) --
+        500 => "Rod 1",
+        501 => "Rod 2",
+        502 => "Rod 3",
+        503 => "Rod 4",
+        504 => "Rod 5",
+        520 => "Bait 1",
+        521 => "Bait 2",
+        522 => "Bait 3",
+        523 => "Bait 4",
+        524 => "Bait 5",
+        525 => "Boots",
+        526 => "Shrimp",
+        527 => "Clam",
+        528 => "Poison Gill",
+        529 => "Snout",
+        530 => "Crab",
+        531 => "Anglerfish",
+        532 => "Bigmofi",
+        533 => "Bluecarp",
+        534 => "Bottlefish",
+        535 => "Crappy",
+        536 => "Eyefish",
+        537 => "Eye of Jelly",
+        538 => "Pond Eye",
+        539 => "Fishbone",
+        540 => "Fugu",
+        541 => "Golden Rinny",
+        542 => "Goldfish",
+        543 => "Green Carp",
+        544 => "Green Jelly",
+        545 => "Gremifi",
+        546 => "Kinky Fish",
+        547 => "Kraken",
+        548 => "Lazy Rinny",
+        549 => "Mackerel",
+        550 => "Midlife Fish",
+        551 => "Mighty Carp",
+        552 => "Moonfish",
+        553 => "Perch",
+        554 => "Poisonperch",
+        555 => "Queen Satchy",
+        556 => "Rainbow Fish",
+        557 => "Red Betta",
+        558 => "Red Carp",
+        559 => "Sadfish",
+        560 => "Sad Shark",
+        561 => "Seastar",
+        562 => "Smilefish",
+        563 => "Speedy Spear Fish",
+        564 => "Spiketuna",
+        565 => "Squeeny",
+        566 => "Squid",
+        567 => "Trout",
+        800 => "Scales",
+        801 => "Ultimate Reward",
         _ => return None,
     })
 }
@@ -1033,6 +1125,26 @@ mod tests {
     }
 
     #[test]
+    fn full_material_enum_added() {
+        // Spot-checks of ids that the curated subset never covered, now from the
+        // full NCPJFPLCPPK enum.
+        assert_eq!(material_name(18), Some("Elixir"));
+        assert_eq!(material_name(38), Some("Golden Key"));
+        assert_eq!(material_name(52), Some("Super Lucky Talisman"));
+        assert_eq!(material_name(106), Some("Undine")); // water-quest family
+        assert_eq!(material_name(123), Some("Horn of Balrog"));
+        assert_eq!(material_name(136), Some("Dark Matter"));
+        assert_eq!(material_name(142), Some("Salamander Soul"));
+        assert_eq!(material_name(169), Some("Shiny Metal Stone"));
+        assert_eq!(material_name(350), Some("Spark of Genius"));
+        assert_eq!(material_name(500), Some("Rod 1"));
+        assert_eq!(material_name(547), Some("Kraken"));
+        assert_eq!(material_name(801), Some("Ultimate Reward"));
+        // Foods are the same enum (stored elsewhere) but still name.
+        assert_eq!(material_name(102), Some("Puny Food"));
+    }
+
+    #[test]
     fn t4_material_ids() {
         // Resolved 2026-06-16 via a save-edit probe (counts 41–45 → names).
         assert_eq!(material_name(131), Some("Sun Stone"));
@@ -1066,9 +1178,9 @@ mod tests {
     fn unknown_ids_return_none() {
         assert_eq!(material_name(0), None);
         assert_eq!(material_name(9999), None);
-        // 169 (Shiny Metal Stone) is named by the enum but kept out of the
-        // table until a save holds it — so it's still None here.
-        assert_eq!(material_name(169), None);
+        // 175-349 / 353-499 / 568-799 are gaps in the enum → None.
+        assert_eq!(material_name(300), None);
+        assert_eq!(material_name(600), None);
         // 130 (Aether Ring) and 162 (Monster Blood) are now known.
         assert_eq!(material_name(130), Some("Aether Ring"));
         assert_eq!(material_name(162), Some("Monster Blood"));
