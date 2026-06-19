@@ -542,9 +542,13 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
   probe 2026-06-16, counts 41–45 read off in-game): 131=Sun Stone, 132=Jungle
   Stone, 133=Sky Stone, 134=Mythril, 135=Ocean Stone — now in `items.rs`.
   Player-confirmed 2026-06-18: dungeon consumables **30=Melting Bomb,
-  48=Nanotrap, 49=Freezing Bomb**, and the two formerly-count-0 fire
-  boss-materials **139=Igneous Bones, 140=Pliable Magma** (rounding out the
-  138–141 fire family with Glowing Embers / Living Flame).
+  48=Nanotrap, 49=Freezing Bomb**, plus **120=Cure**. The 126–149 cluster is
+  the **elemental-pet evolution-quest materials** (you craft a family of items
+  to give each elemental pet through its "quest" — *not* dungeon-boss drops):
+  Gnome/earth (126 Core Shard of Gnome, 127 Magic Soil, …), Salamander/fire
+  (138 Glowing Embers, **139 Igneous Bones**, **140 Pliable Magma**, 141 Living
+  Flame), Sylph/wind (146 Whispers, 147 Secrets, **148 Mysteries of the Wind**,
+  149 Soul of Sylph). The water family is presumably the unnamed count-0 block.
 - Equipment *type* id ↔ name: solved for everything equipped, derived by
   joining Pet Stats gear strings ↔ Pet Equips instance ids ↔ the save's `R`
   instance→type map (zero vote conflicts). 2026-06-13 the user equipped five
