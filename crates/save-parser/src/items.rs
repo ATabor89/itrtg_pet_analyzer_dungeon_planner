@@ -76,8 +76,12 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         // -- prior-project, special/dungeon items --
         118 => "Rebirth Bacon",
         119 => "Nothing", // a second "Nothing" id; both appeared in-game
-        126 => "Core Shard of Gnome",
-        127 => "Magic Soil",
+        120 => "Cure",    // player-confirmed 2026-06-18
+        // -- elemental-pet evolution-quest materials. Each elemental pet
+        //    (Gnome/earth, Salamander/fire, Sylph/wind, …) has a "quest" where
+        //    you craft a family of items to give it. NOT dungeon-boss drops. --
+        126 => "Core Shard of Gnome", // Gnome / earth
+        127 => "Magic Soil",          // Gnome / earth
         // T4 materials — resolved 2026-06-16 by a save-edit probe: the five
         // count-32 stacks were set to distinct counts (41–45) and read off
         // in-game by name.
@@ -86,13 +90,14 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         133 => "Sky Stone",
         134 => "Mythril",
         135 => "Ocean Stone",
-        138 => "Glowing Embers",
-        139 => "Igneous Bones",  // player-confirmed 2026-06-18 (was count-0)
-        140 => "Pliable Magma",  // player-confirmed 2026-06-18 (was count-0)
-        141 => "Living Flame",
-        146 => "Whispers of the Wind",
-        147 => "Secrets of the Wind",
-        149 => "Soul of Sylph",
+        138 => "Glowing Embers",  // Salamander / fire
+        139 => "Igneous Bones",   // Salamander / fire (player-confirmed 2026-06-18)
+        140 => "Pliable Magma",   // Salamander / fire (player-confirmed 2026-06-18)
+        141 => "Living Flame",    // Salamander / fire
+        146 => "Whispers of the Wind",  // Sylph / wind
+        147 => "Secrets of the Wind",   // Sylph / wind
+        148 => "Mysteries of the Wind", // Sylph / wind (player-confirmed 2026-06-18)
+        149 => "Soul of Sylph",         // Sylph / wind
         153 => "Ale",
         // Aether Ring (player-confirmed 2026-06-18 on a fresh/edited save: the
         // base, no-boss-fights ring is id 130). The in-game "+N" suffix tracks
@@ -105,11 +110,12 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         // - {160, 164, 167, 168} sit at count 1 and pair with the four singleton
         //   items {Not Nothing, Absolutely Nothing, Food Journal One, Food
         //   Journal Two} — set known, per-id assignment unknown.
-        // - Present at count 0: 128, 129, 142–145, 148, 150.
-        // 126–149 look like per-dungeon boss material families (Gnome/earth,
-        // fire, wind) — the matching water family is presumably nearby. The
-        // fire family now has 138 Glowing Embers / 139 Igneous Bones /
-        // 140 Pliable Magma / 141 Living Flame.
+        // - Present at count 0: 128, 129, 142–145, 150.
+        // 126–149 are the elemental-pet evolution-quest material families:
+        // Gnome/earth (126–127…), Salamander/fire (138–141 = Glowing Embers /
+        // Igneous Bones / Pliable Magma / Living Flame), Sylph/wind (146–149 =
+        // Whispers / Secrets / Mysteries of the Wind / Soul of Sylph). The
+        // water family (142–145?) is presumably the unnamed count-0 block.
         // Foods and gems are NOT in this namespace: Puny/Strong/Mighty Food
         // and Chocolate are dedicated save fields (X.c/d/e/v), gems live in
         // X.002 keyed by element id.
@@ -602,15 +608,20 @@ mod tests {
     }
 
     #[test]
-    fn bombs_traps_and_fire_boss_materials() {
+    fn bombs_traps_and_elemental_quest_materials() {
         // Player-confirmed 2026-06-18.
         assert_eq!(material_name(30), Some("Melting Bomb"));
         assert_eq!(material_name(48), Some("Nanotrap"));
         assert_eq!(material_name(49), Some("Freezing Bomb"));
-        // The fire boss-material family (138–141), with the two count-0 ids now
-        // named.
+        assert_eq!(material_name(120), Some("Cure"));
+        // Elemental-pet evolution-quest materials: Salamander/fire (138–141)
+        // and Sylph/wind (146–149), with the formerly count-0 ids now named.
         assert_eq!(material_name(139), Some("Igneous Bones"));
         assert_eq!(material_name(140), Some("Pliable Magma"));
+        assert_eq!(material_name(148), Some("Mysteries of the Wind"));
+        // X.Q id 120 = Cure is a different namespace from adventure-item 120
+        // (Metal Bar) — the two tables stay separate.
+        assert_eq!(adventure_item_name(120), Some("Metal Bar"));
     }
 
     #[test]
