@@ -278,7 +278,13 @@ pub struct EquipmentItem {
     pub plus: u32,
     /// Quality (`c`): observed 8=SSS, 6=S, 4=B (likely 4=B..8=SSS).
     pub quality: u32,
-    /// Instance id (`d`, mirrored in `h`) — referenced by pets' equip slots.
+    /// Equip id (`d`) — **the id pets' equip slots (`w.e`/`w.f`/`w.g`) reference**;
+    /// `0` when the item is in inventory (unequipped). Usually equals the catalog
+    /// id `h`, but **not always**: event gear and edited items can diverge (e.g.
+    /// Merry Mantle `d=23`, `h=136` — a pet's armor slot reads `23`). The separate
+    /// `h` is an always-unique catalog id (never 0; useful as a stable display
+    /// id) but is *not* what slots reference. Proven on real Steam saves
+    /// 2026-06-19 — see `resolve_equipment_instance` in the GUI tree view.
     pub instance_id: u32,
     /// `e`: 20 on items whose export shows a "(20)" suffix, else 0.
     pub plus_cap: u32,
