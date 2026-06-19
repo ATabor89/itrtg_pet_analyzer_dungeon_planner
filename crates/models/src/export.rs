@@ -87,6 +87,45 @@ impl ExportPet {
             self.growth
         }
     }
+
+    /// The elemental pet's evolved **form**, parsed from the export "Other"
+    /// column (`GnomeV2`, `SylphV1`, …). `None` for non-elemental pets (whose
+    /// "Other" is empty or holds unrelated data) and for any "Other" value that
+    /// isn't this pet's `<name>V<number>` form string.
+    ///
+    /// Each form upgrade (built via the pet's quest) bumps the version and the
+    /// pet's base growth. The save-side counterpart is `SavePet.elemental_form_id`
+    /// (`y`), an offset-encoded counter — the export carries the human label.
+    pub fn elemental_form(&self) -> Option<ElementalForm> {
+        let s = self.other.as_deref()?.trim();
+        let bytes = s.as_bytes();
+        // Strip the trailing run of digits (the version number).
+        let mut i = bytes.len();
+        while i > 0 && bytes[i - 1].is_ascii_digit() {
+            i -= 1;
+        }
+        if i == bytes.len() || i == 0 || !bytes[i - 1].eq_ignore_ascii_case(&b'V') {
+            return None;
+        }
+        let name = s[..i - 1].trim();
+        // Guard against unrelated "Other" content: the prefix must be this pet.
+        if name.is_empty() || !name.eq_ignore_ascii_case(&self.export_name) {
+            return None;
+        }
+        // Use the canonical export-name casing (the guard confirmed they match).
+        Some(ElementalForm { name: self.export_name.clone(), version: s[i..].parse().ok()? })
+    }
+}
+
+/// An elemental pet's evolved form, from the export "Other" column.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ElementalForm {
+    /// Name prefix (equals the pet's export name, e.g. "Gnome").
+    pub name: String,
+    /// The in-game "V" number (`GnomeV2` → 2). This is the game's own per-pet
+    /// label, **not** a uniform 0-based index — Gnome's base form reads as V1
+    /// while Sylph/Salamander start at V0.
+    pub version: u32,
 }
 
 #[cfg(test)]
@@ -127,5 +166,54 @@ has_partner: false
         let pet: ExportPet = serde_yaml::from_str(yaml).expect("deserializes without class_exp");
         assert_eq!(pet.class_exp, 0.0);
         assert_eq!(pet.class_level, 10);
+    }
+
+    /// Build a minimal pet with a given export name + "Other" value.
+    fn pet_with_other(export_name: &str, other: Option<&str>) -> ExportPet {
+        let other_yaml = other.map_or("null".to_string(), |s| format!("\"{s}\""));
+        let yaml = format!(
+            r#"
+export_name: {export_name}
+element: Wind
+growth: 50331
+dungeon_level: 1
+class: null
+class_level: 0
+combat_stats: {{ hp: 1, attack: 1, defense: 1, speed: 1 }}
+elemental_affinities: {{ water: 0, fire: 0, wind: 0, earth: 0, dark: 0, light: 0 }}
+loadout: {{ weapon: null, armor: null, accessory: null }}
+action: Idle
+unlocked: true
+improved: false
+other: {other_yaml}
+has_partner: false
+"#
+        );
+        serde_yaml::from_str(&yaml).expect("pet deserializes")
+    }
+
+    #[test]
+    fn elemental_form_parses_other_column() {
+        // Real form strings: "<name>V<number>".
+        assert_eq!(
+            pet_with_other("Sylph", Some("SylphV2")).elemental_form(),
+            Some(ElementalForm { name: "Sylph".into(), version: 2 })
+        );
+        assert_eq!(
+            pet_with_other("Gnome", Some("GnomeV1")).elemental_form(),
+            Some(ElementalForm { name: "Gnome".into(), version: 1 })
+        );
+        // V0 (base form) parses too.
+        assert_eq!(
+            pet_with_other("Salamander", Some("SalamanderV0")).elemental_form().unwrap().version,
+            0
+        );
+        // Non-elemental / empty / non-matching "Other" → None.
+        assert_eq!(pet_with_other("Cat", None).elemental_form(), None);
+        assert_eq!(pet_with_other("Cat", Some("")).elemental_form(), None);
+        // Prefix must be THIS pet (guards against unrelated "Other" content that
+        // happens to end in V<digits>).
+        assert_eq!(pet_with_other("Gnome", Some("SylphV2")).elemental_form(), None);
+        assert_eq!(pet_with_other("Cat", Some("Lives9")).elemental_form(), None);
     }
 }

@@ -246,8 +246,20 @@ pub struct SavePet {
     /// worked. Matches the in-game working-time display to the second
     /// (Lamb 9,375,772,300 ms ↔ ~108d 12h).
     pub working_experience_ms: u64,
+    /// Elemental **form** counter (`y`): the evolved-form/upgrade level of an
+    /// elemental pet (Gnome, Salamander, Sylph, …), which you advance by
+    /// crafting items for the pet's "quest". `0` for every non-elemental pet.
+    /// Player-decoded 2026-06-18 by upgrading each elemental pet one form and
+    /// diffing the saves: `y` ticks **+1 per form** (and base growth `E` jumps).
+    ///
+    /// The value is **offset per pet**, so it is *not* directly the displayed
+    /// "V" number — the export's "Other" column carries that human label
+    /// (`GnomeV2`, `SylphV1`, …). Known offsets: Gnome `y−10`, Salamander
+    /// `y−15`, Sylph `y−20` (reconciles the 06-09 fixture, where Gnome 14 /
+    /// Salamander 19 / Sylph 24 are all form V4).
+    pub elemental_form_id: u32,
     /// The pet's raw node, for the still-unidentified fields
-    /// (`d,e,f,n,s,t,u,x,y,z,A–D`).
+    /// (`d,e,f,n,s,t,u,x,z,A–D`).
     pub raw: Node,
 }
 
@@ -1287,6 +1299,7 @@ impl SavePet {
             partner_days: get_u64(node, "G"),
             current_exp: get_f64(node, "h"),
             working_experience_ms: get_u64(node, "H"),
+            elemental_form_id: get_u32(node, "y"),
             raw: node.clone(),
         }
     }
