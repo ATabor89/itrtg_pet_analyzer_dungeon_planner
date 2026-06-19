@@ -708,6 +708,24 @@ pub fn campaign_type_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// Pet feeding-setting name by id (pet field `x`) — the per-pet auto-feed mode.
+/// Transcribed from the pet class's `CJMBBFKNFNF()` accessor in
+/// `Assembly-CSharp`: 0 None, 1 Puny, 2 Strong, 3 Mighty, 4 Chocolate, 5 Free,
+/// 6 Starve. (The game treats any out-of-range value as "Chocolate"; we return
+/// `None` for those since real saves only use 0–6.)
+pub fn feeding_setting_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        0 => "None",
+        1 => "Puny",
+        2 => "Strong",
+        3 => "Mighty",
+        4 => "Chocolate",
+        5 => "Free",
+        6 => "Starve",
+        _ => return None,
+    })
+}
+
 /// Divinity Generator upgrade name by id (root `K.l` list order, 0-based).
 /// Player-confirmed 2026-06-18.
 pub fn divinity_upgrade_name(id: u32) -> Option<&'static str> {
@@ -1022,6 +1040,18 @@ mod tests {
         for id in [23, 26, 30, 52, 56] {
             assert_eq!(equipment_category(id), Some(EquipCategory::Weapon));
         }
+    }
+
+    #[test]
+    fn feeding_setting_names() {
+        assert_eq!(feeding_setting_name(0), Some("None"));
+        assert_eq!(feeding_setting_name(1), Some("Puny"));
+        assert_eq!(feeding_setting_name(2), Some("Strong"));
+        assert_eq!(feeding_setting_name(3), Some("Mighty"));
+        assert_eq!(feeding_setting_name(4), Some("Chocolate"));
+        assert_eq!(feeding_setting_name(5), Some("Free"));
+        assert_eq!(feeding_setting_name(6), Some("Starve"));
+        assert_eq!(feeding_setting_name(7), None);
     }
 
     #[test]
