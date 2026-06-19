@@ -51,6 +51,7 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         }
         Resolve::AdventureItem => items::adventure_item_name(v.parse().ok()?).map(str::to_string),
         Resolve::AdventureEnemy => items::adventure_enemy_name(v.parse().ok()?).map(str::to_string),
+        Resolve::AdventureClass => items::adventure_class_name(v.parse().ok()?).map(str::to_string),
         Resolve::Research => model::research_name(v.parse().ok()?).map(str::to_string),
         Resolve::Element => model::element_from_id(v.parse().ok()?).map(element_name),
         Resolve::Class => model::class_from_id(v.parse().ok()?).map(class_name),
