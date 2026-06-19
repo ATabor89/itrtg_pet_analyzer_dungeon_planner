@@ -8,7 +8,7 @@ use itrtg_models::{
     UnlockCondition, VillageJob,
 };
 use itrtg_planner::growth::{format_duration, CapRelation, GrowthRates};
-use itrtg_planner::merge::{CampaignContext, EvoReadiness, MergedPet};
+use itrtg_planner::merge::{CampaignContext, ELEMENTAL_EVO_GROWTH, EvoReadiness, MergedPet};
 use serde::{Deserialize, Serialize};
 
 use crate::data::DataStore;
@@ -685,7 +685,7 @@ fn show_pet_details(
     }
 
     // Evolution requirements + readiness
-    show_evolution_section(ui, pet, rates);
+    show_evolution_section(ui, pet, rates, camp_ctx);
 
     // Campaign bonus (raw prose + effective per-campaign chips)
     show_campaign_section(ui, pet, camp_ctx);
@@ -942,7 +942,12 @@ fn growth_needed_text(req: &GrowthRequirement, base_growth: u64) -> String {
 /// Evolution requirements (growth threshold, material, other) plus a
 /// readiness badge and time-to-grow estimate for unevolved pets. No-op for pets
 /// without scraped evo data.
-fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
+fn show_evolution_section(
+    ui: &mut Ui,
+    pet: &MergedPet,
+    rates: &GrowthRates,
+    camp_ctx: &CampaignContext,
+) {
     let Some(req) = pet.wiki.as_ref().and_then(|w| w.evo_requirements.as_ref()) else {
         return;
     };
@@ -1060,6 +1065,119 @@ fn show_evolution_section(ui: &mut Ui, pet: &MergedPet, rates: &GrowthRates) {
             // Explain a slow estimate when the threshold is past the cap.
             show_cap_note(ui, rates, export.growth, threshold);
         }
+    }
+
+    // Elemental form progress: are you on track to be evolve-ready by the final
+    // form, given the fixed growth each remaining form upgrade grants?
+    if let Some(plan) = pet.elemental_evo_plan() {
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new(format!("Form Progress (V{})", plan.form))
+                .color(style::TEXT_BRIGHT)
+                .size(12.0)
+                .strong(),
+        );
+        egui::Grid::new("pet_form_evo_grid")
+            .num_columns(2)
+            .spacing([12.0, 4.0])
+            .show(ui, |ui| {
+                let label = if plan.is_final_form {
+                    "Evolve at:"
+                } else {
+                    "Min growth this form:"
+                };
+                ui.label(RichText::new(label).color(style::TEXT_MUTED).size(12.0));
+                ui.label(
+                    RichText::new(format_signed(plan.min_growth_for_form))
+                        .color(style::TEXT_NORMAL)
+                        .size(12.0)
+                        .family(egui::FontFamily::Monospace),
+                );
+                ui.end_row();
+                if !plan.is_final_form {
+                    ui.label(
+                        RichText::new("Final growth if upgraded now:")
+                            .color(style::TEXT_MUTED)
+                            .size(12.0),
+                    );
+                    let col = if plan.projected_final_growth >= ELEMENTAL_EVO_GROWTH {
+                        style::SUCCESS
+                    } else {
+                        style::WARNING
+                    };
+                    ui.label(
+                        RichText::new(format_signed(plan.projected_final_growth))
+                            .color(col)
+                            .size(12.0)
+                            .family(egui::FontFamily::Monospace),
+                    );
+                    ui.end_row();
+                }
+            });
+        ui.add_space(2.0);
+        if plan.on_track {
+            let msg = if plan.is_final_form {
+                "✓ Final form — meets the 55,555 evolve growth"
+            } else {
+                "✓ On track to be evolve-ready at the final form"
+            };
+            ui.label(RichText::new(msg).color(style::SUCCESS).size(12.0).strong());
+        } else {
+            ui.label(
+                RichText::new(format!(
+                    "{} more growth to stay on track for evolution",
+                    format_number(plan.shortfall as u64)
+                ))
+                .color(style::WARNING)
+                .size(12.0),
+            );
+        }
+    }
+
+    // Aether: no forms — his growth comes from challenge points + Delirious-
+    // Essence fights. Show the per-fight growth and a rough CHP-to-evolve hint.
+    if let Some(plan) = pet.aether_evo_plan(
+        camp_ctx.inputs.challenge_points,
+        camp_ctx.inputs.delirious_essence_fights,
+    ) {
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new("Aether Growth (challenge points + fights)")
+                .color(style::TEXT_BRIGHT)
+                .size(12.0)
+                .strong(),
+        );
+        ui.label(
+            RichText::new(format!(
+                "+{} growth per Delirious-Essence fight ({} CHP), {} fights left to the cap",
+                format_number(plan.growth_per_fight.round() as u64),
+                format_number(plan.challenge_points),
+                plan.fights_remaining,
+            ))
+            .color(style::TEXT_MUTED)
+            .size(11.0),
+        );
+        if let Some(chp) = plan.chp_to_evolve_estimate {
+            ui.label(
+                RichText::new(format!(
+                    "≈ {} challenge points would let the remaining fights reach 55,555 (rough — assumes growth is otherwise static)",
+                    format_number(chp.round().max(0.0) as u64)
+                ))
+                .color(style::TEXT_MUTED)
+                .italics()
+                .size(10.0),
+            );
+        }
+    }
+}
+
+/// Format a signed count with thousands separators (handles the negative
+/// minimum-growth values for early elemental forms).
+fn format_signed(n: i64) -> String {
+    if n < 0 {
+        format!("-{}", format_number(n.unsigned_abs()))
+    } else {
+        format_number(n as u64)
     }
 }
 
