@@ -507,6 +507,19 @@ Example: instance 704 = "Inferno Sword + 10, SSS, Wind gem lv 10":
 | `g` | gem element — enum `EMGELCMNFOL`: 0 Neutral, 1 Fire, 2 Water, 3 Earth, 4 Wind, **5 Dark, 6 Light, 50 Elemental, 99 All** (richer than the pet 0–4 element set) | ✓ + `EMGELCMNFOL` |
 | `i` | bool, false in every save so far (`PIPMKFFGFHO` reader) | ✓ type from C# |
 
+### Equipment campaign-boost formula (from C#, `DOBKHNKLLLM` value getter)
+
+`boost% = base × (1 + quality_id) × (1 + plus) × factor`, where `quality_id` =
+F0…SSS8 (so the "quality multiplier" is `1+id`, 1…9), `factor` = 1 for normal
+campaign gear. Per-type `base`: **Magic Stick 0.2646** (tooltip-confirmed; SSS+20
+= 0.2646·9·21 = 50.0% = "up to 50%"), **Candy Cane 0.5292** (2×). **Candy Cane
+SSS** has hardcoded overrides (it alone upgrades to +30): `+20→101`, `+25→125`,
+`+30→150`; all other plus levels use the general formula (SSS+21 = 104.78 ≈
+in-game 104.76). Sibling effects: BonusExp = `min(2.5·plus,8)·quality_id`,
+BonusGrowth = `min(1.5·plus,8)·quality_id`. The remaining event-item `base`
+values + per-tier (S+10 vs SSS+20) curves are the next dig — see
+`decode_roadmap.md`.
+
 ## Save name → export name mapping
 
 The save stores the pet's *display name*; exports normalize. Differences found
