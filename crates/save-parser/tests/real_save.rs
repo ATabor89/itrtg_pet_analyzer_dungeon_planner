@@ -129,6 +129,21 @@ fn parses_all_pets() {
 }
 
 #[test]
+fn feeding_settings_decode() {
+    let save = require_save!();
+    // Every pet's feeding setting (`x`) is in the valid 0..=6 range and resolves
+    // to a name (None/Puny/Strong/Mighty/Chocolate/Free/Starve).
+    for p in &save.pets {
+        assert!(
+            p.feeding_setting_name().is_some(),
+            "{} has out-of-range feeding setting {}",
+            p.name,
+            p.feeding_setting
+        );
+    }
+}
+
+#[test]
 fn campaign_preferences_decode() {
     use save_parser::items::campaign_type_name;
     let save = require_save!();
