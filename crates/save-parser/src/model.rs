@@ -1275,6 +1275,20 @@ impl SavePet {
         self.normal_health / 10.0
     }
 
+    /// Canonical (export-normalized) name for this pet's [`Self::type_id`], from
+    /// the game's pet-type enum ([`crate::items::pet_type_name`]). May differ
+    /// from [`Self::name`] (the save's display name) for ~24 pets.
+    pub fn type_name(&self) -> Option<&'static str> {
+        crate::items::pet_type_name(self.type_id)
+    }
+
+    /// Canonical name of this pet's elemental [`Self::elemental_form_id`], from
+    /// the game's form enum ([`crate::items::elemental_form_name`]); `None`/
+    /// `"None"` for non-elemental pets.
+    pub fn elemental_form_name(&self) -> Option<&'static str> {
+        crate::items::elemental_form_name(self.elemental_form_id)
+    }
+
     fn from_node(node: &Node) -> Self {
         let w = node.get("w");
         let class_node = w.and_then(|w| w.get("d"));
