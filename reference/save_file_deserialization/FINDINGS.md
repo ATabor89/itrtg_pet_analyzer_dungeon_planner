@@ -140,7 +140,10 @@ team roster:
 | `H` | ? (only Cat: 10,920) | |
 | `y` | **elemental-pet form counter** — the evolved-form/upgrade level you advance via the pet's "quest". `0` for every non-elemental pet; **+1 per form** for elemental pets (player-decoded 2026-06-18 by upgrading Gnome/Salamander/Sylph one form each and diffing — `y` ticked +1 and base growth `E` jumped). Offset per pet, so *not* directly the displayed "V" number: Gnome `y−10`, Salamander `y−15`, Sylph `y−20` (06-09 fixture Gnome 14 / Salamander 19 / Sylph 24 are all form **V4**). The export "Other" column carries the human label (`GnomeV2`). `SavePet.elemental_form_id`. | Gnome=14, Salamander=19, Sylph=24, all non-elemental=0 |
 | `B` | **token-improved flag** (0/1) — the Pet-Token "Improvement" applied (export "Improvement" = Yes). Player-decoded 2026-06-19 by improving one pet (Aurelius) and diffing — only `B` flipped 0→1 (plus its recomputed Health). `SavePet.token_improved`. | 06-09 fixture: exactly the 20 export-improved pets have `B=1` ✓ (count match + Hedgehog/Sphinx=1, Mouse/Dog=0) |
-| `d`,`e`,`f`,`n`,`s`,`t`,`u`,`x`,`z`,`A`,`C`,`D` | meaning still ?, but **types now pinned from C#** (pet deserializer `DFLAKHONNPC.EBOFJJHOOLP`): `d`/`e`/`f`/`n` = numbers (AGJPDMBDHHG/BigDouble), `s` = long, `t`/`u`/`x`/`C` = int, `z`/`A`/`B`/`D` = **bool**. So `B` (token-improved) is a genuine boolean, and `z`/`A`/`D` are three more unidentified flags. | t: Vampire=1, Dog=4, Penguin=7 |
+| `t`,`u` | **preferred campaign types** — the pet's "best campaign" specialties. `0` = none, else `items::campaign_type_name(value−1)` (the `AGGDKICFOAI` enum: Growth/Divinity/Food/Item/Level/Multiplier/GodPower/All/Event). `SavePet.campaign_pref_primary`/`_secondary`. | decoded from `DFLAKHONNPC.AIAOBIPOBFB`/`HDFIIPCPJCP`; Vampire t=1→Growth, Dog t=4→Item, Penguin t=7→GodPower ✓ |
+| `d`,`e`,`f` | **additive growth components** — total growth = `E + d + e + f` (the game's `MILFAIOPDAF()`); `d`,`e` reset together (rebirth?), `f` persists. Individual sources TBD. | `E` matched export for the checked pets because their `d/e/f` were ~0 |
+| `n` | **growth pool/reserve** (AGJPDMBDHHG): the add-growth method deducts spent growth from `n` and caps a spend to it; the training tick accumulates it. Precise name TBD. | |
+| `s`,`x`,`z`,`A`,`C`,`D` | meaning still ?, but **types pinned from C#**: `s` = long (a sentinel set to −34 during a level-up overflow), `x`/`C` = int, `z`/`A`/`D` = **bool** flags. | |
 
 **Pet struct verified against `Assembly-CSharp`** (class `DFLAKHONNPC`, method
 `EBOFJJHOOLP`): the field set and per-key types above are exactly the game's. The
@@ -583,13 +586,12 @@ type/partner id in the reference roster resolves, and the elemental forms match.
 
 ## Open questions / next steps
 
-- Pet fields: `g/h/j/o/p/q/r` are now **identified** (normal level / current exp
-  / Health / the four training-clone stat snapshots — see the pet table) and
-  `y`/`k`/`F`/`B` are decoded. Still-unknown **meanings**: `d,e,f,n` (numbers),
-  `s` (long), `t,u,x,C` (ints), `z,A,D` (bools). The C# pins their **types**
-  (above); the remaining work is chasing each obfuscated field's *use* (tooltip
-  prose / evolution logic) to name it. The obfuscated field names to chase are in
-  `_cs_decomp/_PROGRESS.md`.
+- Pet fields: most now **identified**. `g/h/j/o/p/q/r` (level/exp/health/clone
+  snapshots), `y/k/F/B` (form/type/partner/token), and now `t/u` (preferred
+  campaign types), `d/e/f` (additive growth components, total = E+d+e+f), `n`
+  (growth pool) are decoded — see the pet table. **Still unnamed**: `s` (long
+  sentinel), `x`/`C` (ints), `z`/`A`/`D` (bool flags) — chase their usage sites
+  (obfuscated names in `_cs_decomp/_PROGRESS.md`).
 - HP/Attack/Defense/Speed/elemental affinities from the Pet Stats export do
   not appear literally in the save → derived at runtime. If we ever need them,
   we either keep using the export or reverse the formulas.

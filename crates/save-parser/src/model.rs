@@ -264,8 +264,18 @@ pub struct SavePet {
     /// 0 → 1 (plus its recomputed Health). Cross-checked on the 06-09 fixture:
     /// exactly the 20 pets the export marks improved have `B = 1`.
     pub token_improved: bool,
+    /// Preferred campaign types (`t`, `u`) — the campaign categories this pet
+    /// specializes in (the in-game per-pet "best campaign" labels). Each is a
+    /// [`crate::items::campaign_type_name`] id (the `AGGDKICFOAI` enum), or
+    /// `None` for "no preference". **Stored offset by 1** in the save (`0` =
+    /// None, `t-1` / `u-1` = the enum id) — decoded from the pet class's
+    /// `AIAOBIPOBFB`/`HDFIIPCPJCP` accessors in `Assembly-CSharp`.
+    pub campaign_pref_primary: Option<u32>,
+    pub campaign_pref_secondary: Option<u32>,
     /// The pet's raw node, for the still-unidentified fields
-    /// (`d,e,f,n,s,t,u,x,z,A,C,D`).
+    /// (`s,x,z,A,C,D` numeric/flag accumulators; `d`/`e`/`f` are additive
+    /// growth components — total growth = `E + d + e + f`, see the game's
+    /// `MILFAIOPDAF()` — and `n` is a consumable growth pool).
     pub raw: Node,
 }
 
@@ -1289,6 +1299,18 @@ impl SavePet {
         crate::items::elemental_form_name(self.elemental_form_id)
     }
 
+    /// Names of this pet's preferred campaign types (`t`, `u`), `None` when the
+    /// pet has no preference for that slot. See [`Self::campaign_pref_primary`].
+    pub fn campaign_pref_primary_name(&self) -> Option<&'static str> {
+        self.campaign_pref_primary
+            .and_then(crate::items::campaign_type_name)
+    }
+
+    pub fn campaign_pref_secondary_name(&self) -> Option<&'static str> {
+        self.campaign_pref_secondary
+            .and_then(crate::items::campaign_type_name)
+    }
+
     fn from_node(node: &Node) -> Self {
         let w = node.get("w");
         let class_node = w.and_then(|w| w.get("d"));
@@ -1327,6 +1349,8 @@ impl SavePet {
             working_experience_ms: get_u64(node, "H"),
             elemental_form_id: get_u32(node, "y"),
             token_improved: get_u32(node, "B") == 1,
+            campaign_pref_primary: get_u32(node, "t").checked_sub(1),
+            campaign_pref_secondary: get_u32(node, "u").checked_sub(1),
             raw: node.clone(),
         }
     }

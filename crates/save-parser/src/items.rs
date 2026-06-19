@@ -689,6 +689,25 @@ pub fn elemental_form_name(form_id: u32) -> Option<&'static str> {
     NAMES.get(form_id as usize).copied()
 }
 
+/// Campaign type name by id — the game's `AGGDKICFOAI` enum (`Assembly-CSharp`).
+/// These are the campaign categories a pet can specialize in (see the pet's
+/// `t`/`u` preferred-campaign fields, which store this id **+ 1**, reserving 0
+/// for "no preference"). Also the category axis for the Growth Chamber sim.
+pub fn campaign_type_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 9] = [
+        "Growth",
+        "Divinity",
+        "Food",
+        "Item",
+        "Level",
+        "Multiplier",
+        "GodPower",
+        "All",
+        "Event",
+    ];
+    NAMES.get(id as usize).copied()
+}
+
 /// Divinity Generator upgrade name by id (root `K.l` list order, 0-based).
 /// Player-confirmed 2026-06-18.
 pub fn divinity_upgrade_name(id: u32) -> Option<&'static str> {
@@ -1003,6 +1022,15 @@ mod tests {
         for id in [23, 26, 30, 52, 56] {
             assert_eq!(equipment_category(id), Some(EquipCategory::Weapon));
         }
+    }
+
+    #[test]
+    fn campaign_type_names() {
+        assert_eq!(campaign_type_name(0), Some("Growth"));
+        assert_eq!(campaign_type_name(3), Some("Item"));
+        assert_eq!(campaign_type_name(6), Some("GodPower"));
+        assert_eq!(campaign_type_name(8), Some("Event"));
+        assert_eq!(campaign_type_name(9), None);
     }
 
     #[test]
