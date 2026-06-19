@@ -173,28 +173,50 @@ Baby Carno:
 # (shown in comments) can't yet be told apart from the export; revisit once we
 # can read a pet's upgrade stage. Aether is a formula (Delirious-Essence-fights
 # input + a growth/elementals-unlocked term).
+# --- Elemental pets: the all-campaign bonus scales with the pet's evolved
+#     FORM (the "V" number in the export "Other" column, e.g. GnomeV2). The
+#     `Unevolved` rule is the base-form fallback (used when the form is unknown,
+#     e.g. wiki-only pets); `form: N` rules override it as the pet upgrades; the
+#     `Evolved` rule covers the final "…Final" state (which has no numeric form).
+#     Aether is the oddball (a runtime formula) and is handled in code. ---
 Gnome:
-  # Stages: -200 -> -100 -> 0 -> 100
+  # V1 -200, V2 -100, V3 0, V4 100 (= Final). Gnome's base form is V1.
   - when: Unevolved
     set_all: -200
+  - { form: 2, set_all: -100 }
+  - { form: 3, set_all: 0 }
+  - { form: 4, set_all: 100 }
   - when: Evolved
     set_all: 100
 Salamander:
-  # Stages: -197 -> -58 -> -9 -> 40 -> 89
+  # V0 -197, V1 -58, V2 -9, V3 40, V4 89 (= Final).
   - when: Unevolved
     set_all: -197
+  - { form: 1, set_all: -58 }
+  - { form: 2, set_all: -9 }
+  - { form: 3, set_all: 40 }
+  - { form: 4, set_all: 89 }
   - when: Evolved
     set_all: 89
 Sylph:
-  # Stages: -150 -> -100 -> -50 -> 25 -> 75
+  # V0 -150, V1 -100, V2 -50, V3 25, V4 75 (= Final).
   - when: Unevolved
     set_all: -150
+  - { form: 1, set_all: -100 }
+  - { form: 2, set_all: -50 }
+  - { form: 3, set_all: 25 }
+  - { form: 4, set_all: 75 }
   - when: Evolved
     set_all: 75
 Undine:
-  # Stages: -111 -> -66 -> -11 -> 11 -> 66 -> 111
+  # V0 -111, V1 -66, V2 -11, V3 11, V4 66, V5 111 (= Final).
   - when: Unevolved
     set_all: -111
+  - { form: 1, set_all: -66 }
+  - { form: 2, set_all: -11 }
+  - { form: 3, set_all: 11 }
+  - { form: 4, set_all: 66 }
+  - { form: 5, set_all: 111 }
   - when: Evolved
     set_all: 111
 
