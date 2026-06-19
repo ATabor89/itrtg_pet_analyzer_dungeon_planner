@@ -507,18 +507,59 @@ Example: instance 704 = "Inferno Sword + 10, SSS, Wind gem lv 10":
 | `g` | gem element — enum `EMGELCMNFOL`: 0 Neutral, 1 Fire, 2 Water, 3 Earth, 4 Wind, **5 Dark, 6 Light, 50 Elemental, 99 All** (richer than the pet 0–4 element set) | ✓ + `EMGELCMNFOL` |
 | `i` | bool, false in every save so far (`PIPMKFFGFHO` reader) | ✓ type from C# |
 
-### Equipment campaign-boost formula (from C#, `DOBKHNKLLLM` value getter)
+### Equipment effect formula (from C#, `DOBKHNKLLLM`)
 
-`boost% = base × (1 + quality_id) × (1 + plus) × factor`, where `quality_id` =
-F0…SSS8 (so the "quality multiplier" is `1+id`, 1…9), `factor` = 1 for normal
-campaign gear. Per-type `base`: **Magic Stick 0.2646** (tooltip-confirmed; SSS+20
-= 0.2646·9·21 = 50.0% = "up to 50%"), **Candy Cane 0.5292** (2×). **Candy Cane
-SSS** has hardcoded overrides (it alone upgrades to +30): `+20→101`, `+25→125`,
-`+30→150`; all other plus levels use the general formula (SSS+21 = 104.78 ≈
-in-game 104.76). Sibling effects: BonusExp = `min(2.5·plus,8)·quality_id`,
-BonusGrowth = `min(1.5·plus,8)·quality_id`. The remaining event-item `base`
-values + per-tier (S+10 vs SSS+20) curves are the next dig — see
-`decode_roadmap.md`.
+Every equip's effect magnitude is, generally:
+
+```
+value = base(effect) × (1 + quality_id) × (1 + plus) × eff_factor
+```
+
+- `quality_id`: F=0 … SSS=8 (so the "quality multiplier" is `1+id`, 1…9).
+- `base(effect)` — set by **effect type** in `BEJDIJPMHPO`: default/CampaignBoost
+  `0.088185`; CampaignBoost2 = that ×1.5 (`0.1322775`); SmithAlchCampBoost/
+  OwlTeaching `0.0712261`; BuildingSpeed/CreationSpeed/DualMimic `0.004407`;
+  CreationEvent/BuildingEvent `0.02204585` (+ flat `0.00881834`); DefBreak
+  `0.0017635`; DefBreak2/PassiveGrowth `0.00088175`; SmallSmithing `0.05291005291`;
+  LeechExp `0.0146975`. Special-cased: **BonusExp** = `min(2.5·plus,8)·quality_id`,
+  **BonusGrowth** = `min(1.5·plus,8)·quality_id`.
+- `eff_factor` = the per-item `NJDOCOGAJEM`, **except 4→6, 5→12** (SoulSword→3).
+
+**Verified:** Magic Stick (CampaignBoost, factor 3) → `0.088185·3 · 9 · 21 =
+50.0%` (its "up to 50%"). Candy Cane (CampaignBoost, factor 4→6) →
+`0.088185·6 · 9 · 22 = 104.76%` at SSS+21; SSS has hardcoded overrides (only
++30-capable item): `+20→101`, `+25→125`, `+30→150`. (`items::campaign_boost_pct`.)
+
+#### Event / special-item effect & factor table (`AOCFDHHLDDH`)
+
+| item | effect | `NJDOCOGAJEM` (→eff_factor) |
+|---|---|---|
+| Magic Stick | CampaignBoost | 3 |
+| Candy Cane | CampaignBoost | 4 (→6) |
+| Merry Mantle, Christmas Boots | CampaignBoost2 | 4 (→6) |
+| Creators Vest | CreationEvent | 4 (→6) |
+| Godly Hammer | BuildingEvent | 4 (→6) |
+| Learning Coat | BonusExp | 4 |
+| Magic Egg | BonusGrowth | 4 |
+| Growing Love Pendant | PassiveGrowth | 4 (→6) |
+| Haposti | SmithAlchCampBoost | 4 (→6) |
+| Spectrometers | AlchCostRed | 4 |
+| Master Gloves | BSSpeed | 4 |
+| Rune Patch | BlacksmithExtra | 4 |
+| Celestial Bow | DodgeIgnore | 4 |
+| Gram | PatreonBoss | 4 |
+| Wonder Axe | DefensePierce10Perc | 5 (→12) |
+| Enlightment Vest | CraftingSpeed50 | 5 |
+| Ele Twin Dagger | DualMimic | 5 (→12) |
+| Shroud of Enlightenment | OwlTeaching | 5 (→12) |
+| Hungering Talon | OwlFeeding | 5 |
+
+So every event item's effect value is computable at any quality/plus. **To verify
+in-game** (cheap cross-checks the user can do): Merry Mantle / Christmas Boots
+(CampaignBoost2 — is it a campaign boost or something else? tooltip text was a
+decoy), and the per-tier values at S+10 (pet-stone) vs SSS+20 (cash). The
+PassiveGrowth base for the Growing Love Pendant is a lead on the pendant's
+per-hour rate (a separate open item). See `decode_roadmap.md`.
 
 ## Save name → export name mapping
 
