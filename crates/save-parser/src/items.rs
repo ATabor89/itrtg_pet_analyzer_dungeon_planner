@@ -168,16 +168,132 @@ pub fn known_materials() -> Vec<(u32, &'static str)> {
 /// to Storm Ring), 80 = Legendary Stick, 81 = Legendary Pot (with 79 Legendary
 /// Hammer, the 79/80/81 Legendary family).
 ///
-/// The previously-ambiguous {23, 26, 30, 52, 56} are now **resolved from the
-/// game's `MBBDNNAMMHO` equipment-type enum** (`Assembly-CSharp`): 23 = Flood
-/// Spear, 26 = Tree Axe, 30 = Hurricane Bow, 52 = Iron Pot, 56 = Leeching Sword.
-/// (The full enum has ~110 types; this table stays the curated subset that
-/// carries slot categories — the names below match the enum exactly.)
+/// **The complete `MBBDNNAMMHO` equipment-type enum** (`Assembly-CSharp`),
+/// transcribed verbatim so every owned item names in the save editor — not just
+/// the curated subset. The base grid is element×slot (Iron/Steel/Titanium +
+/// Fire/Flame/Inferno + Water/Flood/Tsunami + Wood/Tree/Forest + Feather/Storm/
+/// Hurricane), then crafting/legendary/special/event families. Slot **categories**
+/// stay in [`EQUIPMENT_TYPES`] (curated/verified, incl. catalog-vs-equip-slot
+/// quirks like Ear Muffs); a unit test guards that the two never disagree on a name.
 pub fn equipment_type_name(type_id: u32) -> Option<&'static str> {
-    EQUIPMENT_TYPES
-        .iter()
-        .find(|(id, _, _)| *id == type_id)
-        .map(|(_, name, _)| *name)
+    Some(match type_id {
+        0 => "None",
+        1 => "Iron Vest",
+        2 => "Steel Armor",
+        3 => "Titanium Armor",
+        4 => "Fire Vest",
+        5 => "Flame Armor",
+        6 => "Inferno Armor",
+        7 => "Water Vest",
+        8 => "Flood Armor",
+        9 => "Tsunami Armor",
+        10 => "Wooden Vest",
+        11 => "Tree Armor",
+        12 => "Forest Armor",
+        13 => "Feather Vest",
+        14 => "Storm Armor",
+        15 => "Hurricane Armor",
+        16 => "Iron Sword",
+        17 => "Steel Sword",
+        18 => "Titanium Sword",
+        19 => "Fire Sword",
+        20 => "Flame Sword",
+        21 => "Inferno Sword",
+        22 => "Water Spear",
+        23 => "Flood Spear",
+        24 => "Tsunami Spear",
+        25 => "Wood Axe",
+        26 => "Tree Axe",
+        27 => "Forest Axe",
+        28 => "Feather Bow",
+        29 => "Storm Bow",
+        30 => "Hurricane Bow",
+        31 => "Iron Ring",
+        32 => "Steel Ring",
+        33 => "Titanium Ring",
+        34 => "Fire Gloves",
+        35 => "Flame Gloves",
+        36 => "Inferno Gloves",
+        37 => "Water Necklace",
+        38 => "Flood Necklace",
+        39 => "Tsunami Necklace",
+        40 => "Wood Bracelet",
+        41 => "Tree Bracelet",
+        42 => "Forest Bracelet",
+        43 => "Feather Ring",
+        44 => "Storm Ring",
+        45 => "Hurricane Ring",
+        46 => "Forging Hammer",
+        47 => "Shaping Hammer",
+        48 => "Magic Hammer",
+        49 => "Walking Stick",
+        50 => "Journeying Stick",
+        51 => "Magic Stick",
+        52 => "Iron Pot",
+        53 => "Steel Pot",
+        54 => "Magic Pot",
+        55 => "Training Sword",
+        56 => "Leeching Sword",
+        57 => "Ego Sword",
+        58 => "Howling Knives",
+        59 => "Thundering Knives",
+        60 => "Bursting Knives",
+        61 => "Alchemist Cape",
+        62 => "Celestial Bow",
+        63 => "Gram",
+        64 => "Mythril Armor",
+        65 => "Sun Armor",
+        66 => "Ocean Armor",
+        67 => "Jungle Armor",
+        68 => "Sky Armor",
+        69 => "Mythril Shield",
+        70 => "Sun Sword",
+        71 => "Ocean Spear",
+        72 => "Jungle Axe",
+        73 => "Sky Bow",
+        74 => "Mythril Ring",
+        75 => "Sun Gloves",
+        76 => "Ocean Necklace",
+        77 => "Jungle Bracelet",
+        78 => "Sky Ring",
+        79 => "Legendary Hammer",
+        80 => "Legendary Stick",
+        81 => "Legendary Pot",
+        82 => "Soul Sword",
+        83 => "Exploding Knives",
+        84 => "Mana Cape",
+        85 => "Robe of Economy",
+        86 => "Ear Muffs",
+        140 => "Rune Patch",
+        141 => "Haposti",
+        142 => "Wonder Axe",
+        143 => "Enlightment Vest", // sic — the game enum itself misspells "Enlighten"
+        144 => "Ele Twin Dagger",
+        150 => "Demonic Armor",
+        151 => "Demonic Sword",
+        152 => "Demonic Ring",
+        200 => "Divine Armor",
+        201 => "Divine Bow",
+        202 => "Divine Ring",
+        250 => "Neutral Crafting Sword",
+        251 => "Water Crafting Sword",
+        252 => "Fire Crafting Sword",
+        253 => "Wind Crafting Sword",
+        254 => "Earth Crafting Sword",
+        300 => "Candy Cane",
+        301 => "Spectrometers",
+        302 => "Master Gloves",
+        303 => "Learning Coat",
+        304 => "Magic Egg",
+        305 => "Creators Vest",
+        306 => "Godly Hammer",
+        307 => "Merry Mantle",
+        308 => "Shroud of Enlightenment",
+        309 => "Growing Love Pendant",
+        310 => "Hungering Talon",
+        311 => "Christmas Boots",
+        _ => return None,
+    })
 }
 
 /// Every known equipment type: `(type id, name, slot category)`. The single
@@ -982,6 +1098,25 @@ mod tests {
         assert_eq!(equipment_type_name(80), Some("Legendary Stick"));
         assert_eq!(equipment_type_name(81), Some("Legendary Pot"));
         assert_eq!(equipment_category(48), Some(EquipCategory::Weapon));
+        // Full-enum coverage: ids outside the curated category list still name.
+        assert_eq!(equipment_type_name(1), Some("Iron Vest"));
+        assert_eq!(equipment_type_name(63), Some("Gram"));
+        assert_eq!(equipment_type_name(250), Some("Neutral Crafting Sword"));
+        assert_eq!(equipment_type_name(311), Some("Christmas Boots"));
+        assert_eq!(equipment_type_name(999), None);
+    }
+
+    #[test]
+    fn equipment_types_table_agrees_with_full_enum_names() {
+        // EQUIPMENT_TYPES is the curated category/builder source; its names must
+        // never disagree with the authoritative full `equipment_type_name` table.
+        for (id, name, _cat) in EQUIPMENT_TYPES {
+            assert_eq!(
+                equipment_type_name(*id),
+                Some(*name),
+                "EQUIPMENT_TYPES name for id {id} disagrees with the full enum table"
+            );
+        }
     }
 
     #[test]
