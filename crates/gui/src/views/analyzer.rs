@@ -753,6 +753,19 @@ fn show_pet_details(
                 });
                 ui.end_row();
 
+                // Elemental pets only: the evolved form ("GnomeV2") from the
+                // export "Other" column.
+                if let Some(form) = pet.elemental_form() {
+                    ui.label(RichText::new("Form:").color(style::TEXT_MUTED).size(12.0));
+                    ui.label(
+                        RichText::new(format!("{}V{}", form.name, form.version))
+                            .color(style::TEXT_NORMAL)
+                            .size(12.0)
+                            .family(egui::FontFamily::Monospace),
+                    );
+                    ui.end_row();
+                }
+
                 ui.label(RichText::new("Stats:").color(style::TEXT_MUTED).size(12.0));
                 ui.label(
                     RichText::new(format!(
