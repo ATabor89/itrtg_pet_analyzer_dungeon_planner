@@ -20,6 +20,83 @@ pub enum EvoReadiness {
     NotYet,
 }
 
+/// The growth all elemental pets must reach (at their final form) to evolve.
+pub const ELEMENTAL_EVO_GROWTH: i64 = 55_555;
+
+/// Per-form **minimum growth** for an elemental pet. `min_growth[i]` is the
+/// growth you need while at form `base_form + i` so that the remaining (fixed)
+/// form-upgrade growth gains land you exactly on [`ELEMENTAL_EVO_GROWTH`] at the
+/// final form; the last entry is therefore always 55,555. Wiki data, player-
+/// provided 2026-06. Aether has no forms (his growth comes from challenge points
+/// + Delirious-Essence fights — see [`MergedPet::aether_evo_plan`]).
+struct ElementalEvo {
+    base_form: u32,
+    min_growth: &'static [i64],
+}
+
+fn elemental_evo(name: &str) -> Option<ElementalEvo> {
+    Some(match name {
+        // Gnome's base form is V1 (not V0).
+        "Gnome" => ElementalEvo { base_form: 1, min_growth: &[-4_439, 12_226, 32_224, 55_555] },
+        "Salamander" => {
+            ElementalEvo { base_form: 0, min_growth: &[-440, 18_559, 31_558, 44_056, 55_555] }
+        }
+        "Sylph" => {
+            ElementalEvo { base_form: 0, min_growth: &[-440, 6_559, 16_558, 30_556, 55_555] }
+        }
+        "Undine" => ElementalEvo {
+            base_form: 0,
+            min_growth: &[-11_111, -1_112, 8_890, 22_222, 38_887, 55_555],
+        },
+        _ => return None,
+    })
+}
+
+/// Form-evolution plan for an unevolved elemental pet (Gnome/Salamander/Sylph/
+/// Undine) at its current form. Tells the player whether they're on track to be
+/// evolve-ready (≥55,555 growth) by the time they reach their final form, given
+/// the fixed growth each remaining form upgrade grants.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ElementalEvoPlan {
+    /// Current form version (the "V" number).
+    pub form: u32,
+    /// Current base growth.
+    pub current_growth: i64,
+    /// Minimum growth to be at *this* form to stay on track.
+    pub min_growth_for_form: i64,
+    /// Total growth the remaining form upgrades will still grant (0 at final).
+    pub remaining_form_gain: i64,
+    /// Growth at the final form if you upgraded now without growing more.
+    pub projected_final_growth: i64,
+    /// `current_growth >= min_growth_for_form` (at the final form this means
+    /// already ≥55,555 = evolve-ready).
+    pub on_track: bool,
+    /// Growth still needed to reach this form's minimum (0 when on track).
+    pub shortfall: i64,
+    /// Whether this is the final form (where the 55,555 evolve bar applies).
+    pub is_final_form: bool,
+}
+
+/// Aether's evolution outlook. He has no forms: his growth derives from Total
+/// Challenge Points (start = −10·CHP) and grows by `0.2·CHP` per Delirious-
+/// Essence fight (up to 50). Evolution needs 55,555 growth, 2,778 Iron Bars, and
+/// 25 fights. The CHP estimate is a rough indicator (it assumes growth is
+/// otherwise static and ignores that CHP also lowers his starting growth).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AetherEvoPlan {
+    pub current_growth: i64,
+    pub challenge_points: u64,
+    pub fights_done: u32,
+    /// Growth each further fight grants: `0.2 · CHP`.
+    pub growth_per_fight: f64,
+    /// Fights left before the 50-fight growth cap.
+    pub fights_remaining: u32,
+    /// Rough CHP needed for the remaining fights to bridge current growth →
+    /// 55,555: `(55555 − growth) / (fights_remaining · 0.2)`. `None` once the
+    /// growth bar is already met or no growth-granting fights remain.
+    pub chp_to_evolve_estimate: Option<f64>,
+}
+
 /// Runtime context for computing effective campaign bonuses.
 ///
 /// Carries the curated bonus rules and the full roster (for export-derived
@@ -361,6 +438,61 @@ impl MergedPet {
     pub fn hours_to_growth(&self, target: u64, rates: &GrowthRates) -> Option<f64> {
         let export = self.export.as_ref()?;
         rates.hours_to_target(export.growth, target)
+    }
+
+    /// Form-evolution plan for an unevolved elemental pet at its current form.
+    /// `None` for non-elemental pets, already-evolved pets, pets without export/
+    /// form data, or an unrecognized form version.
+    pub fn elemental_evo_plan(&self) -> Option<ElementalEvoPlan> {
+        let export = self.export.as_ref()?;
+        if export.class.is_some() {
+            return None; // evolved → past the form progression
+        }
+        let form = self.elemental_form()?.version;
+        let evo = elemental_evo(&self.name)?;
+        let idx = form.checked_sub(evo.base_form)? as usize;
+        let &min_growth_for_form = evo.min_growth.get(idx)?;
+        let current_growth = export.growth as i64;
+        let remaining_form_gain = ELEMENTAL_EVO_GROWTH - min_growth_for_form;
+        Some(ElementalEvoPlan {
+            form,
+            current_growth,
+            min_growth_for_form,
+            remaining_form_gain,
+            projected_final_growth: current_growth + remaining_form_gain,
+            on_track: current_growth >= min_growth_for_form,
+            shortfall: (min_growth_for_form - current_growth).max(0),
+            is_final_form: idx + 1 == evo.min_growth.len(),
+        })
+    }
+
+    /// Aether's evolution outlook from the player's Total Challenge Points and
+    /// Delirious-Essence fight count. `None` unless this pet is Aether, unevolved,
+    /// and has export data. See [`AetherEvoPlan`] for the caveats on the estimate.
+    pub fn aether_evo_plan(&self, challenge_points: u64, fights_done: u32) -> Option<AetherEvoPlan> {
+        if self.name != "Aether" {
+            return None;
+        }
+        let export = self.export.as_ref()?;
+        if export.class.is_some() {
+            return None;
+        }
+        let current_growth = export.growth as i64;
+        let growth_per_fight = 0.2 * challenge_points as f64;
+        let fights_remaining = 50u32.saturating_sub(fights_done);
+        let chp_to_evolve_estimate = (current_growth < ELEMENTAL_EVO_GROWTH
+            && fights_remaining > 0)
+            .then(|| {
+                (ELEMENTAL_EVO_GROWTH - current_growth) as f64 / (fights_remaining as f64 * 0.2)
+            });
+        Some(AetherEvoPlan {
+            current_growth,
+            challenge_points,
+            fights_done,
+            growth_per_fight,
+            fights_remaining,
+            chp_to_evolve_estimate,
+        })
     }
 
     /// This pet's effective per-campaign bonus percentages — **the single entry
@@ -1464,6 +1596,73 @@ mod tests {
         assert_eq!(g(&mk(Some("SylphFinal"), true)), 75.0);
         // No form data (e.g. a different pet's "Other") → unevolved base fallback.
         assert_eq!(g(&mk(None, false)), -150.0);
+    }
+
+    #[test]
+    fn test_elemental_evo_plan() {
+        let mk = |name: &str, growth: u64, other: &str, evolved: bool| {
+            let class = if evolved { Some(Class::Mage) } else { None };
+            let mut e = make_export_pet(name, Element::Earth, class);
+            e.growth = growth;
+            e.other = Some(other.to_string());
+            MergedPet { name: name.into(), wiki: None, export: Some(e) }
+        };
+
+        // Gnome at V2 (min 12,226), below it → behind by the shortfall.
+        let plan = mk("Gnome", 5_000, "GnomeV2", false).elemental_evo_plan().unwrap();
+        assert_eq!(plan.form, 2);
+        assert_eq!(plan.min_growth_for_form, 12_226);
+        assert!(!plan.on_track);
+        assert_eq!(plan.shortfall, 12_226 - 5_000);
+        assert_eq!(plan.remaining_form_gain, 55_555 - 12_226);
+        assert_eq!(plan.projected_final_growth, 5_000 + (55_555 - 12_226)); // < 55,555
+        assert!(!plan.is_final_form);
+
+        // On track at V2 (≥ 12,226) → projected final clears the bar.
+        let plan = mk("Gnome", 20_000, "GnomeV2", false).elemental_evo_plan().unwrap();
+        assert!(plan.on_track);
+        assert_eq!(plan.shortfall, 0);
+        assert!(plan.projected_final_growth >= 55_555);
+
+        // Final form V4: min = the 55,555 evolve bar; on_track == evolve-ready.
+        let plan = mk("Gnome", 60_000, "GnomeV4", false).elemental_evo_plan().unwrap();
+        assert!(plan.is_final_form);
+        assert_eq!(plan.min_growth_for_form, 55_555);
+        assert_eq!(plan.remaining_form_gain, 0);
+        assert!(plan.on_track);
+
+        // Undine's V0 base form is the lowest minimum.
+        assert_eq!(
+            mk("Undine", 0, "UndineV0", false).elemental_evo_plan().unwrap().min_growth_for_form,
+            -11_111
+        );
+
+        // Non-elemental, evolved, or no form → None.
+        assert!(mk("Cat", 1_000, "", false).elemental_evo_plan().is_none());
+        assert!(mk("Gnome", 60_000, "GnomeFinal", true).elemental_evo_plan().is_none());
+    }
+
+    #[test]
+    fn test_aether_evo_plan() {
+        let mk = |growth: u64, evolved: bool| {
+            let class = if evolved { Some(Class::Mage) } else { None };
+            let mut e = make_export_pet("Aether", Element::Neutral, class);
+            e.growth = growth;
+            MergedPet { name: "Aether".into(), wiki: None, export: Some(e) }
+        };
+        // Player's example: 721 CHP → 144.2 growth per fight.
+        let plan = mk(10_000, false).aether_evo_plan(721, 28).unwrap();
+        assert!((plan.growth_per_fight - 144.2).abs() < 1e-9);
+        assert_eq!(plan.fights_remaining, 50 - 28);
+        // CHP estimate = (55555 − 10000) / ((50 − 28)·0.2).
+        let est = plan.chp_to_evolve_estimate.unwrap();
+        assert!((est - 45_555.0 / 4.4).abs() < 0.01, "got {est}");
+        // Past the growth bar → no estimate.
+        assert!(
+            mk(60_000, false).aether_evo_plan(721, 28).unwrap().chp_to_evolve_estimate.is_none()
+        );
+        // Evolved → None.
+        assert!(mk(10_000, true).aether_evo_plan(721, 28).is_none());
     }
 
     #[test]
