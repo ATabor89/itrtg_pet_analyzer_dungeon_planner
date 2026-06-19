@@ -383,7 +383,9 @@ impl MergedPet {
     pub fn campaign_bonus_breakdown(&self, ctx: &CampaignContext) -> CampaignBonusBreakdown {
         let mut innate = BTreeMap::new();
         let improved = self.export.as_ref().is_some_and(|e| e.improved);
-        ctx.bonuses.apply(&self.name, &mut innate, self.is_evolved(), improved);
+        let form = self.elemental_form().map(|f| f.version);
+        ctx.bonuses
+            .apply_with_form(&self.name, &mut innate, self.is_evolved(), improved, form);
         self.apply_campaign_formulas(&mut innate, ctx);
 
         // Optional equipment layer — campaign-boost gear across all three slots,
@@ -1432,6 +1434,36 @@ mod tests {
         assert_eq!(g(&i, &p, &ov), 200.0);
         let (i, p) = mk(99_999, true, false);
         assert_eq!(g(&i, &p, &ov), 100.0);
+    }
+
+    #[test]
+    fn test_elemental_form_campaign_bonus() {
+        // End-to-end: the elemental form (from the export "Other" column) drives
+        // the all-campaign bonus through the real curated rules.
+        let ov: CampaignBonusRules =
+            serde_yaml::from_str(include_str!("../../../data/campaign_bonuses.yaml")).unwrap();
+        let mk = |other: Option<&str>, evolved: bool| {
+            let class = if evolved { Some(Class::Mage) } else { None };
+            let mut e = make_export_pet("Sylph", Element::Wind, class);
+            e.other = other.map(str::to_string);
+            MergedPet { name: "Sylph".into(), wiki: None, export: Some(e) }
+        };
+        let g = |pet: &MergedPet| {
+            let inputs = CampaignInputs::default();
+            let ctx = CampaignContext {
+                bonuses: &ov, roster: &[], inputs: &inputs,
+                include_equipment: false, include_class: false,
+            };
+            pet.campaign_bonus_for(CampaignType::Growth, &ctx).unwrap()
+        };
+        // Unevolved, progressing through forms: V0 base → V2 → V3.
+        assert_eq!(g(&mk(Some("SylphV0"), false)), -150.0);
+        assert_eq!(g(&mk(Some("SylphV2"), false)), -50.0);
+        assert_eq!(g(&mk(Some("SylphV3"), false)), 25.0);
+        // Evolved shows "…Final" (no numeric form) → the final value.
+        assert_eq!(g(&mk(Some("SylphFinal"), true)), 75.0);
+        // No form data (e.g. a different pet's "Other") → unevolved base fallback.
+        assert_eq!(g(&mk(None, false)), -150.0);
     }
 
     #[test]
