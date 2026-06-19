@@ -54,8 +54,10 @@ pub enum Resolve {
     DivinityUpgrade,
     /// Adventure-mode item id → `items::adventure_item_name`.
     AdventureItem,
-    /// Adventure-mode enemy id (core) → `items::adventure_enemy_name`.
+    /// Adventure-mode enemy/entity id → `items::adventure_enemy_name`.
     AdventureEnemy,
+    /// Adventure-mode class id → `items::adventure_class_name`.
+    AdventureClass,
     /// A whole core element struct → "Enemy Quality" (e.g. "Slime SSS"); the
     /// editor reads the element's `a`/`d` directly. Like [`Resolve::EquipmentNode`].
     CoreNode,
@@ -324,6 +326,32 @@ pub const TBS_FIELDS: &[FieldLabel] = &[
     lbl!("f", "Feet Level"),
 ];
 
+/// Adventure-mode adventurer ("MVBattleStats") — single struct at `032.b`
+/// (`KPJFCPPKHDL`). The same struct shape backs enemies too, hence `a` = entity.
+pub const ADVENTURER_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Entity", Resolve::AdventureEnemy),
+    lbl!("b", "Level"),
+    lbl!("c", "Exp"),
+    lbl!("d", "Stat (d)"),
+    lblr!("e", "Class", Resolve::AdventureClass),
+    lbl!("f", "List (f)"),
+    lbl!("g", "List (g)"),
+    // `h` (a second skill-id list) is omitted when empty — present only when the
+    // adventurer has skills in that slot. `i` is the populated skill-id list
+    // (e.g. `19&6&48&5` = Dodge / Speed Boost / Dual Wield / Drops Boost).
+    lbl!("i", "Skill Ids (&-list)"),
+    lbl!("j", "Stat (j)"),
+    lbl!("k", "Stat (k)"),
+    lbl!("l", "Stat (l)"),
+    lbl!("m", "List (m)"),
+    lbl!("n", "Stat (n)"),
+    lbl!("o", "Stat (o)"),
+    lbl!("p", "Stat (p)"),
+    lbl!("q", "Int (q)"),
+    lbl!("r", "Int (r)"),
+    lbl!("t", "List (t)"),
+];
+
 /// Title each element from one of its fields (id → name).
 const fn elem(key: &'static str, resolve: Resolve) -> Option<ElementName> {
     Some(ElementName { key, resolve })
@@ -340,6 +368,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["032", "H", "a"], name: "Research", plural: "Researches", is_list: true, element_name: elem("a", Resolve::Research), fields: RESEARCH_FIELDS },
     BlockSchema { base: &["032", "d"], name: "Adventure Item", plural: "Adventure Inventory", is_list: true, element_name: elem("a", Resolve::AdventureItem), fields: ADVENTURE_ITEM_FIELDS },
     BlockSchema { base: &["032", "G"], name: "Core", plural: "Cores", is_list: true, element_name: elem("a", Resolve::CoreNode), fields: CORE_FIELDS },
+    BlockSchema { base: &["032", "b"], name: "Adventurer", plural: "Adventurer", is_list: false, element_name: None, fields: ADVENTURER_FIELDS },
     BlockSchema { base: &["i"], name: "Creation", plural: "Creations", is_list: true, element_name: elem("a", Resolve::Creation), fields: CREATION_FIELDS },
     BlockSchema { base: &["D"], name: "Monument", plural: "Monuments", is_list: true, element_name: elem("a", Resolve::Monument), fields: MONUMENT_FIELDS },
     BlockSchema { base: &["V"], name: "Might", plural: "Mights", is_list: true, element_name: elem("a", Resolve::Might), fields: MIGHT_FIELDS },
