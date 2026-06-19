@@ -65,6 +65,18 @@ pub enum Resolve {
     Class,
     /// Element id → `model::element_from_id`.
     Element,
+    /// Pet type id → `items::pet_type_name`.
+    PetType,
+    /// Elemental-form id → `items::elemental_form_name`.
+    ElementalForm,
+    /// Favorite/Hate campaign id, stored **offset by 1** (`0` = unset) →
+    /// `items::campaign_type_name(id - 1)`.
+    CampaignPref,
+    /// Pet feeding-setting id → `items::feeding_setting_name`.
+    FeedingSetting,
+    /// Gem element id → `items::gem_element_name` (the full set incl.
+    /// Dark/Light/Elemental/All — unlike [`Resolve::Element`], which is 0–4).
+    GemElement,
 }
 
 /// One labeled field within a block element. `key` is the path *relative to the
@@ -117,9 +129,13 @@ macro_rules! lblr {
 /// Pets — `X.b.<index>` (with nested `w` dungeon/class sub-structs).
 pub const PET_FIELDS: &[FieldLabel] = &[
     lbl!("a", "Name"),
-    lbl!("k", "Type Id"),
+    lblr!("k", "Type Id", Resolve::PetType),
     lbl!("l", "Unlocked"),
-    lbl!("E", "Growth"),
+    lbl!("E", "Growth (base)"),
+    lbl!("d", "Growth Component (d)"),
+    lbl!("e", "Growth Component (e)"),
+    lbl!("f", "Growth Component (f)"),
+    lbl!("n", "Growth Pool"),
     lbl!("g", "Normal Level"),
     lbl!("h", "Normal Exp (current)"),
     lbl!("j", "Normal Health"),
@@ -127,12 +143,18 @@ pub const PET_FIELDS: &[FieldLabel] = &[
     lbl!("p", "Clone Mystic"),
     lbl!("q", "Clone Battle"),
     lbl!("r", "Clone HP"),
+    lbl!("s", "Recovery Timer (ms)"),
     lbl!("v", "Team Slot"),
-    lbl!("F", "Partner Type Id"),
+    lblr!("F", "Partner Type Id", Resolve::PetType),
     lbl!("G", "Partner Days"),
     lbl!("H", "Working Exp (ms)"),
-    lbl!("y", "Elemental Form Id"),
+    lblr!("y", "Elemental Form", Resolve::ElementalForm),
     lbl!("B", "Token Improved"),
+    lblr!("t", "Favorite Camp", Resolve::CampaignPref),
+    lblr!("u", "Hate Camp", Resolve::CampaignPref),
+    lblr!("x", "Feeding Setting", Resolve::FeedingSetting),
+    lbl!("A", "Vaccinated"),
+    lbl!("C", "Skin Index"),
     lbl!("w", "Dungeon & Class"),
     lblr!("w.a", "Element Id", Resolve::Element),
     lbl!("w.b", "Dungeon Level"),
@@ -154,7 +176,7 @@ pub const EQUIPMENT_FIELDS: &[FieldLabel] = &[
     lbl!("d", "Instance Id"),
     lbl!("e", "Plus Cap"),
     lbl!("f", "Gem Level"),
-    lblr!("g", "Gem Element Id", Resolve::Element),
+    lblr!("g", "Gem Element Id", Resolve::GemElement),
     lbl!("h", "Instance Id (mirror)"),
 ];
 

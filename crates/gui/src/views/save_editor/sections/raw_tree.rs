@@ -54,6 +54,22 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::Research => model::research_name(v.parse().ok()?).map(str::to_string),
         Resolve::Element => model::element_from_id(v.parse().ok()?).map(element_name),
         Resolve::Class => model::class_from_id(v.parse().ok()?).map(class_name),
+        Resolve::PetType => items::pet_type_name(v.parse().ok()?).map(str::to_string),
+        Resolve::ElementalForm => {
+            items::elemental_form_name(v.parse().ok()?).map(str::to_string)
+        }
+        Resolve::CampaignPref => {
+            // Stored offset by 1: 0 = unset, else campaign_type_name(id - 1).
+            let id: u32 = v.parse().ok()?;
+            match id.checked_sub(1) {
+                None => Some("Unset".to_string()),
+                Some(c) => items::campaign_type_name(c).map(str::to_string),
+            }
+        }
+        Resolve::FeedingSetting => {
+            items::feeding_setting_name(v.parse().ok()?).map(str::to_string)
+        }
+        Resolve::GemElement => items::gem_element_name(v.parse().ok()?).map(str::to_string),
         Resolve::EquipmentInstance => resolve_equipment_instance(v, root),
         // Node-based: handled directly in `element_label`, never as a scalar.
         Resolve::EquipmentNode | Resolve::CoreNode => None,
