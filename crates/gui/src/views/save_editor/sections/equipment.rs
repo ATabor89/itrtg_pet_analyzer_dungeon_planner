@@ -161,7 +161,10 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
         return;
     };
 
-    // Reverse map: a pet slot id (== the item's unique mirror id `h`) → who has it.
+    // Reverse map: a pet slot id (== the item's **equip id `d`**, 0 = unequipped)
+    // → who has it. Pet slots reference `d`, NOT the unique id `h` — they diverge
+    // for event gear (e.g. Merry Mantle `d=23`/`h=136`), so this must be keyed and
+    // looked up by `d` or such items wrongly read as unequipped.
     let mut equipped: HashMap<u32, (String, &'static str)> = HashMap::new();
     for p in &save.pets {
         for (id, slot) in [
@@ -179,11 +182,21 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
         .map(|index| {
             let e = &save.equipment[index];
             let idx = index.to_string();
+            // `mirror_id` (the unique id `h`) is the row's stable display id.
             let mirror_id = session
                 .value(&["X", "R", &idx, "h"])
                 .and_then(|s| s.trim().parse().ok())
+                .unwrap_or(e.unique_id);
+            // "Equipped on" must be resolved by the equip id `d` (what pet slots
+            // reference), not `h` — otherwise event gear with `d≠h` reads as
+            // unequipped. Honor a pending edit to `d` if one is staged.
+            let equip_id = session
+                .value(&["X", "R", &idx, "d"])
+                .and_then(|s| s.trim().parse().ok())
                 .unwrap_or(e.instance_id);
-            let equipped_on = equipped.get(&mirror_id).cloned();
+            let equipped_on = (equip_id != 0)
+                .then(|| equipped.get(&equip_id).cloned())
+                .flatten();
             // Category from the type table, falling back to the equipped slot
             // (so an unknown type that's equipped is still categorized).
             let category = items::equipment_category(e.type_id)

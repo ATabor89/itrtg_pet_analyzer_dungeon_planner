@@ -173,11 +173,11 @@ pub const EQUIPMENT_FIELDS: &[FieldLabel] = &[
     lblr!("a", "Type Id", Resolve::Equipment),
     lbl!("b", "Plus Level"),
     lbl!("c", "Quality"),
-    lbl!("d", "Instance Id"),
+    lbl!("d", "Equip Ref (0 = unequipped)"),
     lbl!("e", "Plus Cap"),
     lbl!("f", "Gem Level"),
     lblr!("g", "Gem Element Id", Resolve::GemElement),
-    lbl!("h", "Instance Id (mirror)"),
+    lbl!("h", "Unique Instance Id"),
 ];
 
 /// Material / item stacks — `X.Q.<index>`.
