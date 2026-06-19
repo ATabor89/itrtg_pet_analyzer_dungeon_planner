@@ -298,14 +298,22 @@ pub struct EquipmentItem {
     pub plus: u32,
     /// Quality (`c`): observed 8=SSS, 6=S, 4=B (likely 4=B..8=SSS).
     pub quality: u32,
-    /// Equip id (`d`) — **the id pets' equip slots (`w.e`/`w.f`/`w.g`) reference**;
-    /// `0` when the item is in inventory (unequipped). Usually equals the catalog
-    /// id `h`, but **not always**: event gear and edited items can diverge (e.g.
-    /// Merry Mantle `d=23`, `h=136` — a pet's armor slot reads `23`). The separate
-    /// `h` is an always-unique catalog id (never 0; useful as a stable display
-    /// id) but is *not* what slots reference. Proven on real Steam saves
-    /// 2026-06-19 — see `resolve_equipment_instance` in the GUI tree view.
+    /// Equip-reference id (`d`) — **the id pets' equip slots (`w.e`/`w.f`/`w.g`)
+    /// reference**; `0` when the item is in inventory (unequipped). Among
+    /// *equipped* items it is unique, but **every unequipped item shares `0`**,
+    /// so it is NOT a stable per-instance identity — use [`Self::unique_id`] for
+    /// that. Usually equals `h`, but event gear diverges (e.g. Merry Mantle
+    /// `d=23`, `h=136` — a pet's armor slot reads `23`). Verified on the Steam
+    /// reference save (209 instances: `d`=0 for the 30 unequipped, unique for the
+    /// rest) and against the game's `CIEAPBPBCLL` slot-resolution code, which
+    /// matches slots by this field.
     pub instance_id: u32,
+    /// Unique instance id (`h`) — the game's permanent per-instance identity,
+    /// assigned once from a global counter (`Assembly-CSharp` `ACDDNFHBJCD`),
+    /// **never 0 and never repeated** (209/209 distinct on the Steam save). This
+    /// is the right key to address a specific instance (esp. an unequipped one,
+    /// where `instance_id`/`d` is 0). The save editor displays and grants by this.
+    pub unique_id: u32,
     /// `e`: 20 on items whose export shows a "(20)" suffix, else 0.
     pub plus_cap: u32,
     /// Gem level (`f`), 0 = no gem.
@@ -1270,10 +1278,21 @@ impl SaveFile {
         self.pets.iter().find(|p| p.name == name)
     }
 
+    /// Find equipment by its equip-reference id (`d`) — this is what a pet slot
+    /// (`weapon_id`/`armor_id`/`accessory_id`) stores, so it's the correct lookup
+    /// for "what is this pet wearing". Don't call with `0` (every unequipped item
+    /// has `d=0`); use [`Self::equipment_by_unique_id`] to address a specific
+    /// unequipped instance.
     pub fn equipment_by_instance_id(&self, instance_id: u32) -> Option<&EquipmentItem> {
         self.equipment
             .iter()
             .find(|e| e.instance_id == instance_id)
+    }
+
+    /// Find equipment by its permanent unique id (`h`) — stable across equip/
+    /// unequip and unique even among inventory items.
+    pub fn equipment_by_unique_id(&self, unique_id: u32) -> Option<&EquipmentItem> {
+        self.equipment.iter().find(|e| e.unique_id == unique_id)
     }
 
     /// Highest P. Baal defeated. The save stores the *current* target
@@ -1424,6 +1443,7 @@ impl EquipmentItem {
             plus: get_u32(node, "b"),
             quality: get_u32(node, "c"),
             instance_id: get_u32(node, "d"),
+            unique_id: get_u32(node, "h"),
             plus_cap: get_u32(node, "e"),
             gem_level,
             gem_element: if gem_level > 0 {
