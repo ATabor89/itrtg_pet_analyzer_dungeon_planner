@@ -362,7 +362,7 @@ mod tests {
         // Wildcard: a pet's growth field, any index.
         assert_eq!(
             registry.lookup(&["X", "b", "17", "E"]).map(|f| f.name),
-            Some("Growth")
+            Some("Growth (base)")
         );
         // Nested wildcard: class level.
         assert_eq!(

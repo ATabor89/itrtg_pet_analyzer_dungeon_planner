@@ -140,7 +140,7 @@ team roster:
 | `H` | ? (only Cat: 10,920) | |
 | `y` | **elemental-pet form counter** — the evolved-form/upgrade level you advance via the pet's "quest". `0` for every non-elemental pet; **+1 per form** for elemental pets (player-decoded 2026-06-18 by upgrading Gnome/Salamander/Sylph one form each and diffing — `y` ticked +1 and base growth `E` jumped). Offset per pet, so *not* directly the displayed "V" number: Gnome `y−10`, Salamander `y−15`, Sylph `y−20` (06-09 fixture Gnome 14 / Salamander 19 / Sylph 24 are all form **V4**). The export "Other" column carries the human label (`GnomeV2`). `SavePet.elemental_form_id`. | Gnome=14, Salamander=19, Sylph=24, all non-elemental=0 |
 | `B` | **token-improved flag** (0/1) — the Pet-Token "Improvement" applied (export "Improvement" = Yes). Player-decoded 2026-06-19 by improving one pet (Aurelius) and diffing — only `B` flipped 0→1 (plus its recomputed Health). `SavePet.token_improved`. | 06-09 fixture: exactly the 20 export-improved pets have `B=1` ✓ (count match + Hedgehog/Sphinx=1, Mouse/Dog=0) |
-| `t`,`u` | **preferred campaign types** — the pet's "best campaign" specialties. `0` = none, else `items::campaign_type_name(value−1)` (the `AGGDKICFOAI` enum: Growth/Divinity/Food/Item/Level/Multiplier/GodPower/All/Event). `SavePet.campaign_pref_primary`/`_secondary`. | decoded from `DFLAKHONNPC.AIAOBIPOBFB`/`HDFIIPCPJCP`; Vampire t=1→Growth, Dog t=4→Item, Penguin t=7→GodPower ✓ |
+| `t`,`u` | **`t` = Favorite Camp, `u` = Hate Camp** — the per-pet "Fav Camp"/"Hate Camp" settings that bias how pets are auto-assigned to campaigns (player-confirmed 2026-06-19). `0` = unset, else `items::campaign_type_name(value−1)` (the `AGGDKICFOAI` enum: Growth/Divinity/Food/Item/Level/Multiplier/GodPower/All/Event). `SavePet.favorite_campaign`/`hated_campaign`. | decoded from `DFLAKHONNPC.AIAOBIPOBFB`/`HDFIIPCPJCP`; Vampire t=1→Growth, Dog t=4→Item, Penguin t=7→GodPower ✓ |
 | `d`,`e`,`f` | **additive growth components** — total growth = `E + d + e + f` (the game's `MILFAIOPDAF()`); `d`,`e` reset together (rebirth?), `f` persists. Individual sources TBD. | `E` matched export for the checked pets because their `d/e/f` were ~0 |
 | `n` | **growth pool/reserve** (AGJPDMBDHHG): the add-growth method deducts spent growth from `n` and caps a spend to it; the training tick accumulates it. Precise name TBD. | |
 | `x` | **feeding setting** — per-pet auto-feed mode: 0 None, 1 Puny, 2 Strong, 3 Mighty, 4 Chocolate, 5 Free, 6 Starve. `SavePet.feeding_setting`. | decoded from `DFLAKHONNPC.CJMBBFKNFNF()` |
@@ -602,17 +602,17 @@ type/partner id in the reference roster resolves, and the elemental forms match.
 ## Open questions / next steps
 
 - Pet fields: **fully decoded** (every key identified — see the pet table).
-  Beyond the long-known fields, the C# chase named: `t`/`u` (preferred campaign
-  types), `d`/`e`/`f` (additive growth components, total = E+d+e+f), `n` (growth
-  pool), `x` (feeding setting), `A` (vaccinated), `s` (recovery-cooldown timer),
-  `C` (cosmetic skin index), `z`/`D` (vestigial). Promoted to the typed model:
-  campaign prefs, `feeding_setting`, `vaccinated`.
+  Beyond the long-known fields, the C# chase named: `t` (favorite camp) / `u`
+  (hate camp), `d`/`e`/`f` (additive growth components, total = E+d+e+f), `n`
+  (growth pool), `x` (feeding setting), `A` (vaccinated), `s` (recovery-cooldown
+  timer), `C` (cosmetic skin index), `z`/`D` (vestigial). Promoted to the typed
+  model: `favorite_campaign`/`hated_campaign`, `feeding_setting`, `vaccinated`.
 - HP/Attack/Defense/Speed/elemental affinities from the Pet Stats export do
   not appear literally in the save → derived at runtime. If we ever need them,
   we either keep using the export or reverse the formulas.
 - `X.v` = Chocolate count (resolved), `X.T` = crafting roster (decoded, see its
   section), `X.028` = achievements/milestones catalog (resolved, see the X table),
-  pet `t`/`u` = preferred campaign types (resolved). Remaining root-struct
+  pet `t`/`u` = favorite/hate campaign (resolved). Remaining root-struct
   unknowns are the unnamed scalars in the root deserializer (`b`/`d` BigDouble,
   `l`/`m`/`n` int = 50/50/50, stat-cap divisors of unclear meaning; `U` long = 0)
   and Overflow Points (likely inside a stats sub-block) — all low-value.
