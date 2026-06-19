@@ -399,7 +399,12 @@ mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
   (`HGKLOMCJAIM`), `g` (`PGEICDFPINA`), `m` (`DDKDNIFCAJO`), `t` (`OKOCFJJNMAK`);
   sub-struct `s` (`BEFDMHPNDHH`). Class + skill enums transcribed verbatim and
   **diff-verified** against the C# (34 classes / 158 skill ids, 0 mismatches).
-  Completing the `NFKHCMANAKF` enemy roster is the next dig.
+  (`NFKHCMANAKF` enemy roster now fully in `items::adventure_enemy_name`.)
+  **Live-confirmed on the 06-09 save:** `032.b` = `a`=1 (Player), `b`=116 (level),
+  `c`=18,050,134 (exp), `e`=20 (**Rogue** class), `i`=`19&6&48&5` (skills Dodge /
+  Speed Boost / Dual Wield / Drops Boost) — matches the decoded enums exactly;
+  `h` (a second skill-id list) is absent when empty. Wired into the save-editor
+  raw tree view (BlockSchema `["032","b"]`; `a`→Entity, `e`→Class resolve).
 - `H` (`OKLONIELNEN`) → `H.a` = **researches** (below).
 - `d` = **inventory** (below), `G` = **cores** (below).
 - Other sub-structs to map: `k` (`MANFDMLBOMG`), `n` (`JADFDPJGJPA`), `z`
