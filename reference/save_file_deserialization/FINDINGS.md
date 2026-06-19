@@ -599,11 +599,18 @@ type/partner id in the reference roster resolves, and the elemental forms match.
   (prior-project table + export-confirmed + the 2026-06-10 full inventory
   transcription: 16/17 = Health Potion X/S, 19 = Antidote — correcting the
   prior table's "Nothing"; real Nothing is 119 — and 21 = Torch).
-  Remaining: the count-1 ids {160,164,167,168} ↔ {Not Nothing, Absolutely
-  Nothing, Food Journal One, Food Journal Two} (set known, assignment unknown).
-  **These are resolvable from the `NCPJFPLCPPK` enum** — the master material/item
-  id table (X.Q item `a` casts to it). Transcribing it is the next planned dig
-  and will name the whole X.Q namespace at once.
+  The count-1 ids {160,164,167,168} are **resolved** from the `NCPJFPLCPPK` enum
+  (the master material/item id table — X.Q item `a` casts to it): 160 = Not
+  Nothing, 164 = Absolutely Nothing, 167 = Food Journal One, 168 = Food Journal
+  Two. **⚠ Bug found & fixed in the same audit:** the three 10-count elemental
+  bars were mis-assigned (indistinguishable by count → the prior project guessed
+  the element order). Enum truth: 33 Inferno (fire), **34 Forest (earth)**,
+  35 Hurricane (wind), **36 Titanium (neutral)**, **37 Tsunami (water)** — the
+  old table had 34=Tsunami / 36=Forest / 37=Titanium. Corroborated by
+  `dungeon_recommendations.yaml` (neutral Scrapyard event → Titanium Bar, Water
+  Temple event → Tsunami Bar). The enum also names the whole namespace incl. the
+  **`Undine`** water-quest family (106–116), fishing items (500–567) and sparks
+  (350–352); `items.rs` keeps the X.Q subset at display spellings.
   **130 = Aether Ring** (player-confirmed 2026-06-18; base ring on a fresh save
   is id 130; the in-game "+N" boss-kill suffix is the same id 130 with a dynamic
   name, not consecutive ids since 131=Sun Stone) and **162 = Monster Blood**.
