@@ -55,15 +55,20 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         31 => "Lucky Talisman", // count 587 matched exactly
         32 => "Wise Talisman",  // adjacent id, count 212 = the "200-something"
         // -- elemental bars (crafted from the element's T1–T3 materials plus
-        //    Whetstones and Sacred Stones). Counts in the reference save
-        //    (Inferno 5, Hurricane 4, others 10) uniquely pin 33 and 35 and
-        //    thereby confirm the prior project's element ordering for the
-        //    three 10-count bars. --
+        //    Whetstones and Sacred Stones). Order is now from the game's
+        //    `NCPJFPLCPPK` enum. **Bug fix 2026-06-19:** the three 10-count
+        //    bars (34/36/37) were indistinguishable by count, so the prior
+        //    project guessed their element order and got it wrong — 34 was
+        //    "Tsunami", 36 "Forest", 37 "Titanium". The enum (corroborated by
+        //    `dungeon_recommendations.yaml`: the neutral Scrapyard event gives
+        //    a Titanium Bar, the Water Temple event a Tsunami Bar) sets them
+        //    straight. (33 Inferno / 35 Hurricane were already correct, pinned
+        //    by their distinct counts 5 / 4.) --
         33 => "Inferno Bar",   // fire — count 5 ✓
-        34 => "Tsunami Bar",   // water
+        34 => "Forest Bar",    // earth (was wrongly "Tsunami Bar")
         35 => "Hurricane Bar", // wind — count 4 ✓
-        36 => "Forest Bar",    // earth
-        37 => "Titanium Bar",  // neutral/crystal
+        36 => "Titanium Bar",  // neutral (was wrongly "Forest Bar")
+        37 => "Tsunami Bar",   // water (was wrongly "Titanium Bar")
         // -- dungeon consumables: bombs & traps (player-confirmed 2026-06-18) --
         30 => "Melting Bomb",
         48 => "Nanotrap",
@@ -106,24 +111,32 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         // (not consecutive ids — 131 is Sun Stone), so the old save's "Aether
         // Ring +28" was also id 130. Resolves 130 from the singleton worklist.
         130 => "Aether Ring",
-        160 => "Not Nothing",        // player-confirmed 2026-06-18
+        160 => "Not Nothing",        // player-confirmed 2026-06-18; enum NotNothing
         162 => "Monster Blood",      // player-confirmed 2026-06-18
-        164 => "Absolutely Nothing", // player-confirmed 2026-06-18
-        // Unidentified ids (worklist):
-        // - {167, 168} sit at count 1 and pair with {Food Journal One, Food
-        //   Journal Two} — set known, per-id assignment unknown. (160/164
-        //   resolved: Not Nothing / Absolutely Nothing.)
-        // - Present at count 0: 128, 129, 142–144, 150.
+        164 => "Absolutely Nothing", // player-confirmed 2026-06-18; enum AbsolutelyNothing
+        // {167, 168} assignment resolved from the `NCPJFPLCPPK` enum (the prior
+        // worklist had the set but not the per-id mapping).
+        167 => "Food Journal One",   // enum FoodJournal1
+        168 => "Food Journal Two",   // enum FoodJournal2
+        // The formerly count-0 ids are also named by the enum: 128 Soul of
+        // Gnome, 129 Magic Soul of Gnome, 142 Salamander Soul, 143 Magic Soul
+        // of Salamander, 144 Salamander Skin, 150 Magic Soul of Sylph (the
+        // per-element evolution-quest "soul" tier). Left out of this table only
+        // because no reference save has held a nonzero count to double-check the
+        // display spelling against; add them when one does, or trust the enum.
         // 126–149 are the elemental-pet evolution-quest / upgrade-item families
         // (you craft items to advance each pet through its quest; these aren't
         // strictly contiguous — e.g. Salamander's 145 Prosthetic Tail sits past
         // its 138–141 quest materials):
-        // Gnome/earth (126–127…), Salamander/fire (138–141 = Glowing Embers /
-        // Igneous Bones / Pliable Magma / Living Flame; 145 Prosthetic Tail),
-        // Sylph/wind (146–149 =
-        // Whispers / Secrets / Mysteries of the Wind / Soul of Sylph). The
-        // water pet's family is presumably among the remaining count-0 ids
-        // (142–144 / 128 / 129 / 150), but the exact grouping isn't pinned.
+        // Gnome/earth (126–129), Salamander/fire (138–144 = Glowing Embers /
+        // Igneous Bones / Pliable Magma / Living Flame / Salamander Soul / Magic
+        // Soul of Salamander / Salamander Skin; 145 Prosthetic Tail),
+        // Sylph/wind (146–150 = Whispers / Secrets / Mysteries of the Wind /
+        // Soul of Sylph / Magic Soul of Sylph). The **water pet is `Undine`**
+        // (enum); its quest family is the 106–116 cluster (Undine / Body /
+        // Mecha Arm / Water Soul / Purified Water / … / Soul of Undine /
+        // Magic Soul of Undine), confirmed by the `NCPJFPLCPPK` enum — no longer
+        // a count-0 mystery.
         // Foods and gems are NOT in this namespace: Puny/Strong/Mighty Food
         // and Chocolate are dedicated save fields (X.c/d/e/v), gems live in
         // X.002 keyed by element id.
@@ -832,9 +845,13 @@ mod tests {
     fn user_confirmed_ids() {
         assert_eq!(material_name(31), Some("Lucky Talisman"));
         assert_eq!(material_name(32), Some("Wise Talisman"));
-        assert_eq!(material_name(33), Some("Inferno Bar"));
-        assert_eq!(material_name(35), Some("Hurricane Bar"));
-        assert_eq!(material_name(37), Some("Titanium Bar"));
+        // Elemental bars, ordering from the NCPJFPLCPPK enum. 34/36/37 were
+        // mis-assigned before (all count 10, so guessed); the enum corrects them.
+        assert_eq!(material_name(33), Some("Inferno Bar")); // fire
+        assert_eq!(material_name(34), Some("Forest Bar")); // earth
+        assert_eq!(material_name(35), Some("Hurricane Bar")); // wind
+        assert_eq!(material_name(36), Some("Titanium Bar")); // neutral
+        assert_eq!(material_name(37), Some("Tsunami Bar")); // water
         assert_eq!(material_name(19), Some("Antidote")); // not "Nothing"
         assert_eq!(material_name(21), Some("Torch"));
         assert_eq!(material_name(16), Some("Health Potion X"));
@@ -863,6 +880,9 @@ mod tests {
         assert_eq!(material_name(139), Some("Igneous Bones"));
         assert_eq!(material_name(140), Some("Pliable Magma"));
         assert_eq!(material_name(148), Some("Mysteries of the Wind"));
+        // The two "Nothing"-adjacent count-1 singletons, assigned from the enum.
+        assert_eq!(material_name(167), Some("Food Journal One"));
+        assert_eq!(material_name(168), Some("Food Journal Two"));
         // X.Q id 120 = Cure is a different namespace from adventure-item 120
         // (Metal Bar) — the two tables stay separate.
         assert_eq!(adventure_item_name(120), Some("Metal Bar"));
@@ -871,8 +891,10 @@ mod tests {
     #[test]
     fn unknown_ids_return_none() {
         assert_eq!(material_name(0), None);
-        assert_eq!(material_name(167), None); // singleton set, still unassigned
         assert_eq!(material_name(9999), None);
+        // 169 (Shiny Metal Stone) is named by the enum but kept out of the
+        // table until a save holds it — so it's still None here.
+        assert_eq!(material_name(169), None);
         // 130 (Aether Ring) and 162 (Monster Blood) are now known.
         assert_eq!(material_name(130), Some("Aether Ring"));
         assert_eq!(material_name(162), Some("Monster Blood"));
