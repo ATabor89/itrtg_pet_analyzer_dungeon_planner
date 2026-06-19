@@ -141,7 +141,7 @@ team roster:
 | `y` | **elemental-pet form counter** — the evolved-form/upgrade level you advance via the pet's "quest". `0` for every non-elemental pet; **+1 per form** for elemental pets (player-decoded 2026-06-18 by upgrading Gnome/Salamander/Sylph one form each and diffing — `y` ticked +1 and base growth `E` jumped). Offset per pet, so *not* directly the displayed "V" number: Gnome `y−10`, Salamander `y−15`, Sylph `y−20` (06-09 fixture Gnome 14 / Salamander 19 / Sylph 24 are all form **V4**). The export "Other" column carries the human label (`GnomeV2`). `SavePet.elemental_form_id`. | Gnome=14, Salamander=19, Sylph=24, all non-elemental=0 |
 | `B` | **token-improved flag** (0/1) — the Pet-Token "Improvement" applied (export "Improvement" = Yes). Player-decoded 2026-06-19 by improving one pet (Aurelius) and diffing — only `B` flipped 0→1 (plus its recomputed Health). `SavePet.token_improved`. | 06-09 fixture: exactly the 20 export-improved pets have `B=1` ✓ (count match + Hedgehog/Sphinx=1, Mouse/Dog=0) |
 | `t`,`u` | **`t` = Favorite Camp, `u` = Hate Camp** — the per-pet "Fav Camp"/"Hate Camp" settings that bias how pets are auto-assigned to campaigns (player-confirmed 2026-06-19). `0` = unset, else `items::campaign_type_name(value−1)` (the `AGGDKICFOAI` enum: Growth/Divinity/Food/Item/Level/Multiplier/GodPower/All/Event). `SavePet.favorite_campaign`/`hated_campaign`. | decoded from `DFLAKHONNPC.AIAOBIPOBFB`/`HDFIIPCPJCP`; Vampire t=1→Growth, Dog t=4→Item, Penguin t=7→GodPower ✓ |
-| `d`,`e`,`f` | **additive growth components** — total growth = `E + d + e + f` (the game's `MILFAIOPDAF()`); `d`,`e` reset together (rebirth?), `f` persists. Individual sources TBD. | `E` matched export for the checked pets because their `d/e/f` were ~0 |
+| `d`,`e`,`f` | **additive stored growth components** — total growth = `E + d + e + f` (the game's `MILFAIOPDAF()`); `d`,`e` reset together (rebirth?), `f` persists. **NOT the Magic Egg bonus** — disproven 2026-06-19 by the Pandora probe: Pandora has the Magic Egg equipped yet `d=e=f=0`, and the export's ×1.3 (57,635 = 1.3·44,334) is a **runtime multiplier from the equipped item**, applied on top of `MILFAIOPDAF()`. `d/e/f` are 0 for ~every pet in the reference save; their actual source (event/item growth grants) is still TBD. | Pandora `d=e=f=0` with Magic Egg ⇒ Magic Egg is a display-time multiplier, not stored here |
 | `n` | **growth pool/reserve** (AGJPDMBDHHG): the add-growth method deducts spent growth from `n` and caps a spend to it; the training tick accumulates it. Precise name TBD. | |
 | `x` | **feeding setting** — per-pet auto-feed mode: 0 None, 1 Puny, 2 Strong, 3 Mighty, 4 Chocolate, 5 Free, 6 Starve. `SavePet.feeding_setting`. | decoded from `DFLAKHONNPC.CJMBBFKNFNF()` |
 | `A` | **vaccinated flag** (bool) — set once the pet consumes a Vaccine item (Corona/Vaccina event). `SavePet.vaccinated`. | decoded from `CBNILFAJMAE()` |
@@ -657,10 +657,12 @@ type/partner id in the reference roster resolves, and the elemental forms match.
   Storm Ring} tie). 2026-06-19, same method (Anteater/Salamander/Caterpillar):
   **48 = Magic Hammer** (the real one), **80 = Legendary Stick**, **81 =
   Legendary Pot** (the 79/80/81 Legendary crafting-weapon family). Now in
-  `items.rs::equipment_type_name`. **{23,26,30,52,56} now resolved** from the
+  `items.rs::equipment_type_name`. **{23,26,30,52,56} resolved** from the
   `MBBDNNAMMHO` enum (23=Flood Spear, 26=Tree Axe, 30=Hurricane Bow, 52=Iron Pot,
-  56=Leeching Sword). The enum is the complete authoritative catalog (~110 types);
-  `EQUIPMENT_TYPES` remains the curated slot-categorized subset.
+  56=Leeching Sword). **`equipment_type_name` now transcribes the COMPLETE enum**
+  (~110 types, ids 1–86 base grid + 140–311 special/event), so every owned item
+  names in the editor; `EQUIPMENT_TYPES` stays the curated slot-categorized subset
+  for the builder, guarded by a test that its names match the full table.
 - Challenge dungeons "available" (3/10 → 2/10 after using one attempt
   2026-06-13) is **not** a stored integer — no field went 3→2. It is computed
   (regen timer + used-counter), like an energy bar. Not yet located.
