@@ -155,9 +155,11 @@ pub fn known_materials() -> Vec<(u32, &'static str)> {
 /// to Storm Ring), 80 = Legendary Stick, 81 = Legendary Pot (with 79 Legendary
 /// Hammer, the 79/80/81 Legendary family).
 ///
-/// Still unidentified (all unequipped 1-count types):
-/// {23, 26, 30, 52, 56} pair with {Iron Pot, Flood Spear, Leeching Sword,
-/// Tree Axe, Hurricane Bow} — equip one in-game to resolve.
+/// The previously-ambiguous {23, 26, 30, 52, 56} are now **resolved from the
+/// game's `MBBDNNAMMHO` equipment-type enum** (`Assembly-CSharp`): 23 = Flood
+/// Spear, 26 = Tree Axe, 30 = Hurricane Bow, 52 = Iron Pot, 56 = Leeching Sword.
+/// (The full enum has ~110 types; this table stays the curated subset that
+/// carries slot categories — the names below match the enum exactly.)
 pub fn equipment_type_name(type_id: u32) -> Option<&'static str> {
     EQUIPMENT_TYPES
         .iter()
@@ -186,12 +188,17 @@ pub const EQUIPMENT_TYPES: &[(u32, &str, EquipCategory)] = {
         (18, "Titanium Sword", Weapon),
         (21, "Inferno Sword", Weapon),
         (22, "Water Spear", Weapon),
+        (23, "Flood Spear", Weapon), // MBBDNNAMMHO enum (2026-06-19)
+        (26, "Tree Axe", Weapon), // MBBDNNAMMHO enum (2026-06-19)
         (29, "Storm Bow", Weapon),
+        (30, "Hurricane Bow", Weapon), // MBBDNNAMMHO enum (2026-06-19)
         (47, "Shaping Hammer", Weapon),
         (48, "Magic Hammer", Weapon), // player-confirmed 2026-06-19 (Anteater)
         (50, "Journeying Stick", Weapon),
         (51, "Magic Stick", Weapon),
+        (52, "Iron Pot", Weapon), // MBBDNNAMMHO enum (2026-06-19)
         (54, "Magic Pot", Weapon),
+        (56, "Leeching Sword", Weapon), // MBBDNNAMMHO enum (2026-06-19)
         (57, "Ego Sword", Weapon),
         (60, "Bursting Knives", Weapon),
         // The Legendary crafting-weapon family (79/80/81) — player-confirmed
@@ -766,7 +773,10 @@ pub fn equipment_category(type_id: u32) -> Option<EquipCategory> {
 }
 
 /// Equipment quality letter for the raw quality id. Player-confirmed ladder
-/// (2026-06-17): F E D C B A S SS SSS for ids 0…8.
+/// (2026-06-17): F E D C B A S SS SSS for ids 0…8, matching the game's
+/// `GBFGHANMFII` enum. That enum also defines a 10th tier `Ult` (id 9), but the
+/// save's equipment loader **clamps stored quality to 8 (SSS)** on read, so a 9
+/// never persists in a real save; it is included here for completeness.
 pub fn quality_name(quality: u32) -> Option<&'static str> {
     Some(match quality {
         0 => "F",
@@ -778,6 +788,7 @@ pub fn quality_name(quality: u32) -> Option<&'static str> {
         6 => "S",
         7 => "SS",
         8 => "SSS",
+        9 => "Ult",
         _ => return None,
     })
 }
@@ -956,5 +967,28 @@ mod tests {
         assert_eq!(spacedim_name(20), Some("Self Replicating AI"));
         assert_eq!(spacedim_name(0), None); // no id-0 element
         assert_eq!(spacedim_name(21), None);
+    }
+
+    #[test]
+    fn equipment_type_ambiguities_resolved_from_enum() {
+        // The five formerly-ambiguous ids, now pinned from the `MBBDNNAMMHO`
+        // equipment-type enum (all weapons).
+        assert_eq!(equipment_type_name(23), Some("Flood Spear"));
+        assert_eq!(equipment_type_name(26), Some("Tree Axe"));
+        assert_eq!(equipment_type_name(30), Some("Hurricane Bow"));
+        assert_eq!(equipment_type_name(52), Some("Iron Pot"));
+        assert_eq!(equipment_type_name(56), Some("Leeching Sword"));
+        for id in [23, 26, 30, 52, 56] {
+            assert_eq!(equipment_category(id), Some(EquipCategory::Weapon));
+        }
+    }
+
+    #[test]
+    fn quality_ladder_includes_ult_tier() {
+        // The save clamps stored quality to 8 (SSS), but the GBFGHANMFII enum
+        // names a 10th tier at id 9.
+        assert_eq!(quality_name(8), Some("SSS"));
+        assert_eq!(quality_name(9), Some("Ult"));
+        assert_eq!(quality_name(10), None);
     }
 }
