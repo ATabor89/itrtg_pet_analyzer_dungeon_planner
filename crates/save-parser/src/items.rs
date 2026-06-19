@@ -94,6 +94,7 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         139 => "Igneous Bones",   // Salamander / fire (player-confirmed 2026-06-18)
         140 => "Pliable Magma",   // Salamander / fire (player-confirmed 2026-06-18)
         141 => "Living Flame",    // Salamander / fire
+        145 => "Prosthetic Tail", // Salamander upgrade item (player-confirmed 2026-06-18)
         146 => "Whispers of the Wind",  // Sylph / wind
         147 => "Secrets of the Wind",   // Sylph / wind
         148 => "Mysteries of the Wind", // Sylph / wind (player-confirmed 2026-06-18)
@@ -105,17 +106,24 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         // (not consecutive ids — 131 is Sun Stone), so the old save's "Aether
         // Ring +28" was also id 130. Resolves 130 from the singleton worklist.
         130 => "Aether Ring",
-        162 => "Monster Blood", // player-confirmed 2026-06-18
+        160 => "Not Nothing",        // player-confirmed 2026-06-18
+        162 => "Monster Blood",      // player-confirmed 2026-06-18
+        164 => "Absolutely Nothing", // player-confirmed 2026-06-18
         // Unidentified ids (worklist):
-        // - {160, 164, 167, 168} sit at count 1 and pair with the four singleton
-        //   items {Not Nothing, Absolutely Nothing, Food Journal One, Food
-        //   Journal Two} — set known, per-id assignment unknown.
-        // - Present at count 0: 128, 129, 142–145, 150.
-        // 126–149 are the elemental-pet evolution-quest material families:
+        // - {167, 168} sit at count 1 and pair with {Food Journal One, Food
+        //   Journal Two} — set known, per-id assignment unknown. (160/164
+        //   resolved: Not Nothing / Absolutely Nothing.)
+        // - Present at count 0: 128, 129, 142–144, 150.
+        // 126–149 are the elemental-pet evolution-quest / upgrade-item families
+        // (you craft items to advance each pet through its quest; these aren't
+        // strictly contiguous — e.g. Salamander's 145 Prosthetic Tail sits past
+        // its 138–141 quest materials):
         // Gnome/earth (126–127…), Salamander/fire (138–141 = Glowing Embers /
-        // Igneous Bones / Pliable Magma / Living Flame), Sylph/wind (146–149 =
+        // Igneous Bones / Pliable Magma / Living Flame; 145 Prosthetic Tail),
+        // Sylph/wind (146–149 =
         // Whispers / Secrets / Mysteries of the Wind / Soul of Sylph). The
-        // water family (142–145?) is presumably the unnamed count-0 block.
+        // water pet's family is presumably among the remaining count-0 ids
+        // (142–144 / 128 / 129 / 150), but the exact grouping isn't pinned.
         // Foods and gems are NOT in this namespace: Puny/Strong/Mighty Food
         // and Chocolate are dedicated save fields (X.c/d/e/v), gems live in
         // X.002 keyed by element id.
@@ -627,11 +635,16 @@ mod tests {
     #[test]
     fn unknown_ids_return_none() {
         assert_eq!(material_name(0), None);
-        assert_eq!(material_name(160), None); // singleton set, still unassigned
+        assert_eq!(material_name(167), None); // singleton set, still unassigned
         assert_eq!(material_name(9999), None);
         // 130 (Aether Ring) and 162 (Monster Blood) are now known.
         assert_eq!(material_name(130), Some("Aether Ring"));
         assert_eq!(material_name(162), Some("Monster Blood"));
+        // Two of the count-1 singletons resolved (160/164); a Salamander
+        // upgrade item (145).
+        assert_eq!(material_name(160), Some("Not Nothing"));
+        assert_eq!(material_name(164), Some("Absolutely Nothing"));
+        assert_eq!(material_name(145), Some("Prosthetic Tail"));
     }
 
     #[test]
