@@ -37,6 +37,14 @@ pub enum BonusWhen {
 #[serde(default)]
 pub struct CampaignBonusRule {
     pub when: BonusWhen,
+    /// Restrict this rule to a specific elemental **form** version (the "V"
+    /// number from the export "Other" column, e.g. `GnomeV2` → `2`). `None`
+    /// (the default) means the rule isn't form-conditioned. Used by the
+    /// elemental pets, whose per-form campaign bonus overrides the `Unevolved`
+    /// base while they progress through forms; an evolved pet shows "…Final"
+    /// (no numeric form), so its `Evolved` rule still applies.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub form: Option<u32>,
     /// Set every campaign to this value (e.g. "all campaigns -75%").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub set_all: Option<f32>,
@@ -60,8 +68,9 @@ pub struct CampaignBonusRules(pub BTreeMap<String, Vec<CampaignBonusRule>>);
 
 impl CampaignBonusRules {
     /// Apply this pet's bonus rules (if any) to its `base` campaign map,
-    /// given its current evolution/token state. Rules whose condition doesn't
-    /// match are skipped; matching rules apply in file order.
+    /// given its current evolution/token state. Equivalent to
+    /// [`apply_with_form`](Self::apply_with_form) with no form (so any
+    /// form-conditioned rule is skipped).
     pub fn apply(
         &self,
         pet_name: &str,
@@ -69,18 +78,35 @@ impl CampaignBonusRules {
         evolved: bool,
         improved: bool,
     ) {
+        self.apply_with_form(pet_name, base, evolved, improved, None);
+    }
+
+    /// Like [`apply`](Self::apply), but also passes the pet's current elemental
+    /// `form` version so per-form rules (the elemental pets) can match. Rules
+    /// whose condition doesn't match are skipped; matching rules apply in file
+    /// order.
+    pub fn apply_with_form(
+        &self,
+        pet_name: &str,
+        base: &mut BTreeMap<CampaignType, f32>,
+        evolved: bool,
+        improved: bool,
+        form: Option<u32>,
+    ) {
         let Some(rules) = self.0.get(pet_name) else {
             return;
         };
         for rule in rules {
-            let applies = match rule.when {
+            let when_ok = match rule.when {
                 BonusWhen::Always => true,
                 BonusWhen::Evolved => evolved,
                 BonusWhen::Unevolved => !evolved,
                 BonusWhen::TokenImproved => improved,
                 BonusWhen::NotTokenImproved => !improved,
             };
-            if !applies {
+            // A form-conditioned rule only applies at that exact form.
+            let form_ok = rule.form.is_none_or(|f| Some(f) == form);
+            if !when_ok || !form_ok {
                 continue;
             }
             if let Some(v) = rule.set_all {
@@ -212,7 +238,7 @@ mod tests {
         ov.apply("Mouse", &mut m, true, false);
         assert_eq!(m.get(&CampaignType::Food), Some(&50.0));
 
-        // Elemental 2-state: worst unevolved, best evolved.
+        // Elemental fallback: no form → unevolved base / evolved final.
         let mut m = BTreeMap::new();
         ov.apply("Gnome", &mut m, false, false);
         assert_eq!(m.get(&CampaignType::Growth), Some(&-200.0));
@@ -220,6 +246,46 @@ mod tests {
         ov.apply("Gnome", &mut m, true, false);
         assert_eq!(m.get(&CampaignType::Growth), Some(&100.0));
         assert_eq!(m.len(), 7);
+    }
+
+    #[test]
+    fn test_elemental_per_form() {
+        let yaml = include_str!("../../../data/campaign_bonuses.yaml");
+        let ov: CampaignBonusRules = serde_yaml::from_str(yaml).expect("parses");
+
+        // Each (pet, form) → the all-campaigns bonus (player wiki data).
+        let cases = [
+            ("Gnome", 1u32, -200.0f32), // base form (covered by the Unevolved fallback)
+            ("Gnome", 2, -100.0),
+            ("Gnome", 3, 0.0),
+            ("Gnome", 4, 100.0),
+            ("Salamander", 0, -197.0),
+            ("Salamander", 1, -58.0),
+            ("Salamander", 3, 40.0),
+            ("Sylph", 2, -50.0),
+            ("Sylph", 3, 25.0),
+            ("Undine", 3, 11.0),
+            ("Undine", 5, 111.0),
+        ];
+        for (pet, form, want) in cases {
+            let mut m = BTreeMap::new();
+            // Unevolved (still progressing through forms), at this form.
+            ov.apply_with_form(pet, &mut m, false, false, Some(form));
+            assert_eq!(
+                m.get(&CampaignType::Growth),
+                Some(&want),
+                "{pet} V{form} should set all campaigns to {want}"
+            );
+            // It's an all-campaigns bonus.
+            assert_eq!(m.len(), 7);
+            assert_eq!(m.get(&CampaignType::Divinity), Some(&want));
+        }
+
+        // Evolved (shows "…Final", no numeric form) → the final value, even if a
+        // stray form is passed it would be ignored because `Evolved` matches.
+        let mut m = BTreeMap::new();
+        ov.apply_with_form("Sylph", &mut m, true, false, None);
+        assert_eq!(m.get(&CampaignType::Growth), Some(&75.0));
     }
 
     #[test]
