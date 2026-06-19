@@ -13,6 +13,15 @@
 //! campaigns — they're a "which pet should I focus a pendant on" ballpark, not a
 //! precise projection. Rates are a snapshot: as pets evolve and grow, the
 //! pendant rate rises and the cap shifts, so real time will differ.
+//!
+//! **Pendant cap verified against `Assembly-CSharp` (2026-06-19):** the game's
+//! `LLMCMCKAABP.PKEMOFPJFHE` returns `pets.OrderByDescending(p => p.totalGrowth)
+//! [9].totalGrowth` — exactly the 10th-highest growth this module computes, and
+//! the equip check refuses the pendant once a pet's growth exceeds it. (The game
+//! ranks by *total* growth `E+d+e+f` over all pets; this module uses export base
+//! growth — equivalent in practice since `d/e/f` are ~0.) The per-hour pendant
+//! and Moai *rates* below are still empirically-derived estimates (the game's
+//! per-hour growth tick is spread across the offline-progress code).
 
 use crate::merge::MergedPet;
 
