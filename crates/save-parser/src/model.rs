@@ -264,14 +264,14 @@ pub struct SavePet {
     /// 0 → 1 (plus its recomputed Health). Cross-checked on the 06-09 fixture:
     /// exactly the 20 pets the export marks improved have `B = 1`.
     pub token_improved: bool,
-    /// Preferred campaign types (`t`, `u`) — the campaign categories this pet
-    /// specializes in (the in-game per-pet "best campaign" labels). Each is a
-    /// [`crate::items::campaign_type_name`] id (the `AGGDKICFOAI` enum), or
-    /// `None` for "no preference". **Stored offset by 1** in the save (`0` =
-    /// None, `t-1` / `u-1` = the enum id) — decoded from the pet class's
-    /// `AIAOBIPOBFB`/`HDFIIPCPJCP` accessors in `Assembly-CSharp`.
-    pub campaign_pref_primary: Option<u32>,
-    pub campaign_pref_secondary: Option<u32>,
+    /// Favorite campaign (`t`) and hated campaign (`u`) — the per-pet "Fav Camp"
+    /// / "Hate Camp" settings that bias how pets are auto-assigned to campaigns
+    /// (player-confirmed 2026-06-19). Each is a [`crate::items::campaign_type_name`]
+    /// id (the `AGGDKICFOAI` enum), or `None` when unset. **Stored offset by 1**
+    /// in the save (`0` = unset, `t-1` / `u-1` = the enum id) — decoded from the
+    /// pet class's `AIAOBIPOBFB`/`HDFIIPCPJCP` accessors in `Assembly-CSharp`.
+    pub favorite_campaign: Option<u32>,
+    pub hated_campaign: Option<u32>,
     /// Auto-feed setting (`x`) — the per-pet feeding mode. See
     /// [`crate::items::feeding_setting_name`] (0 None, 1 Puny, 2 Strong,
     /// 3 Mighty, 4 Chocolate, 5 Free, 6 Starve). Decoded from the pet class's
@@ -1309,15 +1309,15 @@ impl SavePet {
         crate::items::elemental_form_name(self.elemental_form_id)
     }
 
-    /// Names of this pet's preferred campaign types (`t`, `u`), `None` when the
-    /// pet has no preference for that slot. See [`Self::campaign_pref_primary`].
-    pub fn campaign_pref_primary_name(&self) -> Option<&'static str> {
-        self.campaign_pref_primary
+    /// Name of this pet's favorite / hated campaign (`t` / `u`), `None` when
+    /// unset. See [`Self::favorite_campaign`].
+    pub fn favorite_campaign_name(&self) -> Option<&'static str> {
+        self.favorite_campaign
             .and_then(crate::items::campaign_type_name)
     }
 
-    pub fn campaign_pref_secondary_name(&self) -> Option<&'static str> {
-        self.campaign_pref_secondary
+    pub fn hated_campaign_name(&self) -> Option<&'static str> {
+        self.hated_campaign
             .and_then(crate::items::campaign_type_name)
     }
 
@@ -1365,8 +1365,8 @@ impl SavePet {
             working_experience_ms: get_u64(node, "H"),
             elemental_form_id: get_u32(node, "y"),
             token_improved: get_u32(node, "B") == 1,
-            campaign_pref_primary: get_u32(node, "t").checked_sub(1),
-            campaign_pref_secondary: get_u32(node, "u").checked_sub(1),
+            favorite_campaign: get_u32(node, "t").checked_sub(1),
+            hated_campaign: get_u32(node, "u").checked_sub(1),
             feeding_setting: get_u32(node, "x"),
             vaccinated: node.get("A").and_then(Node::as_bool).unwrap_or(false),
             raw: node.clone(),
