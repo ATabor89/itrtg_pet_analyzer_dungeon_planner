@@ -136,7 +136,8 @@ team roster:
 | `F` | **partner pet type id** (999 = none) | 158/158 match export Partner column; pairs are mutual (Cat↔Dog, Vampire↔Succubus, Gnome↔Dwarf) |
 | `G` | partner-related counter (bond level?) | only nonzero when F≠999 |
 | `H` | ? (only Cat: 10,920) | |
-| `d`,`e`,`f`,`n`,`s`,`t`,`u`,`x`,`y`,`z`,`A`–`D` | ? | t: Vampire=1, Dog=4, Penguin=7; y: Gnome=14, Salamander=19, Sylph=24 |
+| `y` | **elemental-pet form counter** — the evolved-form/upgrade level you advance via the pet's "quest". `0` for every non-elemental pet; **+1 per form** for elemental pets (player-decoded 2026-06-18 by upgrading Gnome/Salamander/Sylph one form each and diffing — `y` ticked +1 and base growth `E` jumped). Offset per pet, so *not* directly the displayed "V" number: Gnome `y−10`, Salamander `y−15`, Sylph `y−20` (06-09 fixture Gnome 14 / Salamander 19 / Sylph 24 are all form **V4**). The export "Other" column carries the human label (`GnomeV2`). `SavePet.elemental_form_id`. | Gnome=14, Salamander=19, Sylph=24, all non-elemental=0 |
+| `d`,`e`,`f`,`n`,`s`,`t`,`u`,`x`,`z`,`A`–`D` | ? | t: Vampire=1, Dog=4, Penguin=7 |
 
 For the normal-stats formula work (display-side model, the Anni Cake
 multiplier, open staircase questions), see `normal_stats_investigation.md`.
@@ -564,9 +565,11 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
 - The 2 leading junk chars: constant? random? Compare with another save.
 - Re-serialization (writing a save) untested — only needed if we ever want to
   edit saves, which is out of scope for the planner.
-- Token/evolution state (export "Other" column: GnomeFinal, SylphFinal, fight
-  counts, day counters) — not yet located in the pet struct (candidates: the
-  unknown `t`,`u`,`x`,`y`,`z`,`A–D`,`H` fields).
+- Token/evolution state (export "Other" column) — **partly located**: the
+  elemental-pet **form** (`GnomeV2`/`SylphV1`/… in "Other") is pet field `y`
+  (see the pet-struct table; `SavePet.elemental_form_id`, parsed from the
+  export by `ExportPet::elemental_form`). The other "Other" contents (fight
+  counts, day counters) are still unlocated among `t`,`u`,`x`,`z`,`A–D`,`H`.
 
 ## Rust parser
 
