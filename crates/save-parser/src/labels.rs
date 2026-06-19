@@ -132,6 +132,7 @@ pub const PET_FIELDS: &[FieldLabel] = &[
     lbl!("G", "Partner Days"),
     lbl!("H", "Working Exp (ms)"),
     lbl!("y", "Elemental Form Id"),
+    lbl!("B", "Token Improved"),
     lbl!("w", "Dungeon & Class"),
     lblr!("w.a", "Element Id", Resolve::Element),
     lbl!("w.b", "Dungeon Level"),
