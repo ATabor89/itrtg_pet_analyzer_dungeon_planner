@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use itrtg_models::{
-    CampaignBonusRules, CampaignInputs, CampaignType, Class, Element, Equipment, ExportPet,
-    MAGIC_EGG_GROWTH_MULT, Quality, RecommendedClass, WikiPet, resolve_wiki_name,
+    CampaignBonusRules, CampaignInputs, CampaignType, Class, ElementalForm, Element, Equipment,
+    ExportPet, MAGIC_EGG_GROWTH_MULT, Quality, RecommendedClass, WikiPet, resolve_wiki_name,
 };
 
 use crate::growth::GrowthRates;
@@ -223,6 +223,12 @@ impl MergedPet {
     /// The pet's actual evolved class (from export). None if unevolved or no export data.
     pub fn evolved_class(&self) -> Option<Class> {
         self.export.as_ref().and_then(|e| e.class)
+    }
+
+    /// The elemental pet's evolved **form** (from the export "Other" column,
+    /// e.g. `GnomeV2`). `None` for non-elemental pets or without export data.
+    pub fn elemental_form(&self) -> Option<ElementalForm> {
+        self.export.as_ref().and_then(|e| e.elemental_form())
     }
 
     /// Whether the pet is evolved (has a class assigned).
