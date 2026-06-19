@@ -1012,14 +1012,68 @@ pub fn adventure_item_name(id: u32) -> Option<&'static str> {
 /// ids and the training Monster list. Player-identified 2026-06-18 from a Steam
 /// save holding cores from all seven of these enemies.
 pub fn adventure_enemy_name(id: u32) -> Option<&'static str> {
+    // The full `NFKHCMANAKF` entity enum (Assembly-CSharp): Player + the complete
+    // adventure enemy/boss roster. Used by both the monster cores (`032.G[i].a`)
+    // and the adventurer/enemy battle-stats entity (`032.b.a`). Separate id
+    // namespace from items (id 53 = Astaroth here, "Common Herb" as an item).
     Some(match id {
+        1 => "Player",
         50 => "Slime",
-        53 => "Astaroth", // core namespace; id 53 is "Common Herb" as an item
+        51 => "Akuma",
+        52 => "Amon",
+        53 => "Astaroth",
+        54 => "Asura",
+        55 => "Belial",
+        56 => "Baphomet",
+        57 => "Bifrons",
+        58 => "Empress",
+        59 => "Dagon",
+        60 => "Devil",
+        61 => "Fire Lizard",
+        62 => "Blood Lizard",
         63 => "Goblin",
         64 => "Ghoul",
+        65 => "Gorgon",
+        66 => "Haagenti",
+        67 => "Ifrit",
+        68 => "Incubus",
         69 => "Imp",
+        70 => "Jinn",
+        71 => "Krampus",
         72 => "Wraith",
+        73 => "Lamia",
+        74 => "Lilim",
+        75 => "Lilith",
+        76 => "Lucifer",
+        77 => "Mammon",
+        78 => "Marchosias",
+        79 => "Naberius",
+        80 => "Oni",
+        81 => "Phenex",
+        82 => "Raum",
+        83 => "Rakshasa",
+        84 => "Satan",
+        85 => "Succubus",
+        86 => "Shax",
         87 => "Shinigami",
+        88 => "Tengu",
+        89 => "Ukobach",
+        90 => "Vassago",
+        91 => "Grim Reaper",
+        92 => "Tyrant",
+        93 => "Fairy",
+        94 => "Tree Golem",
+        95 => "Gloom Flower",
+        300 => "Dark Reaper",
+        480 => "Squirrel Mage",
+        500 => "Weak Pumpkin",
+        501 => "Normal Pumpkin",
+        502 => "Strong Pumpkin",
+        503 => "Valentine Newbie",
+        504 => "Valentine Easy",
+        505 => "Valentine Normal",
+        506 => "Valentine Hard",
+        507 => "Valentine Hardcore",
         _ => return None,
     })
 }
@@ -1522,6 +1576,11 @@ mod tests {
         assert_eq!(adventure_enemy_name(69), Some("Imp"));
         assert_eq!(adventure_enemy_name(72), Some("Wraith"));
         assert_eq!(adventure_enemy_name(87), Some("Shinigami"));
+        // Full NFKHCMANAKF roster now (entity enum, also used by 032.b.a).
+        assert_eq!(adventure_enemy_name(1), Some("Player"));
+        assert_eq!(adventure_enemy_name(91), Some("Grim Reaper"));
+        assert_eq!(adventure_enemy_name(300), Some("Dark Reaper"));
+        assert_eq!(adventure_enemy_name(507), Some("Valentine Hardcore"));
         assert_eq!(adventure_enemy_name(9999), None);
         // Core quality reuses the equipment 0–8 F→SSS ladder.
         assert_eq!(quality_name(6), Some("S"));
