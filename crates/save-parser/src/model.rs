@@ -1378,6 +1378,16 @@ impl SavePet {
 /// above/below shifts the multiplier ±10% (additively).
 const QUALITY_A: u32 = 5;
 
+impl GemStack {
+    /// Gem element name, covering the full `EMGELCMNFOL` set
+    /// ([`crate::items::gem_element_name`]) — including `Dark`/`Light`/
+    /// `Elemental`/`All`, which the base 5-element [`Element`] can't represent.
+    /// Falls back to the raw id when unknown.
+    pub fn element_name(&self) -> Option<&'static str> {
+        crate::items::gem_element_name(self.element_id)
+    }
+}
+
 impl EquipmentItem {
     /// Display name of the item type, if identified.
     pub fn type_name(&self) -> Option<&'static str> {

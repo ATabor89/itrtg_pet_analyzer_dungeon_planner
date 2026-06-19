@@ -102,7 +102,7 @@ Root `a` = **Total Divinity** (the running divinity balance; player-confirmed
 | `d` | Strong Food count | 16,276 ✓ exact |
 | `e` | Mighty Food count | 7,239 ✓ exact |
 | `v` | Chocolate count | 9,989 ✓ exact (was the "10062 unknown" in save 1) |
-| `002` | **gem inventory**: list of {`a`=element id, `b`=gem level, `c`=count} | all 7 stacks match the transcription exactly; same element ids as pets (0=N,1=F,2=W,3=E,4=Wi) |
+| `002` | **gem inventory**: list of {`a`=element id, `b`=gem level, `c`=count} | all 7 stacks match the transcription exactly. Element ids are the `EMGELCMNFOL` enum (0=N,1=F,2=W,3=E,4=Wi, **plus 5=Dark, 6=Light, 50=Elemental, 99=All** — gems can be these even though pets/dungeons only use 0–4); `items::gem_element_name` / `GemStack::element_name()` name the full set |
 | `x` | list of 8 **campaign slots** | `d` = `&`-joined pet ids (10 per slot), `e` = 43,200,000 ms = 12 h, `f` = total bonus, `c` = timestamp, `i` = RNG seed |
 | `y` | pet stones | 267,028 ✓ Main Stats |
 | `z` | **cumulative pet stones spent** | fresh-save diff: `y` −750,000 / `z` +750,000 when buying 2 Dungeon Loot + 1 Dungeon Exp (= 2·275k + 200k) ✓ |
@@ -563,10 +563,21 @@ Key facts about the framework (class `OMHGFFEADBC`):
   `R` (equipment) = `DOBKHNKLLLM` (type `a` = `MBBDNNAMMHO` enum), `S` (teams) =
   `PCDCANGLENI`.
 
+The **real root deserializer** is `PKCECBJFIHD.HPNLHANNDAM` (not the short decoy
+`LGCNFPEKBCI`). Its sub-block classes: `e` = `NBEFGPGOCOL` (shadow clones),
+`p` = `DFGCALKGABP` (god-power/permanent upgrades), `K` = `OHLKALIOOKC` (divinity
+generator), `O` = `ACDDNFHBJCD` (statistics — the 662-reader giant),
+`P` = `HAGJGEFFJMM` (current god fight), `S` = `MONHKGNNJJK` (TBS component
+levels), `T` = `AIDFNOPNJGK` (Baal slayer), `x` = `LLMCMCKAABP` (the `root.x`
+tracker block), `X` = `MLILKGIALMB` (pet system). Still-unnamed root fields:
+`b`/`d` (BigDouble), `l`/`m`/`n` (int), `U` (long), `q`/`r`/`s`/`t`/`u` (struct).
+No plain stored root integer for Challenge Points was found (consistent with ChP
+being derived); Overflow Points, if stored, sits inside an unnamed sub-block.
+
 A small helper, `_cs_decomp/_extract_fields.py`, scopes to a class's
-`EBOFJJHOOLP` and prints its key→(type, field) table (it misses enum-cast reads
-like `(HFNFDKEMAIK)…(arr,"k")` — read those by eye). Running progress notes live
-in `_cs_decomp/_PROGRESS.md` (also gitignored).
+`EBOFJJHOOLP` (or a named method) and prints its key→(type, field) table (it
+misses enum-cast reads like `(HFNFDKEMAIK)…(arr,"k")` — read those by eye).
+Running progress notes live in `_cs_decomp/_PROGRESS.md` (also gitignored).
 
 ### Pet type & form enums (authoritative)
 
