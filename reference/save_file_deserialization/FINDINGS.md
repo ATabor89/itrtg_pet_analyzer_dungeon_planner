@@ -557,9 +557,12 @@ Plus all multi-word names have spaces stripped in exports (`Ancient Mimic` →
   of the previously-ambiguous types in-game and read them off save 2's
   instance→type map: **5 = Flame Armor, 8 = Flood Armor, 22 = Water Spear,
   41 = Tree Bracelet, 44 = Storm Ring** (resolving the 44 = {Magic Hammer |
-  Storm Ring} tie). Now in `items.rs::equipment_type_name`. Still ambiguous:
-  {23,26,30,52,56} ↔ {Iron Pot, Flood Spear, Leeching Sword, Tree Axe,
-  Hurricane Bow} (set known, assignment unknown) — equip one to resolve.
+  Storm Ring} tie). 2026-06-19, same method (Anteater/Salamander/Caterpillar):
+  **48 = Magic Hammer** (the real one), **80 = Legendary Stick**, **81 =
+  Legendary Pot** (the 79/80/81 Legendary crafting-weapon family). Now in
+  `items.rs::equipment_type_name`. Still ambiguous: {23,26,30,52,56} ↔ {Iron
+  Pot, Flood Spear, Leeching Sword, Tree Axe, Hurricane Bow} (set known,
+  assignment unknown) — equip one to resolve.
 - Challenge dungeons "available" (3/10 → 2/10 after using one attempt
   2026-06-13) is **not** a stored integer — no field went 3→2. It is computed
   (regen timer + used-counter), like an energy bar. Not yet located.
