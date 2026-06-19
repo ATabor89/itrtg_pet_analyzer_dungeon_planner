@@ -689,6 +689,27 @@ pub fn elemental_form_name(form_id: u32) -> Option<&'static str> {
     NAMES.get(form_id as usize).copied()
 }
 
+/// Gem element name by id — the game's `EMGELCMNFOL` enum (`Assembly-CSharp`),
+/// the element axis shared by gems and the dungeon/pet element. Pets and
+/// dungeons only ever use 0–4 (see [`crate::model::Element`]), but **gems can
+/// also be `Dark`(5), `Light`(6), `Elemental`(50) or `All`(99)** — ids the base
+/// 5-element model can't name. Use this for the gem element (`X.002[i].a`,
+/// equipment `X.R[i].g`); for pet/dungeon elements prefer `Element`.
+pub fn gem_element_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        0 => "Neutral",
+        1 => "Fire",
+        2 => "Water",
+        3 => "Earth",
+        4 => "Wind",
+        5 => "Dark",
+        6 => "Light",
+        50 => "Elemental",
+        99 => "All",
+        _ => return None,
+    })
+}
+
 /// Campaign type name by id — the game's `AGGDKICFOAI` enum (`Assembly-CSharp`).
 /// These are the campaign categories a pet can specialize in (see the pet's
 /// `t`/`u` preferred-campaign fields, which store this id **+ 1**, reserving 0
@@ -1052,6 +1073,19 @@ mod tests {
         assert_eq!(feeding_setting_name(5), Some("Free"));
         assert_eq!(feeding_setting_name(6), Some("Starve"));
         assert_eq!(feeding_setting_name(7), None);
+    }
+
+    #[test]
+    fn gem_element_names() {
+        // Base 5 (shared with pets/dungeons).
+        assert_eq!(gem_element_name(0), Some("Neutral"));
+        assert_eq!(gem_element_name(4), Some("Wind"));
+        // Gem-only elements the 5-element model can't name.
+        assert_eq!(gem_element_name(5), Some("Dark"));
+        assert_eq!(gem_element_name(6), Some("Light"));
+        assert_eq!(gem_element_name(50), Some("Elemental"));
+        assert_eq!(gem_element_name(99), Some("All"));
+        assert_eq!(gem_element_name(7), None);
     }
 
     #[test]
