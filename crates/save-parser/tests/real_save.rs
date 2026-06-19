@@ -372,6 +372,54 @@ fn equipment_inventory_resolves_pet_gear() {
 }
 
 #[test]
+fn equipment_d_and_h_semantics() {
+    use std::collections::HashSet;
+    let save = require_save!();
+
+    // `h` (unique_id) is the permanent identity: never 0, never repeated.
+    let mut seen_h = HashSet::new();
+    for e in &save.equipment {
+        assert_ne!(e.unique_id, 0, "type {} has h=0", e.type_id);
+        assert!(seen_h.insert(e.unique_id), "duplicate h {}", e.unique_id);
+    }
+    assert_eq!(seen_h.len(), save.equipment.len()); // 209/209 distinct
+
+    // `d` (instance_id) is the equip reference: 0 for unequipped, and unique
+    // among the equipped (so it can disambiguate slots).
+    let equipped_ds: Vec<u32> =
+        save.equipment.iter().map(|e| e.instance_id).filter(|&d| d != 0).collect();
+    let distinct_ds: HashSet<u32> = equipped_ds.iter().copied().collect();
+    assert_eq!(distinct_ds.len(), equipped_ds.len(), "equipped d values must be unique");
+
+    // Pet slots reference `d`, NOT `h` — the event-gear case that the editor
+    // mis-resolved. Merry Mantle (type 307) has d≠h; the pet wearing it stores
+    // its `d` in the armor slot, and no pet slot ever stores its `h`.
+    let mantle = save
+        .equipment
+        .iter()
+        .find(|e| e.type_id == 307)
+        .expect("Merry Mantle (type 307) present");
+    assert_ne!(mantle.instance_id, mantle.unique_id, "Merry Mantle should have d≠h");
+    let slot_refs: HashSet<u32> = save
+        .pets
+        .iter()
+        .flat_map(|p| [p.weapon_id, p.armor_id, p.accessory_id])
+        .flatten()
+        .collect();
+    assert!(slot_refs.contains(&mantle.instance_id), "a pet slot references the mantle's d");
+    assert!(!slot_refs.contains(&mantle.unique_id), "no pet slot references the mantle's h");
+    // Resolving by d finds it; by_unique_id finds the same instance.
+    assert_eq!(
+        save.equipment_by_instance_id(mantle.instance_id).map(|e| e.unique_id),
+        Some(mantle.unique_id)
+    );
+    assert_eq!(
+        save.equipment_by_unique_id(mantle.unique_id).map(|e| e.type_id),
+        Some(307)
+    );
+}
+
+#[test]
 fn materials_match_main_stats_export() {
     let save = require_save!();
     let by_name = |name: &str| {
