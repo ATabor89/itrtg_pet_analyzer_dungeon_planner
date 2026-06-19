@@ -914,6 +914,21 @@ fn divinity_total_capacity_clones_and_storage() {
 }
 
 #[test]
+fn elemental_pet_form_counter() {
+    let save = require_save!();
+    // `y` is the elemental-pet form counter: nonzero only for elemental pets,
+    // 0 for everyone else. In the 06-09 fixture all three are at form V4 (the
+    // per-pet offsets are Gnome −10 / Salamander −15 / Sylph −20).
+    assert_eq!(save.pet_by_name("Gnome").unwrap().elemental_form_id, 14);
+    assert_eq!(save.pet_by_name("Salamander").unwrap().elemental_form_id, 19);
+    assert_eq!(save.pet_by_name("Sylph").unwrap().elemental_form_id, 24);
+    assert_eq!(save.pet_by_name("Cat").unwrap().elemental_form_id, 0);
+    // Non-elemental pets all read 0.
+    let nonzero = save.pets.iter().filter(|p| p.elemental_form_id > 0).count();
+    assert!((3..10).contains(&nonzero), "only the handful of elemental pets carry a form");
+}
+
+#[test]
 fn adventure_inventory_and_cores_decode() {
     let save = require_save!();
     // 032.d adventure inventory (32 stacks in this save) and 032.G cores (7).
