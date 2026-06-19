@@ -120,9 +120,9 @@ fn class_name(c: Class) -> String {
 /// Resolve a pet's equipment-slot id (`w.e`/`w.f`/`w.g`) to the item, e.g.
 /// "Magic Stick SSS+20". A slot value of 0 means **empty** (no annotation).
 ///
-/// Matches on the **mirror** id (`h`) first, then the instance id (`d`): in
-/// practice `h` is the reliable unique id (a `d` of 0 shows up on many items in
-/// real saves), so matching `h` avoids resolving an empty slot to the wrong item.
+/// Matches on the **equip id** (`d`) first — that's what slots reference — then
+/// the catalog id `h` as a fallback. See the inline note for the proof and the
+/// collision the old "`h` first" rule got wrong.
 fn resolve_equipment_instance(value: &str, root: &Raw) -> Option<String> {
     let instance: u32 = value.parse().ok()?;
     if instance == 0 {
@@ -131,10 +131,17 @@ fn resolve_equipment_instance(value: &str, root: &Raw) -> Option<String> {
     let Raw::List(list) = root.get_path(&["X", "R"])? else {
         return None;
     };
+    // Pet slots (`w.e`/`w.f`/`w.g`) reference the **equip id `d`** (0 = empty /
+    // in inventory) — proven 2026-06-19 on real Steam saves: event gear with
+    // `d≠h` resolves by `d` (e.g. Vampire's armor slot 23 = `d`23 = Merry
+    // Mantle, while that instance's `h` is 136). Match `d` first; fall back to
+    // the always-unique catalog id `h` only when no `d` matches (defensive —
+    // and what prevents the `d=20`/`h=20` cross-field collision seen on edited
+    // saves from picking the wrong item).
     let item = list
         .iter()
-        .find(|it| scalar_u32(it, "h") == Some(instance))
-        .or_else(|| list.iter().find(|it| scalar_u32(it, "d") == Some(instance)))?;
+        .find(|it| scalar_u32(it, "d") == Some(instance))
+        .or_else(|| list.iter().find(|it| scalar_u32(it, "h") == Some(instance)))?;
     equip_label(item)
 }
 
@@ -709,8 +716,9 @@ mod tests {
 
     #[test]
     fn resolves_equipment_instance_across_the_tree() {
-        // The mirror id (h) is the reliable unique one; `d` can be 0 on real
-        // saves. A slot value of 0 means empty.
+        // Pet slots reference the equip id `d`; `h` is a separate always-unique
+        // catalog id. An unequipped inventory item carries `d=0` and is never
+        // referenced by a slot — but resolution falls back to `h` for it.
         let root = Raw::Struct(vec![(
             "X".into(),
             Field::Value(Raw::Base64(Box::new(Raw::Struct(vec![(
@@ -719,18 +727,48 @@ mod tests {
                     ("a".into(), scalar("51")),  // type id
                     ("b".into(), scalar("20")),  // plus
                     ("c".into(), scalar("8")),   // quality (SSS)
-                    ("d".into(), scalar("0")),   // duplicated/zero instance id
-                    ("h".into(), scalar("858")), // unique mirror id
+                    ("d".into(), scalar("0")),   // not equipped → equip id 0
+                    ("h".into(), scalar("858")), // unique catalog id
                 ])])),
             )])))),
         )]);
-        let got = resolve_name(Resolve::EquipmentInstance, "858", &root).expect("via mirror");
+        let got = resolve_name(Resolve::EquipmentInstance, "858", &root).expect("via h fallback");
         assert!(got.contains("SSS"), "quality letter: {got}");
         assert!(got.contains("+20"), "plus level: {got}");
         assert!(!got.contains("q8"), "no raw quality id: {got}");
         // 0 = empty slot → no annotation (even though an item has d==0).
         assert!(resolve_name(Resolve::EquipmentInstance, "0", &root).is_none());
         assert!(resolve_name(Resolve::EquipmentInstance, "999", &root).is_none());
+    }
+
+    /// `d`/`h` cross-field collision: a slot value matches one item's equip id
+    /// `d` and a *different* item's catalog id `h`. The slot must resolve by `d`
+    /// (proven on real Steam saves; this is the case the old "h first" rule got
+    /// wrong on edited saves — Legendary `d=20` vs Magic Stick `h=20`).
+    #[test]
+    fn equipment_slot_resolves_by_d_on_collision() {
+        let item = |a: &str, d: &str, h: &str| {
+            Raw::Struct(vec![
+                ("a".into(), scalar(a)),
+                ("b".into(), scalar("10")),
+                ("c".into(), scalar("6")),
+                ("d".into(), scalar(d)),
+                ("h".into(), scalar(h)),
+            ])
+        };
+        let root = Raw::Struct(vec![(
+            "X".into(),
+            Field::Value(Raw::Base64(Box::new(Raw::Struct(vec![(
+                "R".into(),
+                Field::Value(Raw::List(vec![
+                    item("51", "0", "20"), // Magic Stick, unequipped, catalog id 20
+                    item("80", "20", "0"), // Legendary Stick, equipped, equip id 20
+                ])),
+            )])))),
+        )]);
+        // Slot 20 → the equipped Legendary Stick (type 80), not the Magic Stick.
+        let got = resolve_name(Resolve::EquipmentInstance, "20", &root).expect("resolves");
+        assert!(got.contains("Legendary Stick"), "got {got}");
     }
 
     /// A value/key match is included; unrelated siblings are not.
