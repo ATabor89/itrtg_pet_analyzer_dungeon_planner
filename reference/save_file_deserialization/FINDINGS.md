@@ -388,11 +388,18 @@ is recorded and `k` is free to mean the class flag. `n` = the gem being set.
 real root deserializer `PKCECBJFIHD.HPNLHANNDAM`). 43 top-level keys (skeleton
 mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
 
-- `b` = **the adventurer core** (`KPJFCPPKHDL`): `b`=level, `c`=exp, then a row of
-  stat/number fields (`d`,`j`,`k`,`l`,`n`,`o`,`p` — BigDouble; `q`,`r` int) and
-  several lists (`f`/`g`/`h`/`i`/`m`/`t`) + a sub-struct `s` (`BEFDMHPNDHH`) —
-  i.e. the adventurer's level/exp/stats and its skill/equip lists. (This is the
-  "skills/classes/experience/stats" surface.)
+- `b` = **the adventurer core** (`KPJFCPPKHDL`, marker "MVBattleStats"; the same
+  struct is reused for adventure enemies). Decoded: `a` = **entity** (enum
+  `NFKHCMANAKF`: Player=1, then the full enemy roster Slime=50, Akuma=51, … —
+  supersedes the partial `adventure_enemy_name`); `b`=level, `c`=exp;
+  `d`/`j`/`k`/`l`/`n`/`o`/`p`=stats, `q`/`r`=int. `e` = **class** (enum
+  `APJDLMDFIGI` → `items::adventure_class_name`: Newbie/Thief/Archer/Warrior/Mage/
+  Cleric/Rogue/Assassin/Sniper/Pyromancer/…/Onion Knight). `h`/`i` = **skill**
+  lists (enum `ADCGDPGPBOI` → `items::adventure_skill_name`). Other lists: `f`
+  (`HGKLOMCJAIM`), `g` (`PGEICDFPINA`), `m` (`DDKDNIFCAJO`), `t` (`OKOCFJJNMAK`);
+  sub-struct `s` (`BEFDMHPNDHH`). Class + skill enums transcribed verbatim and
+  **diff-verified** against the C# (34 classes / 158 skill ids, 0 mismatches).
+  Completing the `NFKHCMANAKF` enemy roster is the next dig.
 - `H` (`OKLONIELNEN`) → `H.a` = **researches** (below).
 - `d` = **inventory** (below), `G` = **cores** (below).
 - Other sub-structs to map: `k` (`MANFDMLBOMG`), `n` (`JADFDPJGJPA`), `z`
