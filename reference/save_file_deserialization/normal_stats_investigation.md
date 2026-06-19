@@ -18,10 +18,34 @@ between readings is expected).
 
 Interpretation that fits the data: per normal level the pet gains
 0.1×growth in (total) stats during the first 100 levels, 0.2×growth during
-the next 100, … rising every 100 levels and capping at 1.0×growth per level
-from level ~1000 on. Each of the three stats gets a third of the total.
-So for L > ~1000: `inc(L) ≈ 450 + (L − 901) = L − 451` (in units of growth),
-and per-stat base = `growth × (1 + inc(L)) / 3`.
+the next 100, … rising every 100 levels and capping at 1.0×growth per level.
+Each of the three stats gets a third of the total.
+
+**Exact `inc(L)` staircase — read from `Assembly-CSharp` 2026-06-19**
+(`DFLAKHONNPC.AHCDNJCBDBD`, a 10-branch piecewise getter; in units of growth):
+
+| level band | `inc(L)` |
+|---|---|
+| L ≤ 100 | `0.1·L` |
+| 100 < L ≤ 200 | `10 + 0.2·(L−100)` |
+| 200 < L ≤ 300 | `30 + 0.3·(L−200)` |
+| 300 < L ≤ 400 | `60 + 0.4·(L−300)` |
+| 400 < L ≤ 500 | `100 + 0.5·(L−400)` |
+| 500 < L ≤ 600 | `150 + 0.6·(L−500)` |
+| 600 < L ≤ 700 | `210 + 0.7·(L−600)` |
+| 700 < L ≤ 800 | `280 + 0.8·(L−700)` |
+| 800 < L ≤ 900 | `360 + 0.9·(L−800)` |
+| L > 900 | `450 + 1.0·(L−900)` = `L − 450` |
+
+Boundary breakpoints: `inc` = 10/30/60/100/150/210/280/360/450 at L =
+100/200/…/900. The **cap (coefficient 1.0) begins above L = 900**, so
+`inc(L) = L − 450` for L ≥ 900 — this **corrects** the earlier estimate
+(`≈ L − 451`, cap "from ~1000"), which is exactly the small level-dependent
+residual the empirical fit left open below. Per-stat base =
+`growth × (1 + inc(L)) / 3` (the getter carries an additive base term ≈ the
+"+1"; the staircase coefficients/boundaries above are the verified part).
+NB this display formula is **not** implemented in the planner (which uses the
+stored `normal_health`), so this is reference only.
 
 ## Confirmed save-field meanings (pet struct)
 
@@ -72,11 +96,12 @@ PerStat(Physical) ≈ growth × (1 + inc(L)) / 3 × SR_physical × M
     11.0150–11.0153 — the remaining ~0.007% sits in the `inc(L)` staircase
     uncertainty (or a floor/rounding step on the bonus before application).
 - Using exact j values from the save, M comes out 11.0150–11.0153 for the
-  level-10k+ pets and 11.0166–11.0204 for lower-level pets — i.e. there is a
-  small level-dependent residual, meaning the `inc(L)` staircase boundaries
-  above are off by a bit (off-by-one block edges or rounding inside the
-  staircase). Worth nailing down with a low-level pet series (levels 1–1000)
-  where the staircase dominates.
+  level-10k+ pets and 11.0166–11.0204 for lower-level pets — a small
+  level-dependent residual that pointed at the `inc(L)` staircase being slightly
+  off. **Resolved 2026-06-19**: the exact staircase (table above, from
+  `DFLAKHONNPC.AHCDNJCBDBD`) caps at L > 900 with `inc(L) = L − 450`, vs the
+  earlier `≈ L − 451` from ~1000 — the off-by-one block edge that produced the
+  residual.
 
 ### Reference data points (displayed values, 2026-06-10)
 
