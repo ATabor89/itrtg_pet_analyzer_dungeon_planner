@@ -129,6 +129,39 @@ fn parses_all_pets() {
 }
 
 #[test]
+fn campaign_preferences_decode() {
+    use save_parser::items::campaign_type_name;
+    let save = require_save!();
+    // Every decoded preference (when present) is a valid AGGDKICFOAI id.
+    for p in &save.pets {
+        for pref in [p.campaign_pref_primary, p.campaign_pref_secondary]
+            .into_iter()
+            .flatten()
+        {
+            assert!(
+                campaign_type_name(pref).is_some(),
+                "{} has out-of-range campaign pref {pref}",
+                p.name
+            );
+        }
+    }
+    // FINDINGS recorded the raw `t` values for three pets (Vampire=1, Dog=4,
+    // Penguin=7); stored offset-by-1, so they decode to these campaign types.
+    assert_eq!(
+        save.pet_by_name("Vampire").unwrap().campaign_pref_primary_name(),
+        Some("Growth") // t=1 -> id 0
+    );
+    assert_eq!(
+        save.pet_by_name("Dog").unwrap().campaign_pref_primary_name(),
+        Some("Item") // t=4 -> id 3
+    );
+    assert_eq!(
+        save.pet_by_name("Penguin").unwrap().campaign_pref_primary_name(),
+        Some("GodPower") // t=7 -> id 6
+    );
+}
+
+#[test]
 fn pet_type_ids_all_resolve_to_names() {
     use save_parser::items::pet_type_name;
     let save = require_save!();
