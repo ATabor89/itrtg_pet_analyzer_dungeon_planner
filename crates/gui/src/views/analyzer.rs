@@ -1094,6 +1094,38 @@ fn show_evolution_section(
                         .family(egui::FontFamily::Monospace),
                 );
                 ui.end_row();
+
+                // What the remaining upgrades still grant (export growth already
+                // reflects the current form, so only the upgrades ahead matter).
+                if let Some(gain) = plan.next_upgrade_gain {
+                    ui.label(
+                        RichText::new(format!("Next upgrade (V{}→V{}):", plan.form, plan.form + 1))
+                            .color(style::TEXT_MUTED)
+                            .size(12.0),
+                    );
+                    ui.label(
+                        RichText::new(format!("+{}", format_number(gain.max(0) as u64)))
+                            .color(style::TEXT_NORMAL)
+                            .size(12.0)
+                            .family(egui::FontFamily::Monospace),
+                    );
+                    ui.end_row();
+
+                    ui.label(
+                        RichText::new("Remaining upgrades:").color(style::TEXT_MUTED).size(12.0),
+                    );
+                    ui.label(
+                        RichText::new(format!(
+                            "+{}",
+                            format_number(plan.remaining_form_gain.max(0) as u64)
+                        ))
+                        .color(style::TEXT_NORMAL)
+                        .size(12.0)
+                        .family(egui::FontFamily::Monospace),
+                    );
+                    ui.end_row();
+                }
+
                 if !plan.is_final_form {
                     ui.label(
                         RichText::new("Final growth if upgraded now:")
