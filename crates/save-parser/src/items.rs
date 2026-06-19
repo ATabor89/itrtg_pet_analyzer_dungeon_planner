@@ -150,7 +150,10 @@ pub fn known_materials() -> Vec<(u32, &'static str)> {
 /// 2026-06-13 the user equipped five formerly-ambiguous types in-game and
 /// read them off save 2's instance→type map: 5 = Flame Armor, 8 = Flood Armor,
 /// 22 = Water Spear, 41 = Tree Bracelet, 44 = Storm Ring (resolving the old
-/// 44 = {Magic Hammer | Storm Ring} tie).
+/// 44 = {Magic Hammer | Storm Ring} tie). 2026-06-19, same method, resolved the
+/// crafting-weapon families: 48 = Magic Hammer (the real one — the 44 tie went
+/// to Storm Ring), 80 = Legendary Stick, 81 = Legendary Pot (with 79 Legendary
+/// Hammer, the 79/80/81 Legendary family).
 ///
 /// Still unidentified (all unequipped 1-count types):
 /// {23, 26, 30, 52, 56} pair with {Iron Pot, Flood Spear, Leeching Sword,
@@ -185,12 +188,18 @@ pub const EQUIPMENT_TYPES: &[(u32, &str, EquipCategory)] = {
         (22, "Water Spear", Weapon),
         (29, "Storm Bow", Weapon),
         (47, "Shaping Hammer", Weapon),
+        (48, "Magic Hammer", Weapon), // player-confirmed 2026-06-19 (Anteater)
         (50, "Journeying Stick", Weapon),
         (51, "Magic Stick", Weapon),
         (54, "Magic Pot", Weapon),
         (57, "Ego Sword", Weapon),
         (60, "Bursting Knives", Weapon),
+        // The Legendary crafting-weapon family (79/80/81) — player-confirmed
+        // 2026-06-19 (Salamander / Caterpillar) by joining the Pet Stats export
+        // gear ↔ the save's pet weapon slot ↔ the X.R instance→type map.
         (79, "Legendary Hammer", Weapon), // "Legend Hammer" in-game
+        (80, "Legendary Stick", Weapon),
+        (81, "Legendary Pot", Weapon),
         (83, "Exploding Knives", Weapon),
         (300, "Candy Cane", Weapon),
         (304, "Magic Egg", Weapon),
@@ -581,7 +590,8 @@ mod tests {
         assert_eq!(equipment_category(303), Some(Armor)); // Learning Coat
         assert_eq!(equipment_category(44), Some(Accessory)); // Storm Ring
         assert_eq!(equipment_category(309), Some(Accessory)); // Growing Love Pendant
-        assert_eq!(equipment_category(48), None); // unidentified type
+        assert_eq!(equipment_category(48), Some(Weapon)); // Magic Hammer (resolved 2026-06-19)
+        assert_eq!(equipment_category(49), None); // still-unidentified type
     }
 
     #[test]
@@ -659,6 +669,13 @@ mod tests {
         assert_eq!(equipment_type_name(8), Some("Flood Armor"));
         assert_eq!(equipment_type_name(22), Some("Water Spear"));
         assert_eq!(equipment_type_name(41), Some("Tree Bracelet"));
+        // Resolved 2026-06-19 (Anteater / Salamander / Caterpillar). The real
+        // Magic Hammer is type 48 (the old "44 = Magic Hammer | Storm Ring" tie
+        // went to Storm Ring); 80/81 complete the Legendary family with 79.
+        assert_eq!(equipment_type_name(48), Some("Magic Hammer"));
+        assert_eq!(equipment_type_name(80), Some("Legendary Stick"));
+        assert_eq!(equipment_type_name(81), Some("Legendary Pot"));
+        assert_eq!(equipment_category(48), Some(EquipCategory::Weapon));
     }
 
     #[test]
