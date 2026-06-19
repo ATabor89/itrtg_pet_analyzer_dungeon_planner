@@ -113,7 +113,7 @@ Root `a` = **Total Divinity** (the running divinity balance; player-confirmed
 | `S` | list of 3 — **dungeon teams** | `a` = 6 pet ids (`&`-joined, matched via pet `k`), `b` = dungeon id, `c` = pending loot (item id+count), `d` = depth, `i` = dungeon name ("Scrapyard", "Water Temp", "Forest") |
 | `T` | list of 23 | ? (per-entry: id-ish `a`, float `c`, nested gear-like `g`) |
 | `Z` | a saved 6-pet team preset | `a` = pet ids, `h` = slot order |
-| `028` | list of 737 (id + 2 flags) | ? possibly catalog unlock flags |
+| `028` | **achievements / milestones catalog** — a single `AMEJKMHGAPD` object holding 737 entries (class `OCNIKNHPHHA`), each `{a = milestone id (the `FGGLKEBGPHJ` enum: PetOwner, Hyperion, MightyStatue10k, Clones1M, TyrantOverlordBaal, …), + 2 flags}`, partitioned into per-element sub-lists. The "catalog unlock flags" guess was right. | verified against `Assembly-CSharp` (`X.028`→`DIHGCIJMOAI`, enum `FGGLKEBGPHJ`) |
 
 ## Pet struct (`X.b[i]`)
 
@@ -610,8 +610,12 @@ type/partner id in the reference roster resolves, and the elemental forms match.
 - HP/Attack/Defense/Speed/elemental affinities from the Pet Stats export do
   not appear literally in the save → derived at runtime. If we ever need them,
   we either keep using the export or reverse the formulas.
-- `X.v` (10,062), `X.T` (23 entries), `X.028` (737 ids), pet `t`/`u` —
-  unidentified. (`X.z` resolved: cumulative pet stones spent.)
+- `X.v` = Chocolate count (resolved), `X.T` = crafting roster (decoded, see its
+  section), `X.028` = achievements/milestones catalog (resolved, see the X table),
+  pet `t`/`u` = preferred campaign types (resolved). Remaining root-struct
+  unknowns are the unnamed scalars in the root deserializer (`b`/`d` BigDouble,
+  `l`/`m`/`n` int = 50/50/50, stat-cap divisors of unclear meaning; `U` long = 0)
+  and Overflow Points (likely inside a stats sub-block) — all low-value.
 - Material id ↔ name: mostly solved in `crates/save-parser/src/items.rs`
   (prior-project table + export-confirmed + the 2026-06-10 full inventory
   transcription: 16/17 = Health Potion X/S, 19 = Antidote — correcting the
