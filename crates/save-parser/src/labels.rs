@@ -242,6 +242,22 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
     lbl!("j", "RNG seed (j)"),
 ];
 
+/// Pet Village Tavern — `024.b` (`IOBPPFGEBCD`). Runs pet quests. Player-mapped:
+/// `b` = level, `c` = upgrade-elapsed timer, `d` = **Quest Points**, `i` = quests
+/// per day, `j` = max concurrent quests, `u` = Tavern Keeper slot (999 = empty),
+/// `x` = favorite quests (`&`-list). `a`/`t` are quest lists (active / pool);
+/// other scalars (`e`/`g`/`l`/`m`/`p`/`q`/`r`/`v`/`w`…) unconfirmed.
+pub const TAVERN_FIELDS: &[FieldLabel] = &[
+    lbl!("b", "Level"),
+    // `c` = upgrade-elapsed timer (same as other buildings) but it's empty when
+    // not upgrading (as in the ref save), so it isn't labeled here.
+    lbl!("d", "Quest Points"),
+    lbl!("i", "Quests Per Day"),
+    lbl!("j", "Max Concurrent Quests"),
+    lbl!("u", "Tavern Keeper (slot)"),
+    lbl!("x", "Favorite Quests (&-list)"),
+];
+
 /// Pet Village Dojo — `024.d` (`JKDCFKCLCKH`). `b` = level (player-confirmed:
 /// 8 in the ref save), `c` = **elapsed upgrade time** (`LDMJEPGEOME`, the same
 /// universal elapsed-timer field as a dungeon run's `b`): it accumulates until
@@ -505,6 +521,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "P"], name: "Active Dungeon Run", plural: "Active Dungeon Runs", is_list: true, element_name: elem("a", Resolve::Dungeon), fields: ACTIVE_DUNGEON_FIELDS },
     BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: elem("a", Resolve::CampaignType), fields: CAMPAIGN_FIELDS },
     BlockSchema { base: &["X", "Z"], name: "Challenge Team", plural: "Challenge Team", is_list: false, element_name: None, fields: CHALLENGE_TEAM_FIELDS },
+    BlockSchema { base: &["024", "b"], name: "Tavern", plural: "Tavern", is_list: false, element_name: None, fields: TAVERN_FIELDS },
     BlockSchema { base: &["024", "d"], name: "Dojo", plural: "Dojo", is_list: false, element_name: None, fields: DOJO_FIELDS },
     BlockSchema { base: &["024", "e"], name: "Strategy Room", plural: "Strategy Room", is_list: false, element_name: None, fields: STRATEGY_ROOM_FIELDS },
     BlockSchema { base: &["025"], name: "Fishing", plural: "Fishing", is_list: false, element_name: None, fields: FISHING_FIELDS },
