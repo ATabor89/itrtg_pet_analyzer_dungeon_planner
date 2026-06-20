@@ -91,11 +91,13 @@ fn parse_value(text: &str, depth: usize) -> Raw {
         return Raw::Base64(Box::new(parse_value(&decoded, depth + 1)));
     }
 
-    if tree::looks_like_struct(text) {
-        let fields = split_fields(text, depth);
-        if fields.len() > 1 || text.ends_with(';') {
-            return Raw::Struct(fields);
-        }
+    // Only commit a struct when the text is `;`-terminated. The serializer ends
+    // every struct field with `;`, so any genuine (game-produced) struct ends
+    // with `;`; requiring it keeps `serialize(parse(x)) == x` faithful even for
+    // contrived base64-wrapped values that decode to bare-key text without a
+    // trailing `;` (e.g. `base64("a;b")`), which would otherwise gain a `;`.
+    if text.ends_with(';') && tree::looks_like_struct(text) {
+        return Raw::Struct(split_fields(text, depth));
     }
 
     Raw::Scalar(text.to_string())
@@ -591,6 +593,21 @@ mod tests {
         // instead of being left as the raw scalar "YTs=".
         assert!(matches!(r.get_path(&["f"]).unwrap().peel(), Raw::Struct(_)));
         assert_round_trips("f:YTs=;g:1;");
+    }
+
+    #[test]
+    fn base64_non_terminated_struct_text_stays_faithful() {
+        // A base64-wrapped value decoding to bare-key text WITHOUT a trailing `;`
+        // (e.g. `a;b`) must NOT be committed as a struct (which would re-serialize
+        // as `a;b;`). The `;`-termination guard keeps it faithful.
+        for inner in ["a;b", "ab;cd", "a:1;b:2"] {
+            let s = format!("k:{};z:1;", b64(inner));
+            assert_round_trips(&s);
+        }
+        // A `;`-terminated one is a real struct and still parses as such.
+        let s = format!("k:{};z:1;", b64("a;b:4;"));
+        assert!(matches!(parse(&s).get_path(&["k"]).unwrap().peel(), Raw::Struct(_)));
+        assert_round_trips(&s);
     }
 
     #[test]
