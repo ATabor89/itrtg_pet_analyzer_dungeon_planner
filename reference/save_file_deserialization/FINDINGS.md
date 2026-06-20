@@ -407,8 +407,11 @@ mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
     `m` = **equipment** (`DDKDNIFCAJO`, the same adventure-gear class as `032.c`,
     live 8), `s` = **active pill** (`BEFDMHPNDHH` = AdvPill buff; feeds the Attack
     calc; empty when none), `t` = **skill loadout** (`OKOCFJJNMAK` = SetSkill
-    assignments, live 4), `f` = a list of battle entities (`HGKLOMCJAIM`,
-    role — summons/log? — unconfirmed, live 11).
+    assignments, live 4), `f` = **per-class progression** (`HGKLOMCJAIM`: one
+    record per class the player has leveled — `a`=class id, `b`=level, `c`=exp,
+    `d`=flag; class levels advance independently, so live 11 = 11 of the 20
+    classes leveled). Wired as its own sub-list block (`["032","b","f"]`, entries
+    titled by class).
   - `h`/`i` = **skill-id** lists (enum `ADCGDPGPBOI` → `items::adventure_skill_name`);
     `h` (a second slot) is **absent when empty**.
   - **Still unidentified:** `d` (BigDouble, feeds the Attack calc as `0.8·d/5`;
