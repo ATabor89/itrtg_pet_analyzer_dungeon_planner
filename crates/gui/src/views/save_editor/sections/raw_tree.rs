@@ -37,6 +37,7 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::Literal => (!v.is_empty()).then(|| v.to_string()),
         Resolve::Material => items::material_name(v.parse().ok()?).map(str::to_string),
         Resolve::Dungeon => items::dungeon_name(v.parse().ok()?).map(str::to_string),
+        Resolve::Pond => items::pond_name(v.parse().ok()?).map(str::to_string),
         Resolve::Equipment => items::equipment_type_name(v.parse().ok()?).map(str::to_string),
         Resolve::Monument => items::monument_name(v.parse().ok()?).map(str::to_string),
         Resolve::Might => items::might_name(v.parse().ok()?).map(str::to_string),
@@ -698,6 +699,8 @@ mod tests {
         // Dungeon ids (dungeon-team / active-run blocks).
         assert_eq!(resolve_name(Resolve::Dungeon, "2", &empty).as_deref(), Some("Scrapyard"));
         assert_eq!(resolve_name(Resolve::Dungeon, "5", &empty).as_deref(), Some("Forest"));
+        // Fishing pond.
+        assert_eq!(resolve_name(Resolve::Pond, "4", &empty).as_deref(), Some("Sad Pond"));
         // Monument id matches the items table (don't hardcode the name).
         assert_eq!(
             resolve_name(Resolve::Monument, "0", &empty),

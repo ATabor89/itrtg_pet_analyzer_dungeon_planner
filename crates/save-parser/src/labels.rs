@@ -31,6 +31,8 @@ pub enum Resolve {
     Material,
     /// Dungeon id → `items::dungeon_name` (C# enum `GFEKIABOPIH`).
     Dungeon,
+    /// Fishing pond id → `items::pond_name` (C# enum `BAMKFONNEMP`).
+    Pond,
     /// Equipment *type* id → `items::equipment_type_name`.
     Equipment,
     /// A whole equipment element struct → "Name Quality+Plus" (the editor reads
@@ -239,6 +241,33 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
     lbl!("f", "Team Index"),
     lbl!("j", "RNG seed (j)"),
 ];
+
+/// Fishing block — `root.025` (`KACINBICCNH`). `a` = Fish Power (labeled
+/// separately in Resources), `b` = current exp (resets to 0 on level-up), `c` =
+/// level, `d`/`e` = selected bait/rod (material ids), `f` = current pond. Lists:
+/// `g` = rods, `h` = bait, `i` = fish caught (see the *_FIELDS below).
+pub const FISHING_FIELDS: &[FieldLabel] = &[
+    lbl!("b", "Fishing Exp"),
+    lbl!("c", "Fishing Level"),
+    lblr!("d", "Selected Bait", Resolve::Material),
+    lblr!("e", "Selected Rod", Resolve::Material),
+    lblr!("f", "Current Pond", Resolve::Pond),
+];
+
+/// Owned fishing rods — `025.g.<index>` (`ANCPDAFDBPP`). `a` = rod material id
+/// (500-504), `b` = owned (0/1).
+pub const FISHING_ROD_FIELDS: &[FieldLabel] =
+    &[lblr!("a", "Rod", Resolve::Material), lbl!("b", "Owned")];
+
+/// Bait stacks — `025.h.<index>` (`ANCPDAFDBPP`). `a` = bait material id
+/// (520-524), `b` = count.
+pub const FISHING_BAIT_FIELDS: &[FieldLabel] =
+    &[lblr!("a", "Bait", Resolve::Material), lbl!("b", "Count")];
+
+/// Fish-caught records — `025.i.<index>` (`PNPLCJJOPIO`). `a` = fish material id
+/// (525+), `c` = lifetime caught count.
+pub const FISHING_FISH_FIELDS: &[FieldLabel] =
+    &[lblr!("a", "Fish", Resolve::Material), lbl!("c", "Caught")];
 
 /// Campaign slots — `X.x.<index>` (`FMOLELEHAFD`). `a` = campaign type
 /// (`AGGDKICFOAI`), `c` = elapsed ms (counts up to `e`), `e` = target duration ms
@@ -455,6 +484,10 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "P"], name: "Active Dungeon Run", plural: "Active Dungeon Runs", is_list: true, element_name: elem("a", Resolve::Dungeon), fields: ACTIVE_DUNGEON_FIELDS },
     BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: elem("a", Resolve::CampaignType), fields: CAMPAIGN_FIELDS },
     BlockSchema { base: &["X", "Z"], name: "Challenge Team", plural: "Challenge Team", is_list: false, element_name: None, fields: CHALLENGE_TEAM_FIELDS },
+    BlockSchema { base: &["025"], name: "Fishing", plural: "Fishing", is_list: false, element_name: None, fields: FISHING_FIELDS },
+    BlockSchema { base: &["025", "g"], name: "Fishing Rod", plural: "Fishing Rods", is_list: true, element_name: elem("a", Resolve::Material), fields: FISHING_ROD_FIELDS },
+    BlockSchema { base: &["025", "h"], name: "Bait", plural: "Bait", is_list: true, element_name: elem("a", Resolve::Material), fields: FISHING_BAIT_FIELDS },
+    BlockSchema { base: &["025", "i"], name: "Fish Caught", plural: "Fish Caught", is_list: true, element_name: elem("a", Resolve::Material), fields: FISHING_FISH_FIELDS },
     BlockSchema { base: &["032", "H", "a"], name: "Research", plural: "Researches", is_list: true, element_name: elem("a", Resolve::Research), fields: RESEARCH_FIELDS },
     BlockSchema { base: &["032", "d"], name: "Adventure Item", plural: "Adventure Inventory", is_list: true, element_name: elem("a", Resolve::AdventureItem), fields: ADVENTURE_ITEM_FIELDS },
     BlockSchema { base: &["032", "G"], name: "Core", plural: "Cores", is_list: true, element_name: elem("a", Resolve::CoreNode), fields: CORE_FIELDS },
