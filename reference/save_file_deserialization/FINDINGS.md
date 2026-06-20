@@ -339,23 +339,32 @@ bonus growth. Globals: 013 AFK clones killed, 049 day-pet-challenge multi,
 071 lucky draws opened, 074 crystal power, 078/079/080 dungeon
 bosses/enemies/rooms, 129 total might.
 
-**Challenge completions — located 2026-06-20 (candidate keys, pending validation).**
-Each challenge's completion count is its own field in this Statistics block
-(`root.x` = `LLMCMCKAABP`), read by `HAKKBJKMHFN(OIDDHCOBPLG)` (a switch:
-challenge enum → field). The challenge enum `OIDDHCOBPLG` has ~39 entries
-(UUC/BHC/DRC/UPC/GSC/CBC/OKC/NDC/PMC/AAC=All-Achievements/UBC/NRC/…); the runtime
-per-challenge struct is `KPLPGPEOFNB` (`a`=challenge, `b`=completion count,
-`c`=`HOLHIHDKBKA` difficulty Normal/Hard/Root) held in `FLBLINFEKHG`
-(Dictionary<challenge, KPLPGPEOFNB>) via the static `MECCLHFLOIK`. Candidate
-key map (from the **real** `HPNLHANNDAM` deserializer — letter+numeric keys, no
-internal dupes; full list in `_cs_decomp/_PROGRESS.md`): UUC=`x.H`, AAC=`x.002`,
-OKC=`x.004`, NRC=`x.017`, BHC=`x.025`, UPC=`x.029`, NDC=`x.033`, PMC=`x.036`,
-GSC=`x.039`, … through `x.189`. **NOT yet wired/validated**: the committed save
-has every challenge count at 0, so the completion *semantics* couldn't be
-confirmed here — needs a save with non-zero completions (e.g. the player's "All
-Achievements Challenge (10/25)" → expect `x.002`=10). **Distinct** from the
-challenge *tries* (root **`X`** capital, pet system: `X.001` used / `X.017`
-max-upgrade) — different block, do not confuse `x`/`X`.
+**Challenge completions — SOLVED + VALIDATED + WIRED (2026-06-20).** They are a
+**single list at `root.x.242`** (`LLMCMCKAABP` reads `n242` → list of
+`KPLPGPEOFNB`, field `AOGFMPHMNLI`), **not** one scalar field per challenge.
+Each element is a `KPLPGPEOFNB` completion record:
+`a` = challenge id (`OIDDHCOBPLG`, deser. line `KPLPGPEOFNB.cs:3684`),
+`b` = lifetime completion count (the number the Challenges menu shows),
+`c` = `HOLHIHDKBKA` difficulty (`0` Normal/None, `1` Hard, `2` Root, `3` Mixed→Hard on load),
+`d` = ms epoch (last-completion time — inferred: per-challenge recency tracks the count),
+`e` = a bool UI sort flag.
+The enum `OIDDHCOBPLG` has 77 declared values (`None`=0 … `BCC`=76); full
+id→name table (from the in-game name strings in `KPLPGPEOFNB`, matched by
+initialism) is in `items::challenge_name`. Only the challenges the player has
+completed appear in the list (12 entries in the captured save). **Validated** against an in-game
+capture (Steam, `Steam/Challenges/`, 2026-06-20): `a`/`b` =
+UUC(1)/2, BHC(2)/1, DRC(3)/8, UPC(4)/8, PMC(9)/1, AAC(10)/10, UBC(11)/1,
+CPC(17)/2, MMC(25)/13, GPC(32)/2, PLC(48)/12 — all eleven match exactly. Wired
+into the editor as the **Challenge** block (`x.242`, titled by challenge name).
+
+**Self-correct (2026-06-20):** the earlier "one scalar field per challenge in
+`root.x`, read by `HAKKBJKMHFN`, candidate map UUC=`x.H`/AAC=`x.002`/…" was
+**WRONG** — those keys are all `0` in the captured save despite real completions.
+`HAKKBJKMHFN` is not the completion-count store; the counts live in the
+`x.242` list above. The old candidate map is retracted.
+
+**Distinct** from the challenge *tries* (root **`X`** capital, pet system:
+`X.001` used / `X.017` max-upgrade) — different block, do not confuse `x`/`X`.
 
 Anni Cake's bonus: stored **directly at root `033`** as a fractional
 percent — save 1: 709.0245829717 (exactly the user's predicted "709%"),

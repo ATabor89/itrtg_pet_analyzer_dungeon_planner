@@ -58,16 +58,19 @@ data point per event item at a known quality/plus to sanity-check each `base`
 - **What:** the challenge system — per-challenge completion/levels, ChP
   total/used/available, Overflow Points.
 - **Gain:** big unmodeled progression axis; ChP upgrades feed many bonuses.
-- **Status (updated 2026-06-20):** **per-challenge completion counts LOCATED** —
-  stored in the Statistics block `root.x` (`LLMCMCKAABP`), one field per challenge,
-  read by `HAKKBJKMHFN(OIDDHCOBPLG)`. Candidate key map extracted from the real
-  deserializer (UUC=`x.H`, AAC=`x.002`, NRC=`x.017`, … see FINDINGS / `_PROGRESS.md`).
-  **Pending validation** (committed save has all challenge counts 0). ChP total/
-  used/available + Overflow Points still need C# tracing / a before-after save.
-- **Need from user:** (a) to *validate+wire* completions, one in-game count to
-  anchor (e.g. "All Achievements Challenge = 10" → confirm `x.002`=10); then I
-  wire all ~39. (b) For ChP/Overflow: a before/after **Steam** save pair around a
-  known change (complete a challenge / spend known ChP), with the exact in-game
+- **Status (updated 2026-06-20):** **per-challenge completion counts SOLVED +
+  VALIDATED + WIRED.** They are a single list at `root.x.242` (`LLMCMCKAABP`
+  `n242` → list of `KPLPGPEOFNB`): each element `a`=challenge id (`OIDDHCOBPLG`,
+  77 values), `b`=completion count, `c`=difficulty, `d`=last-completed ms,
+  `e`=flag. Validated against an in-game Steam capture (all 11 of the player's
+  counts match: AAC=10, MMC=13, PLC=12, DRC/UPC=8, CPC/GPC/UUC=2, BHC/PMC/UBC=1)
+  and wired into the editor as the **Challenge** block (id→name via
+  `items::challenge_name`). **Self-correct:** the earlier "one scalar per
+  challenge in `root.x` via `HAKKBJKMHFN`, candidate map `x.H`/`x.002`/…" was
+  wrong (those keys are 0 in the capture) and is retracted. ChP total/used/
+  available + Overflow Points still need C# tracing / a before-after save.
+- **Need from user:** for ChP/Overflow: a before/after **Steam** save pair around
+  a known change (complete a challenge / spend known ChP), with the exact in-game
   ChP total/used/available + Overflow Points at each capture.
 
 ### 2. Adventure mode (skills, classes, exp, stats, crafting/smithing/alchemy)  — HIGH
