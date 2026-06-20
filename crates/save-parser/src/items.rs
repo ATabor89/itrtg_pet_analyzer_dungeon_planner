@@ -866,6 +866,42 @@ pub fn pet_type_name(type_id: u32) -> Option<&'static str> {
 /// start at `V0` while Gnome starts at `V1`, and each line ends in `…Final`
 /// (the in-game "V4"); this matches the per-pet `y` offsets in `FINDINGS.md`
 /// (Gnome `y`=14=GnomeFinal, Salamander `y`=19=Final, Sylph `y`=24=Final).
+/// Dungeon id → name (C# enum `GFEKIABOPIH`). Used for the dungeon-team and
+/// active-dungeon-run blocks (`X.S[i].b`, `X.P[i].a`).
+pub fn dungeon_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        0 => "None",
+        1 => "Newbie Ground",
+        2 => "Scrapyard",
+        3 => "Water Temple",
+        4 => "Volcano",
+        5 => "Forest",
+        6 => "Mountain",
+        7 => "Elemental Challenge",
+        8 => "Neutral Challenge",
+        9 => "Water Challenge",
+        10 => "Fire Challenge",
+        11 => "Wind Challenge",
+        12 => "Earth Challenge",
+        13 => "Elemental Tower",
+        14 => "Neutral Tower",
+        15 => "Water Tower",
+        16 => "Fire Tower",
+        17 => "Wind Tower",
+        18 => "Earth Tower",
+        19 => "Test Dummy",
+        20 => "Dark Left",
+        21 => "Dark Middle",
+        22 => "Dark Right",
+        23 => "Dark Final",
+        24 => "Light Left",
+        25 => "Light Middle",
+        26 => "Light Right",
+        27 => "Light Final",
+        _ => return None,
+    })
+}
+
 pub fn elemental_form_name(form_id: u32) -> Option<&'static str> {
     const NAMES: [&str; 25] = [
         "None",
@@ -1949,5 +1985,17 @@ mod tests {
         assert_eq!(quality_name(8), Some("SSS"));
         assert_eq!(quality_name(9), Some("Ult"));
         assert_eq!(quality_name(10), None);
+    }
+
+    #[test]
+    fn dungeon_ids_map_to_names() {
+        // Player-confirmed: the three running dungeons (Scrapyard/Water Temple/
+        // Forest) are ids 2/3/5.
+        assert_eq!(dungeon_name(2), Some("Scrapyard"));
+        assert_eq!(dungeon_name(3), Some("Water Temple"));
+        assert_eq!(dungeon_name(5), Some("Forest"));
+        assert_eq!(dungeon_name(1), Some("Newbie Ground"));
+        assert_eq!(dungeon_name(27), Some("Light Final"));
+        assert_eq!(dungeon_name(28), None);
     }
 }
