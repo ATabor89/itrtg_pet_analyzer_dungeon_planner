@@ -692,10 +692,15 @@ in `COMKEGGKPLD`). Pinned precisely from the clone tooltip
 **Defense** divisor (`EIFOLHNKCIH = baseDef / m`); **`n`** (`DGBEIOCFMLJ`) = **HP**
 divisor (`LBFJPKGLPPM = baseHp / n`, the HP cap used in the pet training tick).
 `q`/`t`/`u` = bool; `r`/`s` = string (`s` is copied into the god-title
-field `g` under one condition — likely a legacy/backup); `U` = long. Meanings of
-`b`/`d`/`q`/`r`/`s`/`t`/`u`/`U` still need a per-field usage chase. No plain stored
-root integer for Challenge Points was found (consistent with ChP being derived);
-Overflow Points, if stored, sits inside a named sub-block (e.g. statistics `O`).
+field `g` under one condition — likely a legacy/backup). **`U`** (`LIKCHFOLHKI`,
+long ms) = the **"rested"/refreshed crafting-speed timer** — while >0, *"your
+creating speed is tripled"* (Adventure crafting). On return from offline it banks
+**1/6 of the offline time, capped at 10,800,000 ms = 3 h** (`OfflineCalc.cs:277-285`);
+during active play it drains by elapsed time, floored at 0 (`UpdateStats.cs:5053-56`).
+Meanings of `b`/`d`/`q`/`r`/`s`/`t`/`u` still need a per-field usage chase. No plain
+stored root integer for Challenge Points was found (consistent with ChP being
+derived); Overflow Points, if stored, sits inside a named sub-block (e.g.
+statistics `O`).
 
 A small helper, `_cs_decomp/_extract_fields.py`, scopes to a class's
 `EBOFJJHOOLP` (or a named method) and prints its key→(type, field) table (it
@@ -738,8 +743,8 @@ type/partner id in the reference roster resolves, and the elemental forms match.
   pet `t`/`u` = favorite/hate campaign (resolved). Remaining root-struct
   unknowns are the unnamed scalars in the root deserializer (`b`/`d` BigDouble,
   `l`/`m`/`n` int = 50/50/50 = Shadow-clone Attack/Defense/HP stat divisors
-  [now pinned]; `U` long = 0) and Overflow Points (likely inside a stats
-  sub-block) — all low-value.
+  [now pinned]; `U` long = the "rested" tripled-crafting-speed timer [now pinned])
+  and Overflow Points (likely inside a stats sub-block) — all low-value.
 - Material id ↔ name: **`material_name` now transcribes the COMPLETE
   `NCPJFPLCPPK` enum** (`items.rs`) — base materials, keys/alloys/runes, the four
   elemental evolution-quest families (water/`Undine` 106–116, Gnome 126–129,
