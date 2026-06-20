@@ -866,6 +866,19 @@ pub fn pet_type_name(type_id: u32) -> Option<&'static str> {
 /// start at `V0` while Gnome starts at `V1`, and each line ends in `…Final`
 /// (the in-game "V4"); this matches the per-pet `y` offsets in `FINDINGS.md`
 /// (Gnome `y`=14=GnomeFinal, Salamander `y`=19=Final, Sylph `y`=24=Final).
+/// Ultimate Being id → name (the 5 planet UBs; C# `CEFAAPALBMD.BIALOOCFKFI`).
+/// Used for the planet system's UB list (`T.f`, keyed by `c`).
+pub fn ultimate_being_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        1 => "Planet Eater",
+        2 => "Godly Tribunal",
+        3 => "Living Sun",
+        4 => "God Above All",
+        5 => "ITRTG",
+        _ => return None,
+    })
+}
+
 /// Village building/feature id → name (C# enum `IMBOLMEHKCG`; functional
 /// buildings 0–14 — ids 100+ are cosmetic layout tiles/fences/walls). Used for
 /// the `024.a` building-state list (`g` = building type).
@@ -2061,6 +2074,15 @@ mod tests {
         assert_eq!(dungeon_name(1), Some("Newbie Ground"));
         assert_eq!(dungeon_name(27), Some("Light Final"));
         assert_eq!(dungeon_name(28), None);
+    }
+
+    #[test]
+    fn ultimate_being_ids_map_to_names() {
+        assert_eq!(ultimate_being_name(1), Some("Planet Eater"));
+        assert_eq!(ultimate_being_name(3), Some("Living Sun"));
+        assert_eq!(ultimate_being_name(5), Some("ITRTG"));
+        assert_eq!(ultimate_being_name(0), None);
+        assert_eq!(ultimate_being_name(6), None);
     }
 
     #[test]

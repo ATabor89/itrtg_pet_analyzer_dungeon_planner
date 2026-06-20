@@ -37,6 +37,8 @@ pub enum Resolve {
     Statue,
     /// Village building/feature id → `items::village_building_name` (`IMBOLMEHKCG`).
     VillageBuilding,
+    /// Ultimate Being id → `items::ultimate_being_name` (planet UBs, 1-5).
+    UltimateBeing,
     /// Equipment *type* id → `items::equipment_type_name`.
     Equipment,
     /// A whole equipment element struct → "Name Quality+Plus" (the editor reads
@@ -250,6 +252,18 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
 /// maxed), `b` = statue id (event commemoratives; you can own two of each).
 pub const MUSEUM_STATUE_FIELDS: &[FieldLabel] =
     &[lbl!("a", "Level"), lblr!("b", "Statue", Resolve::Statue)];
+
+/// Planet — Ultimate Beings — `T.f.<index>` (`CEFAAPALBMD`). The 5 UBs that
+/// attack your planet on staggered spawn timers. `c` = UB id (1 Planet Eater …
+/// 5 ITRTG), `b` = kill count, `d` = spawn countdown ms (counts DOWN; spawns at
+/// ≤0 — set 0 to force a spawn), `e` = alive flag, `f` = god power gained.
+pub const ULTIMATE_BEING_FIELDS: &[FieldLabel] = &[
+    lblr!("c", "UB", Resolve::UltimateBeing),
+    lbl!("b", "Kill Count"),
+    lbl!("d", "Spawn Countdown (ms)"),
+    lbl!("e", "Alive"),
+    lbl!("f", "God Power Gained"),
+];
 
 /// Village building-state list — `024.a.<index>` (`AFELNLGMCAB`, marker
 /// "VillageBuilding"). One entry per building feature, keyed by `g` = building
@@ -553,6 +567,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "P"], name: "Active Dungeon Run", plural: "Active Dungeon Runs", is_list: true, element_name: elem("a", Resolve::Dungeon), fields: ACTIVE_DUNGEON_FIELDS },
     BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: elem("a", Resolve::CampaignType), fields: CAMPAIGN_FIELDS },
     BlockSchema { base: &["X", "Z"], name: "Challenge Team", plural: "Challenge Team", is_list: false, element_name: None, fields: CHALLENGE_TEAM_FIELDS },
+    BlockSchema { base: &["T", "f"], name: "Ultimate Being", plural: "Ultimate Beings", is_list: true, element_name: elem("c", Resolve::UltimateBeing), fields: ULTIMATE_BEING_FIELDS },
     BlockSchema { base: &["024", "a"], name: "Village Building", plural: "Village Buildings", is_list: true, element_name: elem("g", Resolve::VillageBuilding), fields: VILLAGE_BUILDING_FIELDS },
     BlockSchema { base: &["024", "b"], name: "Tavern", plural: "Tavern", is_list: false, element_name: None, fields: TAVERN_FIELDS },
     BlockSchema { base: &["024", "d"], name: "Dojo", plural: "Dojo", is_list: false, element_name: None, fields: DOJO_FIELDS },
