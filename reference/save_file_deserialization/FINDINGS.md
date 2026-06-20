@@ -684,9 +684,14 @@ levels), `T` = `AIDFNOPNJGK` (Baal slayer), `x` = `LLMCMCKAABP` (the `root.x`
 tracker block), `X` = `MLILKGIALMB` (pet system). Still-unnamed root fields, with
 types now pinned from `HPNLHANNDAM` (all **scalars**, not struct sub-blocks):
 `b`/`d` = BigDouble; `l`/`m`/`n` = int, **default 1000** (save: 50/50/50) — the
-divisors in `IOHAICBLAOL`/`EIFOLHNKCIH`/`LBFJPKGLPPM` = `base / l|m|n`, i.e. the
-clone-stat **caps** (`LBFJPKGLPPM` is the HP-clone cap used in the pet training
-tick); `q`/`t`/`u` = bool; `r`/`s` = string (`s` is copied into the god-title
+**Shadow-clone stat divisors** (`Idle / All Shadow clones`; clone stat = your
+stat ÷ divisor, so a **lower** value = stronger clones; set to `1000 − upgrades`
+in `COMKEGGKPLD`). Pinned precisely from the clone tooltip
+(`KFOECKINJAP.cs:15969`) + the property getters: **`l`** (`KKPOGIDPMPI`) =
+**Attack** divisor (`IOHAICBLAOL = baseAtk / l`); **`m`** (`OFAEPCBJKGC`) =
+**Defense** divisor (`EIFOLHNKCIH = baseDef / m`); **`n`** (`DGBEIOCFMLJ`) = **HP**
+divisor (`LBFJPKGLPPM = baseHp / n`, the HP cap used in the pet training tick).
+`q`/`t`/`u` = bool; `r`/`s` = string (`s` is copied into the god-title
 field `g` under one condition — likely a legacy/backup); `U` = long. Meanings of
 `b`/`d`/`q`/`r`/`s`/`t`/`u`/`U` still need a per-field usage chase. No plain stored
 root integer for Challenge Points was found (consistent with ChP being derived);
@@ -732,8 +737,9 @@ type/partner id in the reference roster resolves, and the elemental forms match.
   section), `X.028` = achievements/milestones catalog (resolved, see the X table),
   pet `t`/`u` = favorite/hate campaign (resolved). Remaining root-struct
   unknowns are the unnamed scalars in the root deserializer (`b`/`d` BigDouble,
-  `l`/`m`/`n` int = 50/50/50, stat-cap divisors of unclear meaning; `U` long = 0)
-  and Overflow Points (likely inside a stats sub-block) — all low-value.
+  `l`/`m`/`n` int = 50/50/50 = Shadow-clone Attack/Defense/HP stat divisors
+  [now pinned]; `U` long = 0) and Overflow Points (likely inside a stats
+  sub-block) — all low-value.
 - Material id ↔ name: **`material_name` now transcribes the COMPLETE
   `NCPJFPLCPPK` enum** (`items.rs`) — base materials, keys/alloys/runes, the four
   elemental evolution-quest families (water/`Undine` 106–116, Gnome 126–129,
