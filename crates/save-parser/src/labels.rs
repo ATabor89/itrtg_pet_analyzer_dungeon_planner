@@ -265,16 +265,17 @@ pub const PLANET_FIELDS: &[FieldLabel] = &[
     lbl!("h", "Unspent Baal Power"),
 ];
 
-/// Planet — per-UB multiplier state — `T.k.<index>` (`FPBMNCNKPHN`), one per UB.
-/// `c` = UB id, `b` = kill/defeat count (incremented on each defeat), `a` =
-/// accumulated multiplier (≈100 = base). This drives the tooltip's "Multi from
-/// Ultimate Beings" (each UB adds a fixed % per defeat: Planet Eater 1%, Godly
-/// Tribunal 12%, Living Sun 21%, God Above All 32%, ITRTG 45%). NOT the
-/// (single) Powersurge — that's a separate `T` scalar (TBD).
+/// Planet — per-UB state — `T.k.<index>` (`FPBMNCNKPHN`), one per UB. `c` = UB id,
+/// `b` = **kill/defeat count** (incremented on each defeat, `AIDFNOPNJGK:256-257`)
+/// — this is what drives the tooltip's "Multi from Ultimate Beings" (each UB adds
+/// a fixed % per defeat: Planet Eater 1% / Godly Tribunal 12% / Living Sun 21% /
+/// God Above All 32% / ITRTG 45%). `a` = a per-UB state value reset to 100.0/0.0
+/// in OfflineCalc (~100 = full; exact role unconfirmed — *not* the displayed
+/// multiplier). NOT the (single) Powersurge — that's a separate `T` scalar (TBD).
 pub const UB_MULTIPLIER_FIELDS: &[FieldLabel] = &[
     lblr!("c", "UB", Resolve::UltimateBeing),
     lbl!("b", "Kill Count"),
-    lbl!("a", "Multiplier (100=base)"),
+    lbl!("a", "State (~100)"),
 ];
 
 /// Planet — Ultimate Beings — `T.f.<index>` (`CEFAAPALBMD`). The 5 UBs that
