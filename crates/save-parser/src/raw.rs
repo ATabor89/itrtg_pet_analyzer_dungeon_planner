@@ -567,6 +567,33 @@ mod tests {
     }
 
     #[test]
+    fn struct_with_leading_empty_key_parses_and_round_trips() {
+        // The Pet Village Tavern serializes with a leading empty-valued key:
+        // `a;b:4;c;d:5553;…` (and `x:10&11&26` whose value contains `&`).
+        // Previously `looks_like_struct` required the first field to have a
+        // colon, so the whole thing stayed a raw scalar.
+        let tavern = "a;b:4;c;d:5553;x:10&11&26;";
+        let r = parse(&format!("024:{};z:1;", b64(tavern)));
+        assert_eq!(r.get_path(&["024", "b"]), Some(&Raw::Scalar("4".into())));
+        assert_eq!(r.get_path(&["024", "d"]), Some(&Raw::Scalar("5553".into())));
+        // The `&`-valued field stays a scalar (not split into a list).
+        assert_eq!(r.get_path(&["024", "x"]), Some(&Raw::Scalar("10&11&26".into())));
+        assert_round_trips(&format!("024:{};z:1;", b64(tavern)));
+    }
+
+    #[test]
+    fn empty_struct_base64_is_decoded_not_left_raw() {
+        // An empty building serializes to base64("a;") = "YTs=" (4 chars). The
+        // old min-length-8 guard left it as a raw scalar; now it decodes.
+        assert_eq!(b64("a;"), "YTs=");
+        let r = parse("f:YTs=;g:1;");
+        // `f` now decodes and peels to a struct (with the lone empty key `a`),
+        // instead of being left as the raw scalar "YTs=".
+        assert!(matches!(r.get_path(&["f"]).unwrap().peel(), Raw::Struct(_)));
+        assert_round_trips("f:YTs=;g:1;");
+    }
+
+    #[test]
     fn selector_resolves_single_element_list() {
         // ONE base64 struct in a field is a 1-element list (no `&` separator),
         // which re-parses as a lone struct — the selector must still find it.
