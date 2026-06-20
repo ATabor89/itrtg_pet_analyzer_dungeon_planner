@@ -29,6 +29,8 @@ pub enum Resolve {
     Literal,
     /// Material / item id → `items::material_name`.
     Material,
+    /// Dungeon id → `items::dungeon_name` (C# enum `GFEKIABOPIH`).
+    Dungeon,
     /// Equipment *type* id → `items::equipment_type_name`.
     Equipment,
     /// A whole equipment element struct → "Name Quality+Plus" (the editor reads
@@ -193,13 +195,39 @@ pub const GEM_FIELDS: &[FieldLabel] = &[
     lbl!("c", "Count"),
 ];
 
-/// Persistent dungeon teams — `X.S.<index>`.
+/// Persistent dungeon teams — `X.S.<index>` (`PCDCANGLENI`). These are the
+/// static team settings. Per-depth difficulty: `e`=D1, `f`=D2, `g`=D3
+/// (player-confirmed in-game; D4 not cleanly placeable from current saves —
+/// `h` is a list, not a difficulty int). `c` = the team's loot/inventory (see
+/// PENDING_LOOT_FIELDS); loot isn't actually rolled until the run completes.
 pub const DUNGEON_TEAM_FIELDS: &[FieldLabel] = &[
-    lbl!("b", "Dungeon Id"),
+    lblr!("b", "Dungeon Id", Resolve::Dungeon),
     lbl!("d", "Depth"),
+    lbl!("e", "D1 Difficulty"),
+    lbl!("f", "D2 Difficulty"),
+    lbl!("g", "D3 Difficulty"),
     lbl!("i", "Dungeon Name"),
     lbl!("a", "Member Pet Type Ids"),
     lbl!("c", "Pending Loot"),
+];
+
+/// A team's pending-loot / inventory entry — `X.S.<i>.c.<index>` (`GCJMGGFGKBN`,
+/// same shape as the material inventory). `a`=item id, `b`=count.
+pub const PENDING_LOOT_FIELDS: &[FieldLabel] =
+    &[lblr!("a", "Item Id", Resolve::Material), lbl!("b", "Count")];
+
+/// Active dungeon runs — `X.P.<index>` (`MKDNAHGDLPI`). `a`=dungeon id,
+/// `b`=elapsed ms (counts up to `c`), `c`=target duration ms (43,200,000 = 12 h),
+/// `d`=depth, `f`=team index (ties the run to its `X.S` team). `e`/`j` are RNG
+/// seeds. To force near-completion, set `b` just under `c`.
+pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Dungeon Id", Resolve::Dungeon),
+    lbl!("b", "Elapsed (ms)"),
+    lbl!("c", "Target Duration (ms)"),
+    lbl!("d", "Depth"),
+    lbl!("e", "RNG seed (e)"),
+    lbl!("f", "Team Index"),
+    lbl!("j", "RNG seed (j)"),
 ];
 
 /// Campaign slots — `X.x.<index>`.
@@ -409,6 +437,8 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "Q"], name: "Material", plural: "Materials", is_list: true, element_name: elem("a", Resolve::Material), fields: MATERIAL_FIELDS },
     BlockSchema { base: &["X", "002"], name: "Gem", plural: "Gems", is_list: true, element_name: elem("a", Resolve::Element), fields: GEM_FIELDS },
     BlockSchema { base: &["X", "S"], name: "Dungeon Team", plural: "Dungeon Teams", is_list: true, element_name: elem("i", Resolve::Literal), fields: DUNGEON_TEAM_FIELDS },
+    BlockSchema { base: &["X", "S", "*", "c"], name: "Pending Loot", plural: "Pending Loot", is_list: true, element_name: elem("a", Resolve::Material), fields: PENDING_LOOT_FIELDS },
+    BlockSchema { base: &["X", "P"], name: "Active Dungeon Run", plural: "Active Dungeon Runs", is_list: true, element_name: elem("a", Resolve::Dungeon), fields: ACTIVE_DUNGEON_FIELDS },
     BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: None, fields: CAMPAIGN_FIELDS },
     BlockSchema { base: &["032", "H", "a"], name: "Research", plural: "Researches", is_list: true, element_name: elem("a", Resolve::Research), fields: RESEARCH_FIELDS },
     BlockSchema { base: &["032", "d"], name: "Adventure Item", plural: "Adventure Inventory", is_list: true, element_name: elem("a", Resolve::AdventureItem), fields: ADVENTURE_ITEM_FIELDS },
