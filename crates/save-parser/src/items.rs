@@ -177,16 +177,16 @@ pub fn material_name(id: u32) -> Option<&'static str> {
         352 => "Spark of Passion",
         // -- fishing: rods / baits / catches (stored in the fishing block, not
         //    X.Q — named for completeness) --
-        500 => "Rod 1",
-        501 => "Rod 2",
-        502 => "Rod 3",
-        503 => "Rod 4",
-        504 => "Rod 5",
-        520 => "Bait 1",
-        521 => "Bait 2",
-        522 => "Bait 3",
-        523 => "Bait 4",
-        524 => "Bait 5",
+        500 => "Stick Rod",
+        501 => "Wooden Rod",
+        502 => "Bamboo Rod",
+        503 => "Voodoo Rod",
+        504 => "Titanium Rod",
+        520 => "Feather Ball",
+        521 => "Simple Worm",
+        522 => "Big Worm",
+        523 => "Caterpillar",
+        524 => "Super Worm",
         525 => "Boots",
         526 => "Shrimp",
         527 => "Clam",
@@ -898,6 +898,24 @@ pub fn dungeon_name(id: u32) -> Option<&'static str> {
         25 => "Light Middle",
         26 => "Light Right",
         27 => "Light Final",
+        _ => return None,
+    })
+}
+
+/// Fishing pond id → name (C# enum `BAMKFONNEMP`). The fishing block's `025.f`
+/// is the current pond.
+pub fn pond_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        0 => "New Pond",
+        1 => "Lazy Pond",
+        2 => "Kind Pond",
+        3 => "Stupid Pond",
+        4 => "Sad Pond",
+        5 => "Midlife Pond",
+        6 => "Kinky Pond",
+        7 => "Great Pond",
+        8 => "Sacred Pond",
+        9 => "Final Pond",
         _ => return None,
     })
 }
@@ -1715,7 +1733,9 @@ mod tests {
         assert_eq!(material_name(142), Some("Salamander Soul"));
         assert_eq!(material_name(169), Some("Shiny Metal Stone"));
         assert_eq!(material_name(350), Some("Spark of Genius"));
-        assert_eq!(material_name(500), Some("Rod 1"));
+        assert_eq!(material_name(500), Some("Stick Rod")); // fishing rod (NCPJFPLCPPK.Rod1)
+        assert_eq!(material_name(503), Some("Voodoo Rod"));
+        assert_eq!(material_name(522), Some("Big Worm")); // bait (NCPJFPLCPPK.Bait3)
         assert_eq!(material_name(547), Some("Kraken"));
         assert_eq!(material_name(801), Some("Ultimate Reward"));
         // Foods are the same enum (stored elsewhere) but still name.
@@ -1997,5 +2017,13 @@ mod tests {
         assert_eq!(dungeon_name(1), Some("Newbie Ground"));
         assert_eq!(dungeon_name(27), Some("Light Final"));
         assert_eq!(dungeon_name(28), None);
+    }
+
+    #[test]
+    fn pond_ids_map_to_names() {
+        assert_eq!(pond_name(0), Some("New Pond"));
+        assert_eq!(pond_name(4), Some("Sad Pond")); // committed save's 025.f
+        assert_eq!(pond_name(9), Some("Final Pond"));
+        assert_eq!(pond_name(10), None);
     }
 }
