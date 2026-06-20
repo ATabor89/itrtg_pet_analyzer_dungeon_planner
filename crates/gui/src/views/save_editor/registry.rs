@@ -265,10 +265,15 @@ fn seed() -> Vec<FieldDef> {
         def(&["O", "030"], "Light Clones", Text, RawTree, "O.030"),
         def(&["018"], "Earth Eater Planets (rebirth)", Text, RawTree, "root 018"),
         def(&["033"], "Anni Cake Bonus %", Text, RawTree, "root 033"),
+        def(&["l"], "Shadow-clone Attack divisor", Number, RawTree, "clone Attack = your Attack / l; lower = stronger"),
+        def(&["m"], "Shadow-clone Defense divisor", Number, RawTree, "clone Defense = your Defense / m; lower = stronger"),
+        def(&["n"], "Shadow-clone HP divisor", Number, RawTree, "clone HP = your HP / n; lower = stronger"),
+        def(&["U"], "Rested crafting-speed timer (ms)", Number, RawTree, "while >0, creating speed is tripled (cap 3h)"),
 
         // -- Identity & meta (root scalars) --
         def(&["W"], "God Name", Text, RawTree, "In-game deity name (identity)"),
         def(&["s"], "Account Login", Text, RawTree, "Linked account (identity)"),
+        def(&["r"], "Kong User Id", Text, RawTree, "Linked Kongregate user id (identity)"),
         def(&["g"], "God Title", Text, RawTree, ""),
         def(&["c"], "Saved (unix seconds)", Number, RawTree, ""),
         def(&["005"], "Saved (unix ms)", Number, RawTree, ""),
