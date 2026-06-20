@@ -243,16 +243,20 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
 ];
 
 /// Pet Village Dojo — `024.d` (`JKDCFKCLCKH`). `b` = level (player-confirmed:
-/// 8 in the ref save), `c` = upgrade progress (nonzero while upgrading). The
-/// four `999` fields (`s`/`t`/`v`/`w`) are its 4 pet slots (2 Dojo Master + 2
-/// pupil); the many other fields are per-stat training buffs (unconfirmed).
-pub const DOJO_FIELDS: &[FieldLabel] = &[lbl!("b", "Level"), lbl!("c", "Upgrade Progress")];
+/// 8 in the ref save), `c` = **elapsed upgrade time** (`LDMJEPGEOME`, the same
+/// universal elapsed-timer field as a dungeon run's `b`): it accumulates until
+/// `c >= target`, then the upgrade completes and resets to 0 — so set `c` to a
+/// large value to force-complete an in-progress upgrade. The four `999` fields
+/// (`s`/`t`/`v`/`w`) are its 4 pet slots (2 Dojo Master + 2 pupil); the many
+/// other fields are per-stat training buffs (unconfirmed).
+pub const DOJO_FIELDS: &[FieldLabel] = &[lbl!("b", "Level"), lbl!("c", "Upgrade Elapsed (ms)")];
 
 /// Pet Village Strategy Room — `024.e` (`CJACGIIPNIG`). The three multipliers
 /// were player-confirmed by tweaking them in-game.
 pub const STRATEGY_ROOM_FIELDS: &[FieldLabel] = &[
     lbl!("b", "Level"),
-    lbl!("c", "Upgrade Progress"),
+    lbl!("c", "Upgrade Elapsed (ms)"), // accumulates to target then resets; set large to finish
+
     lbl!("e", "Physical Multi %"),
     lbl!("f", "Mystic Multi %"),
     lbl!("g", "Battle Multi %"),
