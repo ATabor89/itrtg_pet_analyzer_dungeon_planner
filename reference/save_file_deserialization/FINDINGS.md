@@ -418,7 +418,9 @@ mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
   - The crafting **material** enum `BFNFKADNAKD` (107 ids: raw/refined/enhanced
     tiers + jewels/pills) is the same namespace as `032.d` inventory and is now
     complete in `items::adventure_item_name` (diff-verified). The craftable-gear
-    `LEIFLPFLEHJ` and alchemy-recipe `DLCMNADKOJK` enums are next to transcribe.
+    `LEIFLPFLEHJ` (122 → `items::adventure_craft_gear_name`) and alchemy-recipe
+    `DLCMNADKOJK` (27 → `items::adventure_recipe_name`) enums are now transcribed
+    + diff-verified.
   - Remaining list keys (`c`/`j`/`m`/`t`/`L`/`R`/`U`) + bool flags to map.
 
 `032.H.a` = **researches** (44 entries, id 0 is a placeholder): `a`=id,
