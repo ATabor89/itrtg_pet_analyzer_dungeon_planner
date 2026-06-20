@@ -78,25 +78,27 @@ data point per event item at a known quality/plus to sanity-check each `base`
 - **Need from user:** likely nothing to start (C# + the existing Steam saves);
   may want an Adventure-mode stats screenshot to cross-check derived stats.
 
-### 3. Growth Chamber "rogue bonus" (the ×2 / loose end)  — MEDIUM, user-flagged
-- **What:** the unidentified extra multiplier in the chamber sim (`campaign.rs`);
-  user reframed it as a **Rogue** bonus — likely a Rogue-class campaign-reward
-  multiplier.
-- **Gain:** makes the Growth Chamber projection exact.
-- **Status (2026-06-19 investigation):** the intuition is **structurally
-  confirmed** — there *is* a per-class campaign-reward multiplier in the C#:
-  `CIEAPBPBCLL.KEPCFJNJDPJ(pet)` applies class bonuses, and for a **Rogue** pet it
-  multiplies the reward by `NOAKCBPMNDD(pet)` (Blacksmith+Meteor, Alchemist, and
-  None+Panda have their own cases). **Blocked here:** `NOAKCBPMNDD`'s constants are
-  obfuscator decoys (garbage like 1276.0/1954.0/1632.0), so the exact Rogue
-  multiplier value can't be read off the decompile, and `KEPCFJNJDPJ` has no clear
-  external caller in the dump (campaign-vs-dungeon reward path unconfirmed). So the
-  chamber sim's `adv_xp_mult` stays the empirical 4.0 for now.
-- **Need from user (cheap, in-game):** run a **Growth campaign** with an
-  otherwise-identical pet **as Rogue vs another class** and compare the class-XP /
-  growth gained — that directly gives the Rogue multiplier and tells us whether it
-  IS the chamber's mystery ×2. (Or note the in-game per-class campaign-bonus % on
-  a Rogue pet's tooltip.)
+### 3. Growth Chamber unexplained ×2 (the "rogue"/stray multiplier)  — MEDIUM
+- **What:** the chamber sim's `adv_xp_mult = 4.0` = (Camp Exp Boost ×2) × an
+  **unexplained ×2** (`campaign.rs` / `growth_chamber_status.md`). "Rogue" was the
+  user's word for *rogue/unexplained*, **not** the Rogue class.
+- **Important (user-confirmed 2026-06-19):** **only the Adventurer class gives a
+  campaign bonus**; Rogue (and the other classes) do **not**. Pets' own innate
+  per-campaign bonuses are already accounted for in the chamber logic. So the
+  mystery ×2 is **not** a class bonus.
+- **Correction:** an earlier pass wrongly tied this to a "per-class campaign
+  multiplier" in `CIEAPBPBCLL.KEPCFJNJDPJ`/`NOAKCBPMNDD`. That method is a
+  **dungeon** calc — it switches on the pet's *element* and combines elemental
+  stats; the Rogue branch there is its **dungeon-loot** bonus (per the Rogue
+  tooltip), not a campaign reward. Disregard that lead.
+- **Status:** the ×2 is still genuinely unidentified. Per `growth_chamber_status.md`
+  the candidates are a 2nd (non-Camp-Exp-Boost) upgrade, a research/god/Patreon
+  perk, or the wiki `250` base being outdated — i.e. a global campaign-XP
+  multiplier, not class- or pet-specific.
+- **Need from user (cheap, in-game):** the actual in-game per-cycle Adventurer
+  class-XP for one Growth campaign at a known total growth + hours (and which
+  Camp-Exp-Boost level is active) — back-solving `XP / (250·(1+growth/20000)·hours)`
+  pins the true multiplier and reveals whether the wiki `250`/×2 is the gap.
 
 ### 4. Remaining unidentified save blocks  — MEDIUM/large
 - **What:** large unmapped regions still in the root/sub-structs — root scalars
