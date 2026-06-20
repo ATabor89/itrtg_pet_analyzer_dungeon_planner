@@ -33,6 +33,8 @@ pub enum Resolve {
     Dungeon,
     /// Fishing pond id → `items::pond_name` (C# enum `BAMKFONNEMP`).
     Pond,
+    /// Museum statue id → `items::statue_name` (C# enum `JBGNCMHGOFI`).
+    Statue,
     /// Equipment *type* id → `items::equipment_type_name`.
     Equipment,
     /// A whole equipment element struct → "Name Quality+Plus" (the editor reads
@@ -241,6 +243,11 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
     lbl!("f", "Team Index"),
     lbl!("j", "RNG seed (j)"),
 ];
+
+/// Museum statues — `024.f.a.<index>` (`MCEIHMMCDNH`). `a` = level (20 when
+/// maxed), `b` = statue id (event commemoratives; you can own two of each).
+pub const MUSEUM_STATUE_FIELDS: &[FieldLabel] =
+    &[lbl!("a", "Level"), lblr!("b", "Statue", Resolve::Statue)];
 
 /// Pet Village Tavern — `024.b` (`IOBPPFGEBCD`). Runs pet quests. Player-mapped:
 /// `b` = level, `c` = upgrade-elapsed timer, `d` = **Quest Points**, `i` = quests
@@ -524,6 +531,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["024", "b"], name: "Tavern", plural: "Tavern", is_list: false, element_name: None, fields: TAVERN_FIELDS },
     BlockSchema { base: &["024", "d"], name: "Dojo", plural: "Dojo", is_list: false, element_name: None, fields: DOJO_FIELDS },
     BlockSchema { base: &["024", "e"], name: "Strategy Room", plural: "Strategy Room", is_list: false, element_name: None, fields: STRATEGY_ROOM_FIELDS },
+    BlockSchema { base: &["024", "f", "a"], name: "Museum Statue", plural: "Museum Statues", is_list: true, element_name: elem("b", Resolve::Statue), fields: MUSEUM_STATUE_FIELDS },
     BlockSchema { base: &["025"], name: "Fishing", plural: "Fishing", is_list: false, element_name: None, fields: FISHING_FIELDS },
     BlockSchema { base: &["025", "g"], name: "Fishing Rod", plural: "Fishing Rods", is_list: true, element_name: elem("a", Resolve::Material), fields: FISHING_ROD_FIELDS },
     BlockSchema { base: &["025", "h"], name: "Bait", plural: "Bait", is_list: true, element_name: elem("a", Resolve::Material), fields: FISHING_BAIT_FIELDS },
