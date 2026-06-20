@@ -265,12 +265,16 @@ pub const PLANET_FIELDS: &[FieldLabel] = &[
     lbl!("h", "Unspent Baal Power"),
 ];
 
-/// Planet — Powersurges — `T.k.<index>` (`FPBMNCNKPHN`), one per UB. `c` = UB id,
-/// `a` = multiplier % (≈100 base), `b` = level. Drives "Multi from Powersurge".
-pub const POWERSURGE_FIELDS: &[FieldLabel] = &[
+/// Planet — per-UB multiplier state — `T.k.<index>` (`FPBMNCNKPHN`), one per UB.
+/// `c` = UB id, `b` = kill/defeat count (incremented on each defeat), `a` =
+/// accumulated multiplier (≈100 = base). This drives the tooltip's "Multi from
+/// Ultimate Beings" (each UB adds a fixed % per defeat: Planet Eater 1%, Godly
+/// Tribunal 12%, Living Sun 21%, God Above All 32%, ITRTG 45%). NOT the
+/// (single) Powersurge — that's a separate `T` scalar (TBD).
+pub const UB_MULTIPLIER_FIELDS: &[FieldLabel] = &[
     lblr!("c", "UB", Resolve::UltimateBeing),
-    lbl!("a", "Multiplier %"),
-    lbl!("b", "Level"),
+    lbl!("b", "Kill Count"),
+    lbl!("a", "Multiplier (100=base)"),
 ];
 
 /// Planet — Ultimate Beings — `T.f.<index>` (`CEFAAPALBMD`). The 5 UBs that
@@ -589,7 +593,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "Z"], name: "Challenge Team", plural: "Challenge Team", is_list: false, element_name: None, fields: CHALLENGE_TEAM_FIELDS },
     BlockSchema { base: &["T"], name: "Planet (Ultimate Beings)", plural: "Planet (Ultimate Beings)", is_list: false, element_name: None, fields: PLANET_FIELDS },
     BlockSchema { base: &["T", "f"], name: "Ultimate Being", plural: "Ultimate Beings", is_list: true, element_name: elem("c", Resolve::UltimateBeing), fields: ULTIMATE_BEING_FIELDS },
-    BlockSchema { base: &["T", "k"], name: "Powersurge", plural: "Powersurges", is_list: true, element_name: elem("c", Resolve::UltimateBeing), fields: POWERSURGE_FIELDS },
+    BlockSchema { base: &["T", "k"], name: "UB Multiplier", plural: "UB Multipliers", is_list: true, element_name: elem("c", Resolve::UltimateBeing), fields: UB_MULTIPLIER_FIELDS },
     BlockSchema { base: &["024", "a"], name: "Village Building", plural: "Village Buildings", is_list: true, element_name: elem("g", Resolve::VillageBuilding), fields: VILLAGE_BUILDING_FIELDS },
     BlockSchema { base: &["024", "b"], name: "Tavern", plural: "Tavern", is_list: false, element_name: None, fields: TAVERN_FIELDS },
     BlockSchema { base: &["024", "d"], name: "Dojo", plural: "Dojo", is_list: false, element_name: None, fields: DOJO_FIELDS },
