@@ -60,6 +60,7 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::ElementalForm => {
             items::elemental_form_name(v.parse().ok()?).map(str::to_string)
         }
+        Resolve::CampaignType => items::campaign_type_name(v.parse().ok()?).map(str::to_string),
         Resolve::CampaignPref => {
             // Stored offset by 1: 0 = unset, else campaign_type_name(id - 1).
             let id: u32 = v.parse().ok()?;
