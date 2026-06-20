@@ -241,8 +241,8 @@ fn seed() -> Vec<FieldDef> {
         // 024.b = Tavern: named + field-labeled via a BLOCKS schema (quest points
         // etc.), so no explicit container def here.
         def(&["024", "f"], "Museum", Text, RawTree, "Pet Village building"),
-        def(&["024", "g"], "Material Factory", Text, RawTree, "Pet Village building (Pack Mule worked here)"),
-        def(&["024", "h"], "Alchemy Hut", Text, RawTree, "Pet Village building (Lamb worked here)"),
+        // 024.g (Material Factory) / 024.h (Alchemy Hut) named + field-labeled via
+        // BLOCKS schemas (level / manager / worker slots).
         // 024.i = Divine Hut (HPACHDJMLLP) — absent in the ref save (unbuilt), so
         // not labeled here to satisfy the coverage test; documented in FINDINGS.
         def(&["009"], "SpaceDim (Light Dimension)", Text, RawTree, ""),
