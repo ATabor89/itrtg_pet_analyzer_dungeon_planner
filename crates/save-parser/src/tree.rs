@@ -99,9 +99,13 @@ pub(crate) fn is_bare_key(part: &str) -> bool {
 }
 
 pub(crate) fn looks_like_struct(text: &str) -> bool {
-    // First `;`-segment must start with `key:`.
+    // The first `;`-segment must open a field: either `key:value` or a bare
+    // (empty-valued) key. Structs can legitimately start with an empty-valued
+    // key — e.g. the Pet Village Tavern serializes as `a;b:4;c;d:5553;…` and an
+    // empty Museum as just `a;`. Requiring a colon on the first field left those
+    // as un-parsed raw strings.
     let first = text.split(';').next().unwrap_or("");
-    key_len(first).is_some()
+    key_len(first).is_some() || is_bare_key(first)
 }
 
 /// Split a struct body into `(key, value)` pairs.
@@ -132,7 +136,11 @@ fn split_fields(text: &str) -> Vec<(&str, String)> {
 /// Decode `s` as base64 if it plausibly is a nested payload: minimum length,
 /// strict charset, valid UTF-8, and no control characters.
 pub(crate) fn try_base64_text(s: &str) -> Option<String> {
-    if s.len() < 8 || !s.len().is_multiple_of(4) {
+    // Minimum 4 (one base64 quartet → 3 bytes). The callers only treat a decode
+    // as nested when it `looks_like_struct` or contains `&`, so short blobs like
+    // an empty building's `YTs=` (= `a;`) are recovered without mis-decoding
+    // ordinary short scalars.
+    if s.len() < 4 || !s.len().is_multiple_of(4) {
         return None;
     }
     if !s
