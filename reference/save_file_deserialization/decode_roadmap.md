@@ -83,10 +83,20 @@ data point per event item at a known quality/plus to sanity-check each `base`
   user reframed it as a **Rogue** bonus — likely a Rogue-class campaign-reward
   multiplier.
 - **Gain:** makes the Growth Chamber projection exact.
-- **Status:** chase the C# campaign-reward / class-XP path for a Rogue-class
-  multiplier on rewards. See `reference/growth_chamber_status.md`.
-- **Need from user:** confirmation of which class(es) are in the chamber team when
-  the ×2 appears, or a chamber before/after with/without a Rogue.
+- **Status (2026-06-19 investigation):** the intuition is **structurally
+  confirmed** — there *is* a per-class campaign-reward multiplier in the C#:
+  `CIEAPBPBCLL.KEPCFJNJDPJ(pet)` applies class bonuses, and for a **Rogue** pet it
+  multiplies the reward by `NOAKCBPMNDD(pet)` (Blacksmith+Meteor, Alchemist, and
+  None+Panda have their own cases). **Blocked here:** `NOAKCBPMNDD`'s constants are
+  obfuscator decoys (garbage like 1276.0/1954.0/1632.0), so the exact Rogue
+  multiplier value can't be read off the decompile, and `KEPCFJNJDPJ` has no clear
+  external caller in the dump (campaign-vs-dungeon reward path unconfirmed). So the
+  chamber sim's `adv_xp_mult` stays the empirical 4.0 for now.
+- **Need from user (cheap, in-game):** run a **Growth campaign** with an
+  otherwise-identical pet **as Rogue vs another class** and compare the class-XP /
+  growth gained — that directly gives the Rogue multiplier and tells us whether it
+  IS the chamber's mystery ×2. (Or note the in-game per-class campaign-bonus % on
+  a Rogue pet's tooltip.)
 
 ### 4. Remaining unidentified save blocks  — MEDIUM/large
 - **What:** large unmapped regions still in the root/sub-structs — root scalars
