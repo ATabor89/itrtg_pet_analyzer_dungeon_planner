@@ -242,6 +242,23 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
     lbl!("j", "RNG seed (j)"),
 ];
 
+/// Pet Village Dojo — `024.d` (`JKDCFKCLCKH`). `b` = level (player-confirmed:
+/// 8 in the ref save), `c` = upgrade progress (nonzero while upgrading). The
+/// four `999` fields (`s`/`t`/`v`/`w`) are its 4 pet slots (2 Dojo Master + 2
+/// pupil); the many other fields are per-stat training buffs (unconfirmed).
+pub const DOJO_FIELDS: &[FieldLabel] = &[lbl!("b", "Level"), lbl!("c", "Upgrade Progress")];
+
+/// Pet Village Strategy Room — `024.e` (`CJACGIIPNIG`). The three multipliers
+/// were player-confirmed by tweaking them in-game.
+pub const STRATEGY_ROOM_FIELDS: &[FieldLabel] = &[
+    lbl!("b", "Level"),
+    lbl!("c", "Upgrade Progress"),
+    lbl!("e", "Physical Multi %"),
+    lbl!("f", "Mystic Multi %"),
+    lbl!("g", "Battle Multi %"),
+    lbl!("h", "Pet Slots (&-list, 8)"),
+];
+
 /// Fishing block — `root.025` (`KACINBICCNH`). `a` = Fish Power (labeled
 /// separately in Resources), `b` = current exp (resets to 0 on level-up), `c` =
 /// level, `d`/`e` = selected bait/rod (material ids), `f` = current pond. Lists:
@@ -484,6 +501,8 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "P"], name: "Active Dungeon Run", plural: "Active Dungeon Runs", is_list: true, element_name: elem("a", Resolve::Dungeon), fields: ACTIVE_DUNGEON_FIELDS },
     BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: elem("a", Resolve::CampaignType), fields: CAMPAIGN_FIELDS },
     BlockSchema { base: &["X", "Z"], name: "Challenge Team", plural: "Challenge Team", is_list: false, element_name: None, fields: CHALLENGE_TEAM_FIELDS },
+    BlockSchema { base: &["024", "d"], name: "Dojo", plural: "Dojo", is_list: false, element_name: None, fields: DOJO_FIELDS },
+    BlockSchema { base: &["024", "e"], name: "Strategy Room", plural: "Strategy Room", is_list: false, element_name: None, fields: STRATEGY_ROOM_FIELDS },
     BlockSchema { base: &["025"], name: "Fishing", plural: "Fishing", is_list: false, element_name: None, fields: FISHING_FIELDS },
     BlockSchema { base: &["025", "g"], name: "Fishing Rod", plural: "Fishing Rods", is_list: true, element_name: elem("a", Resolve::Material), fields: FISHING_ROD_FIELDS },
     BlockSchema { base: &["025", "h"], name: "Bait", plural: "Bait", is_list: true, element_name: elem("a", Resolve::Material), fields: FISHING_BAIT_FIELDS },

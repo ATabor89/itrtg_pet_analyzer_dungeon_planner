@@ -234,6 +234,16 @@ fn seed() -> Vec<FieldDef> {
         def(&["T"], "Baal Slayer (Baal Power)", Text, RawTree, ""),
         def(&["P"], "Current God Fight", Text, RawTree, ""),
         def(&["025"], "Fishing", Text, RawTree, ""),
+        // Pet Village (root.024 = PPKCEMJNHPA): 7 building sub-structs. Dojo (d)
+        // and Strategy Room (e) carry field labels via BLOCKS; the rest are named
+        // containers here.
+        def(&["024"], "Pet Village", Text, RawTree, ""),
+        def(&["024", "b"], "Tavern", Text, RawTree, "Pet Village building"),
+        def(&["024", "f"], "Museum", Text, RawTree, "Pet Village building"),
+        def(&["024", "g"], "Material Factory", Text, RawTree, "Pet Village building (Pack Mule worked here)"),
+        def(&["024", "h"], "Alchemy Hut", Text, RawTree, "Pet Village building (Lamb worked here)"),
+        // 024.i = Divine Hut (HPACHDJMLLP) — absent in the ref save (unbuilt), so
+        // not labeled here to satisfy the coverage test; documented in FINDINGS.
         def(&["009"], "SpaceDim (Light Dimension)", Text, RawTree, ""),
         def(&["009", "d"], "Light Clone Resets", Number, RawTree, "Resets the escalating Light Clone cost (009.d)"),
         def(&["032"], "Adventure / Research", Text, RawTree, ""),
