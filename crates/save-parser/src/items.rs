@@ -1364,6 +1364,175 @@ pub fn adventure_skill_name(id: u32) -> Option<&'static str> {
     })
 }
 
+/// Adventure-mode **craftable gear** name by id — the game's `LEIFLPFLEHJ` enum
+/// (`Assembly-CSharp`); the AdvCrafting target (`032.b.k → MANFDMLBOMG.a`).
+/// Armor sets 1–51, wands/bows/books 200–212, accessories 400/499 & 700–712,
+/// weapons 500–521, metal armor 600–619.
+pub fn adventure_craft_gear_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        0 => "None",
+        1 => "Cloth Mantle",
+        2 => "Cloth Bracers",
+        3 => "Cloth Boots",
+        4 => "Cloth Hood",
+        5 => "Cloth Pants",
+        6 => "Leather Belt",
+        7 => "Leather Shirt",
+        8 => "Leather Bracers",
+        9 => "Leather Boots",
+        10 => "Leather Helmet",
+        11 => "Leather Pants",
+        12 => "Blazing Mantle",
+        13 => "Blazing Bracers",
+        14 => "Blazing Boots",
+        15 => "Blazing Hood",
+        16 => "Blazing Pants",
+        17 => "Aim Chest Piece",
+        18 => "Aim Bracers",
+        19 => "Aim Boots",
+        20 => "Aim Hat",
+        21 => "Aim Pants",
+        22 => "Dark Leather Mantle",
+        23 => "Dark Leather Bracers",
+        24 => "Dark Leather Boots",
+        25 => "Dark Leather Hood",
+        26 => "Dark Leather Pants",
+        27 => "Holy Chest Piece",
+        28 => "Holy Bracers",
+        29 => "Holy Boots",
+        30 => "Holy Hood",
+        31 => "Holy Pants",
+        32 => "Training Mail",
+        33 => "Training Bracers",
+        34 => "Training Boots",
+        35 => "Training Helmet",
+        36 => "Training Pants",
+        37 => "Hunting Shirt",
+        38 => "Hunting Bracers",
+        39 => "Hunting Boots",
+        40 => "Hunting Hood",
+        41 => "Hunting Pants",
+        42 => "Earthen Mantle",
+        43 => "Earthen Bracers",
+        44 => "Earthen Boots",
+        45 => "Earthen Mask",
+        46 => "Earthen Skirt",
+        47 => "Aero Chest Piece",
+        48 => "Aero Bracers",
+        49 => "Aero Boots",
+        50 => "Aero Hood",
+        51 => "Aero Skirt",
+        200 => "Wooden Wand",
+        201 => "Magic Book",
+        202 => "Short Bow",
+        203 => "Hidden Book",
+        204 => "Beech Bow",
+        205 => "Oak Bow",
+        206 => "Blazing Wand",
+        207 => "Holy Book",
+        208 => "Earthen Wand",
+        209 => "Wise Book",
+        210 => "Teak Bow",
+        211 => "Teak Wand",
+        212 => "Aero Wand",
+        400 => "Acc 1",
+        499 => "Tsury Finke",
+        500 => "Rusty Knife",
+        501 => "Metal Knuckles",
+        502 => "Metal Dagger",
+        503 => "Wooden Shield",
+        504 => "Metal Sword",
+        505 => "Metal Spear",
+        506 => "Iron Knuckles",
+        507 => "Iron Dagger",
+        508 => "Iron Shield",
+        509 => "Iron Sword",
+        510 => "Iron Spear",
+        511 => "Iron Wand",
+        512 => "Bronze Knuckles",
+        513 => "Bronze Dagger",
+        514 => "Bronze Shield",
+        515 => "Bronze Sword",
+        516 => "Bronze Spear",
+        517 => "Cobalt Knuckles",
+        518 => "Cobalt Dagger",
+        519 => "Cobalt Shield",
+        520 => "Cobalt Sword",
+        521 => "Cobalt Spear",
+        600 => "Metal Helmet",
+        601 => "Metal Boots",
+        602 => "Metal Bracers",
+        603 => "Metal Pants",
+        604 => "Metal Chest",
+        605 => "Iron Helmet",
+        606 => "Iron Boots",
+        607 => "Iron Bracers",
+        608 => "Iron Pants",
+        609 => "Iron Chest",
+        610 => "Bronze Helmet",
+        611 => "Bronze Boots",
+        612 => "Bronze Bracers",
+        613 => "Bronze Pants",
+        614 => "Bronze Chest",
+        615 => "Aquatic Helmet",
+        616 => "Aquatic Boots",
+        617 => "Aquatic Bracers",
+        618 => "Aquatic Pants",
+        619 => "Aquatic Chest",
+        700 => "Metal Ring",
+        701 => "Metal Necklace",
+        702 => "Golden Belt",
+        703 => "Glass Dagger",
+        704 => "Bronze Necklace",
+        705 => "Bronze Ring",
+        706 => "Cobalt Necklace",
+        707 => "Cobalt Ring",
+        708 => "Golden Cape",
+        709 => "Golden Necklace",
+        710 => "Golden Ring",
+        711 => "Spy Glass",
+        712 => "Cauldron",
+        _ => return None,
+    })
+}
+
+/// Adventure-mode **alchemy recipe** name by id — the game's `DLCMNADKOJK` enum
+/// (`Assembly-CSharp`); the AdvAlchemy product (`032.b.n → JADFDPJGJPA.a`).
+/// HP/MP potion tiers (Basic→Godly), an `I`-prefixed second series, and the
+/// effect potions. (Sequential enum, ids 0–26.)
+pub fn adventure_recipe_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 27] = [
+        "None",
+        "Basic HP",
+        "HP",
+        "Good HP",
+        "Super HP",
+        "Godly HP",
+        "Basic MP",
+        "MP",
+        "Good MP",
+        "Super MP",
+        "Godly MP",
+        "I Basic HP",
+        "I HP",
+        "I Good HP",
+        "I Super HP",
+        "I Godly HP",
+        "I Basic MP",
+        "I MP",
+        "I Good MP",
+        "I Super MP",
+        "I Godly MP",
+        "Burning",
+        "Freezing",
+        "Geo",
+        "Acid",
+        "Black",
+        "Luminary",
+    ];
+    NAMES.get(id as usize).copied()
+}
+
 /// Equipment slot category.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EquipCategory {
@@ -1749,6 +1918,19 @@ mod tests {
         assert_eq!(adventure_skill_name(603), Some("Run 10k"));
         assert_eq!(adventure_skill_name(1001), Some("Mana Arrow"));
         assert_eq!(adventure_skill_name(200), None); // gap
+    }
+
+    #[test]
+    fn adventure_craft_and_recipe_names() {
+        assert_eq!(adventure_craft_gear_name(1), Some("Cloth Mantle"));
+        assert_eq!(adventure_craft_gear_name(200), Some("Wooden Wand"));
+        assert_eq!(adventure_craft_gear_name(509), Some("Iron Sword"));
+        assert_eq!(adventure_craft_gear_name(712), Some("Cauldron"));
+        assert_eq!(adventure_craft_gear_name(52), None); // gap (51→200)
+        assert_eq!(adventure_recipe_name(1), Some("Basic HP"));
+        assert_eq!(adventure_recipe_name(10), Some("Godly MP"));
+        assert_eq!(adventure_recipe_name(26), Some("Luminary"));
+        assert_eq!(adventure_recipe_name(27), None);
     }
 
     #[test]
