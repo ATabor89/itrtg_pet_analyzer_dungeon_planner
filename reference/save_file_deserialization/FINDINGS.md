@@ -326,7 +326,11 @@ Per-pet trackers: 089 Chocobear banked hours, 169 Pandora feedings (observed
 **negative** −28 just after rebirth), 185 Earth Eater planets total
 (lifetime; the per-rebirth twin lives at root `018` — identical deltas
 across the saves, +42,574, and the 1/s rate matches the user's timeline), 186
-Aether boss kills (the Aether Ring "+28"), 216 Pignata bashes, 218 God Power
+Aether boss kills (the Aether Ring "+28"; **C#-confirmed** — the pet evo gate
+`DFLAKHONNPC` checks `root.x.186 >= 25` for Aether, and `NAKBHGFCICI` renders as
+"Aether Ring +N"; also a factor in Aether's growth-campaign bonus. Labeled in the
+save editor as Statistics → "Aether Ring lvl / Delirious Essence wins"), 216
+Pignata bashes, 218 God Power
 campaign hours, 234 Meteor campaign hours, 259 Caterpillar materials, 310
 Mule quests, 311 Gold Dragon bonus growth, 324 Serow items saved, 336 Bag
 bonus growth. Globals: 013 AFK clones killed, 049 day-pet-challenge multi,
