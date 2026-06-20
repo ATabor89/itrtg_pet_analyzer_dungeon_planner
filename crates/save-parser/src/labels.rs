@@ -253,11 +253,17 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
 pub const MUSEUM_STATUE_FIELDS: &[FieldLabel] =
     &[lbl!("a", "Level"), lblr!("b", "Statue", Resolve::Statue)];
 
-/// Planet system — `root.T` (`AIDFNOPNJGK`, marker "Planet"). `h` = unspent
-/// **Baal Power** (player-confirmed; spent on Light Clones that fight the UBs).
+/// Planet system — `root.T` (`AIDFNOPNJGK`, marker "Planet"). `d` = **planet
+/// level** (drives the planet name tiers; level 1-5 from feeding planet/earthlike/
+/// sun/solar-system/universe, then +1 per Ultimate Universe Challenge; the
+/// effective level for power adds the UUC count on top). `h` = unspent **Baal
+/// Power** (player-confirmed; spent on Light Clones that fight the UBs).
 /// The Planet Multiplier is computed (base 100% + Powersurge `T.k` + UB-kill
 /// `T.f` contributions), not a stored scalar.
-pub const PLANET_FIELDS: &[FieldLabel] = &[lbl!("h", "Unspent Baal Power")];
+pub const PLANET_FIELDS: &[FieldLabel] = &[
+    lbl!("d", "Planet Level"),
+    lbl!("h", "Unspent Baal Power"),
+];
 
 /// Planet — Powersurges — `T.k.<index>` (`FPBMNCNKPHN`), one per UB. `c` = UB id,
 /// `a` = multiplier % (≈100 base), `b` = level. Drives "Multi from Powersurge".
