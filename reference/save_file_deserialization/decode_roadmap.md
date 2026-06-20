@@ -73,10 +73,17 @@ data point per event item at a known quality/plus to sanity-check each `base`
   classes, experience, stats, and the crafting/smithing/alchemy progression.
 - **Gain:** a whole secondary game mode currently only partly mapped (researches,
   inventory `032.d`, cores `032.G` done).
-- **Status:** decode the `032` sub-blocks via the C# (find the `root.032` class
-  and its sub-structs). Mostly C#-tractable; enums for skills/classes likely exist.
-- **Need from user:** likely nothing to start (C# + the existing Steam saves);
-  may want an Adventure-mode stats screenshot to cross-check derived stats.
+- **Status:** **structurally complete (2026-06-19).** All `root.032` sub-blocks
+  decoded: the single adventurer (`032.b`, class/level/exp/skills wired into the
+  save-editor), and every list key labeled — `c` adventure equipment, `d`
+  inventory, `j` AdvSkill, `m` AdvPotion, `G` cores, `L` MonsterCoreProgress, `R`
+  bestiary battle-stats, `U` AdventureArea. Content enums (class/skill/enemy/
+  material/craft-gear/recipe) are in `items.rs`, diff-verified vs C#. Only `z` =
+  `NKAIFFEMNBO` (not string-deserialized) and a couple bool flags remain unnamed
+  — per-instance state the planner doesn't model.
+- **Need from user:** nothing required. An Adventure-mode stats screenshot would
+  let us cross-check *derived* stats if we later model them, but the structure is
+  done.
 
 ### 3. Growth Chamber unexplained ×2 (the "rogue"/stray multiplier)  — MEDIUM
 - **What:** the chamber sim's `adv_xp_mult = 4.0` = (Camp Exp Boost ×2) × an
