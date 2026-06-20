@@ -58,15 +58,17 @@ data point per event item at a known quality/plus to sanity-check each `base`
 - **What:** the challenge system — per-challenge completion/levels, ChP
   total/used/available, Overflow Points.
 - **Gain:** big unmodeled progression axis; ChP upgrades feed many bonuses.
-- **Status:** ChP "available" shown to be *derived* (no stored scalar) in earlier
-  probing; Overflow Points likely a stored counter inside the statistics block
-  `ACDDNFHBJCD` (root `O`). Needs C# tracing of the challenge block + the ChP
-  total/used/derive logic.
-- **Need from user:** a before/after **Steam** save pair around a known change —
-  e.g. complete one challenge (or spend/earn a known # of ChP / Overflow Points)
-  and export immediately before and after. Note the exact in-game ChP
-  total/used/available and Overflow Points at each capture. That pins the fields
-  fast (the value-shape search already ruled out plain storage for ChP-available).
+- **Status (updated 2026-06-20):** **per-challenge completion counts LOCATED** —
+  stored in the Statistics block `root.x` (`LLMCMCKAABP`), one field per challenge,
+  read by `HAKKBJKMHFN(OIDDHCOBPLG)`. Candidate key map extracted from the real
+  deserializer (UUC=`x.H`, AAC=`x.002`, NRC=`x.017`, … see FINDINGS / `_PROGRESS.md`).
+  **Pending validation** (committed save has all challenge counts 0). ChP total/
+  used/available + Overflow Points still need C# tracing / a before-after save.
+- **Need from user:** (a) to *validate+wire* completions, one in-game count to
+  anchor (e.g. "All Achievements Challenge = 10" → confirm `x.002`=10); then I
+  wire all ~39. (b) For ChP/Overflow: a before/after **Steam** save pair around a
+  known change (complete a challenge / spend known ChP), with the exact in-game
+  ChP total/used/available + Overflow Points at each capture.
 
 ### 2. Adventure mode (skills, classes, exp, stats, crafting/smithing/alchemy)  — HIGH
 - **What:** the full Adventure-mode subsystem (`root.032`): adventurer skills,
