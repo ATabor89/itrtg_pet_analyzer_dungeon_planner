@@ -305,7 +305,7 @@ mod tests {
     /// must exist; a wildcard pattern must resolve on at least one element of its
     /// list (so optional per-element fields don't cause false negatives, while a
     /// typo'd key — present on no element — is still caught).
-    fn pattern_resolves(session: &EditSession, pat: &[&'static str]) -> bool {
+    fn pattern_resolves(session: &EditSession, pat: &[&str]) -> bool {
         match pat.iter().position(|s| *s == "*") {
             None => session.path_exists(pat),
             Some(star) => {
@@ -317,7 +317,9 @@ mod tests {
                         let mut full: Vec<&str> = base.to_vec();
                         full.push(idx.as_str());
                         full.extend(suffix.iter().copied());
-                        session.path_exists(&full)
+                        // Recurse so further wildcards (nested lists, e.g. a team's
+                        // pending-loot entries `X.S.*.c.*`) are expanded too.
+                        pattern_resolves(session, &full)
                     }),
                     // A 1-element list re-parses as a lone struct (list_or_single):
                     // the element *is* the struct at `base`, so the field sits at
@@ -325,7 +327,7 @@ mod tests {
                     Some(Raw::Struct(_)) => {
                         let mut full: Vec<&str> = base.to_vec();
                         full.extend(suffix.iter().copied());
-                        session.path_exists(&full)
+                        pattern_resolves(session, &full)
                     }
                     _ => false,
                 }
