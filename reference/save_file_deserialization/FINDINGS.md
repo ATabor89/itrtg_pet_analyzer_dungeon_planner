@@ -421,7 +421,16 @@ mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
     `LEIFLPFLEHJ` (122 → `items::adventure_craft_gear_name`) and alchemy-recipe
     `DLCMNADKOJK` (27 → `items::adventure_recipe_name`) enums are now transcribed
     + diff-verified.
-  - Remaining list keys (`c`/`j`/`m`/`t`/`L`/`R`/`U`) + bool flags to map.
+  - **List keys** (each `&`-joined; element class → purpose, from `FromString`
+    markers): `c` = `DDKDNIFCAJO` adventure **equipment** (PetEquip-shaped),
+    `d` = `PMHOCMNLNAE` **inventory** (the `032.d` materials), `j` = `OPPFHHDLOPE`
+    **AdvSkill** (learned skills), `m` = `OLLAMHHGMAE` **AdvPotion** (potions),
+    `G` = `IDDNEKHJMJB` **cores**, `L` = `BOGKBENOHDM` **MonsterCoreProgress**,
+    `R` = `KPJFCPPKHDL` (a **list of MVBattleStats** — the enemy/bestiary
+    battle-stat entities, same class as the single adventurer at `032.b`),
+    `U` = `PPIEAILEOLF` **AdventureArea** (zones). `z` = `NKAIFFEMNBO` (not
+    string-deserialized; still TBD) and a few bool flags remain. The whole
+    `root.032` block is now structurally mapped.
 
 `032.H.a` = **researches** (44 entries, id 0 is a placeholder): `a`=id,
 `b`=level, `c`=in-progress flag, `d`=progress, `f`=max level. Ids 1–43
