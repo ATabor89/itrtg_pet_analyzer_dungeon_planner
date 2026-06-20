@@ -414,7 +414,16 @@ mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
   - `n` (`JADFDPJGJPA`) = **AdvAlchemy**: `a` = recipe (enum `DLCMNADKOJK`),
     `c` = exp/progress, `d`/`e` = levels.
   - `V` (`GIDEBPNNIDA`) = **Bestiary** (per-enemy kill records).
-  - `z` (`NKAIFFEMNBO`) = TBD (not a string-deserialized struct; investigate).
+  - `z` (`NKAIFFEMNBO`, field `LMAELFDLLFN`) = the **currently-active recipe job**
+    — the in-progress item the adventurer is working on, reassigned in the
+    Crafting/Mining/Smithing/Alchemy action handlers
+    (`LMAELFDLLFN = IMMBOLLGALI; HNOONEJHFDF(DCCKNPICIKG.Crafting, …)`).
+    `NKAIFFEMNBO` *subclasses* the AdvCrafting base `MANFDMLBOMG` and adds the
+    per-discipline ingredient-table builders (Smithing/Crafting/Battle/Alchemy/
+    Mining). It **is** string-deserialized (constructor → the inherited
+    `EBOFJJHOOLP`) and round-trips at key `z` via `KFIDJLHOBCO()`. (Corrects the
+    earlier "TBD / not string-deserialized" note — it's the active-job mirror of
+    the per-discipline states `k`/`n` above.)
   - The crafting **material** enum `BFNFKADNAKD` (107 ids: raw/refined/enhanced
     tiers + jewels/pills) is the same namespace as `032.d` inventory and is now
     complete in `items::adventure_item_name` (diff-verified). The craftable-gear
@@ -428,8 +437,9 @@ mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
     `G` = `IDDNEKHJMJB` **cores**, `L` = `BOGKBENOHDM` **MonsterCoreProgress**,
     `R` = `KPJFCPPKHDL` (a **list of MVBattleStats** — the enemy/bestiary
     battle-stat entities, same class as the single adventurer at `032.b`),
-    `U` = `PPIEAILEOLF` **AdventureArea** (zones). `z` = `NKAIFFEMNBO` (not
-    string-deserialized; still TBD) and a few bool flags remain. The whole
+    `U` = `PPIEAILEOLF` **AdventureArea** (zones). The scalar `z` = `NKAIFFEMNBO`
+    is the **active recipe job** (see the sub-structs list above — it *is*
+    string-deserialized). Only a few bool flags remain unnamed. The whole
     `root.032` block is now structurally mapped.
 
 `032.H.a` = **researches** (44 entries, id 0 is a placeholder): `a`=id,
