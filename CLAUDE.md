@@ -92,11 +92,12 @@ cargo clippy --workspace --all-targets
 ## Save-file privacy — NEVER commit a raw save
 
 This repo is **public**, and a raw ITRTG save embeds the player's Steam id,
-account/persona names, and god name inside `base64(gzip(base64(...)))` (root
-fields `s`, `W`, `001`–`004`). The committed saves in
-`reference/save_file_deserialization/` are **redacted fixtures** with those
-fields replaced by placeholders (`RedactedGod`/`RedactedAccount`/zeros). Their
-structural data is intact, so all cross-checks still hold.
+account/persona names, god name, and linked **Kongregate user id** inside
+`base64(gzip(base64(...)))` (root fields `s`, `r`, `W`, `001`–`004`). The
+committed saves in `reference/save_file_deserialization/` are **redacted
+fixtures** with those fields replaced by placeholders
+(`RedactedGod`/`RedactedAccount`/zeros). Their structural data is intact, so all
+cross-checks still hold.
 
 When adding a new save, **redact it before committing**:
 
