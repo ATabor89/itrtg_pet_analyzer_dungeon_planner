@@ -91,11 +91,13 @@ fn parse_value(text: &str, depth: usize) -> Raw {
         return Raw::Base64(Box::new(parse_value(&decoded, depth + 1)));
     }
 
-    if tree::looks_like_struct(text) {
-        let fields = split_fields(text, depth);
-        if fields.len() > 1 || text.ends_with(';') {
-            return Raw::Struct(fields);
-        }
+    // Only commit a struct when the text is `;`-terminated. The serializer ends
+    // every struct field with `;`, so any genuine (game-produced) struct ends
+    // with `;`; requiring it keeps `serialize(parse(x)) == x` faithful even for
+    // contrived base64-wrapped values that decode to bare-key text without a
+    // trailing `;` (e.g. `base64("a;b")`), which would otherwise gain a `;`.
+    if text.ends_with(';') && tree::looks_like_struct(text) {
+        return Raw::Struct(split_fields(text, depth));
     }
 
     Raw::Scalar(text.to_string())
@@ -564,6 +566,48 @@ mod tests {
         assert_eq!(r2.get_path(&["Q", "a=159", "b"]), Some(&Raw::Scalar("99".into())));
         // A selector that matches nothing errors, not panics.
         assert!(r.set_scalar_path(&["Q", "a=999", "b"], "1").is_err());
+    }
+
+    #[test]
+    fn struct_with_leading_empty_key_parses_and_round_trips() {
+        // The Pet Village Tavern serializes with a leading empty-valued key:
+        // `a;b:4;c;d:5553;…` (and `x:10&11&26` whose value contains `&`).
+        // Previously `looks_like_struct` required the first field to have a
+        // colon, so the whole thing stayed a raw scalar.
+        let tavern = "a;b:4;c;d:5553;x:10&11&26;";
+        let r = parse(&format!("024:{};z:1;", b64(tavern)));
+        assert_eq!(r.get_path(&["024", "b"]), Some(&Raw::Scalar("4".into())));
+        assert_eq!(r.get_path(&["024", "d"]), Some(&Raw::Scalar("5553".into())));
+        // The `&`-valued field stays a scalar (not split into a list).
+        assert_eq!(r.get_path(&["024", "x"]), Some(&Raw::Scalar("10&11&26".into())));
+        assert_round_trips(&format!("024:{};z:1;", b64(tavern)));
+    }
+
+    #[test]
+    fn empty_struct_base64_is_decoded_not_left_raw() {
+        // An empty building serializes to base64("a;") = "YTs=" (4 chars). The
+        // old min-length-8 guard left it as a raw scalar; now it decodes.
+        assert_eq!(b64("a;"), "YTs=");
+        let r = parse("f:YTs=;g:1;");
+        // `f` now decodes and peels to a struct (with the lone empty key `a`),
+        // instead of being left as the raw scalar "YTs=".
+        assert!(matches!(r.get_path(&["f"]).unwrap().peel(), Raw::Struct(_)));
+        assert_round_trips("f:YTs=;g:1;");
+    }
+
+    #[test]
+    fn base64_non_terminated_struct_text_stays_faithful() {
+        // A base64-wrapped value decoding to bare-key text WITHOUT a trailing `;`
+        // (e.g. `a;b`) must NOT be committed as a struct (which would re-serialize
+        // as `a;b;`). The `;`-termination guard keeps it faithful.
+        for inner in ["a;b", "ab;cd", "a:1;b:2"] {
+            let s = format!("k:{};z:1;", b64(inner));
+            assert_round_trips(&s);
+        }
+        // A `;`-terminated one is a real struct and still parses as such.
+        let s = format!("k:{};z:1;", b64("a;b:4;"));
+        assert!(matches!(parse(&s).get_path(&["k"]).unwrap().peel(), Raw::Struct(_)));
+        assert_round_trips(&s);
     }
 
     #[test]
