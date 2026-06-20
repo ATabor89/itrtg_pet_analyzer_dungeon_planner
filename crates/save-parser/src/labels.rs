@@ -76,6 +76,9 @@ pub enum Resolve {
     /// Favorite/Hate campaign id, stored **offset by 1** (`0` = unset) →
     /// `items::campaign_type_name(id - 1)`.
     CampaignPref,
+    /// Campaign-slot type id (`AGGDKICFOAI`, *no* offset) →
+    /// `items::campaign_type_name(id)` (0 = Growth).
+    CampaignType,
     /// Pet feeding-setting id → `items::feeding_setting_name`.
     FeedingSetting,
     /// Gem element id → `items::gem_element_name` (the full set incl.
@@ -216,6 +219,13 @@ pub const DUNGEON_TEAM_FIELDS: &[FieldLabel] = &[
 pub const PENDING_LOOT_FIELDS: &[FieldLabel] =
     &[lblr!("a", "Item Id", Resolve::Material), lbl!("b", "Count")];
 
+/// The Challenge team — `X.Z` (a single `PCDCANGLENI`, same class as a dungeon
+/// team; C# `NMGIGAGPLCL`). `a` = members (`&`-joined pet ids). Its own inventory
+/// lives at `c` (same shape as a team's pending loot), but it's empty in the
+/// reference save so it isn't labeled here. (Challenges have no
+/// difficulty/depth/timer, so those team fields are unused.)
+pub const CHALLENGE_TEAM_FIELDS: &[FieldLabel] = &[lbl!("a", "Member Pet Type Ids")];
+
 /// Active dungeon runs — `X.P.<index>` (`MKDNAHGDLPI`). `a`=dungeon id,
 /// `b`=elapsed ms (counts up to `c`), `c`=target duration ms (43,200,000 = 12 h),
 /// `d`=depth, `f`=team index (ties the run to its `X.S` team). `e`/`j` are RNG
@@ -230,11 +240,15 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
     lbl!("j", "RNG seed (j)"),
 ];
 
-/// Campaign slots — `X.x.<index>`.
+/// Campaign slots — `X.x.<index>` (`FMOLELEHAFD`). `a` = campaign type
+/// (`AGGDKICFOAI`), `c` = elapsed ms (counts up to `e`), `e` = target duration ms
+/// (43,200,000 = 12 h) — same elapsed/target shape as a dungeon run, so setting
+/// `c` = `e` completes the campaign. `d` = `&`-joined pet type ids.
 pub const CAMPAIGN_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Slot Index"),
+    lblr!("a", "Campaign Type", Resolve::CampaignType),
+    lbl!("c", "Elapsed (ms)"),
     lbl!("d", "Pet Type Ids"),
-    lbl!("e", "Duration (ms)"),
+    lbl!("e", "Target Duration (ms)"),
     lbl!("f", "Bonus"),
 ];
 
@@ -439,7 +453,8 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "S"], name: "Dungeon Team", plural: "Dungeon Teams", is_list: true, element_name: elem("i", Resolve::Literal), fields: DUNGEON_TEAM_FIELDS },
     BlockSchema { base: &["X", "S", "*", "c"], name: "Pending Loot", plural: "Pending Loot", is_list: true, element_name: elem("a", Resolve::Material), fields: PENDING_LOOT_FIELDS },
     BlockSchema { base: &["X", "P"], name: "Active Dungeon Run", plural: "Active Dungeon Runs", is_list: true, element_name: elem("a", Resolve::Dungeon), fields: ACTIVE_DUNGEON_FIELDS },
-    BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: None, fields: CAMPAIGN_FIELDS },
+    BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: elem("a", Resolve::CampaignType), fields: CAMPAIGN_FIELDS },
+    BlockSchema { base: &["X", "Z"], name: "Challenge Team", plural: "Challenge Team", is_list: false, element_name: None, fields: CHALLENGE_TEAM_FIELDS },
     BlockSchema { base: &["032", "H", "a"], name: "Research", plural: "Researches", is_list: true, element_name: elem("a", Resolve::Research), fields: RESEARCH_FIELDS },
     BlockSchema { base: &["032", "d"], name: "Adventure Item", plural: "Adventure Inventory", is_list: true, element_name: elem("a", Resolve::AdventureItem), fields: ADVENTURE_ITEM_FIELDS },
     BlockSchema { base: &["032", "G"], name: "Core", plural: "Cores", is_list: true, element_name: elem("a", Resolve::CoreNode), fields: CORE_FIELDS },

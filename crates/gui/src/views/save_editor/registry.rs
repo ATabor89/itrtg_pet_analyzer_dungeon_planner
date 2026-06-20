@@ -261,6 +261,8 @@ fn seed() -> Vec<FieldDef> {
         def(&["p", "019"], "Dungeon Exp % (upgrade)", Text, RawTree, "p.019"),
         def(&["p", "020"], "Crafting Boost % (upgrade)", Text, RawTree, "p.020"),
         def(&["X", "032"], "Crafting Queue Slots", Text, RawTree, "X.032"),
+        def(&["X", "001"], "Challenge Tries Used", Number, RawTree, "available challenges = 10 - this; lower (or negative) to refill"),
+        def(&["X", "017"], "Challenge Max-Tries Upgrade", Number, RawTree, "max challenge tries = 10 + this (ChP upgrade, 0-20 -> max 30)"),
         def(&["x", "k"], "Rebirths", Text, RawTree, "x.k"),
         def(&["O", "030"], "Light Clones", Text, RawTree, "O.030"),
         def(&["018"], "Earth Eater Planets (rebirth)", Text, RawTree, "root 018"),
