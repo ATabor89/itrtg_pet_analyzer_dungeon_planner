@@ -1073,6 +1073,109 @@ pub fn divinity_upgrade_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// Challenge name by id — the `OIDDHCOBPLG` enum (challenge struct field `a`,
+/// `root.x.242` completion list). Ids are the enum's declaration order (None=0).
+/// Display names come from the in-game name strings in `KPLPGPEOFNB` matched to
+/// each abbreviation by initialism; the eleven the player has completed (UUC=2,
+/// DRC=8, UPC=8, AAC=10, UBC=1, CPC=2, PMC=1, MMC=13, GPC=2, PLC=12, BHC=1) were
+/// cross-checked against an in-game capture (2026-06-20). A few legacy enum
+/// slots (OKC, PBC, OKBHC, TLC) have no surviving UI string and keep their raw
+/// abbreviation; `UNUSED` is a retired slot.
+pub fn challenge_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        1 => "Ultimate Universe Challenge",
+        2 => "Black Hole Challenge",
+        3 => "Double Rebirth Challenge",
+        4 => "Ultimate Pet Challenge",
+        5 => "God Skip Challenge",
+        6 => "Clone Buildup Challenge",
+        7 => "OKC", // no surviving UI string
+        8 => "No Divinity Challenge",
+        9 => "Planet Multi Challenge",
+        10 => "All Achievements Challenge",
+        11 => "Ultimate Baal Challenge",
+        12 => "No Rebirth Challenge",
+        13 => "Ultimate Arty Challenge",
+        14 => "Day Baal Challenge",
+        15 => "Day Universe Challenge",
+        16 => "Day Pet Challenge",
+        17 => "Crystal Power Challenge",
+        18 => "PBC", // no surviving UI string
+        19 => "Ultimate Challenge Challenge",
+        20 => "OKBHC", // no surviving UI string
+        21 => "Day Might Challenge",
+        22 => "Day No Divinity Challenge",
+        23 => "Total Might Challenge",
+        24 => "No Rebirth Dungeon Challenge",
+        25 => "Monument Multi Challenge",
+        26 => "SpaceDim Challenge",
+        27 => "Ultimate Beings V2 Challenge",
+        28 => "No Div Monument Challenge",
+        29 => "Overflow Challenge",
+        30 => "RTI Temp Level Challenge",
+        31 => "Patreon Gods Challenge",
+        32 => "God Power Challenge",
+        33 => "Ultimate Gods Challenge",
+        34 => "One CC Challenge",
+        35 => "Ultimate Beings V4 Challenge",
+        36 => "Monster Queen Challenge",
+        37 => "TLC", // no surviving UI string
+        38 => "Light Clone Challenge",
+        39 => "Universes for Clones Challenge",
+        40 => "Ultimate Stats Challenge",
+        41 => "Day No Rebirth Challenge",
+        42 => "Div Gen Challenge",
+        43 => "Max Crystal Challenge",
+        44 => "Ultimate Black Hole Challenge",
+        45 => "No Training Challenge",
+        46 => "Expensive Monument Challenge",
+        47 => "True God Skip Challenge",
+        48 => "Pet Level Challenge",
+        49 => "Unused",
+        50 => "Super Divinity Generator Challenge",
+        51 => "Might Accumulation Challenge",
+        52 => "Day God Power Challenge",
+        53 => "Ultimate Multiverse Challenge",
+        54 => "Day Multiverse Challenge",
+        55 => "Greedy God Challenge",
+        56 => "No Rebirth CP Challenge",
+        57 => "Powerful Unleash Challenge",
+        58 => "Ultimate Overflow Challenge",
+        59 => "SpaceDim Accumulation Challenge",
+        60 => "Day Extreme Building Challenge",
+        61 => "Base Speed Challenge",
+        62 => "Total Growth Challenge",
+        63 => "SpaceDim Reset Challenge",
+        64 => "Super Pet Level Challenge",
+        65 => "Pet Crafting Challenge",
+        66 => "Ultimate Being V1 Challenge",
+        67 => "Limited Clone v4 Challenge",
+        68 => "God Power Accumulation Challenge",
+        69 => "Powersurge Challenge",
+        70 => "No Might No Rebirth Challenge",
+        71 => "Exhausted Training Challenge",
+        72 => "Clone Creator Challenge",
+        73 => "Limited Clone No Rebirth Challenge",
+        74 => "Divinity Accumulation Challenge",
+        75 => "Powerful Worker Challenge",
+        76 => "Boosting Capacity Challenge",
+        _ => return None,
+    })
+}
+
+/// Challenge difficulty by id — the `HOLHIHDKBKA` enum (challenge struct field
+/// `c`). The game folds `Mixed` to `Hard` on load, but the stored value keeps
+/// the four declared variants.
+pub fn challenge_difficulty_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        0 => "Normal",
+        1 => "Hard",
+        2 => "Root",
+        3 => "Mixed",
+        _ => return None,
+    })
+}
+
 /// Adventure-mode inventory item name by id (the `032.d` namespace — distinct
 /// from the main `X.Q` materials and from the core/enemy ids). Player-identified
 /// 2026-06-18 by matching the save's `032.d` list (id `a`, count `b`) against the
@@ -2110,5 +2213,22 @@ mod tests {
         assert_eq!(pond_name(4), Some("Sad Pond")); // committed save's 025.f
         assert_eq!(pond_name(9), Some("Final Pond"));
         assert_eq!(pond_name(10), None);
+    }
+
+    #[test]
+    fn challenge_ids_map_to_names() {
+        // The eleven cross-checked against an in-game capture (2026-06-20).
+        assert_eq!(challenge_name(1), Some("Ultimate Universe Challenge"));
+        assert_eq!(challenge_name(3), Some("Double Rebirth Challenge"));
+        assert_eq!(challenge_name(10), Some("All Achievements Challenge"));
+        assert_eq!(challenge_name(25), Some("Monument Multi Challenge"));
+        assert_eq!(challenge_name(32), Some("God Power Challenge"));
+        assert_eq!(challenge_name(48), Some("Pet Level Challenge"));
+        assert_eq!(challenge_name(76), Some("Boosting Capacity Challenge")); // last id
+        assert_eq!(challenge_name(0), None); // None sentinel
+        assert_eq!(challenge_name(77), None); // past the end
+        assert_eq!(challenge_difficulty_name(0), Some("Normal"));
+        assert_eq!(challenge_difficulty_name(2), Some("Root"));
+        assert_eq!(challenge_difficulty_name(4), None);
     }
 }
