@@ -701,8 +701,14 @@ long ms) = the **"rested"/refreshed crafting-speed timer** — while >0, *"your
 creating speed is tripled"* (Adventure crafting). On return from offline it banks
 **1/6 of the offline time, capped at 10,800,000 ms = 3 h** (`OfflineCalc.cs:277-285`);
 during active play it drains by elapsed time, floored at 0 (`UpdateStats.cs:5053-56`).
-Meanings of `b`/`d` (BigDouble) and `q`/`t`/`u` (bool) still need a per-field
-usage chase. No plain
+**`d`** (`DILEDALONFM`, BigDouble) is **vestigial** — it appears only in its
+property declaration and the (de)serializer; it is never read anywhere in the
+decompiled code (same category as the pet `z`/`D` flags). **`b`**
+(`GDIIPNIODAD`, BigDouble) is a one-shot **pending value consumed at load** (if
+`b`>0 on load it sets the recompute flag `ENLNNIPOEBB` and stashes `b` into a
+root `CCIDPLFLDIA`, then zeroes `b`); its player-facing meaning is unclear and is
+left unnamed. Meanings of `q`/`t`/`u` (bool) still need a per-field usage chase.
+No plain
 stored root integer for Challenge Points was found (consistent with ChP being
 derived); Overflow Points, if stored, sits inside a named sub-block (e.g.
 statistics `O`).
@@ -746,10 +752,11 @@ type/partner id in the reference roster resolves, and the elemental forms match.
 - `X.v` = Chocolate count (resolved), `X.T` = crafting roster (decoded, see its
   section), `X.028` = achievements/milestones catalog (resolved, see the X table),
   pet `t`/`u` = favorite/hate campaign (resolved). Remaining root-struct
-  unknowns are the unnamed scalars in the root deserializer (`b`/`d` BigDouble,
-  `l`/`m`/`n` int = 50/50/50 = Shadow-clone Attack/Defense/HP stat divisors
-  [now pinned]; `U` long = the "rested" tripled-crafting-speed timer [now pinned])
-  and Overflow Points (likely inside a stats sub-block) — all low-value.
+  unknowns are now just the bools `q`/`t`/`u` in the root deserializer (`d`
+  BigDouble = vestigial/unused; `b` BigDouble = a load-time pending value;
+  `l`/`m`/`n` = Shadow-clone Attack/Defense/HP stat divisors; `U` = the "rested"
+  tripled-crafting-speed timer; `r`/`s` = Kong user id / account name — all
+  pinned) and Overflow Points (likely inside a stats sub-block) — all low-value.
 - Material id ↔ name: **`material_name` now transcribes the COMPLETE
   `NCPJFPLCPPK` enum** (`items.rs`) — base materials, keys/alloys/runes, the four
   elemental evolution-quest families (water/`Undine` 106–116, Gnome 126–129,

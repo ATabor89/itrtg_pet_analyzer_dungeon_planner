@@ -126,8 +126,12 @@ data point per event item at a known quality/plus to sanity-check each `base`
   leaked into 9 committed saves, now fixed (added to `redact::IDENTITY_FIELDS`,
   saves re-redacted). The leaked value still lives in git HISTORY → a history
   rewrite/force-push is still needed to fully purge (user-gated, flagged).** The
-  remaining scalars (`b`/`d` BigDouble, `q`/`t`/`u` bool) still need a per-field
-  usage chase; low value individually. No struct sub-blocks remain unopened at root.
+  remaining scalars: **`d` (`DILEDALONFM`, BigDouble) = vestigial** (only in the
+  (de)serializer, never read — like the pet `z`/`D` flags); **`b`
+  (`GDIIPNIODAD`, BigDouble) = a load-time pending value** (transferred to a root
+  `CCIDPLFLDIA` via the `ENLNNIPOEBB` recompute flag, then zeroed; player meaning
+  unclear — left unnamed). Only the bools `q`/`t`/`u` still want a per-field
+  chase; low value individually. No struct sub-blocks remain unopened at root.
 - **Need from user:** occasional targeted before/after Steam saves to pin a
   specific scalar's meaning if one matters.
 
