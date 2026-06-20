@@ -335,8 +335,9 @@ pub const ADVENTURER_FIELDS: &[FieldLabel] = &[
     // `d` (BigDouble) feeds the Attack calc (`0.8 * d/5`); exact role unconfirmed.
     lbl!("d", "Unknown (d)"),
     lblr!("e", "Class", Resolve::AdventureClass),
-    // `f` = list of battle entities (`HGKLOMCJAIM`); role (summons/log?) unconfirmed.
-    lbl!("f", "Battle entities (f)"),
+    // `f` = per-class progression (`HGKLOMCJAIM`): one record per class the player
+    // has leveled (class levels track independently). See CLASS_PROGRESSION_FIELDS.
+    lbl!("f", "Class Progression"),
     lbl!("g", "Battle Skills"), // PGEICDFPINA = AdvBattleSkill instances
     // `h` (a second skill-id list) is omitted when empty — present only when the
     // adventurer has skills in that slot, so it is intentionally NOT labeled
@@ -359,6 +360,15 @@ pub const ADVENTURER_FIELDS: &[FieldLabel] = &[
     lbl!("t", "Skill Loadout"),    // OKOCFJJNMAK = SetSkill assignments
 ];
 
+/// Adventure-mode per-class progression — `032.b.f.<index>` (`HGKLOMCJAIM`).
+/// One entry per class the player has leveled; class levels advance independently.
+pub const CLASS_PROGRESSION_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Class", Resolve::AdventureClass),
+    lbl!("b", "Level"),
+    lbl!("c", "Exp"),
+    lbl!("d", "Unknown (d)"), // small flag/counter (live 0/1)
+];
+
 /// Title each element from one of its fields (id → name).
 const fn elem(key: &'static str, resolve: Resolve) -> Option<ElementName> {
     Some(ElementName { key, resolve })
@@ -376,6 +386,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["032", "d"], name: "Adventure Item", plural: "Adventure Inventory", is_list: true, element_name: elem("a", Resolve::AdventureItem), fields: ADVENTURE_ITEM_FIELDS },
     BlockSchema { base: &["032", "G"], name: "Core", plural: "Cores", is_list: true, element_name: elem("a", Resolve::CoreNode), fields: CORE_FIELDS },
     BlockSchema { base: &["032", "b"], name: "Adventurer", plural: "Adventurer", is_list: false, element_name: None, fields: ADVENTURER_FIELDS },
+    BlockSchema { base: &["032", "b", "f"], name: "Class Progression", plural: "Class Progression", is_list: true, element_name: elem("a", Resolve::AdventureClass), fields: CLASS_PROGRESSION_FIELDS },
     BlockSchema { base: &["i"], name: "Creation", plural: "Creations", is_list: true, element_name: elem("a", Resolve::Creation), fields: CREATION_FIELDS },
     BlockSchema { base: &["D"], name: "Monument", plural: "Monuments", is_list: true, element_name: elem("a", Resolve::Monument), fields: MONUMENT_FIELDS },
     BlockSchema { base: &["V"], name: "Might", plural: "Mights", is_list: true, element_name: elem("a", Resolve::Might), fields: MIGHT_FIELDS },
