@@ -249,6 +249,22 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
 pub const MUSEUM_STATUE_FIELDS: &[FieldLabel] =
     &[lbl!("a", "Level"), lblr!("b", "Statue", Resolve::Statue)];
 
+/// Worker buildings — Material Factory `024.g` (`CHDGDEINMHO`) and Alchemy Hut
+/// `024.h` (`GABIFCBBMPH`), both extending `ANECMNGBLNI`. `a` = level, `e` =
+/// manager slot (pet type id; 999 = empty), `d` = worker pet-slot list.
+pub const WORKER_BUILDING_FIELDS: &[FieldLabel] = &[
+    lbl!("a", "Level"),
+    lblr!("e", "Manager (pet type id)", Resolve::PetType),
+];
+
+/// A worker building's pet slot — `024.{g,h}.d.<index>` (`FGKIILDKMEA`). `a` =
+/// pet type id (999 = empty), `d` = work progress/exp. `b`/`c` are the
+/// in-progress craft (nested sub-structs, unconfirmed).
+pub const WORKER_SLOT_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Pet Type Id", Resolve::PetType),
+    lbl!("d", "Work Progress"),
+];
+
 /// Pet Village Tavern — `024.b` (`IOBPPFGEBCD`). Runs pet quests. Player-mapped:
 /// `b` = level, `c` = upgrade-elapsed timer, `d` = **Quest Points**, `i` = quests
 /// per day, `j` = max concurrent quests, `u` = Tavern Keeper slot (999 = empty),
@@ -532,6 +548,10 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["024", "d"], name: "Dojo", plural: "Dojo", is_list: false, element_name: None, fields: DOJO_FIELDS },
     BlockSchema { base: &["024", "e"], name: "Strategy Room", plural: "Strategy Room", is_list: false, element_name: None, fields: STRATEGY_ROOM_FIELDS },
     BlockSchema { base: &["024", "f", "a"], name: "Museum Statue", plural: "Museum Statues", is_list: true, element_name: elem("b", Resolve::Statue), fields: MUSEUM_STATUE_FIELDS },
+    BlockSchema { base: &["024", "g"], name: "Material Factory", plural: "Material Factory", is_list: false, element_name: None, fields: WORKER_BUILDING_FIELDS },
+    BlockSchema { base: &["024", "h"], name: "Alchemy Hut", plural: "Alchemy Hut", is_list: false, element_name: None, fields: WORKER_BUILDING_FIELDS },
+    BlockSchema { base: &["024", "g", "d"], name: "Worker", plural: "Workers", is_list: true, element_name: elem("a", Resolve::PetType), fields: WORKER_SLOT_FIELDS },
+    BlockSchema { base: &["024", "h", "d"], name: "Worker", plural: "Workers", is_list: true, element_name: elem("a", Resolve::PetType), fields: WORKER_SLOT_FIELDS },
     BlockSchema { base: &["025"], name: "Fishing", plural: "Fishing", is_list: false, element_name: None, fields: FISHING_FIELDS },
     BlockSchema { base: &["025", "g"], name: "Fishing Rod", plural: "Fishing Rods", is_list: true, element_name: elem("a", Resolve::Material), fields: FISHING_ROD_FIELDS },
     BlockSchema { base: &["025", "h"], name: "Bait", plural: "Bait", is_list: true, element_name: elem("a", Resolve::Material), fields: FISHING_BAIT_FIELDS },
