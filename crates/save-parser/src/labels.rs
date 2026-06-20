@@ -332,24 +332,31 @@ pub const ADVENTURER_FIELDS: &[FieldLabel] = &[
     lblr!("a", "Entity", Resolve::AdventureEnemy),
     lbl!("b", "Level"),
     lbl!("c", "Exp"),
-    lbl!("d", "Stat (d)"),
+    // `d` (BigDouble) feeds the Attack calc (`0.8 * d/5`); exact role unconfirmed.
+    lbl!("d", "Unknown (d)"),
     lblr!("e", "Class", Resolve::AdventureClass),
-    lbl!("f", "List (f)"),
-    lbl!("g", "List (g)"),
+    // `f` = list of battle entities (`HGKLOMCJAIM`); role (summons/log?) unconfirmed.
+    lbl!("f", "Battle entities (f)"),
+    lbl!("g", "Battle Skills"), // PGEICDFPINA = AdvBattleSkill instances
     // `h` (a second skill-id list) is omitted when empty — present only when the
-    // adventurer has skills in that slot. `i` is the populated skill-id list
-    // (e.g. `19&6&48&5` = Dodge / Speed Boost / Dual Wield / Drops Boost).
+    // adventurer has skills in that slot, so it is intentionally NOT labeled
+    // (the registry test requires every labeled path to exist in the ref save).
+    // `i` is the populated skill-id list (e.g. `19&6&48&5` = Dodge / Speed Boost
+    // / Dual Wield / Drops Boost).
     lbl!("i", "Skill Ids (&-list)"),
-    lbl!("j", "Stat (j)"),
-    lbl!("k", "Stat (k)"),
-    lbl!("l", "Stat (l)"),
-    lbl!("m", "List (m)"),
-    lbl!("n", "Stat (n)"),
-    lbl!("o", "Stat (o)"),
-    lbl!("p", "Stat (p)"),
-    lbl!("q", "Int (q)"),
-    lbl!("r", "Int (r)"),
-    lbl!("t", "List (t)"),
+    // `j`/`k` are stored BigDoubles with no in-class reads (live: 136 / 1,064,697)
+    // — meaning unconfirmed. `l` tracks a running maximum of something (live 1923).
+    lbl!("j", "Unknown (j)"),
+    lbl!("k", "Unknown (k)"),
+    lbl!("l", "Unknown (l)"),
+    lbl!("m", "Equipment"), // DDKDNIFCAJO = adventure gear (same class as 032.c)
+    lbl!("n", "Current HP"),       // clamped to max-HP method INJMAMDMHFJ()
+    lbl!("o", "Current MP"),       // clamped to max-MP method AKAIHHFEFMM()
+    lbl!("p", "Recovery timer"),   // >0 shows "Recovering"; 0 = active
+    lbl!("q", "Screen X"),         // entity UI x-position (FLCAOMHAGOB, default 110)
+    lbl!("r", "Screen Y"),         // entity UI y-position (NJHJAPPCPAA, default 150)
+    lbl!("s", "Active Pill"),      // BEFDMHPNDHH = AdvPill buff (feeds Attack)
+    lbl!("t", "Skill Loadout"),    // OKOCFJJNMAK = SetSkill assignments
 ];
 
 /// Title each element from one of its fields (id → name).

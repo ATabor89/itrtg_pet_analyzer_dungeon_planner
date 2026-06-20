@@ -392,19 +392,40 @@ mapped 2026-06-19 via the C#; meanings of the sub-blocks still to fill in):
 - `b` = **the adventurer core** (`KPJFCPPKHDL`, marker "MVBattleStats"; the same
   struct is reused for adventure enemies). Decoded: `a` = **entity** (enum
   `NFKHCMANAKF`: Player=1, then the full enemy roster Slime=50, Akuma=51, … —
-  supersedes the partial `adventure_enemy_name`); `b`=level, `c`=exp;
-  `d`/`j`/`k`/`l`/`n`/`o`/`p`=stats, `q`/`r`=int. `e` = **class** (enum
-  `APJDLMDFIGI` → `items::adventure_class_name`: Newbie/Thief/Archer/Warrior/Mage/
-  Cleric/Rogue/Assassin/Sniper/Pyromancer/…/Onion Knight). `h`/`i` = **skill**
-  lists (enum `ADCGDPGPBOI` → `items::adventure_skill_name`). Other lists: `f`
-  (`HGKLOMCJAIM`), `g` (`PGEICDFPINA`), `m` (`DDKDNIFCAJO`), `t` (`OKOCFJJNMAK`);
-  sub-struct `s` (`BEFDMHPNDHH`). Class + skill enums transcribed verbatim and
-  **diff-verified** against the C# (34 classes / 158 skill ids, 0 mismatches).
-  (`NFKHCMANAKF` enemy roster now fully in `items::adventure_enemy_name`.)
-  **Live-confirmed on the 06-09 save:** `032.b` = `a`=1 (Player), `b`=116 (level),
-  `c`=18,050,134 (exp), `e`=20 (**Rogue** class), `i`=`19&6&48&5` (skills Dodge /
-  Speed Boost / Dual Wield / Drops Boost) — matches the decoded enums exactly;
-  `h` (a second skill-id list) is absent when empty. Wired into the save-editor
+  supersedes the partial `adventure_enemy_name`); `b`=level, `c`=exp. `e` =
+  **class** (enum `APJDLMDFIGI` → `items::adventure_class_name`: Newbie/Thief/
+  Archer/Warrior/Mage/Cleric/Rogue/Assassin/Sniper/Pyromancer/…/Onion Knight).
+  **Per-field meanings (decoded 2026-06-20, player-confirmed where noted):**
+  - `n` = **current HP** (clamped to the max-HP method `INJMAMDMHFJ()`;
+    player-confirmed, live 4385), `o` = **current MP** (clamped to max-MP
+    `AKAIHHFEFMM()`; player-confirmed, live 73.9).
+  - `p` = **recovery timer** — while >0 the entity shows "Recovering"; 0 = active
+    (live 0).
+  - `q`/`r` = the entity's **screen X / Y** (passed as `(x,y)` to UI-element
+    constructors; default 110/150, live 110/150).
+  - `g` = **battle skills** (`PGEICDFPINA` = AdvBattleSkill instances, live 32),
+    `m` = **equipment** (`DDKDNIFCAJO`, the same adventure-gear class as `032.c`,
+    live 8), `s` = **active pill** (`BEFDMHPNDHH` = AdvPill buff; feeds the Attack
+    calc; empty when none), `t` = **skill loadout** (`OKOCFJJNMAK` = SetSkill
+    assignments, live 4), `f` = a list of battle entities (`HGKLOMCJAIM`,
+    role — summons/log? — unconfirmed, live 11).
+  - `h`/`i` = **skill-id** lists (enum `ADCGDPGPBOI` → `items::adventure_skill_name`);
+    `h` (a second slot) is **absent when empty**.
+  - **Still unidentified:** `d` (BigDouble, feeds the Attack calc as `0.8·d/5`;
+    live 1), `j`/`k` (stored BigDoubles with no in-class reads; live 136 /
+    1,064,697), `l` (tracks a running max of something; live 1923).
+  - **Note (obfuscation):** the displayed combat stats — HP, Attack, Defense,
+    **Int** (= Intelligence, a real game stat), Resistance, Hit, Speed — are
+    **computed methods** (`INJMAMDMHFJ`/`AOCPCCNNCLH`/`INCKGPBAMJO`/`GKIIMNNGKEN`/
+    `HGFDNNMJMAK`/`HLBPJJNDGMJ`/`HNLGEDBOCAK`), not stored fields, so `d`/`j`/`k`/`l`
+    are *not* those stats. (This is why the old type-placeholder label "Int" was
+    misleading — it meant the int data type, not Intelligence.)
+  Class + skill enums transcribed verbatim and **diff-verified** against the C#
+  (34 classes / 158 skill ids, 0 mismatches). (`NFKHCMANAKF` enemy roster now
+  fully in `items::adventure_enemy_name`.) **Live-confirmed on the 06-09 save:**
+  `032.b` = `a`=1 (Player), `b`=116 (level), `c`=18,050,134 (exp), `e`=20
+  (**Rogue** class), `i`=`19&6&48&5` (skills Dodge / Speed Boost / Dual Wield /
+  Drops Boost) — matches the decoded enums exactly. Wired into the save-editor
   raw tree view (BlockSchema `["032","b"]`; `a`→Entity, `e`→Class resolve).
 - `H` (`OKLONIELNEN`) → `H.a` = **researches** (below).
 - `d` = **inventory** (below), `G` = **cores** (below).
