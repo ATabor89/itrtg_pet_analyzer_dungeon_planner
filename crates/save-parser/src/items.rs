@@ -866,6 +866,30 @@ pub fn pet_type_name(type_id: u32) -> Option<&'static str> {
 /// start at `V0` while Gnome starts at `V1`, and each line ends in `…Final`
 /// (the in-game "V4"); this matches the per-pet `y` offsets in `FINDINGS.md`
 /// (Gnome `y`=14=GnomeFinal, Salamander `y`=19=Final, Sylph `y`=24=Final).
+/// Village building/feature id → name (C# enum `IMBOLMEHKCG`; functional
+/// buildings 0–14 — ids 100+ are cosmetic layout tiles/fences/walls). Used for
+/// the `024.a` building-state list (`g` = building type).
+pub fn village_building_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        0 => "None",
+        1 => "Fishing",
+        2 => "Tavern",
+        3 => "Village Center",
+        4 => "Dojo",
+        5 => "Material Factory",
+        6 => "Snack Bar",
+        7 => "Forge",
+        8 => "Alchemy Hut",
+        9 => "Divine Hut",
+        10 => "Hunters Guild",
+        11 => "Crystal Tower",
+        12 => "Strategy Room",
+        13 => "Battle Tent",
+        14 => "Museum",
+        _ => return None,
+    })
+}
+
 /// Museum statue id → name (C# enum `JBGNCMHGOFI`). Event commemorative statues;
 /// the Museum list is at `024.f.a` (`a`=level, `b`=statue id).
 pub fn statue_name(id: u32) -> Option<&'static str> {
@@ -2037,6 +2061,15 @@ mod tests {
         assert_eq!(dungeon_name(1), Some("Newbie Ground"));
         assert_eq!(dungeon_name(27), Some("Light Final"));
         assert_eq!(dungeon_name(28), None);
+    }
+
+    #[test]
+    fn village_building_ids_map_to_names() {
+        assert_eq!(village_building_name(1), Some("Fishing"));
+        assert_eq!(village_building_name(2), Some("Tavern"));
+        assert_eq!(village_building_name(9), Some("Divine Hut"));
+        assert_eq!(village_building_name(14), Some("Museum"));
+        assert_eq!(village_building_name(100), None); // cosmetic tile, not a building
     }
 
     #[test]
