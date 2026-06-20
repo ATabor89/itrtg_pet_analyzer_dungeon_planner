@@ -866,6 +866,26 @@ pub fn pet_type_name(type_id: u32) -> Option<&'static str> {
 /// start at `V0` while Gnome starts at `V1`, and each line ends in `…Final`
 /// (the in-game "V4"); this matches the per-pet `y` offsets in `FINDINGS.md`
 /// (Gnome `y`=14=GnomeFinal, Salamander `y`=19=Final, Sylph `y`=24=Final).
+/// Museum statue id → name (C# enum `JBGNCMHGOFI`). Event commemorative statues;
+/// the Museum list is at `024.f.a` (`a`=level, `b`=statue id).
+pub fn statue_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        0 => "None",
+        1 => "Easter 2024",
+        2 => "Summer 2024",
+        3 => "Anniversary 2024",
+        4 => "Halloween 2024",
+        5 => "Valentine 2025",
+        6 => "Easter 2025",
+        7 => "Summer 2025",
+        8 => "Halloween 2025",
+        9 => "Christmas 2025",
+        10 => "Valentine 2026",
+        11 => "Easter 2026",
+        _ => return None,
+    })
+}
+
 /// Dungeon id → name (C# enum `GFEKIABOPIH`). Used for the dungeon-team and
 /// active-dungeon-run blocks (`X.S[i].b`, `X.P[i].a`).
 pub fn dungeon_name(id: u32) -> Option<&'static str> {
@@ -2017,6 +2037,16 @@ mod tests {
         assert_eq!(dungeon_name(1), Some("Newbie Ground"));
         assert_eq!(dungeon_name(27), Some("Light Final"));
         assert_eq!(dungeon_name(28), None);
+    }
+
+    #[test]
+    fn statue_ids_map_to_names() {
+        // Committed save Museum has ids 8/1/9/2/3.
+        assert_eq!(statue_name(8), Some("Halloween 2025"));
+        assert_eq!(statue_name(1), Some("Easter 2024"));
+        assert_eq!(statue_name(9), Some("Christmas 2025"));
+        assert_eq!(statue_name(11), Some("Easter 2026"));
+        assert_eq!(statue_name(12), None);
     }
 
     #[test]
