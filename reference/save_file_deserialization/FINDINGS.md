@@ -662,10 +662,16 @@ The **real root deserializer** is `PKCECBJFIHD.HPNLHANNDAM` (not the short decoy
 generator), `O` = `ACDDNFHBJCD` (statistics — the 662-reader giant),
 `P` = `HAGJGEFFJMM` (current god fight), `S` = `MONHKGNNJJK` (TBS component
 levels), `T` = `AIDFNOPNJGK` (Baal slayer), `x` = `LLMCMCKAABP` (the `root.x`
-tracker block), `X` = `MLILKGIALMB` (pet system). Still-unnamed root fields:
-`b`/`d` (BigDouble), `l`/`m`/`n` (int), `U` (long), `q`/`r`/`s`/`t`/`u` (struct).
-No plain stored root integer for Challenge Points was found (consistent with ChP
-being derived); Overflow Points, if stored, sits inside an unnamed sub-block.
+tracker block), `X` = `MLILKGIALMB` (pet system). Still-unnamed root fields, with
+types now pinned from `HPNLHANNDAM` (all **scalars**, not struct sub-blocks):
+`b`/`d` = BigDouble; `l`/`m`/`n` = int, **default 1000** (save: 50/50/50) — the
+divisors in `IOHAICBLAOL`/`EIFOLHNKCIH`/`LBFJPKGLPPM` = `base / l|m|n`, i.e. the
+clone-stat **caps** (`LBFJPKGLPPM` is the HP-clone cap used in the pet training
+tick); `q`/`t`/`u` = bool; `r`/`s` = string (`s` is copied into the god-title
+field `g` under one condition — likely a legacy/backup); `U` = long. Meanings of
+`b`/`d`/`q`/`r`/`s`/`t`/`u`/`U` still need a per-field usage chase. No plain stored
+root integer for Challenge Points was found (consistent with ChP being derived);
+Overflow Points, if stored, sits inside a named sub-block (e.g. statistics `O`).
 
 A small helper, `_cs_decomp/_extract_fields.py`, scopes to a class's
 `EBOFJJHOOLP` (or a named method) and prints its key→(type, field) table (it

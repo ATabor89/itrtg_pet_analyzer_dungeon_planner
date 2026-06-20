@@ -100,16 +100,17 @@ data point per event item at a known quality/plus to sanity-check each `base`
   Camp-Exp-Boost level is active) — back-solving `XP / (250·(1+growth/20000)·hours)`
   pins the true multiplier and reveals whether the wiki `250`/×2 is the gap.
 
-### 4. Remaining unidentified save blocks  — MEDIUM/large
-- **What:** large unmapped regions still in the root/sub-structs — root scalars
-  `b`/`d` (BigDouble), `l`/`m`/`n` (int, =50/50/50, stat-cap divisors of unclear
-  meaning), `U` (long), `q`/`r`/`s`/`t`/`u` (struct sub-blocks not yet opened),
-  plus any block not yet in `FINDINGS.md`'s root map.
-- **Gain:** the "entire save file" goal.
-- **Status:** open each unnamed root sub-block class via the C# deserializer and
-  map it (same method as the pet/equipment work). Exploratory but tractable.
-- **Need from user:** for value-meaning disambiguation, occasional targeted
-  before/after Steam saves.
+### 4. Remaining unidentified root scalars  — LOW/medium
+- **What:** the leftover unnamed root fields. Types now pinned (all **scalars**,
+  not struct sub-blocks — corrected): `b`/`d` = BigDouble; `l`/`m`/`n` = int
+  (default 1000, save 50/50/50; the divisors behind the clone-stat caps —
+  `LBFJPKGLPPM`=HP-clone cap); `q`/`t`/`u` = bool; `r`/`s` = string; `U` = long.
+- **Gain:** the "entire save file" goal (the big sub-blocks are all already mapped).
+- **Status:** meanings need a per-field usage chase through obfuscation-noisy code;
+  low value individually. `l`/`m`/`n` are the most tractable (clone-stat cap
+  divisors). No struct sub-blocks remain unopened at root.
+- **Need from user:** occasional targeted before/after Steam saves to pin a
+  specific scalar's meaning if one matters.
 
 ### 5. Pet growth components `d`/`e`/`f` source  — LOW
 - **What:** the additive stored growth components (total = E+d+e+f); 0 for every
