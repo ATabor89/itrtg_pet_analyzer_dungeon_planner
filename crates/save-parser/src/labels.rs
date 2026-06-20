@@ -369,6 +369,15 @@ pub const CLASS_PROGRESSION_FIELDS: &[FieldLabel] = &[
     lbl!("d", "Unknown (d)"), // small flag/counter (live 0/1)
 ];
 
+/// Statistics block — `root.x` (`LLMCMCKAABP`, marker "Statistic"): a large bag
+/// of numeric-key counters/totals. Only the gameplay-relevant ones are labeled
+/// here; the rest stay raw. Key `186` (C# `NAKBHGFCICI`) is the Aether Ring level
+/// = number of "Delirious Essence of the Forgotten" wins (Aether evolves at 25;
+/// it also multiplies Aether's growth-campaign bonus).
+pub const STATISTICS_FIELDS: &[FieldLabel] = &[
+    lbl!("186", "Aether Ring lvl / Delirious Essence wins"),
+];
+
 /// Title each element from one of its fields (id → name).
 const fn elem(key: &'static str, resolve: Resolve) -> Option<ElementName> {
     Some(ElementName { key, resolve })
@@ -377,6 +386,7 @@ const fn elem(key: &'static str, resolve: Resolve) -> Option<ElementName> {
 /// Every block, consumed by the save editor to build tree labels.
 pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "b"], name: "Pet", plural: "Pets", is_list: true, element_name: elem("a", Resolve::Literal), fields: PET_FIELDS },
+    BlockSchema { base: &["x"], name: "Statistics", plural: "Statistics", is_list: false, element_name: None, fields: STATISTICS_FIELDS },
     BlockSchema { base: &["X", "R"], name: "Equipment", plural: "Equipment", is_list: true, element_name: elem("a", Resolve::EquipmentNode), fields: EQUIPMENT_FIELDS },
     BlockSchema { base: &["X", "Q"], name: "Material", plural: "Materials", is_list: true, element_name: elem("a", Resolve::Material), fields: MATERIAL_FIELDS },
     BlockSchema { base: &["X", "002"], name: "Gem", plural: "Gems", is_list: true, element_name: elem("a", Resolve::Element), fields: GEM_FIELDS },
