@@ -231,7 +231,9 @@ fn seed() -> Vec<FieldDef> {
         def(&["X"], "Pets / Pet System", Text, RawTree, "Pets, equipment, materials, teams, campaigns"),
         def(&["p"], "God Power", Text, RawTree, ""),
         def(&["e"], "Shadow Clones", Text, RawTree, ""),
-        def(&["T"], "Baal Slayer (Baal Power)", Text, RawTree, ""),
+        // root.T = the Planet system (named/field-labeled via BLOCKS); the actual
+        // Baal Slayer (TBS) is root.S. (Baal Power lives at T.h because it buys
+        // the Light Clones that fight the UBs on the planet.)
         def(&["P"], "Current God Fight", Text, RawTree, ""),
         def(&["025"], "Fishing", Text, RawTree, ""),
         // Pet Village (root.024 = PPKCEMJNHPA): 7 building sub-structs. Dojo (d)
