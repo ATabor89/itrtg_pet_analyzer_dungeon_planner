@@ -110,12 +110,15 @@ data point per event item at a known quality/plus to sanity-check each `base`
 ### 4. Remaining unidentified root scalars  — LOW/medium
 - **What:** the leftover unnamed root fields. Types now pinned (all **scalars**,
   not struct sub-blocks — corrected): `b`/`d` = BigDouble; `l`/`m`/`n` = int
-  (default 1000, save 50/50/50; the divisors behind the clone-stat caps —
-  `LBFJPKGLPPM`=HP-clone cap); `q`/`t`/`u` = bool; `r`/`s` = string; `U` = long.
+  (default 1000, save 50/50/50; **Shadow-clone stat divisors — now pinned
+  precisely:** `l`=Attack, `m`=Defense, `n`=HP, i.e. clone stat = your stat ÷
+  divisor; lower = stronger clones); `q`/`t`/`u` = bool; `r`/`s` = string;
+  `U` = long.
 - **Gain:** the "entire save file" goal (the big sub-blocks are all already mapped).
-- **Status:** meanings need a per-field usage chase through obfuscation-noisy code;
-  low value individually. `l`/`m`/`n` are the most tractable (clone-stat cap
-  divisors). No struct sub-blocks remain unopened at root.
+- **Status:** `l`/`m`/`n` are **done** (clone Attack/Defense/HP divisors, from the
+  clone tooltip + property getters). The remaining scalars (`b`/`d`/`q`/`r`/`s`/
+  `t`/`u`/`U`) still need a per-field usage chase through obfuscation-noisy code;
+  low value individually. No struct sub-blocks remain unopened at root.
 - **Need from user:** occasional targeted before/after Steam saves to pin a
   specific scalar's meaning if one matters.
 
