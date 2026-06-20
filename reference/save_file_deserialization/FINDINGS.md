@@ -82,7 +82,8 @@ is implemented; it isn't needed for that round trip.)
 | `024` | quests block | `024.d` = Quest Points (4,553 ✓ s2 export) |
 | `025` | fishing block | `025.a` = Fish Power (1,270,255 ≈ displayed 1.270e6 ✓) |
 | `p` | god-power block, see its own section below | `j`=available GP, `v`=GP spent, `F`=total might, `002`=crystal power |
-| `s` | **linked account login name** (Steam/Kongregate) — NOT the god name | player-confirmed; redacted in committed saves |
+| `s` | **linked account login name** (Steam/Kongregate) — NOT the god name. C#: `DJJMJOHIHPO`, uploaded as `UserName`/`KongName`. | player-confirmed; redacted in committed saves |
+| `r` | **linked Kongregate user id** (numeric `KongUserId`) — C#: `OBBCNEEELEN`, uploaded as `KongUserId` in the stats sync; persists in a Steam save. **PII.** | redacted in committed saves (`save-dump --redact` scrubs it → `0`); was missed by the original redaction set, fixed |
 | `y`,`z` | achievements (168 each: flag + id) | |
 | `W` | **in-game god (deity) name** | player-confirmed; redacted in committed saves |
 | `X` | **the whole pet system** | see below |
@@ -691,13 +692,17 @@ in `COMKEGGKPLD`). Pinned precisely from the clone tooltip
 **Attack** divisor (`IOHAICBLAOL = baseAtk / l`); **`m`** (`OFAEPCBJKGC`) =
 **Defense** divisor (`EIFOLHNKCIH = baseDef / m`); **`n`** (`DGBEIOCFMLJ`) = **HP**
 divisor (`LBFJPKGLPPM = baseHp / n`, the HP cap used in the pet training tick).
-`q`/`t`/`u` = bool; `r`/`s` = string (`s` is copied into the god-title
-field `g` under one condition — likely a legacy/backup). **`U`** (`LIKCHFOLHKI`,
+`q`/`t`/`u` = bool; `r`/`s` = string — **both PII account identifiers** (now
+redacted): **`r`** (`OBBCNEEELEN`) = linked **Kongregate user id** (uploaded as
+`KongUserId`), **`s`** (`DJJMJOHIHPO`) = the account **login/UserName** (uploaded
+as `UserName`/`KongName`; `s` is also copied into the god-title field `g` under
+one condition — likely a legacy/backup). **`U`** (`LIKCHFOLHKI`,
 long ms) = the **"rested"/refreshed crafting-speed timer** — while >0, *"your
 creating speed is tripled"* (Adventure crafting). On return from offline it banks
 **1/6 of the offline time, capped at 10,800,000 ms = 3 h** (`OfflineCalc.cs:277-285`);
 during active play it drains by elapsed time, floored at 0 (`UpdateStats.cs:5053-56`).
-Meanings of `b`/`d`/`q`/`r`/`s`/`t`/`u` still need a per-field usage chase. No plain
+Meanings of `b`/`d` (BigDouble) and `q`/`t`/`u` (bool) still need a per-field
+usage chase. No plain
 stored root integer for Challenge Points was found (consistent with ChP being
 derived); Overflow Points, if stored, sits inside a named sub-block (e.g.
 statistics `O`).
