@@ -112,16 +112,22 @@ data point per event item at a known quality/plus to sanity-check each `base`
   not struct sub-blocks — corrected): `b`/`d` = BigDouble; `l`/`m`/`n` = int
   (default 1000, save 50/50/50; **Shadow-clone stat divisors — now pinned
   precisely:** `l`=Attack, `m`=Defense, `n`=HP, i.e. clone stat = your stat ÷
-  divisor; lower = stronger clones); `q`/`t`/`u` = bool; `r`/`s` = string;
+  divisor; lower = stronger clones); `q`/`t`/`u` = bool; `r`/`s` = string
+  (**both PII account ids — now pinned + redacted**, see below);
   `U` = long = **"rested" tripled-crafting-speed timer** (now pinned).
 - **Gain:** the "entire save file" goal (the big sub-blocks are all already mapped).
-- **Status:** `l`/`m`/`n` and `U` are **done**. `l`/`m`/`n` = clone Attack/Defense/HP
-  divisors (clone tooltip + property getters). `U` (`LIKCHFOLHKI`, ms) = the
-  rested-bonus timer: while >0 crafting speed is tripled; banks 1/6 of offline
-  time capped at 3 h on return, drains during active play (`OfflineCalc.cs:277`,
-  `UpdateStats.cs:5053`). The remaining scalars (`b`/`d`/`q`/`r`/`s`/`t`/`u`)
-  still need a per-field usage chase through obfuscation-noisy code; low value
-  individually. No struct sub-blocks remain unopened at root.
+- **Status:** `l`/`m`/`n`, `U`, `r`, `s` are **done**. `l`/`m`/`n` = clone
+  Attack/Defense/HP divisors (clone tooltip + property getters). `U`
+  (`LIKCHFOLHKI`, ms) = the rested-bonus timer: while >0 crafting speed is
+  tripled; banks 1/6 of offline time capped at 3 h on return, drains during
+  active play (`OfflineCalc.cs:277`, `UpdateStats.cs:5053`). **`r`
+  (`OBBCNEEELEN`) = Kongregate user id (`KongUserId`) and `s` (`DJJMJOHIHPO`) =
+  account UserName/KongName — both PII; `r` had been missed by redaction and
+  leaked into 9 committed saves, now fixed (added to `redact::IDENTITY_FIELDS`,
+  saves re-redacted). The leaked value still lives in git HISTORY → a history
+  rewrite/force-push is still needed to fully purge (user-gated, flagged).** The
+  remaining scalars (`b`/`d` BigDouble, `q`/`t`/`u` bool) still need a per-field
+  usage chase; low value individually. No struct sub-blocks remain unopened at root.
 - **Need from user:** occasional targeted before/after Steam saves to pin a
   specific scalar's meaning if one matters.
 

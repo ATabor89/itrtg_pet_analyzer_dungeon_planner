@@ -1,8 +1,9 @@
 //! Redaction of personally-identifying fields from a save's lossless tree.
 //!
 //! The repo is public and the committed reference saves embed real PII — the
-//! player's Steam id, account login name, Steam persona/display names, and the
-//! in-game god name. All of it sits at the *root* of the tree (verified against
+//! player's Steam id, account login name, Steam persona/display names, the
+//! in-game god name, and the linked **Kongregate user id** (`r`) which persists
+//! in a Steam save. All of it sits at the *root* of the tree (verified against
 //! every reference save; nothing is mirrored inside a nested base64 block), so
 //! redaction is a handful of in-place [`Raw::set_scalar`] calls that leave
 //! every other byte untouched.
@@ -20,10 +21,14 @@ use crate::raw::Raw;
 ///
 /// Field meanings were confirmed with the player: `W` is the in-game god name,
 /// `s` is the linked Steam/Kongregate account login (these two were originally
-/// mislabeled), and `002`/`004` are the Steam persona / display name.
+/// mislabeled), and `002`/`004` are the Steam persona / display name. `r` is the
+/// linked Kongregate numeric user id (uploaded as `KongUserId` in the stats
+/// sync; from the C# `OBBCNEEELEN` field) — it persists even in a Steam save and
+/// was missed by the original redaction set.
 pub const IDENTITY_FIELDS: &[(&str, &str)] = &[
     ("W", "RedactedGod"),             // in-game god (deity) name
     ("s", "RedactedAccount"),         // linked Steam/Kongregate account login
+    ("r", "0"),                       // linked Kongregate user id (KongUserId)
     ("001", "00000000000000000"),     // Steam id64
     ("002", "RedactedName"),          // Steam persona name
     ("003", "a_0000000000000000000"), // account / guest id
@@ -78,15 +83,18 @@ mod tests {
     #[test]
     fn redacts_known_root_identity_fields() {
         // Synthetic, non-real fixture data (shaped like the real fields).
-        let plaintext = "s:TestAccount;W:TestGod;c:1781053129;\
+        let plaintext = "s:TestAccount;r:12345678;W:TestGod;c:1781053129;\
                          001:99999999999999999;002:TestPersona;\
                          003:a_9999999999999999999;004:Test Display;005:123;";
         let mut root = raw::parse(plaintext);
         let changes = redact_identity(&mut root);
 
-        // All six identity fields changed; the timestamp `c`/`005` did not.
-        assert_eq!(changes.len(), 6);
+        // All seven identity fields changed; the timestamp `c`/`005` did not.
+        assert_eq!(changes.len(), 7);
         assert!(changes.iter().any(|c| c.key == "001" && c.old == "99999999999999999"));
+        // The Kongregate user id `r` is scrubbed to the `0` sentinel.
+        assert!(changes.iter().any(|c| c.key == "r" && c.old == "12345678"));
+        assert_eq!(root.get("r").unwrap(), &Raw::Scalar("0".into()));
 
         let out = root.serialize();
         // Every redacted value is gone.
@@ -94,6 +102,7 @@ mod tests {
         assert!(residual_hits(&out, &olds).is_empty());
         assert!(!out.contains("TestGod"));
         assert!(!out.contains("TestAccount"));
+        assert!(!out.contains("12345678"));
         assert!(!out.contains("99999999999999999"));
 
         // Untouched fields survive verbatim, in place.
