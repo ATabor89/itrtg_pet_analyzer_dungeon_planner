@@ -35,6 +35,8 @@ pub enum Resolve {
     Pond,
     /// Museum statue id → `items::statue_name` (C# enum `JBGNCMHGOFI`).
     Statue,
+    /// Village building/feature id → `items::village_building_name` (`IMBOLMEHKCG`).
+    VillageBuilding,
     /// Equipment *type* id → `items::equipment_type_name`.
     Equipment,
     /// A whole equipment element struct → "Name Quality+Plus" (the editor reads
@@ -248,6 +250,13 @@ pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
 /// maxed), `b` = statue id (event commemoratives; you can own two of each).
 pub const MUSEUM_STATUE_FIELDS: &[FieldLabel] =
     &[lbl!("a", "Level"), lblr!("b", "Statue", Resolve::Statue)];
+
+/// Village building-state list — `024.a.<index>` (`AFELNLGMCAB`, marker
+/// "VillageBuilding"). One entry per building feature, keyed by `g` = building
+/// type (`IMBOLMEHKCG`). `c` = level, `f` = assigned pet (special-pet enum); other
+/// fields are unlock/flag state (mostly default in the ref save).
+pub const VILLAGE_BUILDING_FIELDS: &[FieldLabel] =
+    &[lblr!("g", "Building Type", Resolve::VillageBuilding)];
 
 /// Worker buildings — Material Factory `024.g` (`CHDGDEINMHO`) and Alchemy Hut
 /// `024.h` (`GABIFCBBMPH`), both extending `ANECMNGBLNI`. `a` = level, `e` =
@@ -544,6 +553,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "P"], name: "Active Dungeon Run", plural: "Active Dungeon Runs", is_list: true, element_name: elem("a", Resolve::Dungeon), fields: ACTIVE_DUNGEON_FIELDS },
     BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: elem("a", Resolve::CampaignType), fields: CAMPAIGN_FIELDS },
     BlockSchema { base: &["X", "Z"], name: "Challenge Team", plural: "Challenge Team", is_list: false, element_name: None, fields: CHALLENGE_TEAM_FIELDS },
+    BlockSchema { base: &["024", "a"], name: "Village Building", plural: "Village Buildings", is_list: true, element_name: elem("g", Resolve::VillageBuilding), fields: VILLAGE_BUILDING_FIELDS },
     BlockSchema { base: &["024", "b"], name: "Tavern", plural: "Tavern", is_list: false, element_name: None, fields: TAVERN_FIELDS },
     BlockSchema { base: &["024", "d"], name: "Dojo", plural: "Dojo", is_list: false, element_name: None, fields: DOJO_FIELDS },
     BlockSchema { base: &["024", "e"], name: "Strategy Room", plural: "Strategy Room", is_list: false, element_name: None, fields: STRATEGY_ROOM_FIELDS },

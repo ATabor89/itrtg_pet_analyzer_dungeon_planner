@@ -39,6 +39,7 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::Dungeon => items::dungeon_name(v.parse().ok()?).map(str::to_string),
         Resolve::Pond => items::pond_name(v.parse().ok()?).map(str::to_string),
         Resolve::Statue => items::statue_name(v.parse().ok()?).map(str::to_string),
+        Resolve::VillageBuilding => items::village_building_name(v.parse().ok()?).map(str::to_string),
         Resolve::Equipment => items::equipment_type_name(v.parse().ok()?).map(str::to_string),
         Resolve::Monument => items::monument_name(v.parse().ok()?).map(str::to_string),
         Resolve::Might => items::might_name(v.parse().ok()?).map(str::to_string),
