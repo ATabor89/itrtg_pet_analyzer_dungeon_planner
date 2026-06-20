@@ -370,12 +370,30 @@ pub const CLASS_PROGRESSION_FIELDS: &[FieldLabel] = &[
 ];
 
 /// Statistics block — `root.x` (`LLMCMCKAABP`, marker "Statistic"): a large bag
-/// of numeric-key counters/totals. Only the gameplay-relevant ones are labeled
-/// here; the rest stay raw. Key `186` (C# `NAKBHGFCICI`) is the Aether Ring level
-/// = number of "Delirious Essence of the Forgotten" wins (Aether evolves at 25;
-/// it also multiplies Aether's growth-campaign bonus).
+/// of ~360 numeric-key counters/totals. The confirmed gameplay trackers are
+/// labeled here (mirroring `model::trackers`, diff-confirmed against tooltips);
+/// the rest stay raw. Per-pet trackers feed the matching pet's campaign bonus.
 pub const STATISTICS_FIELDS: &[FieldLabel] = &[
+    lbl!("013", "AFK clones killed"),
+    lbl!("071", "Lucky Draws opened"),
+    lbl!("074", "Crystal power"),
+    lbl!("078", "Dungeon bosses defeated"),
+    lbl!("079", "Dungeon enemies defeated"),
+    lbl!("080", "Dungeon rooms beaten"),
+    lbl!("089", "Chocobear banked hours"),
+    lbl!("129", "Total might"),
+    lbl!("169", "Pandora feedings (this rebirth)"),
+    lbl!("185", "Earth Eater planets (lifetime)"),
     lbl!("186", "Aether Ring lvl / Delirious Essence wins"),
+    lbl!("216", "Pignata bashes"),
+    lbl!("218", "God Power campaign hours"),
+    lbl!("234", "Meteor campaign hours"),
+    lbl!("259", "Caterpillar materials upgraded"),
+    lbl!("270", "Pet stones via Baal Power (Vermillion Pheasant prog.)"),
+    lbl!("310", "Mule quests"),
+    lbl!("311", "Gold Dragon bonus growth"),
+    lbl!("324", "Serow items saved"),
+    lbl!("336", "Bag bonus growth"),
 ];
 
 /// Title each element from one of its fields (id → name).
