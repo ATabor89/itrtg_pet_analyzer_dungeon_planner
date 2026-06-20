@@ -113,12 +113,15 @@ data point per event item at a known quality/plus to sanity-check each `base`
   (default 1000, save 50/50/50; **Shadow-clone stat divisors — now pinned
   precisely:** `l`=Attack, `m`=Defense, `n`=HP, i.e. clone stat = your stat ÷
   divisor; lower = stronger clones); `q`/`t`/`u` = bool; `r`/`s` = string;
-  `U` = long.
+  `U` = long = **"rested" tripled-crafting-speed timer** (now pinned).
 - **Gain:** the "entire save file" goal (the big sub-blocks are all already mapped).
-- **Status:** `l`/`m`/`n` are **done** (clone Attack/Defense/HP divisors, from the
-  clone tooltip + property getters). The remaining scalars (`b`/`d`/`q`/`r`/`s`/
-  `t`/`u`/`U`) still need a per-field usage chase through obfuscation-noisy code;
-  low value individually. No struct sub-blocks remain unopened at root.
+- **Status:** `l`/`m`/`n` and `U` are **done**. `l`/`m`/`n` = clone Attack/Defense/HP
+  divisors (clone tooltip + property getters). `U` (`LIKCHFOLHKI`, ms) = the
+  rested-bonus timer: while >0 crafting speed is tripled; banks 1/6 of offline
+  time capped at 3 h on return, drains during active play (`OfflineCalc.cs:277`,
+  `UpdateStats.cs:5053`). The remaining scalars (`b`/`d`/`q`/`r`/`s`/`t`/`u`)
+  still need a per-field usage chase through obfuscation-noisy code; low value
+  individually. No struct sub-blocks remain unopened at root.
 - **Need from user:** occasional targeted before/after Steam saves to pin a
   specific scalar's meaning if one matters.
 
