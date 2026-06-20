@@ -238,7 +238,8 @@ fn seed() -> Vec<FieldDef> {
         // and Strategy Room (e) carry field labels via BLOCKS; the rest are named
         // containers here.
         def(&["024"], "Pet Village", Text, RawTree, ""),
-        def(&["024", "b"], "Tavern", Text, RawTree, "Pet Village building"),
+        // 024.b = Tavern: named + field-labeled via a BLOCKS schema (quest points
+        // etc.), so no explicit container def here.
         def(&["024", "f"], "Museum", Text, RawTree, "Pet Village building"),
         def(&["024", "g"], "Material Factory", Text, RawTree, "Pet Village building (Pack Mule worked here)"),
         def(&["024", "h"], "Alchemy Hut", Text, RawTree, "Pet Village building (Lamb worked here)"),
