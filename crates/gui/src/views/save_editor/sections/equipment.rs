@@ -830,6 +830,11 @@ mod tests {
         assert_eq!(bulk_target(&st, &row(), EField::Plus).as_deref(), Some("15"));
         st.ops.insert(EField::Plus, (OpKind::Set, "20".into()));
         assert_eq!(bulk_target(&st, &row(), EField::Plus).as_deref(), Some("20"));
+        // Plus is bounded 0–30 (Candy Cane's cap): +30 survives, absurd pins to 30.
+        st.ops.insert(EField::Plus, (OpKind::Set, "30".into()));
+        assert_eq!(bulk_target(&st, &row(), EField::Plus).as_deref(), Some("30"));
+        st.ops.insert(EField::Plus, (OpKind::Set, "99".into()));
+        assert_eq!(bulk_target(&st, &row(), EField::Plus).as_deref(), Some("30"));
     }
 
     #[test]
