@@ -135,16 +135,21 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PlanetEditSta
         ub_table(ui, st, &rows, &mut edits);
     }
 
-    // Apply.
+    // Apply. A failure's status must not be overwritten by a later success in
+    // the same batch.
     let mut ok = false;
+    let mut had_err = false;
     for (path, label, value) in edits {
         let p: Vec<&str> = path.iter().map(String::as_str).collect();
         match session.set_scalar(&p, label, &value) {
             Ok(_) => ok = true,
-            Err(e) => st.status = Some((format!("Edit failed: {e}"), true)),
+            Err(e) => {
+                had_err = true;
+                st.status = Some((format!("Edit failed: {e}"), true));
+            }
         }
     }
-    if ok {
+    if ok && !had_err {
         st.status = Some(("Staged planet edit".to_string(), false));
     }
 }
