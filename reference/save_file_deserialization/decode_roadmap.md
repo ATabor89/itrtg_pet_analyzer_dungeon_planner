@@ -76,13 +76,16 @@ data point per event item at a known quality/plus to sanity-check each `base`
   at `root.013`** (`HNFHEBJIPEL`, keys `a`–`n`; the `098` assignment is a decoy)
   and are now **WIRED** as the "Overflow Point Upgrades" block (13 of 14 fields
   labeled from the in-game ChP debug tooltip; `h` vestigial). See FINDINGS for
-  the field map. **Remaining (C#-tractable, no save needed):** the **ChP upgrade
-  levels** are scalar fields on `root.X` (`MLILKGIALMB`); the tooltip names all
-  ~22 (Planet Level, Divinity boost, Crystal Upgrade boost, Dungeon Exp/Drop
-  boost, …) — trace each to its `X.*` key and wire. Optional polish: compute +
-  display derived ChP total / Overflow-Points-left in the editor.
-- **Need from user:** nothing required for the above. A single in-game ChP-total
-  number would be a nice cross-check once the derived total is computed.
+  the field map. The **ChP upgrade levels** (the ~22 the tooltip names) are
+  scalar fields on `root.X` (`MLILKGIALMB`) — now **MAPPED + WIRED** as the
+  "Challenge Point Upgrades" block (keys + labels in FINDINGS). ChP *spent* =
+  Σ(level × cost) per `MLILKGIALMB.cs:894`.
+- **Remaining (optional polish, C#-tractable):** compute + display the derived
+  ChP total (Σ over `x.242`), ChP spent (Σ level×cost), and Overflow-Points-left
+  (`JHDPFECPEOM()`) as read-outs in the editor; label the few non-display ChP
+  upgrades (`FJBKFKPMHGB`/`MPPMMMAOKIC`/`LEODLEACJPA`) if an anchor turns up.
+- **Need from user:** nothing required. A single in-game ChP-total / ChP-spent
+  number would be a nice cross-check once the derived read-outs are added.
 
 ### 2. Adventure mode (skills, classes, exp, stats, crafting/smithing/alchemy)  — HIGH
 - **What:** the full Adventure-mode subsystem (`root.032`): adventurer skills,

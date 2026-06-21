@@ -615,6 +615,38 @@ pub const OFP_UPGRADE_FIELDS: &[FieldLabel] = &[
     lbl!("n", "OfP Space Dim"),
 ];
 
+/// Challenge-Point upgrade levels — scalar fields directly on `root.X`
+/// (`MLILKGIALMB`, the `FIHAENJIDAO` accessor). Names are the literal "Chp …"
+/// labels from the Challenge-Points debug tooltip (`LLMCMCKAABP.cs:4063`);
+/// each maps straight to a save key in `MLILKGIALMB.EBOFJJHOOLP` (the real
+/// deserializer at line 10036 — the `n19`/`n41`/`-36` copies elsewhere are
+/// decoys). Total ChP spent = Σ(level × cost) per `MLILKGIALMB.cs:894`; the
+/// stored value here is the bought level. `035`/`038` are bools.
+pub const CHP_UPGRADE_FIELDS: &[FieldLabel] = &[
+    lbl!("E", "ChP Planet Level"),
+    lbl!("I", "ChP Divinity boost"),
+    lbl!("D", "ChP Damage Reduction UBs"),
+    lbl!("041", "ChP Faster UB spawn"),
+    lbl!("G", "ChP Crystal Upgrade boost"),
+    lbl!("H", "ChP Damage Boost V2s"),
+    lbl!("J", "ChP CP boost"),
+    lbl!("039", "ChP Crystal Sacrifice boost"),
+    lbl!("029", "ChP BS boost"),
+    lbl!("030", "ChP CS boost"),
+    lbl!("K", "ChP TBS Level Loss decrease"),
+    lbl!("L", "ChP Pet Stone Drop boost"),
+    lbl!("035", "ChP Stone Pet improvement"),
+    lbl!("019", "ChP Adv EXP boost"),
+    lbl!("V", "ChP Dungeon Drop boost"),
+    lbl!("W", "ChP Dungeon Exp boost"),
+    lbl!("037", "ChP Dungeon Overtime"),
+    lbl!("038", "ChP Quest Overtime"),
+    lbl!("034", "ChP D4 boss room (stored; shown as 60 − x)"),
+    lbl!("X", "ChP Crafting boost"),
+    lbl!("014", "ChP SpaceDim boost"),
+    lbl!("040", "ChP Self Replicating AI boost"),
+];
+
 /// Title each element from one of its fields (id → name).
 const fn elem(key: &'static str, resolve: Resolve) -> Option<ElementName> {
     Some(ElementName { key, resolve })
@@ -626,6 +658,11 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["x"], name: "Statistics", plural: "Statistics", is_list: false, element_name: None, fields: STATISTICS_FIELDS },
     BlockSchema { base: &["x", "242"], name: "Challenge", plural: "Challenge Completions", is_list: true, element_name: elem("a", Resolve::Challenge), fields: CHALLENGE_COMPLETION_FIELDS },
     BlockSchema { base: &["013"], name: "Overflow Point Upgrades", plural: "Overflow Point Upgrades", is_list: false, element_name: None, fields: OFP_UPGRADE_FIELDS },
+    // Base `["X"]` overlaps the explicit `def(&["X"], "Pets / Pet System")` in
+    // the GUI registry; that explicit def is seeded first and wins on lookup for
+    // the container label, while these fields land at the distinct `X.<key>`
+    // paths. The keys are disjoint from every other `["X", …]` block/scalar.
+    BlockSchema { base: &["X"], name: "Challenge Point Upgrades", plural: "Challenge Point Upgrades", is_list: false, element_name: None, fields: CHP_UPGRADE_FIELDS },
     BlockSchema { base: &["X", "R"], name: "Equipment", plural: "Equipment", is_list: true, element_name: elem("a", Resolve::EquipmentNode), fields: EQUIPMENT_FIELDS },
     BlockSchema { base: &["X", "Q"], name: "Material", plural: "Materials", is_list: true, element_name: elem("a", Resolve::Material), fields: MATERIAL_FIELDS },
     BlockSchema { base: &["X", "002"], name: "Gem", plural: "Gems", is_list: true, element_name: elem("a", Resolve::Element), fields: GEM_FIELDS },
