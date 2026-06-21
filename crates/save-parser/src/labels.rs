@@ -360,42 +360,45 @@ save_block! {
 pub const MUSEUM_STATUE_FIELDS: &[FieldLabel] =
     &[lbl!("a", "Level"), lblr!("b", "Statue", Resolve::Statue)];
 
-/// Planet system — `root.T` (`AIDFNOPNJGK`, marker "Planet"). `d` = **planet
-/// level** (drives the planet name tiers; level 1-5 from feeding planet/earthlike/
-/// sun/solar-system/universe, then +1 per Ultimate Universe Challenge; the
-/// effective level for power adds the UUC count on top). `h` = unspent **Baal
-/// Power** (player-confirmed; spent on Light Clones that fight the UBs).
-/// The Planet Multiplier is computed (base 100% + Powersurge `T.k` + UB-kill
-/// `T.f` contributions), not a stored scalar.
-pub const PLANET_FIELDS: &[FieldLabel] = &[
-    lbl!("d", "Planet Level"),
-    lbl!("h", "Unspent Baal Power"),
-];
+// Planet system — `root.T` (`AIDFNOPNJGK`, marker "Planet"). `d` = planet level
+// (drives the planet name tiers; level 1-5 from feeding planet/earthlike/sun/
+// solar-system/universe, then +1 per Ultimate Universe Challenge; the effective
+// level for power adds the UUC count on top). `h` = unspent Baal Power
+// (player-confirmed; spent on Light Clones that fight the UBs). The Planet
+// Multiplier is computed (base 100% + Powersurge `T.k` + UB-kill `T.f`), not stored.
+save_block! {
+    /// Planet — top-level scalars (`T`). `d` = planet level, `h` = unspent Baal
+    /// Power. The Planet Multiplier is computed (base 100% + Powersurge + UB-kill
+    /// contributions), not stored. (Verified on the reference save: T.d=7, T.h=0.)
+    PlanetField => PLANET_FIELDS;
+    Level:     "d", "Planet Level",       FieldKind::UInt, None, None;
+    BaalPower: "h", "Unspent Baal Power", FieldKind::Text, None, None;
+}
 
-/// Planet — per-UB state — `T.k.<index>` (`FPBMNCNKPHN`), one per UB. `c` = UB id,
-/// `b` = **kill/defeat count** (incremented on each defeat, `AIDFNOPNJGK:256-257`)
-/// — this is what drives the tooltip's "Multi from Ultimate Beings" (each UB adds
-/// a fixed % per defeat: Planet Eater 1% / Godly Tribunal 12% / Living Sun 21% /
-/// God Above All 32% / ITRTG 45%). `a` = a per-UB state value reset to 100.0/0.0
-/// in OfflineCalc (~100 = full; exact role unconfirmed — *not* the displayed
-/// multiplier). NOT the (single) Powersurge — that's a separate `T` scalar (TBD).
-pub const UB_MULTIPLIER_FIELDS: &[FieldLabel] = &[
-    lblr!("c", "UB", Resolve::UltimateBeing),
-    lbl!("b", "Kill Count"),
-    lbl!("a", "State (~100)"),
-];
+save_block! {
+    /// Planet — per-UB state — `T.k.<index>` (`FPBMNCNKPHN`), one per UB. `c` = UB
+    /// id, `b` = kill/defeat count that DRIVES the "Multi from Ultimate Beings"
+    /// (a fixed % per defeat: Planet Eater 1% / Godly Tribunal 12% / Living Sun
+    /// 21% / God Above All 32% / ITRTG 45%); `a` = a per-UB state value (~100,
+    /// exact role unconfirmed). Distinct from `T.f.b`, the per-spawn kill count.
+    UbMultField => UB_MULTIPLIER_FIELDS;
+    Ub:        "c", "UB",           FieldKind::Id,   None, Some(Resolve::UltimateBeing);
+    KillCount: "b", "Kill Count",   FieldKind::UInt, None, None;
+    State:     "a", "State (~100)", FieldKind::Text, None, None;
+}
 
-/// Planet — Ultimate Beings — `T.f.<index>` (`CEFAAPALBMD`). The 5 UBs that
-/// attack your planet on staggered spawn timers. `c` = UB id (1 Planet Eater …
-/// 5 ITRTG), `b` = kill count, `d` = spawn countdown ms (counts DOWN; spawns at
-/// ≤0 — set 0 to force a spawn), `e` = alive flag, `f` = god power gained.
-pub const ULTIMATE_BEING_FIELDS: &[FieldLabel] = &[
-    lblr!("c", "UB", Resolve::UltimateBeing),
-    lbl!("b", "Kill Count"),
-    lbl!("d", "Spawn Countdown (ms)"),
-    lbl!("e", "Alive"),
-    lbl!("f", "God Power Gained"),
-];
+save_block! {
+    /// Planet — Ultimate Beings — `T.f.<index>` (`CEFAAPALBMD`). The 5 UBs that
+    /// attack on staggered spawn timers. `c` = UB id (1 Planet Eater … 5 ITRTG),
+    /// `b` = kill count, `d` = spawn countdown ms (counts DOWN; spawns at ≤0 —
+    /// set 0 to force a spawn), `e` = alive flag, `f` = god power gained.
+    UbField => ULTIMATE_BEING_FIELDS;
+    Ub:             "c", "UB",                   FieldKind::Id,   None, Some(Resolve::UltimateBeing);
+    KillCount:      "b", "Kill Count",           FieldKind::UInt, None, None;
+    SpawnCountdown: "d", "Spawn Countdown (ms)", FieldKind::Text, None, None;
+    Alive:          "e", "Alive",                FieldKind::Bool, None, None;
+    GodPowerGained: "f", "God Power Gained",     FieldKind::Text, None, None;
+}
 
 /// Village building-state list — `024.a.<index>` (`AFELNLGMCAB`, marker
 /// "VillageBuilding"). One entry per building feature, keyed by `g` = building
