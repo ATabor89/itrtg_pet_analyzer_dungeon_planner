@@ -373,25 +373,33 @@ fn parse_f64(s: &str) -> Option<f64> {
 fn filter_bar(ui: &mut egui::Ui, st: &mut PetEditState, total: usize, shown: usize) {
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new("Filter:").color(style::TEXT_MUTED));
+        // Each dropdown gets a label — without one, the Unlocked and Evolved
+        // filters both read "Any" and are indistinguishable.
+        let lbl = |ui: &mut egui::Ui, text: &str| {
+            ui.label(RichText::new(text).color(style::TEXT_MUTED).size(11.0));
+        };
         // Element.
+        lbl(ui, "Element");
         egui::ComboBox::from_id_salt("pet_f_element")
-            .selected_text(st.f_element.map_or("Any element", element_label))
+            .selected_text(st.f_element.map_or("Any", element_label))
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut st.f_element, None, "Any element");
+                ui.selectable_value(&mut st.f_element, None, "Any");
                 for &e in ELEMENTS {
                     ui.selectable_value(&mut st.f_element, Some(e), element_label(e));
                 }
             });
         // Class.
+        lbl(ui, "Class");
         egui::ComboBox::from_id_salt("pet_f_class")
-            .selected_text(st.f_class.map_or("Any class", class_label))
+            .selected_text(st.f_class.map_or("Any", class_label))
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut st.f_class, None, "Any class");
+                ui.selectable_value(&mut st.f_class, None, "Any");
                 for &(label, id) in CLASS_CHOICES {
                     ui.selectable_value(&mut st.f_class, Some(id), label);
                 }
             });
         // Unlocked.
+        lbl(ui, "Unlocked");
         egui::ComboBox::from_id_salt("pet_f_unlocked")
             .selected_text(match st.f_unlocked {
                 None => "Any",
@@ -404,6 +412,7 @@ fn filter_bar(ui: &mut egui::Ui, st: &mut PetEditState, total: usize, shown: usi
                 ui.selectable_value(&mut st.f_unlocked, Some(false), "Locked");
             });
         // Evolved (a pet has a class iff it's evolved).
+        lbl(ui, "Evolved");
         egui::ComboBox::from_id_salt("pet_f_evolved")
             .selected_text(match st.f_evolved {
                 None => "Any",
@@ -415,7 +424,7 @@ fn filter_bar(ui: &mut egui::Ui, st: &mut PetEditState, total: usize, shown: usi
                 ui.selectable_value(&mut st.f_evolved, Some(true), "Evolved");
                 ui.selectable_value(&mut st.f_evolved, Some(false), "Not evolved");
             });
-        ui.label("name");
+        lbl(ui, "Name");
         ui.add(egui::TextEdit::singleline(&mut st.f_name).desired_width(90.0));
     });
     ui.horizontal_wrapped(|ui| {
