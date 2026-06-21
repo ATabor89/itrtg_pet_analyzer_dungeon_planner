@@ -286,11 +286,12 @@ pub const PET_FIELDS: &[FieldLabel] = &[
 save_block! {
     /// Owned equipment instances — `X.R.<index>`. The pilot block for the
     /// type-driven refactor: model parse, label table, and the equipment section
-    /// all derive from this one declaration. Ranges per the in-game caps
-    /// (plus/enchant 0–20, quality 0–8 = SSS).
+    /// all derive from this one declaration. Ranges per the in-game caps:
+    /// enchant 0–20, quality 0–8 (SSS), plus 0–30 (only Candy Cane reaches +30;
+    /// every other item caps at +20 — the field bound is the max across all gear).
     EquipField => EQUIPMENT_FIELDS;
     TypeId:     "a", "Type Id",                    FieldKind::Id,   None,         Some(Resolve::Equipment);
-    Plus:       "b", "Plus Level",                 FieldKind::UInt, Some((0, 20)), None;
+    Plus:       "b", "Plus Level",                 FieldKind::UInt, Some((0, 30)), None;
     Quality:    "c", "Quality",                    FieldKind::UInt, Some((0, 8)),  None;
     EquipRef:   "d", "Equip Ref (0 = unequipped)", FieldKind::UInt, None,         None;
     Enchant:    "e", "Enchant Level",              FieldKind::UInt, Some((0, 20)), None;
@@ -862,13 +863,18 @@ mod tests {
     #[test]
     fn equip_field_clamp_enforces_bounds() {
         assert_eq!(EquipField::Quality.range(), Some((0, 8)));
-        assert_eq!(EquipField::Plus.range(), Some((0, 20)));
+        // Plus caps at 30 (Candy Cane's max), not 20 — only it exceeds +20.
+        assert_eq!(EquipField::Plus.range(), Some((0, 30)));
         assert_eq!(EquipField::Enchant.range(), Some((0, 20)));
         assert_eq!(EquipField::GemLevel.range(), None);
         // Clamp: over the cap pins to max, under to min, unbounded passes through.
         assert_eq!(EquipField::Quality.clamp(50), 8);
         assert_eq!(EquipField::Enchant.clamp(50), 20);
         assert_eq!(EquipField::Enchant.clamp(12), 12);
+        // Candy Cane's +25/+30 survive; only absurd values pin to 30.
+        assert_eq!(EquipField::Plus.clamp(25), 25);
+        assert_eq!(EquipField::Plus.clamp(30), 30);
+        assert_eq!(EquipField::Plus.clamp(99), 30);
         assert_eq!(EquipField::GemLevel.clamp(9_999), 9_999);
     }
 }
