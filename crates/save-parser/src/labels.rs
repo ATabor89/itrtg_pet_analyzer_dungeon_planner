@@ -96,6 +96,9 @@ pub enum Resolve {
     Challenge,
     /// Challenge difficulty id (`HOLHIHDKBKA`) → `items::challenge_difficulty_name`.
     ChallengeDifficulty,
+    /// Ultimate-Overflow upgrade type id (`IDFOIHJPCHP`) →
+    /// `items::ultimate_overflow_upgrade_name`.
+    UltimateOverflowUpgrade,
 }
 
 /// One labeled field within a block element. `key` is the path *relative to the
@@ -615,6 +618,15 @@ pub const OFP_UPGRADE_FIELDS: &[FieldLabel] = &[
     lbl!("n", "OfP Space Dim"),
 ];
 
+/// Ultimate-Overflow upgrade entry (`FDJCCPFCJAO`, one per element of the
+/// `root.029.a` list; parent `CDNMNLIAPKA` marker `UltimateOverflowBoosts`).
+/// `a` = upgrade type (`IDFOIHJPCHP`), `b` = bought level. These are the boosts
+/// purchased with Ultimate Overflow Points (the fixture holds all 6 types at 0).
+pub const UOFP_UPGRADE_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Upgrade Type", Resolve::UltimateOverflowUpgrade),
+    lbl!("b", "Level"),
+];
+
 /// Challenge-Point upgrade levels — scalar fields directly on `root.X`
 /// (`MLILKGIALMB`, the `FIHAENJIDAO` accessor). Names are the literal "Chp …"
 /// labels from the Challenge-Points debug tooltip (`LLMCMCKAABP.cs:4063`);
@@ -658,6 +670,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["x"], name: "Statistics", plural: "Statistics", is_list: false, element_name: None, fields: STATISTICS_FIELDS },
     BlockSchema { base: &["x", "242"], name: "Challenge", plural: "Challenge Completions", is_list: true, element_name: elem("a", Resolve::Challenge), fields: CHALLENGE_COMPLETION_FIELDS },
     BlockSchema { base: &["013"], name: "Overflow Point Upgrades", plural: "Overflow Point Upgrades", is_list: false, element_name: None, fields: OFP_UPGRADE_FIELDS },
+    BlockSchema { base: &["029", "a"], name: "Ultimate Overflow Upgrade", plural: "Ultimate Overflow Upgrades", is_list: true, element_name: elem("a", Resolve::UltimateOverflowUpgrade), fields: UOFP_UPGRADE_FIELDS },
     // Base `["X"]` overlaps the explicit `def(&["X"], "Pets / Pet System")` in
     // the GUI registry; that explicit def is seeded first and wins on lookup for
     // the container label, while these fields land at the distinct `X.<key>`
