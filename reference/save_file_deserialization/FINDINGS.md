@@ -388,22 +388,24 @@ whole system. Key findings:
   `j` Powersurge, `k` Creation Count, `l` Might Speed, `m` Stats Multi,
   `n` Space Dim; `h` has no getter/label (vestigial here). **Wired** as the
   "Overflow Point Upgrades" block.
-- **ChP UPGRADE levels are scalar fields on `root.X`** (`MLILKGIALMB`, the
-  `FIHAENJIDAO` accessor in the tooltip), NOT a separate object. The tooltip
-  names them all (getters → fields, still to map to `X.*` save keys):
-  Planet Level (`KLEAGBCADCJ`), Divinity boost (`FMJLFCIDDJL`), Damage
-  Reduction UBs (`PMCFEAPHFHB`), Faster UB spawn (`HEGBPDDBEOA`), Crystal
-  Upgrade boost (`MICPKBGNGBL`), Damage Boost V2s (`HCFLDNABDFI`), CP boost
-  (`HNGIMEBJFLC`), Crystal Sacrifice boost (`KNPAPPGJILO`), BS boost
-  (`MHGHDENBKEM`), CS boost (`IKPKHFJBAEE`), TBS Level Loss decrease
-  (`PMBOAICKNLE`), Pet Stone Drop boost (`OJDPMCCLPHN`), Stone Pet improvement
-  (`CMHGNNMOOFL`), Adv EXP boost (`EPKLKKIMKEC`), Dungeon Drop boost
-  (`DOPGFJJOLAD`), Dungeon Exp boost (`NINELPPICBG`), Dungeon Overtime
-  (`KJIKHMKFHJD`), Quest Overtime (`INIGKFAPLFK`), D4 boss room (`PFKAIGAFCDM`,
-  shown as `60 − x`), Crafting boost (`ICHENIOGMNP`), SpaceDim boost
-  (`FNBNKMDAIGH`), Self Replicating AI boost (`FKGKMKCAEIO`). **Next:** trace
-  each of these to its `root.X` save key and wire (a NEW subsystem, no in-game
-  capture needed — these are stored upgrade levels).
+- **ChP UPGRADE levels — MAPPED + WIRED (2026-06-20).** They are scalar fields
+  directly on `root.X` (`MLILKGIALMB`, the `FIHAENJIDAO` accessor), NOT a
+  separate object. Keys from the real deserializer (`MLILKGIALMB.EBOFJJHOOLP`,
+  line 10036; the `n19`/`n41`/`-36` copies elsewhere are decoys), labels from
+  the tooltip: `X.E` Planet Level, `X.I` Divinity boost, `X.D` Damage Reduction
+  UBs, `X.041` Faster UB spawn, `X.G` Crystal Upgrade boost, `X.H` Damage Boost
+  V2s, `X.J` CP boost, `X.039` Crystal Sacrifice boost, `X.029` BS boost,
+  `X.030` CS boost, `X.K` TBS Level Loss decrease, `X.L` Pet Stone Drop boost,
+  `X.035` Stone Pet improvement (bool), `X.019` Adv EXP boost (clamped 0–20),
+  `X.V` Dungeon Drop boost, `X.W` Dungeon Exp boost, `X.037` Dungeon Overtime,
+  `X.038` Quest Overtime (bool), `X.034` D4 boss room (stored; shown as 60 − x),
+  `X.X` Crafting boost, `X.014` SpaceDim boost, `X.040` Self Replicating AI
+  boost. Wired as the "Challenge Point Upgrades" block. **ChP *spent/used*** is
+  Σ(level × per-upgrade cost) (`MLILKGIALMB.cs:894`; e.g. Planet Level 100,
+  Crystal Upgrade 200, Damage Reduction UBs 2, Faster UB spawn 250). A few more
+  upgrades feed that sum but aren't in the display tooltip (`FJBKFKPMHGB`,
+  `MPPMMMAOKIC`, `LEODLEACJPA`, plus `LHFIMMKICKK` = `X.017` challenge max-tries)
+  — left unlabeled pending an anchor.
 
 **Self-correct (2026-06-20):** the roadmap had ChP/Overflow filed as
 *user-gated* (needing a before/after save). That was based on my earlier wrong
