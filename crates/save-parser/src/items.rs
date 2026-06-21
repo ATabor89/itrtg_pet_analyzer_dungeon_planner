@@ -1178,6 +1178,96 @@ pub fn challenge_difficulty_name(id: u32) -> Option<&'static str> {
     })
 }
 
+/// Challenge Points awarded **per completion** for a challenge id (`OIDDHCOBPLG`).
+/// Returns `None` for the score-based **Day** challenges (Day*/Road to Infinity),
+/// whose ChP comes from a high-score stat rather than the completion count, and
+/// for `None`(0)/`UNUSED`(49). Values transcribed from each challenge's wiki page
+/// (itrtg.wiki.gg, 2026-06-21); cross-checked exactly against an in-game capture
+/// (20 AAC + 4 UBHC + 4 UBC + 12 UPC + 14 MMC + 4 PMC + 12 PLC + 8 GPC + 4 BHC =
+/// 1040 ChP). So total ChP = Σ(completions × challenge_chp) over non-Day
+/// challenges + the Day-challenge score contributions.
+pub fn challenge_chp(id: u32) -> Option<u32> {
+    Some(match id {
+        1 => 1,    // Ultimate Universe
+        2 => 2,    // Black Hole
+        3 => 10,   // Double Rebirth
+        4 => 8,    // Ultimate Pet
+        5 => 8,    // God Skip
+        6 => 20,   // Clone Buildup
+        7 => 10,   // 1000 Clone
+        8 => 20,   // No Divinity
+        9 => 10,   // Planet Multi
+        10 => 30,  // All Achievements
+        11 => 25,  // Ultimate Baal
+        12 => 40,  // No Rebirth
+        13 => 30,  // Ultimate Arty
+        // 14 Day Baal — score-based
+        // 15 Day Universe — score-based
+        // 16 Day Pet — score-based
+        17 => 10,  // Crystal Power
+        18 => 20,  // P. Baal
+        19 => 45,  // Ultimate Challenge
+        20 => 35,  // 1K Clones Black Hole
+        // 21 Day Might — score-based
+        // 22 Day No Divinity — score-based
+        23 => 10,  // Total Might
+        24 => 40,  // No Rebirth Dungeon
+        25 => 4,   // Monument Multi
+        26 => 15,  // SpaceDim
+        27 => 10,  // Ultimate Beings V2
+        28 => 20,  // No Div Monument
+        29 => 1,   // Overflow
+        // 30 Road to Infinity — score-based
+        31 => 20,  // Patreon Gods
+        32 => 1,   // God Power
+        33 => 15,  // Ultimate Gods
+        34 => 15,  // One CC
+        35 => 20,  // Ultimate Beings V4
+        36 => 15,  // Monster Queen
+        37 => 25,  // RTI Temp Level
+        38 => 20,  // Light Clone
+        39 => 30,  // Universes for Clones
+        40 => 20,  // Ultimate Stats
+        // 41 Day No Rebirth — score-based
+        42 => 25,  // Div Gen
+        43 => 30,  // Max Crystal
+        44 => 30,  // Ultimate Black Hole
+        45 => 20,  // No Training
+        46 => 30,  // Expensive Monument
+        47 => 20,  // True God Skip
+        48 => 1,   // Pet Level
+        // 49 UNUSED
+        50 => 35,  // Super Divinity Generator
+        51 => 12,  // Might Accumulation
+        // 52 Day God Power — score-based
+        53 => 25,  // Ultimate Multiverse
+        // 54 Day Multiverse — score-based
+        55 => 20,  // Greedy God
+        56 => 60,  // No Rebirth CP
+        57 => 10,  // Powerful Unleash
+        58 => 10,  // Ultimate Overflow
+        59 => 20,  // SpaceDim Accumulation
+        // 60 Day Extreme Building — score-based
+        61 => 25,  // Base Speed
+        62 => 10,  // Total Growth
+        63 => 20,  // SpaceDim Reset
+        64 => 20,  // Super Pet Level
+        65 => 25,  // Pet Crafting
+        66 => 25,  // Ultimate Being V1
+        67 => 40,  // Limited Clone v4
+        68 => 20,  // God Power Accumulation
+        69 => 15,  // Powersurge
+        70 => 50,  // No Might No Rebirth
+        71 => 12,  // Exhausted Training
+        72 => 15,  // Clone Creator
+        73 => 50,  // Limited Clone No Rebirth
+        74 => 10,  // Divinity Accumulation
+        75 => 20,  // Powerful Worker
+        76 => 15,  // Boosting Capacity
+        _ => return None,
+    })
+}
+
 /// Ultimate-Overflow upgrade type by id — the `IDFOIHJPCHP` enum (entry field
 /// `a` of the `root.029` list, marker `UltimateOverflowBoost`). These are the
 /// boosts bought with Ultimate Overflow Points; names transcribed from the enum.
@@ -2296,6 +2386,32 @@ mod tests {
         assert_eq!(challenge_difficulty_name(0), Some("Normal"));
         assert_eq!(challenge_difficulty_name(2), Some("Root"));
         assert_eq!(challenge_difficulty_name(4), None);
+    }
+
+    #[test]
+    fn challenge_chp_matches_in_game_total() {
+        // (challenge id, completions) from the in-game capture that yielded 1040
+        // ChP: 20 AAC, 4 Ultimate Black Hole, 4 Ultimate Baal, 12 Ultimate Pet,
+        // 14 Monument Multi, 4 Planet Multi, 12 Pet Level, 8 God Power, 4 Black Hole.
+        let set = [
+            (10, 20),
+            (44, 4),
+            (11, 4),
+            (4, 12),
+            (25, 14),
+            (9, 4),
+            (48, 12),
+            (32, 8),
+            (2, 4),
+        ];
+        let total: u32 = set.iter().map(|&(id, n)| challenge_chp(id).unwrap() * n).sum();
+        assert_eq!(total, 1040);
+        // Day challenges are score-based → no flat per-completion value.
+        assert_eq!(challenge_chp(16), None); // Day Pet
+        assert_eq!(challenge_chp(30), None); // Road to Infinity
+        assert_eq!(challenge_chp(49), None); // Unused
+        assert_eq!(challenge_chp(0), None); // None sentinel
+        assert_eq!(challenge_chp(77), None); // past the end
     }
 
     #[test]
