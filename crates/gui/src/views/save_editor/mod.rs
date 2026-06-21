@@ -36,6 +36,10 @@ pub struct SaveEditorState {
     tree_scrolled_query: Option<String>,
     /// Browse-mode collapsing-id generation; "Collapse all" bumps it.
     tree_generation: u64,
+    /// Active "navigate to tree" target: a normalized (all-index) dotted path
+    /// the raw tree should reveal and scroll to. Set by the pending-changes
+    /// panel; cleared when the user searches or hits Clear.
+    tree_jump: Option<String>,
     pets: pets::PetEditState,
     equipment: equipment::EquipEditState,
     inventory: inventory::InventoryEditState,
@@ -106,6 +110,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         tree_reveal,
         tree_scrolled_query,
         tree_generation,
+        tree_jump,
         pets: pet_state,
         equipment: equip_state,
         inventory: inv_state,
@@ -119,7 +124,17 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
     } = state;
     let session = session.as_mut().unwrap();
 
-    pending_panel(ui, session);
+    // The pending panel can request a jump to a node in the raw tree; applying
+    // it here (before the section body renders) makes the navigation land this
+    // same frame.
+    let mut nav: Option<String> = None;
+    pending_panel(ui, session, &mut nav);
+    if let Some(target) = nav {
+        *current = SectionId::RawTree;
+        *tree_jump = Some(target);
+        tree_search.clear();
+        *tree_scrolled_query = None;
+    }
     ui.separator();
 
     ui.horizontal_top(|ui| {
@@ -167,6 +182,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                         tree_reveal,
                         tree_scrolled_query,
                         tree_generation,
+                        tree_jump,
                     ),
                 });
         });
@@ -294,7 +310,7 @@ fn empty_prompt(ui: &mut egui::Ui) {
     });
 }
 
-fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
+fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<String>) {
     let n = session.change_count();
     let color = if n > 0 {
         style::WARNING
@@ -321,7 +337,7 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
                 .auto_shrink([false, true])
                 .show(ui, |ui| {
                     egui::Grid::new("save_editor_pending_grid")
-                        .num_columns(4)
+                        .num_columns(5)
                         .spacing([12.0, 4.0])
                         .striped(true)
                         .show(ui, |ui| {
@@ -342,6 +358,21 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
                                     .monospace()
                                     .size(11.0),
                                 );
+                                // Resolve the staged path (which may carry a
+                                // `field=value` selector) to the all-index form
+                                // the tree navigator uses, then request a jump.
+                                let p: Vec<&str> = e.path.iter().map(String::as_str).collect();
+                                let resolved = session.root().resolve_index_path(&p);
+                                let clicked = ui
+                                    .add_enabled(
+                                        resolved.is_some(),
+                                        egui::Button::new("↪ tree").small(),
+                                    )
+                                    .on_hover_text("Reveal this field in the Raw Save Tree")
+                                    .clicked();
+                                if let (true, Some(idx_path)) = (clicked, resolved) {
+                                    *nav = Some(idx_path.join("."));
+                                }
                                 if ui.small_button("undo").clicked() {
                                     undo = Some(i);
                                 }
