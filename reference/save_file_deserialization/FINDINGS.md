@@ -385,6 +385,17 @@ whole system. Key findings:
     14 MMC + 4 PMC + 12 PLC + 8 GPC + 4 BHC = 1040 ChP). The **Day** challenges
     (`OIHGOPGKAJO` score formulas) contribute score-based ChP instead — not in
     the per-completion table (return `None`).
+  - **Day-challenge score stats** (each Day challenge's ChP scales with a
+    high-score statistic in `root.x`, per the `OIHGOPGKAJO` formulas): Day Baal
+    (14) `x.045`, Day Universe (15) `x.047`, Day Pet (16) `x.049` (= "Highest
+    Multiplier in DPC"; validated — fixture `x.049` = 3,664,035,884 = the
+    player's 3.664 E+9), Day Might (21) `x.065`, Day No Divinity (22) `x.068`,
+    Road to Infinity (30) `x.134` (highest P.Baal), Day Extreme Building (60)
+    `x.304`. Day No Rebirth (41 `BHLJEBDIMBK`) and Day Multiverse (54
+    `GLLHBNBFPJM`) use a non-standard parser (key TBD); Day God Power (52) reads
+    a computed method `HPOOCBOEMGH()`, not a single field. These score stats are
+    now labeled in the Statistics block (editable in the tree), and
+    `items::challenge_is_score_based(id)` flags the 10 score-based ids.
 - **Overflow Points "left" is a computed method** `LLMCMCKAABP.JHDPFECPEOM()`
   (root.x); "Ultimate Overflow Points left" derives from `LLMCMCKAABP.IGFIHCDIGOM`.
 - **Overflow-Point UPGRADE levels are stored at `root.013`** (`HNFHEBJIPEL`,

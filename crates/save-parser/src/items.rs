@@ -1178,6 +1178,15 @@ pub fn challenge_difficulty_name(id: u32) -> Option<&'static str> {
     })
 }
 
+/// Whether a challenge (`OIDDHCOBPLG` id) is **score-based** — the Day challenges
+/// plus Road to Infinity, whose ChP comes from a high-score statistic in `root.x`
+/// rather than the `x.242` completion count. These are exactly the real-challenge
+/// ids for which [`challenge_chp`] returns `None`. The per-challenge score-stat
+/// `root.x` keys are tabulated in FINDINGS (e.g. Day Pet → x.049).
+pub fn challenge_is_score_based(id: u32) -> bool {
+    matches!(id, 14 | 15 | 16 | 21 | 22 | 30 | 41 | 52 | 54 | 60)
+}
+
 /// Challenge Points awarded **per completion** for a challenge id (`OIDDHCOBPLG`).
 /// Returns `None` for the score-based **Day** challenges (Day*/Road to Infinity),
 /// whose ChP comes from a high-score stat rather than the completion count, and
@@ -2412,6 +2421,29 @@ mod tests {
         assert_eq!(challenge_chp(49), None); // Unused
         assert_eq!(challenge_chp(0), None); // None sentinel
         assert_eq!(challenge_chp(77), None); // past the end
+    }
+
+    #[test]
+    fn score_based_challenges_are_exactly_the_no_chp_ones() {
+        // The 10 score-based (Day + Road to Infinity) ids.
+        for id in [14, 15, 16, 21, 22, 30, 41, 52, 54, 60] {
+            assert!(challenge_is_score_based(id), "id {id} should be score-based");
+        }
+        for id in [1, 10, 25, 48, 76] {
+            assert!(!challenge_is_score_based(id), "id {id} should not be score-based");
+        }
+        // Invariant: among real challenges (1..=76 minus UNUSED 49), a challenge
+        // is score-based iff it has no flat per-completion ChP value.
+        for id in 1..=76 {
+            if id == 49 {
+                continue; // UNUSED
+            }
+            assert_eq!(
+                challenge_chp(id).is_none(),
+                challenge_is_score_based(id),
+                "id {id}: challenge_chp None vs score_based mismatch"
+            );
+        }
     }
 
     #[test]

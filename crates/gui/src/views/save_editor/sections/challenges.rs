@@ -190,8 +190,22 @@ fn table(
         .body(|body| {
             body.rows(24.0, filtered.len(), |mut tr| {
                 let row = &rows[filtered[tr.index()]];
+                let score_based = items::challenge_is_score_based(row.challenge_id);
                 tr.col(|ui| {
                     ui.label(challenge_label(row.challenge_id));
+                    if score_based {
+                        ui.label(
+                            RichText::new("score-based")
+                                .color(style::TEXT_MUTED)
+                                .italics()
+                                .size(10.0),
+                        )
+                        .on_hover_text(
+                            "Day challenge: ChP comes from your high score (a Statistics-block \
+                             stat), not this completion count. Edit the score in the Raw Save \
+                             Tree / Statistics (the labeled \u{201c}(ChP basis)\u{201d} field).",
+                        );
+                    }
                 });
                 tr.col(|ui| {
                     let buf = st
@@ -296,6 +310,18 @@ fn add_window(ctx: &egui::Context, st: &mut AddChalState) -> Option<(u32, String
                 .color(style::TEXT_MUTED)
                 .size(10.0),
             );
+            if items::challenge_is_score_based(st.challenge_id) {
+                ui.label(
+                    RichText::new(
+                        "\u{26a0} This is a Day challenge: its ChP is based on your highest \
+                         SCORE, not the completion count. Setting completions here won't change \
+                         its ChP — edit the score in the Raw Save Tree / Statistics (the labeled \
+                         \u{201c}(ChP basis)\u{201d} field).",
+                    )
+                    .color(style::WARNING)
+                    .size(10.0),
+                );
+            }
             ui.separator();
             ui.horizontal(|ui| {
                 let ok = st.completions.trim().parse::<u64>().is_ok();
