@@ -205,6 +205,9 @@ pub struct PetEditState {
     ops: HashMap<Field, (OpKind, String)>,
     /// Bulk "set class" (save class id), `None` = leave class alone.
     op_class: Option<u32>,
+    /// Bulk "set unlocked" — `Some(true)` unlock / `Some(false)` lock the
+    /// selected pets; `None` = leave unlocked state alone.
+    op_unlocked: Option<bool>,
     /// Per-pet field overrides (explicit values that beat the bulk op).
     overrides: HashMap<(usize, Field), String>,
     /// Per-pet class overrides.
@@ -286,6 +289,7 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PetEditState)
         st.class_overrides.clear();
         st.ops.clear();
         st.op_class = None;
+        st.op_unlocked = None;
         st.cell_buffers.clear();
     }
 
@@ -526,9 +530,31 @@ fn bulk_panel(ui: &mut egui::Ui, st: &mut PetEditState, filtered: &[usize]) {
                 ui.label("");
             }
             ui.end_row();
+
+            // Unlocked op (set the `l` bool without touching the raw tree).
+            let mut unlocked_enabled = st.op_unlocked.is_some();
+            if ui.checkbox(&mut unlocked_enabled, "Unlocked").changed() {
+                st.op_unlocked = unlocked_enabled.then_some(true);
+            }
+            if let Some(v) = &mut st.op_unlocked {
+                egui::ComboBox::from_id_salt("pet_op_unlocked")
+                    .selected_text(if *v { "Unlock" } else { "Lock" })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(v, true, "Unlock");
+                        ui.selectable_value(v, false, "Lock");
+                    });
+                ui.label("");
+            } else {
+                ui.label("");
+                ui.label("");
+            }
+            ui.end_row();
         });
 
-    let has_ops = !st.ops.is_empty() || st.op_class.is_some() || !st.overrides.is_empty()
+    let has_ops = !st.ops.is_empty()
+        || st.op_class.is_some()
+        || st.op_unlocked.is_some()
+        || !st.overrides.is_empty()
         || !st.class_overrides.is_empty();
     let n = st.selected.len();
     ui.horizontal(|ui| {
@@ -782,6 +808,19 @@ fn apply(session: &mut EditSession, st: &PetEditState, rows: &[PetRow]) -> (Stri
                 .set_scalar(&["X", "b", &i_str, "w", "d", "a"], format!("{} · Class", row.name), &id_s)
                 .is_ok()
             {
+                staged += 1;
+            } else {
+                skipped += 1;
+            }
+        }
+
+        // Unlocked (`l` bool, stored as "True"/"False").
+        if let Some(want) = st.op_unlocked
+            && want != row.unlocked
+        {
+            let label = format!("{} · {}", row.name, if want { "Unlock" } else { "Lock" });
+            let v = if want { "True" } else { "False" };
+            if session.set_scalar(&["X", "b", &i_str, "l"], label, v).is_ok() {
                 staged += 1;
             } else {
                 skipped += 1;
