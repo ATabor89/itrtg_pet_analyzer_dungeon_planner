@@ -265,11 +265,14 @@ fn add_window(ctx: &egui::Context, st: &mut AddChalState) -> Option<(u32, String
                     .selected_text(challenge_label(st.challenge_id))
                     .width(240.0)
                     .show_ui(ui, |ui| {
-                        for id in 1..=MAX_CHALLENGE_ID {
-                            if id == UNUSED_CHALLENGE_ID {
-                                continue;
-                            }
-                            ui.selectable_value(&mut st.challenge_id, id, challenge_label(id));
+                        // Sorted by name so the ~75-entry list is easy to scan.
+                        let mut opts: Vec<(u32, String)> = (1..=MAX_CHALLENGE_ID)
+                            .filter(|id| *id != UNUSED_CHALLENGE_ID)
+                            .map(|id| (id, challenge_label(id)))
+                            .collect();
+                        opts.sort_by(|a, b| a.1.cmp(&b.1));
+                        for (id, label) in opts {
+                            ui.selectable_value(&mut st.challenge_id, id, label);
                         }
                     });
             });
