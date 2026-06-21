@@ -426,10 +426,10 @@ marker, purpose inferred; LOW = scrambled marker, class only):
 | `029` | `CDNMNLIAPKA` | `UltimateOverflowBoosts` | **WIRED** — Ultimate Overflow upgrades; `.a` = list of `FDJCCPFCJAO` `{a: IDFOIHJPCHP type, b: level}`; 6 types (1 Dungeon Slot, 2 Multiverse Rebirth Multi, 3 Multiverse GP Increase, 4 Multiverse Growth %, 5 Multiverse Growth Levels, 6 Higher PBaal) | DONE |
 | `y`/`z`/`A`/`B` | `OEFPEEEHKDB` | `AchievementId` | Achievement/milestone state lists (`{a:bool, b:int}`); sizes 168/168/136/84 | HIGH |
 | `P` | `HAGJGEFFJMM` | `PBaal` | **CONFIRMED** = the current P.Baal god-fight (reconciles with the existing registry label "Current God Fight"). `c` = **Highest P.Baal Defeated** (shown +1; in "The last P.Baal you defeated is …" / Day Baal Challenge); `a`/`e` flags, `b` accumulator (receives root.`b` at load), `d` running-max. Fields mostly transient → **not wired** (container already labeled; low value) | IDENTIFIED |
-| `Q` | `LLCEGHMEDHK` | `AvatarOptions` | Avatar / cosmetic options | MED-HIGH |
-| `012` | `ANNEDIJDLIC` | `BattleUBV4` | UBV4 battle state | MED-HIGH |
+| `Q` | `LLCEGHMEDHK` | `AvatarOptions` | **IDENTIFIED** — avatar/cosmetic options: `a`/`b`/`d`/`e` bools, `c` (empty) + `f` = 62-entry owned-avatar list `{a:id, b/c/d, e/f bools}`. Cosmetic → not wired (low value) | IDENTIFIED |
+| `012` | `ANNEDIJDLIC` | `BattleUBV4` | **IDENTIFIED** — UBV4 battle state: `a`/`b`/`c` scalars + `d` = 18 `{a:id, b:val}` pairs (`a`'s enum untraced; some nonzero). Battle/per-run state → not wired pending an anchor | IDENTIFIED |
 | `014` | `DIGFPPNEEOC` | `RTIBonuses` | **WIRED** — RTI (Road to Infinity) bonuses; `.a` = list of 10 `HEIPGLPOGEJ` (`RtiElement`), one per `BDAFIPJBPFN` stat type (1 Physical … 10 CreatingSpeed); entry `a`=type, `b`=Bonus Amount, `e`=elapsed timer (`LDMJEPGEOME`), `c`/`d`/`g`/`h`=per-type values (neutral). `.b` = `&`-list of `HFNFDKEMAIK` special pets (not wired) | DONE |
-| `027` | `JCNIFKADIBN` | `Multiverse` | Multiverse system | MED |
+| `027` | `JCNIFKADIBN` | `Multiverse` | **IDENTIFIED** — Multiverse system: `a`/`b` BigDouble, `c`=elapsed timer (`LDMJEPGEOME`), `d` bool, `e` int, `f` = nested `PKONEHBAJKG` `{a,b,c,d}`, `g` = 3-entry `NHJPCFHIDML` list `{a..g}`, `h`/`i` BigDouble, `j` int. **All zero in the fixture** (Multiverse unused) → not wired (no data to anchor field roles) | IDENTIFIED |
 | `o` | `IFBFOMJDBLH` | `---MightsStart---` (also "Salamander"/"Elemental Manipulation") | Might / elemental detail | LOW-MED |
 | `O` | `ACDDNFHBJCD` | (decoy "Event will be removed in:") | Events (active event state) | LOW-MED |
 | `015` | `DNIMPNBKPGO` | `AvatarNew` / "Multi from UBv1C" | Avatar v2 or UBv1 multi — unclear | LOW |
@@ -439,9 +439,17 @@ Method to map any of these (per the usual recipe): find the class's real
 deserializer (letter/numeric keys, **not** the prose-key decoys), label fields
 from a debug/tooltip anchor, confirm the root key + non-empty struct in the
 fixture, wire as a block, validate via the coverage test. Each is its own PR.
-Remaining C#-tractable targets after `029`/`014` (wired) and `P` (identified,
-not worth wiring): `Q` (AvatarOptions), `012` (UBV4 battle), `027` (Multiverse),
-the `y`/`z`/`A`/`B` achievement lists, then `o`/`O`/`015`/`031`.
+**Status (2026-06-20): the high-value root mapping is complete.** The two
+genuinely valuable unmapped subsystems were wired (`029` Ultimate Overflow,
+`014` RTI bonuses). The rest of the tail is now **identified but deliberately
+not wired** because it is low-value or unanchorable: `P` (P.Baal god-fight,
+transient), `Q` (avatar/cosmetic), `012` (UBV4 battle state), `027` (Multiverse —
+all zero in the fixture). Still genuinely open but low priority: the
+`y`/`z`/`A`/`B` achievement-claim lists (`{a:bool, b:int id}` — would need the
+achievement-id→name catalog resolved to be meaningful), and `o`/`O`/`015`/`031`
+(scrambled markers; would need an in-game anchor or a save where they're
+populated). None of these blocks the editor; wire opportunistically if a
+populated save or in-game screen later anchors the field roles.
 
 Anni Cake's bonus: stored **directly at root `033`** as a fractional
 percent — save 1: 709.0245829717 (exactly the user's predicted "709%"),
