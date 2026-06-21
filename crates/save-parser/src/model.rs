@@ -848,11 +848,19 @@ pub fn research_name(id: u32) -> Option<&'static str> {
 /// One campaign slot (`X.x[i]`).
 #[derive(Debug, Clone)]
 pub struct CampaignSlot {
-    /// Slot index (`a`).
-    pub index: u32,
+    /// Campaign **type** id (`a`) — the `AGGDKICFOAI` enum (0 = Growth); resolve
+    /// with [`CampaignSlot::campaign_type_name`]. There is one persistent slot
+    /// per type, so this is the slot's identity, *not* its list position.
+    /// (Formerly mislabeled "index" — the reference save's 8 slots carry types
+    /// 0,1,2,3,4,5,6,8, which is not a contiguous index.)
+    pub campaign_type_id: u32,
     /// Pet type ids assigned to the campaign (`d`).
     pub pet_type_ids: Vec<u32>,
-    /// Campaign duration in ms (`e`), 43,200,000 = 12 h.
+    /// Elapsed time in ms (`c`) — a float that counts up to `duration_ms`; the
+    /// campaign completes when it reaches the target.
+    pub elapsed_ms: f64,
+    /// Campaign target duration in ms (`e`), 43,200,000 = 12 h. `0` when the
+    /// slot has no active campaign.
     pub duration_ms: u64,
     /// Bonus value (`f`) — semantics not yet pinned down.
     pub bonus: u64,
@@ -1491,15 +1499,25 @@ impl DungeonTeam {
 }
 
 impl CampaignSlot {
+    /// Display name of the campaign type (e.g. "Growth"), if identified.
+    pub fn campaign_type_name(&self) -> Option<&'static str> {
+        crate::items::campaign_type_name(self.campaign_type_id)
+    }
+
     fn from_node(node: &Node) -> Self {
+        // Keys come from the canonical block declaration in `labels`, so the
+        // parse and the label table cannot drift (type-driven refactor, B). This
+        // is what surfaced the old `a`-as-index bug: `a` is the campaign type.
+        use crate::labels::CampaignField as F;
         CampaignSlot {
-            index: get_u32(node, "a"),
+            campaign_type_id: get_u32(node, F::CampaignType.key()),
             pet_type_ids: node
-                .get("d")
+                .get(F::PetTypeIds.key())
                 .and_then(Node::as_int_list)
                 .unwrap_or_default(),
-            duration_ms: get_u64(node, "e"),
-            bonus: get_u64(node, "f"),
+            elapsed_ms: get_f64(node, F::Elapsed.key()),
+            duration_ms: get_u64(node, F::TargetDuration.key()),
+            bonus: get_u64(node, F::Bonus.key()),
         }
     }
 }
