@@ -30,6 +30,7 @@ pub enum SectionId {
     Challenges,
     Campaigns,
     Dungeons,
+    Planet,
     RawTree,
 }
 
@@ -47,6 +48,7 @@ impl SectionId {
         SectionId::Challenges,
         SectionId::Campaigns,
         SectionId::Dungeons,
+        SectionId::Planet,
         SectionId::RawTree,
     ];
 
@@ -63,6 +65,7 @@ impl SectionId {
             SectionId::Challenges => "Challenges",
             SectionId::Campaigns => "Campaigns",
             SectionId::Dungeons => "Dungeons",
+            SectionId::Planet => "Planet / UBs",
             SectionId::RawTree => "Raw Save Tree",
         }
     }
