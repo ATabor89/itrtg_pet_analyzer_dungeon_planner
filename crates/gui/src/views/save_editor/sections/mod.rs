@@ -11,6 +11,7 @@ pub mod equipment;
 pub mod gems;
 pub mod inventory;
 pub mod pets;
+pub mod planet;
 pub mod raw_tree;
 pub mod resources;
 pub mod stats;
