@@ -62,6 +62,14 @@ pub struct AddedGem {
     pub label: String,
 }
 
+/// A newly-created challenge-completion entry (appended to `x.242`), keyed by
+/// challenge id.
+#[derive(Clone)]
+pub struct AddedChallenge {
+    pub challenge_id: u32,
+    pub label: String,
+}
+
 /// A loaded list element removed this session, kept so the deletion shows in the
 /// pending panel and can be undone (re-inserted).
 #[derive(Clone)]
@@ -97,6 +105,8 @@ pub struct EditSession {
     added_materials: Vec<AddedMaterial>,
     /// Gem stacks created this session (see [`AddedGem`]).
     added_gems: Vec<AddedGem>,
+    /// Challenge entries created this session (see [`AddedChallenge`]).
+    added_challenges: Vec<AddedChallenge>,
     /// Loaded list elements deleted this session (see [`RemovedElement`]).
     removed: Vec<RemovedElement>,
     /// Set when an edit invalidates `derived`; cleared by `rederive_if_needed`.
@@ -121,6 +131,7 @@ impl EditSession {
             added: Vec::new(),
             added_materials: Vec::new(),
             added_gems: Vec::new(),
+            added_challenges: Vec::new(),
             removed: Vec::new(),
             dirty_derived: false,
         })
@@ -159,6 +170,11 @@ impl EditSession {
         &self.added_gems
     }
 
+    /// Challenge entries created this session.
+    pub fn added_challenges(&self) -> &[AddedChallenge] {
+        &self.added_challenges
+    }
+
     /// Loaded list elements deleted this session.
     pub fn removed(&self) -> &[RemovedElement] {
         &self.removed
@@ -169,6 +185,7 @@ impl EditSession {
             || !self.added.is_empty()
             || !self.added_materials.is_empty()
             || !self.added_gems.is_empty()
+            || !self.added_challenges.is_empty()
             || !self.removed.is_empty()
     }
 
@@ -178,6 +195,7 @@ impl EditSession {
             + self.added.len()
             + self.added_materials.len()
             + self.added_gems.len()
+            + self.added_challenges.len()
             + self.removed.len()
     }
 
@@ -397,6 +415,60 @@ impl EditSession {
             self.reindex_pending_after_removal(&["X", "002"], pos);
         }
         self.added_gems.remove(index);
+        self.dirty_derived = true;
+    }
+
+    /// Upsert a challenge completion (`x.242`): if the challenge id is already
+    /// present, set its completion count `b`; otherwise append a new entry
+    /// `{a:id, b:count, c:difficulty, d:0, e:0}`. Returns whether a new entry
+    /// was added. (The game keys challenges by id and recomputes ChP from the
+    /// list, so we upsert rather than allow duplicates.)
+    pub fn set_challenge(
+        &mut self,
+        challenge_id: u32,
+        completions: &str,
+        difficulty: u32,
+        label: impl Into<String>,
+    ) -> Result<bool> {
+        // Normalize / create the x.242 list so the index path below is valid.
+        edit::ensure_list_at(&mut self.root, &["x", "242"])?;
+        let idx = match self.root.get_path(&["x", "242"]) {
+            Some(Raw::List(items)) => {
+                items.iter().position(|it| scalar_u32(it, "a") == Some(challenge_id))
+            }
+            _ => None,
+        };
+        if let Some(idx) = idx {
+            self.set_scalar(&["x", "242", &idx.to_string(), "b"], label, completions)?;
+            Ok(false)
+        } else {
+            edit::add_challenge_entry(&mut self.root, challenge_id, completions, difficulty)?;
+            self.added_challenges.push(AddedChallenge {
+                challenge_id,
+                label: label.into(),
+            });
+            self.dirty_derived = true;
+            Ok(true)
+        }
+    }
+
+    /// Undo a created challenge entry (by index into [`added_challenges`]).
+    pub fn undo_added_challenge(&mut self, index: usize) {
+        let Some(entry) = self.added_challenges.get(index).cloned() else {
+            return;
+        };
+        let mut removed_pos = None;
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["x", "242"])
+            && let Some(pos) =
+                items.iter().rposition(|it| scalar_u32(it, "a") == Some(entry.challenge_id))
+        {
+            items.remove(pos);
+            removed_pos = Some(pos);
+        }
+        if let Some(pos) = removed_pos {
+            self.reindex_pending_after_removal(&["x", "242"], pos);
+        }
+        self.added_challenges.remove(index);
         self.dirty_derived = true;
     }
 
@@ -718,6 +790,20 @@ impl EditSession {
                 );
             }
         }
+        // Each created challenge entry must be present in x.242 (by challenge id).
+        // Use the `a=<id>` selector path so a single-entry list — which re-parses
+        // as a lone struct after a round-trip — still resolves (cf. materials).
+        for c in &self.added_challenges {
+            if root
+                .get_path(&["x", "242", &format!("a={}", c.challenge_id), "a"])
+                .is_none()
+            {
+                bail!(
+                    "validation failed: added challenge id {} missing after round-trip",
+                    c.challenge_id
+                );
+            }
+        }
         Ok(())
     }
 }
@@ -872,6 +958,58 @@ mod tests {
         s.undo_added_gem(0);
         assert!(s.added_gems().is_empty());
         assert!(s.value(&["X", "002", "2", "a"]).is_none());
+    }
+
+    /// A challenge entry `{a:id, b:completions, c:0, d:0, e:0}`.
+    fn chal(a: &str, b: &str) -> Raw {
+        Raw::Struct(vec![
+            ("a".into(), sc(a)),
+            ("b".into(), sc(b)),
+            ("c".into(), sc("0")),
+            ("d".into(), sc("0")),
+            ("e".into(), sc("0")),
+        ])
+    }
+    /// A root with the Statistics block `x.242` holding two challenge entries
+    /// (AAC id 10, DRC id 3).
+    fn chal_root() -> Raw {
+        let x = Raw::Struct(vec![(
+            "242".into(),
+            Field::Value(Raw::List(vec![chal("10", "10"), chal("3", "8")])),
+        )]);
+        Raw::Struct(vec![("x".into(), b64(x))])
+    }
+
+    #[test]
+    fn set_challenge_updates_existing_and_creates_new() {
+        let mut s = EditSession::load(&encoded(&chal_root()), None).unwrap();
+        // Update existing AAC (id 10, index 0) — a scalar edit, not an addition.
+        assert!(!s.set_challenge(10, "25", 0, "AAC").unwrap());
+        assert_eq!(s.value(&["x", "242", "0", "b"]).as_deref(), Some("25"));
+        assert!(s.added_challenges().is_empty());
+        // Create a new challenge (UUC id 1, appended at index 2).
+        assert!(s.set_challenge(1, "2", 0, "UUC").unwrap());
+        assert_eq!(s.added_challenges().len(), 1);
+        assert_eq!(s.value(&["x", "242", "2", "a"]).as_deref(), Some("1"));
+        assert_eq!(s.value(&["x", "242", "2", "b"]).as_deref(), Some("2"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+        // Undo the created entry — it leaves the tree.
+        s.undo_added_challenge(0);
+        assert!(s.added_challenges().is_empty());
+        assert!(s.value(&["x", "242", "2", "a"]).is_none());
+    }
+
+    #[test]
+    fn set_challenge_creates_x242_list_when_absent() {
+        // Statistics block with no 242 field at all.
+        let root = Raw::Struct(vec![("x".into(), b64(Raw::Struct(vec![("013".into(), sc("0"))])))]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+        assert!(s.set_challenge(10, "5", 0, "AAC").unwrap());
+        assert_eq!(s.value(&["x", "242", "0", "a"]).as_deref(), Some("10"));
+        assert_eq!(s.value(&["x", "242", "0", "b"]).as_deref(), Some("5"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
     }
 
     #[test]
