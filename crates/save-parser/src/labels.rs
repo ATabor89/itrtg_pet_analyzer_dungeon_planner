@@ -103,11 +103,35 @@ pub enum Resolve {
     RtiBonus,
 }
 
+/// The value type of a save field, declared once so the tree navigator and the
+/// structured sections share one notion of how to edit and bound it.
+///
+/// This is the *value-type* axis (what the number means / how to constrain it).
+/// It is distinct from the registry's edit-widget kind (Number/Bool/Text), which
+/// is about how the raw-tree editor renders the input; an `Id` here is edited as
+/// a number there but also carries a [`Resolve`] for naming.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FieldKind {
+    /// An unsigned integer, optionally range-bounded (see [`FieldLabel::range`]).
+    UInt,
+    /// An id whose value resolves to a name (carries a [`Resolve`]).
+    Id,
+    /// A `True`/`False` boolean.
+    Bool,
+    /// Free text or an opaque / arbitrary-magnitude scalar.
+    Text,
+}
+
 /// One labeled field within a block element. `key` is the path *relative to the
 /// element*, dot-joined for nested structs (`"w.d.b"`).
 pub struct FieldLabel {
     pub key: &'static str,
     pub label: &'static str,
+    /// The value type — drives editing/validation in both the tree and sections.
+    pub kind: FieldKind,
+    /// Inclusive `(min, max)` bound for a `UInt`, enforced everywhere the field
+    /// is edited. `None` = unbounded.
+    pub range: Option<(u32, u32)>,
     /// If set, the field is an id the editor annotates with a resolved name.
     pub resolve: Option<Resolve>,
 }
@@ -136,17 +160,84 @@ pub struct BlockSchema {
     pub fields: &'static [FieldLabel],
 }
 
-/// A plain labeled field.
+/// A plain labeled field. Kind/range default to `Text`/unbounded — blocks that
+/// need typed bounds are declared with [`save_block!`] instead.
 macro_rules! lbl {
     ($k:literal, $l:literal) => {
-        FieldLabel { key: $k, label: $l, resolve: None }
+        FieldLabel { key: $k, label: $l, kind: FieldKind::Text, range: None, resolve: None }
     };
 }
 
 /// A labeled id field that resolves to a name.
 macro_rules! lblr {
     ($k:literal, $l:literal, $r:expr) => {
-        FieldLabel { key: $k, label: $l, resolve: Some($r) }
+        FieldLabel { key: $k, label: $l, kind: FieldKind::Id, range: None, resolve: Some($r) }
+    };
+}
+
+/// Declare a block's fields **once** as a canonical per-block enum plus the
+/// `&[FieldLabel]` slice the registry consumes — the realization of the
+/// type-driven model refactor (Option B). Each field's key, label, kind, range,
+/// and resolve are stated in a single row; the generated enum's `match` arms are
+/// exhaustive, so adding a field without specifying all of them is a compile
+/// error, and the model's `from_node` reads the same `key()` constants — so the
+/// three former copies (model parse, label table, section) can no longer drift.
+///
+/// The enum is the type-safe handle sections use (`EquipField::Enchant.range()`)
+/// instead of bare string keys.
+macro_rules! save_block {
+    (
+        $(#[$meta:meta])*
+        $enum:ident => $slice:ident;
+        $( $variant:ident : $key:literal, $label:literal, $kind:expr, $range:expr, $resolve:expr ; )+
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+        pub enum $enum { $( $variant ),+ }
+
+        impl $enum {
+            /// Every field of the block, in declaration order.
+            pub const ALL: &'static [$enum] = &[ $( $enum::$variant ),+ ];
+
+            /// Raw key relative to the block element.
+            pub const fn key(self) -> &'static str {
+                match self { $( $enum::$variant => $key ),+ }
+            }
+
+            /// Canonical short display label.
+            pub const fn label(self) -> &'static str {
+                match self { $( $enum::$variant => $label ),+ }
+            }
+
+            /// The value type.
+            pub const fn kind(self) -> FieldKind {
+                match self { $( $enum::$variant => $kind ),+ }
+            }
+
+            /// Inclusive `(min, max)` bound, if any.
+            pub const fn range(self) -> Option<(u32, u32)> {
+                match self { $( $enum::$variant => $range ),+ }
+            }
+
+            /// Id-name resolution hint, if any.
+            pub const fn resolve(self) -> Option<Resolve> {
+                match self { $( $enum::$variant => $resolve ),+ }
+            }
+
+            /// Clamp a value into this field's range (identity if unbounded).
+            pub const fn clamp(self, v: u32) -> u32 {
+                match self.range() {
+                    Some((lo, _)) if v < lo => lo,
+                    Some((_, hi)) if v > hi => hi,
+                    _ => v,
+                }
+            }
+        }
+
+        /// Label slice for the registry — generated from the same declaration.
+        pub const $slice: &[FieldLabel] = &[ $(
+            FieldLabel { key: $key, label: $label, kind: $kind, range: $range, resolve: $resolve },
+        )+ ];
     };
 }
 
@@ -192,17 +283,22 @@ pub const PET_FIELDS: &[FieldLabel] = &[
     lblr!("w.g", "Accessory (instance id)", Resolve::EquipmentInstance),
 ];
 
-/// Owned equipment instances — `X.R.<index>`.
-pub const EQUIPMENT_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Type Id", Resolve::Equipment),
-    lbl!("b", "Plus Level"),
-    lbl!("c", "Quality"),
-    lbl!("d", "Equip Ref (0 = unequipped)"),
-    lbl!("e", "Enchant Level"),
-    lbl!("f", "Gem Level"),
-    lblr!("g", "Gem Element Id", Resolve::GemElement),
-    lbl!("h", "Unique Instance Id"),
-];
+save_block! {
+    /// Owned equipment instances — `X.R.<index>`. The pilot block for the
+    /// type-driven refactor: model parse, label table, and the equipment section
+    /// all derive from this one declaration. Ranges per the in-game caps:
+    /// enchant 0–20, quality 0–8 (SSS), plus 0–30 (only Candy Cane reaches +30;
+    /// every other item caps at +20 — the field bound is the max across all gear).
+    EquipField => EQUIPMENT_FIELDS;
+    TypeId:     "a", "Type Id",                    FieldKind::Id,   None,         Some(Resolve::Equipment);
+    Plus:       "b", "Plus Level",                 FieldKind::UInt, Some((0, 30)), None;
+    Quality:    "c", "Quality",                    FieldKind::UInt, Some((0, 8)),  None;
+    EquipRef:   "d", "Equip Ref (0 = unequipped)", FieldKind::UInt, None,         None;
+    Enchant:    "e", "Enchant Level",              FieldKind::UInt, Some((0, 20)), None;
+    GemLevel:   "f", "Gem Level",                  FieldKind::UInt, None,         None;
+    GemElement: "g", "Gem Element Id",             FieldKind::Id,   None,         Some(Resolve::GemElement);
+    InstanceId: "h", "Unique Instance Id",         FieldKind::UInt, None,         None;
+}
 
 /// Material / item stacks — `X.Q.<index>`.
 pub const MATERIAL_FIELDS: &[FieldLabel] =
@@ -744,3 +840,41 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["K", "l"], name: "Divinity Upgrade", plural: "Divinity Upgrades", is_list: true, element_name: elem("a", Resolve::DivinityUpgrade), fields: DIVINITY_UPGRADE_FIELDS },
     BlockSchema { base: &["S"], name: "Baal Slayer Parts", plural: "Baal Slayer Parts", is_list: false, element_name: None, fields: TBS_FIELDS },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The `save_block!`-generated `EquipField` and its derived `EQUIPMENT_FIELDS`
+    /// stay one source: same keys, in order, with matching kind/range/resolve.
+    #[test]
+    fn equip_field_and_slice_agree() {
+        assert_eq!(EquipField::ALL.len(), EQUIPMENT_FIELDS.len());
+        for (f, fl) in EquipField::ALL.iter().zip(EQUIPMENT_FIELDS) {
+            assert_eq!(f.key(), fl.key);
+            assert_eq!(f.label(), fl.label);
+            assert_eq!(f.kind(), fl.kind);
+            assert_eq!(f.range(), fl.range);
+            assert_eq!(f.resolve(), fl.resolve);
+        }
+    }
+
+    /// Ranges match the in-game caps and `clamp` enforces them.
+    #[test]
+    fn equip_field_clamp_enforces_bounds() {
+        assert_eq!(EquipField::Quality.range(), Some((0, 8)));
+        // Plus caps at 30 (Candy Cane's max), not 20 — only it exceeds +20.
+        assert_eq!(EquipField::Plus.range(), Some((0, 30)));
+        assert_eq!(EquipField::Enchant.range(), Some((0, 20)));
+        assert_eq!(EquipField::GemLevel.range(), None);
+        // Clamp: over the cap pins to max, under to min, unbounded passes through.
+        assert_eq!(EquipField::Quality.clamp(50), 8);
+        assert_eq!(EquipField::Enchant.clamp(50), 20);
+        assert_eq!(EquipField::Enchant.clamp(12), 12);
+        // Candy Cane's +25/+30 survive; only absurd values pin to 30.
+        assert_eq!(EquipField::Plus.clamp(25), 25);
+        assert_eq!(EquipField::Plus.clamp(30), 30);
+        assert_eq!(EquipField::Plus.clamp(99), 30);
+        assert_eq!(EquipField::GemLevel.clamp(9_999), 9_999);
+    }
+}
