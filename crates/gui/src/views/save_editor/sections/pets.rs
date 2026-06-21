@@ -19,6 +19,7 @@ use eframe::egui::{self, RichText};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::{Class, Element};
 use save_parser::edit::{apply_delta, apply_factor};
+use save_parser::model::EquipmentItem;
 
 use super::bulk::{self, OpKind};
 use super::equip_builder::{self, EquipBuilderState};
@@ -170,6 +171,27 @@ struct PetRow {
     normal: u32,
     dungeon: u32,
     class_lvl: u32,
+    /// Equipped items, resolved from the pet's slot refs (`w.e`/`w.f`/`w.g`) via
+    /// `X.R`; `None` for an empty slot.
+    weapon: Option<String>,
+    armor: Option<String>,
+    accessory: Option<String>,
+    /// Whether any slot is filled (for the equipment filter).
+    has_equipment: bool,
+}
+
+/// Format an equipped item as "Name Quality+Plus" (e.g. "Magic Stick SSS+20");
+/// the `+plus` is omitted at +0. Mirrors the raw-tree equipment annotation.
+fn equip_label(item: &EquipmentItem) -> String {
+    let mut s = item.type_name().unwrap_or("Equipment").to_string();
+    if let Some(q) = item.quality_name() {
+        s.push(' ');
+        s.push_str(q);
+    }
+    if item.plus > 0 {
+        s.push_str(&format!("+{}", item.plus));
+    }
+    s
 }
 
 impl PetRow {
@@ -191,6 +213,8 @@ pub struct PetEditState {
     f_unlocked: Option<bool>,
     /// A pet has a class iff it is evolved (the only way to get one).
     f_evolved: Option<bool>,
+    /// Filter by whether the pet has any equipment.
+    f_equipped: Option<bool>,
     f_name: String,
     f_dungeon_min: String,
     f_dungeon_max: String,
@@ -245,6 +269,14 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PetEditState)
             let raw_growth = session
                 .value(&["X", "b", &idx, "E"])
                 .unwrap_or_else(|| format!("{}", p.growth));
+            // Resolve each equip slot ref (`d`) to its item via `X.R`.
+            let resolve = |id: Option<u32>| {
+                id.and_then(|d| save.equipment_by_instance_id(d)).map(equip_label)
+            };
+            let weapon = resolve(p.weapon_id);
+            let armor = resolve(p.armor_id);
+            let accessory = resolve(p.accessory_id);
+            let has_equipment = weapon.is_some() || armor.is_some() || accessory.is_some();
             PetRow {
                 index,
                 name: p.name.clone(),
@@ -256,6 +288,10 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PetEditState)
                 normal: p.normal_level,
                 dungeon: p.dungeon_level,
                 class_lvl: p.class_level,
+                weapon,
+                armor,
+                accessory,
+                has_equipment,
             }
         })
         .collect();
@@ -323,6 +359,11 @@ fn passes_filter(st: &PetEditState, r: &PetRow) -> bool {
     }
     if let Some(ev) = st.f_evolved
         && (r.class_id != 0) != ev
+    {
+        return false;
+    }
+    if let Some(eq) = st.f_equipped
+        && r.has_equipment != eq
     {
         return false;
     }
@@ -427,6 +468,18 @@ fn filter_bar(ui: &mut egui::Ui, st: &mut PetEditState, total: usize, shown: usi
                 ui.selectable_value(&mut st.f_evolved, None, "Any");
                 ui.selectable_value(&mut st.f_evolved, Some(true), "Evolved");
                 ui.selectable_value(&mut st.f_evolved, Some(false), "Not evolved");
+            });
+        lbl(ui, "Equip");
+        egui::ComboBox::from_id_salt("pet_f_equipped")
+            .selected_text(match st.f_equipped {
+                None => "Any",
+                Some(true) => "Equipped",
+                Some(false) => "None",
+            })
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut st.f_equipped, None, "Any");
+                ui.selectable_value(&mut st.f_equipped, Some(true), "Equipped");
+                ui.selectable_value(&mut st.f_equipped, Some(false), "None");
             });
         lbl(ui, "Name");
         ui.add(egui::TextEdit::singleline(&mut st.f_name).desired_width(90.0));
@@ -665,7 +718,8 @@ fn table(ui: &mut egui::Ui, st: &mut PetEditState, rows: &[PetRow], filtered: &[
         .column(Column::initial(160.0)) // growth
         .column(Column::initial(120.0)) // normal
         .column(Column::initial(120.0)) // dungeon
-        .column(Column::remainder()) // class lvl
+        .column(Column::initial(80.0)) // class lvl
+        .column(Column::remainder()) // equipment
         .header(20.0, |mut h| {
             h.col(|_| {}); // checkbox column
             let cols = [
@@ -684,6 +738,9 @@ fn table(ui: &mut egui::Ui, st: &mut PetEditState, rows: &[PetRow], filtered: &[
                     }
                 });
             }
+            h.col(|ui| {
+                ui.label(RichText::new("Equipment").strong());
+            });
         })
         .body(|body| {
             body.rows(22.0, filtered.len(), |mut tr| {
@@ -718,12 +775,35 @@ fn table(ui: &mut egui::Ui, st: &mut PetEditState, rows: &[PetRow], filtered: &[
                 tr.col(|ui| field_cell(ui, st, row, Field::Normal, selected));
                 tr.col(|ui| field_cell(ui, st, row, Field::Dungeon, selected));
                 tr.col(|ui| field_cell(ui, st, row, Field::ClassLvl, selected));
+                tr.col(|ui| equip_cell(ui, row));
             });
         });
 
     if let Some(col) = sort_click {
         bulk::cycle_sort(&mut st.sort, col);
     }
+}
+
+/// The equipment cell: a compact one-line summary of the filled slots, with the
+/// full per-slot breakdown on hover. Read-only (editing equipment lives in the
+/// Equipment section / builder).
+fn equip_cell(ui: &mut egui::Ui, row: &PetRow) {
+    if !row.has_equipment {
+        ui.label(RichText::new("—").color(style::TEXT_MUTED).size(11.0));
+        return;
+    }
+    let summary = [&row.weapon, &row.armor, &row.accessory]
+        .into_iter()
+        .filter_map(|o| o.as_deref())
+        .collect::<Vec<_>>()
+        .join(" · ");
+    let slot = |o: &Option<String>| o.as_deref().unwrap_or("—").to_string();
+    ui.label(RichText::new(summary).size(11.0)).on_hover_text(format!(
+        "Weapon: {}\nArmor: {}\nAccessory: {}",
+        slot(&row.weapon),
+        slot(&row.armor),
+        slot(&row.accessory),
+    ));
 }
 
 /// A field cell. Read-only current value for unselected rows; an editable
@@ -860,7 +940,34 @@ mod tests {
             normal: 10,
             dungeon: 20,
             class_lvl: 5,
+            weapon: None,
+            armor: None,
+            accessory: None,
+            has_equipment: false,
         }
+    }
+
+    #[test]
+    fn equip_label_formats_quality_and_plus() {
+        use save_parser::model::EquipmentItem;
+        // type_id 51 = Magic Stick, quality 8 = SSS, plus 20 → "Magic Stick SSS+20".
+        let item = EquipmentItem {
+            type_id: 51,
+            plus: 20,
+            quality: 8,
+            instance_id: 1,
+            unique_id: 858,
+            enchant_level: 0,
+            gem_level: 0,
+            gem_element: None,
+        };
+        let label = equip_label(&item);
+        assert!(label.contains("Magic Stick"), "{label}");
+        assert!(label.contains("SSS"), "{label}");
+        assert!(label.ends_with("+20"), "{label}");
+        // +0 omits the plus suffix.
+        let plain = EquipmentItem { plus: 0, ..item };
+        assert!(!equip_label(&plain).contains('+'), "no +0 suffix");
     }
 
     #[test]
