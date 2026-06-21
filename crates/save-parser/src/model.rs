@@ -1442,17 +1442,20 @@ impl EquipmentItem {
     }
 
     fn from_node(node: &Node) -> Self {
-        let gem_level = get_u32(node, "f");
+        // Keys come from the canonical block declaration in `labels`, so the
+        // parse and the label table cannot drift (type-driven refactor, B).
+        use crate::labels::EquipField as F;
+        let gem_level = get_u32(node, F::GemLevel.key());
         EquipmentItem {
-            type_id: get_u32(node, "a"),
-            plus: get_u32(node, "b"),
-            quality: get_u32(node, "c"),
-            instance_id: get_u32(node, "d"),
-            unique_id: get_u32(node, "h"),
-            enchant_level: get_u32(node, "e"),
+            type_id: get_u32(node, F::TypeId.key()),
+            plus: get_u32(node, F::Plus.key()),
+            quality: get_u32(node, F::Quality.key()),
+            instance_id: get_u32(node, F::EquipRef.key()),
+            unique_id: get_u32(node, F::InstanceId.key()),
+            enchant_level: get_u32(node, F::Enchant.key()),
             gem_level,
             gem_element: if gem_level > 0 {
-                element_from_id(get_u32(node, "g"))
+                element_from_id(get_u32(node, F::GemElement.key()))
             } else {
                 None
             },

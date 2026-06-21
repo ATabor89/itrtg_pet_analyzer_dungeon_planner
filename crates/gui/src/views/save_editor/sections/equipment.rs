@@ -10,6 +10,7 @@ use eframe::egui::{self, RichText};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::Element;
 use save_parser::items::{self, EquipCategory};
+use save_parser::labels;
 
 use super::bulk::{self, OpKind};
 use super::equip_builder::{self, EquipBuilderState};
@@ -37,14 +38,20 @@ impl EField {
         }
     }
 
-    /// Raw key under `X.R.<i>`.
-    fn key(self) -> &'static str {
+    /// The canonical descriptor for this bulk field (key, range, …) — the one
+    /// declaration shared with the model parse and the raw-tree labels.
+    fn descriptor(self) -> labels::EquipField {
         match self {
-            EField::Quality => "c",
-            EField::Plus => "b",
-            EField::Enchant => "e",
-            EField::GemLevel => "f",
+            EField::Quality => labels::EquipField::Quality,
+            EField::Plus => labels::EquipField::Plus,
+            EField::Enchant => labels::EquipField::Enchant,
+            EField::GemLevel => labels::EquipField::GemLevel,
         }
+    }
+
+    /// Raw key under `X.R.<i>` — sourced from the shared descriptor.
+    fn key(self) -> &'static str {
+        self.descriptor().key()
     }
 }
 
@@ -560,11 +567,11 @@ fn bulk_target(st: &EquipEditState, row: &EquipRow, field: EField) -> Option<Str
         OpKind::Add => cur.checked_add(parse_u64(value)?)?,
         OpKind::Mul => return None,
     };
-    // Bounded fields: quality 0–8, enchant 0–20.
-    let new = match field {
-        EField::Quality => new.min(8),
-        EField::Enchant => new.min(20),
-        _ => new,
+    // Bounds come from the shared field descriptor (quality 0–8, plus/enchant
+    // 0–20), so the section, the model, and the tree all agree.
+    let new = match field.descriptor().range() {
+        Some((lo, hi)) => new.clamp(lo as u64, hi as u64),
+        None => new,
     };
     Some(new.to_string())
 }
