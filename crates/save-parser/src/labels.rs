@@ -198,7 +198,7 @@ pub const EQUIPMENT_FIELDS: &[FieldLabel] = &[
     lbl!("b", "Plus Level"),
     lbl!("c", "Quality"),
     lbl!("d", "Equip Ref (0 = unequipped)"),
-    lbl!("e", "Plus Cap"),
+    lbl!("e", "Enchant Level"),
     lbl!("f", "Gem Level"),
     lblr!("g", "Gem Element Id", Resolve::GemElement),
     lbl!("h", "Unique Instance Id"),

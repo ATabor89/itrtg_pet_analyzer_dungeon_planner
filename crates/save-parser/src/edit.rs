@@ -30,8 +30,8 @@ pub struct MaterialGrant {
 /// Grant a piece of equipment to a pet: create a new instance in the `X.R`
 /// equipment list and equip it in the pet's chosen slot. Instance ids are
 /// allocated above the highest existing one. The new instance is built like the
-/// game's (`a` type, `b` plus, `c` quality, `d`/`h` instance id, `e=20` plus
-/// cap, `f`/`g` gem = 0, `i=0`).
+/// game's (`a` type, `b` plus, `c` quality, `d`/`h` instance id, `e=0` enchant
+/// level, `f`/`g` gem = 0, `i=0`).
 #[derive(Debug, Clone)]
 pub struct EquipGrant {
     /// Pet to equip on (index in `X.b`) and its slot (`e` weapon, `f` armor,
@@ -209,8 +209,9 @@ fn material_entry(id: &str, count: &str) -> raw::Raw {
 }
 
 /// An equipment instance shaped like the game's (see the `EquipmentItem` docs):
-/// `a` type, `b` plus, `c` quality, `d`/`h` instance id, `e=20` plus cap,
-/// `f` gem level, `g` gem element, `i=0`.
+/// `a` type, `b` plus, `c` quality, `d`/`h` instance id, `e=0` enchant level
+/// (new gear starts unenchanted; set it in the editor — crafter gear the game
+/// auto-enchants to 20), `f` gem level, `g` gem element, `i=0`.
 fn instance_struct(
     id: u32,
     type_id: u32,
@@ -225,7 +226,7 @@ fn instance_struct(
         ("b".into(), val(plus.to_string())),
         ("c".into(), val(quality.to_string())),
         ("d".into(), val(id.to_string())),
-        ("e".into(), val("20".into())),
+        ("e".into(), val("0".into())),
         ("f".into(), val(gem_level.to_string())),
         ("g".into(), val(gem_element.to_string())),
         ("h".into(), val(id.to_string())),

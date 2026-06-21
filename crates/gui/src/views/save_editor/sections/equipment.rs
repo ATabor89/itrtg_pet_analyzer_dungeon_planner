@@ -21,16 +21,18 @@ use crate::views::save_editor::session::EditSession;
 enum EField {
     Quality,
     Plus,
+    Enchant,
     GemLevel,
 }
 
 impl EField {
-    const ALL: [EField; 3] = [EField::Quality, EField::Plus, EField::GemLevel];
+    const ALL: [EField; 4] = [EField::Quality, EField::Plus, EField::Enchant, EField::GemLevel];
 
     fn label(self) -> &'static str {
         match self {
             EField::Quality => "Quality (F–SSS / 0–8)",
             EField::Plus => "Upgrade Level",
+            EField::Enchant => "Enchant Level (0–20)",
             EField::GemLevel => "Gem Level",
         }
     }
@@ -40,6 +42,7 @@ impl EField {
         match self {
             EField::Quality => "c",
             EField::Plus => "b",
+            EField::Enchant => "e",
             EField::GemLevel => "f",
         }
     }
@@ -50,6 +53,7 @@ enum ESort {
     Type,
     Quality,
     Plus,
+    Enchant,
     GemLevel,
     Equipped,
 }
@@ -100,6 +104,7 @@ struct EquipRow {
     category: Option<EquipCategory>,
     quality: u32,
     plus: u32,
+    enchant: u32,
     gem_level: u32,
     gem_element_id: u32,
     /// Unique mirror id (`h`) — the one pet slots reference.
@@ -112,6 +117,7 @@ impl EquipRow {
         match field {
             EField::Quality => self.quality.to_string(),
             EField::Plus => self.plus.to_string(),
+            EField::Enchant => self.enchant.to_string(),
             EField::GemLevel => self.gem_level.to_string(),
         }
     }
@@ -209,6 +215,7 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
                 category,
                 quality: e.quality,
                 plus: e.plus,
+                enchant: e.enchant_level,
                 gem_level: e.gem_level,
                 gem_element_id: e.gem_element.map(element_id).unwrap_or(0),
                 mirror_id,
@@ -385,6 +392,7 @@ fn cmp_rows(a: &EquipRow, b: &EquipRow, col: ESort) -> Ordering {
         ESort::Type => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
         ESort::Quality => a.quality.cmp(&b.quality),
         ESort::Plus => a.plus.cmp(&b.plus),
+        ESort::Enchant => a.enchant.cmp(&b.enchant),
         ESort::GemLevel => a.gem_level.cmp(&b.gem_level),
         ESort::Equipped => a.equipped_on.is_some().cmp(&b.equipped_on.is_some()),
     }
@@ -552,8 +560,12 @@ fn bulk_target(st: &EquipEditState, row: &EquipRow, field: EField) -> Option<Str
         OpKind::Add => cur.checked_add(parse_u64(value)?)?,
         OpKind::Mul => return None,
     };
-    // Quality is bounded 0–8.
-    let new = if field == EField::Quality { new.min(8) } else { new };
+    // Bounded fields: quality 0–8, enchant 0–20.
+    let new = match field {
+        EField::Quality => new.min(8),
+        EField::Enchant => new.min(20),
+        _ => new,
+    };
     Some(new.to_string())
 }
 
@@ -573,6 +585,7 @@ fn table(ui: &mut egui::Ui, st: &mut EquipEditState, rows: &[EquipRow], filtered
         .column(Column::initial(170.0)) // type
         .column(Column::initial(120.0)) // quality
         .column(Column::initial(110.0)) // plus
+        .column(Column::initial(90.0)) // enchant
         .column(Column::initial(150.0)) // gem
         .column(Column::initial(150.0)) // equipped
         .column(Column::initial(54.0)) // instance id
@@ -583,6 +596,7 @@ fn table(ui: &mut egui::Ui, st: &mut EquipEditState, rows: &[EquipRow], filtered
                 ("Name", ESort::Type),
                 ("Quality", ESort::Quality),
                 ("Upgrade Level", ESort::Plus),
+                ("Enchant", ESort::Enchant),
                 ("Gem", ESort::GemLevel),
                 ("Equipped", ESort::Equipped),
             ];
@@ -618,6 +632,7 @@ fn table(ui: &mut egui::Ui, st: &mut EquipEditState, rows: &[EquipRow], filtered
                 });
                 tr.col(|ui| field_cell(ui, st, row, EField::Quality, selected, true));
                 tr.col(|ui| field_cell(ui, st, row, EField::Plus, selected, false));
+                tr.col(|ui| field_cell(ui, st, row, EField::Enchant, selected, false));
                 tr.col(|ui| gem_cell(ui, st, row, selected));
                 tr.col(|ui| {
                     match &row.equipped_on {
@@ -793,6 +808,7 @@ mod tests {
             category: Some(EquipCategory::Weapon),
             quality: 6,
             plus: 10,
+            enchant: 0,
             gem_level: 0,
             gem_element_id: 0,
             mirror_id: 858,
@@ -817,6 +833,16 @@ mod tests {
         assert_eq!(bulk_target(&st, &row(), EField::Quality).as_deref(), Some("8"));
         st.ops.insert(EField::Quality, (OpKind::Set, "12".into()));
         assert_eq!(bulk_target(&st, &row(), EField::Quality).as_deref(), Some("8"));
+    }
+
+    #[test]
+    fn enchant_clamps_to_20() {
+        let mut st = EquipEditState::default();
+        st.ops.insert(EField::Enchant, (OpKind::Set, "50".into()));
+        assert_eq!(bulk_target(&st, &row(), EField::Enchant).as_deref(), Some("20"));
+        st.ops.insert(EField::Enchant, (OpKind::Set, "12".into()));
+        assert_eq!(bulk_target(&st, &row(), EField::Enchant).as_deref(), Some("12"));
+        assert_eq!(EField::Enchant.key(), "e");
     }
 
     #[test]

@@ -314,8 +314,13 @@ pub struct EquipmentItem {
     /// is the right key to address a specific instance (esp. an unequipped one,
     /// where `instance_id`/`d` is 0). The save editor displays and grants by this.
     pub unique_id: u32,
-    /// `e`: 20 on items whose export shows a "(20)" suffix, else 0.
-    pub plus_cap: u32,
+    /// `e`: enchantment level (0–20). Reduces the item's elemental weakness 5%
+    /// per level (max 100%); for neutral gear it instead adds elemental stats.
+    /// Crafter/adventurer gear (sticks, hammers, pots, ear-muffs) auto-starts at
+    /// 20; real dungeon gear starts at 0. (The export shows it as a "(20)"-style
+    /// suffix.) Formerly mislabeled "plus_cap" — but items with plus 20 keep
+    /// `e`=0, so it is not a plus cap.
+    pub enchant_level: u32,
     /// Gem level (`f`), 0 = no gem.
     pub gem_level: u32,
     /// Gem element (`g`) when a gem is socketed.
@@ -1444,7 +1449,7 @@ impl EquipmentItem {
             quality: get_u32(node, "c"),
             instance_id: get_u32(node, "d"),
             unique_id: get_u32(node, "h"),
-            plus_cap: get_u32(node, "e"),
+            enchant_level: get_u32(node, "e"),
             gem_level,
             gem_element: if gem_level > 0 {
                 element_from_id(get_u32(node, "g"))
