@@ -2,6 +2,7 @@
 //! save, reading and writing through the shared [`EditSession`]. The raw tree
 //! navigator lives here too as a special "section".
 
+pub mod adventure;
 pub mod bulk;
 pub mod campaigns;
 pub mod challenges;
