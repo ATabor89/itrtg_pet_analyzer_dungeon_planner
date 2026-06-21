@@ -207,6 +207,7 @@ pub fn show(
     reveal: &mut bool,
     scrolled_query: &mut Option<String>,
     generation: &mut u64,
+    jump: &mut Option<String>,
 ) {
     ui.heading("Raw Save Tree");
     ui.horizontal(|ui| {
@@ -218,6 +219,7 @@ pub fn show(
         );
         if ui.button("Clear").clicked() {
             search.clear();
+            *jump = None;
         }
         ui.separator();
         ui.checkbox(reveal, "Reveal in place").on_hover_text(
@@ -242,30 +244,41 @@ pub fn show(
         .color(style::TEXT_MUTED)
         .size(11.0),
     );
+
+    // A search supersedes (and consumes) an active navigation jump.
+    if !search.trim().is_empty() {
+        *jump = None;
+    }
+    // Banner for an active jump (set by "navigate to tree" from elsewhere).
+    if let Some(target) = jump.clone() {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("▶ Navigated to").color(style::ACCENT).size(11.0));
+            ui.label(RichText::new(&target).color(style::TEXT_BRIGHT).monospace().size(11.0));
+            if ui.small_button("Clear").clicked() {
+                *jump = None;
+            }
+        });
+    }
     ui.separator();
 
     let query = search.trim().to_lowercase();
-    let mode = if query.is_empty() {
-        Mode::None
-    } else if *reveal {
-        Mode::Reveal
+    // Mode + the "reveal key" we dedupe scroll-once against: a search query wins;
+    // otherwise an active jump reveals the exact path it names.
+    let (mode, reveal_key, matches) = if !query.is_empty() {
+        let m = if *reveal { Mode::Reveal } else { Mode::Filter };
+        (m, query.clone(), build_matches(session.root(), &query, registry))
+    } else if let Some(target) = jump.clone() {
+        (Mode::Reveal, target.clone(), prefix_set(&target))
     } else {
-        Mode::Filter
+        (Mode::None, String::new(), HashSet::new())
     };
 
-    // One O(N) pre-pass: which nodes match or are an ancestor of a match.
-    let matches = if mode == Mode::None {
-        HashSet::new()
-    } else {
-        build_matches(session.root(), &query, registry)
-    };
-
-    // Scroll to the first match once per (query, reveal) — not every frame, or
-    // the viewport would snap back and the user could never scroll away.
+    // Scroll to the first match once per reveal key — not every frame, or the
+    // viewport would snap back and the user could never scroll away.
     if mode != Mode::Reveal {
         *scrolled_query = None;
     }
-    let want_scroll = mode == Mode::Reveal && scrolled_query.as_deref() != Some(query.as_str());
+    let want_scroll = mode == Mode::Reveal && scrolled_query.as_deref() != Some(reveal_key.as_str());
 
     let mut edits: Vec<StagedEdit> = Vec::new();
     let mut scrolled = false;
@@ -291,7 +304,7 @@ pub fn show(
         }
     }
     if want_scroll {
-        *scrolled_query = Some(query);
+        *scrolled_query = Some(reveal_key);
     }
 
     // Apply staged edits now that the read-only borrow of the tree is released.
@@ -307,6 +320,15 @@ fn name_matches(registry: &FieldRegistry, path: &[String], query: &str) -> bool 
     registry
         .lookup(&p)
         .is_some_and(|d| d.name.to_lowercase().contains(query))
+}
+
+/// The set of a dotted path and all its ancestor prefixes, e.g. `X.Q.1.b` →
+/// {`X`, `X.Q`, `X.Q.1`, `X.Q.1.b`}. Used to drive a navigation jump: the walk
+/// force-opens every container on the path and scrolls to the leaf, exactly as
+/// Reveal mode does for a search match.
+fn prefix_set(dotted: &str) -> HashSet<String> {
+    let parts: Vec<&str> = dotted.split('.').collect();
+    (1..=parts.len()).map(|i| parts[..i].join(".")).collect()
 }
 
 /// Build the set of node paths (dotted) that match the query or are an ancestor
@@ -831,6 +853,19 @@ mod tests {
         assert_eq!(copied, "a:5;b:9;", "readable struct text, not a base64 blob");
         // The copied text re-parses back to the same (peeled) structure.
         assert_eq!(save_parser::raw::parse(&copied), *wrapped.peel());
+    }
+
+    /// A jump's prefix set force-opens every ancestor container and the leaf.
+    #[test]
+    fn prefix_set_includes_path_and_all_ancestors() {
+        let s = prefix_set("X.Q.1.b");
+        assert!(s.contains("X"));
+        assert!(s.contains("X.Q"));
+        assert!(s.contains("X.Q.1"));
+        assert!(s.contains("X.Q.1.b"));
+        assert_eq!(s.len(), 4);
+        // A single segment is its own only prefix.
+        assert_eq!(prefix_set("W"), HashSet::from(["W".to_string()]));
     }
 
     /// A value/key match is included; unrelated siblings are not.
