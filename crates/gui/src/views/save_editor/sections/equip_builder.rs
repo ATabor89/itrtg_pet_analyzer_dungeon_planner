@@ -157,13 +157,16 @@ pub fn builder_window(
                                 .desired_width(180.0),
                         );
                         let q = st.search.trim().to_lowercase();
-                        for (id, name, cat) in items::EQUIPMENT_TYPES {
-                            if lock.is_some_and(|l| *cat != l) {
-                                continue;
-                            }
-                            if !q.is_empty() && !name.to_lowercase().contains(&q) {
-                                continue;
-                            }
+                        // Sorted by name so a long type list is easy to scan.
+                        let mut opts: Vec<&(u32, &str, EquipCategory)> = items::EQUIPMENT_TYPES
+                            .iter()
+                            .filter(|(_, name, cat)| {
+                                !lock.is_some_and(|l| *cat != l)
+                                    && (q.is_empty() || name.to_lowercase().contains(&q))
+                            })
+                            .collect();
+                        opts.sort_by(|a, b| a.1.cmp(b.1));
+                        for (id, name, cat) in opts {
                             ui.selectable_value(
                                 &mut st.type_id,
                                 Some(*id),
