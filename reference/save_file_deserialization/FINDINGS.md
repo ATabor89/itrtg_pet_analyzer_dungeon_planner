@@ -407,6 +407,37 @@ whole system. Key findings:
   `MPPMMMAOKIC`, `LEODLEACJPA`, plus `LHFIMMKICKK` = `X.017` challenge max-tries)
   — left unlabeled pending an anchor.
 
+- **ChP cost table + complete field inventory (2026-06-21).** The full
+  ChP-*used* sum (`MLILKGIALMB.cs:894`) enumerates every **costed** upgrade as
+  `level × cost`. So `used = Σ(level × cost)`, `available = total − used`,
+  `total = Σ challenge contributions` (player's Steam save: 781 / 650 / 131).
+  The 24 costed fields, key = per-level ChP cost: `X.D`=2, `X.E`=100, `X.G`=200,
+  `X.J`=100, `X.H`=100, `X.I`=100, `X.019`=100, `X.039`=100, `X.040`=100,
+  `X.K`=200, `X.L`=100, `X.036`=100, `X.042`=15, `X.V`=100, `X.W`=100,
+  `X.034`=100, `X.X`=100, `X.014`=100, `X.017`=50, `X.015`=500, `X.037`=15,
+  `X.029`=150, `X.030`=150, `X.041`=250. All but three are named/wired; the
+  **3 still-unidentified costed fields** (need a Kong-diff anchor — player will
+  spend ChP on a fresh Kong save and diff):
+  - `X.036` (`FJBKFKPMHGB`, cost 100) — candidate **UBV4 Fight Timer** (appears
+    near a UBV4/TBS toggle; MED).
+  - `X.042` (`MPPMMMAOKIC`, cost 15) — candidate **Overflow Challenge Overtime**
+    (cost matches Dungeon Overtime `X.037`=15, same "overtime" category; MED-HIGH).
+    **Not present in the committed fixture** (older save) → can't wire until a
+    save that has it.
+  - `X.015` (`LEODLEACJPA`, cost 500) — unidentified (highest cost; LOW).
+- **Boolean ChP upgrades — NOT in the clean debug tooltip; need anchors.** The
+  wiki lists ~13 non-%-boost ChP upgrades (Pet Exp Overflow, Auto Half Stats,
+  Auto Refill, Early Spacedim, Crystal Sacrifice *button*, Stone Pet *unlock*,
+  Pandora Bonus, Auto Adjust Clones, Easier Rebirth, Keep Gem Level, + Extra/
+  Second Party Slot, Max auto-add clones). `root.X` has ~20 **bool** fields at
+  `X.004`–`X.031` (`EPJELCEGMHD`=`n4`, `HLAEDLHOLFA`=`n5`, … `DDNFPFMJJLF`=`n31`;
+  full list via `MLILKGIALMB.EBOFJJHOOLP` `PIPMKFFGFHO` reads) — these *contain*
+  the boolean ChP upgrades mixed with general UI/setting flags, but **cannot be
+  separated/named without anchors** (the shop UI strings are decompiler-scrambled,
+  and there is **no ChP-upgrade enum**). Pin these by toggling each upgrade on a
+  Kong save and diffing which `X.00N` bool flips. Until then they stay as raw
+  tree keys.
+
 **Self-correct (2026-06-20):** the roadmap had ChP/Overflow filed as
 *user-gated* (needing a before/after save). That was based on my earlier wrong
 read that ChP was opaque. It is fully **C#-tractable**: ChP total is a derived
