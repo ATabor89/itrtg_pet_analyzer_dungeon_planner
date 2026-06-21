@@ -1832,6 +1832,29 @@ pub fn quality_name(quality: u32) -> Option<&'static str> {
     })
 }
 
+/// Parse a quality from a letter grade (`F E D C B A S SS SSS`, `Ult`,
+/// case-insensitive) or a numeric string (`0`–`9`). Inverse of [`quality_name`];
+/// lets the equipment editor accept either form.
+pub fn quality_from_str(s: &str) -> Option<u32> {
+    let t = s.trim();
+    if let Ok(n) = t.parse::<u32>() {
+        return (n <= 9).then_some(n);
+    }
+    Some(match t.to_ascii_uppercase().as_str() {
+        "F" => 0,
+        "E" => 1,
+        "D" => 2,
+        "C" => 3,
+        "B" => 4,
+        "A" => 5,
+        "S" => 6,
+        "SS" => 7,
+        "SSS" => 8,
+        "ULT" => 9,
+        _ => return None,
+    })
+}
+
 /// Campaign-boost % a piece of campaign-boost gear gives the pet it's equipped
 /// on, at the given quality (`quality_id`: F=0…SSS=8) and upgrade `plus`.
 ///
@@ -2289,5 +2312,21 @@ mod tests {
         assert_eq!(rti_bonus_name(10), Some("CreatingSpeed"));
         assert_eq!(rti_bonus_name(0), None); // None sentinel
         assert_eq!(rti_bonus_name(11), None); // past the end
+    }
+
+    #[test]
+    fn quality_from_str_accepts_letters_and_numbers() {
+        assert_eq!(quality_from_str("F"), Some(0));
+        assert_eq!(quality_from_str("sss"), Some(8)); // case-insensitive
+        assert_eq!(quality_from_str("SS"), Some(7));
+        assert_eq!(quality_from_str(" Ult "), Some(9)); // trims
+        assert_eq!(quality_from_str("6"), Some(6));
+        assert_eq!(quality_from_str("9"), Some(9));
+        assert_eq!(quality_from_str("10"), None); // out of range
+        assert_eq!(quality_from_str("Z"), None);
+        // Round-trips against quality_name.
+        for q in 0..=9 {
+            assert_eq!(quality_from_str(quality_name(q).unwrap()), Some(q));
+        }
     }
 }
