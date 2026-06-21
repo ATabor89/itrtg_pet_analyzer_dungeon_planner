@@ -103,14 +103,38 @@ fn peel_owned(r: raw::Raw) -> raw::Raw {
 /// 1-element list with no `&` separator) into a real list first. Used for the
 /// material inventory (`Q`) and equipment (`R`).
 pub fn ensure_list<'a>(root: &'a mut raw::Raw, key: &str) -> Result<&'a mut Vec<raw::Raw>> {
-    let x = root.get_path_mut(&["X"]).context("save has no X block")?;
-    let raw::Raw::Struct(fields) = x else {
-        anyhow::bail!("X is not a struct");
+    ensure_list_at(root, &["X", key])
+}
+
+/// Borrow the list at `path` (its parent must be a struct), normalizing an empty
+/// field or a lone struct into a real list — and creating the key as an empty
+/// list if the parent doesn't have it yet. Generalizes [`ensure_list`] to any
+/// nesting depth (e.g. the challenge list at `x.242`).
+pub fn ensure_list_at<'a>(root: &'a mut raw::Raw, path: &[&str]) -> Result<&'a mut Vec<raw::Raw>> {
+    let (key, parent) = path.split_last().context("empty list path")?;
+    let parent_label = || {
+        if parent.is_empty() {
+            "root".to_string()
+        } else {
+            parent.join(".")
+        }
     };
+    let node = root
+        .get_path_mut(parent)
+        .with_context(|| format!("save has no {} block", parent_label()))?;
+    let raw::Raw::Struct(fields) = node else {
+        anyhow::bail!("{} is not a struct", parent_label());
+    };
+    if !fields.iter().any(|(k, _)| k == *key) {
+        fields.push((
+            (*key).to_string(),
+            raw::Field::Value(raw::Raw::List(Vec::new())),
+        ));
+    }
     let entry = fields
         .iter_mut()
-        .find(|(k, _)| k == key)
-        .with_context(|| format!("X has no {key} field"))?;
+        .find(|(k, _)| k == *key)
+        .expect("key present (created above if missing)");
     match &mut entry.1 {
         raw::Field::Value(raw::Raw::List(_)) => {}
         f @ (raw::Field::EmptyColon | raw::Field::EmptyBare) => {
@@ -122,12 +146,38 @@ pub fn ensure_list<'a>(root: &'a mut raw::Raw, key: &str) -> Result<&'a mut Vec<
                 items.push(peel_owned(only));
             }
         }
-        raw::Field::Value(_) => anyhow::bail!("X.{key} is present but not a list"),
+        raw::Field::Value(_) => {
+            anyhow::bail!("{}.{key} is present but not a list", parent_label())
+        }
     }
     match &mut entry.1 {
         raw::Field::Value(raw::Raw::List(items)) => Ok(items),
-        _ => unreachable!("X.{key} normalized to a list above"),
+        _ => unreachable!("{}.{key} normalized to a list above", parent_label()),
     }
+}
+
+/// Append a new challenge-completion entry `{a:id, b:completions, c:difficulty,
+/// d:last-completed ms, e:flag}` to `root.x.242` (creating the list if absent).
+/// `d`/`e` default to `0` (the game recomputes ChP from `a`/`b`; `d` is a
+/// last-completed timestamp and `e` a UI flag — neither affects ChP). The caller
+/// upserts: edit the existing entry if the challenge is already present, else
+/// append (the game keys challenges by id, so duplicates would double-count).
+pub fn add_challenge_entry(
+    root: &mut raw::Raw,
+    challenge_id: u32,
+    completions: &str,
+    difficulty: u32,
+) -> Result<()> {
+    let val = |s: String| raw::Field::Value(raw::Raw::Scalar(s));
+    let entry = raw::Raw::Struct(vec![
+        ("a".into(), val(challenge_id.to_string())),
+        ("b".into(), val(completions.to_string())),
+        ("c".into(), val(difficulty.to_string())),
+        ("d".into(), val("0".into())),
+        ("e".into(), val("0".into())),
+    ]);
+    ensure_list_at(root, &["x", "242"])?.push(entry);
+    Ok(())
 }
 
 /// Append a new material stack `{a:id, b:count}` to `X.Q` (creating the list if
@@ -429,6 +479,47 @@ mod tests {
         assert_eq!(apply_delta("100", 50.0).unwrap(), "150"); // int stays int
         assert_eq!(apply_delta("66841.5", 0.5).unwrap(), "66842");
         assert!(apply_delta("Salamander", 1.0).is_err());
+    }
+
+    fn val(s: &str) -> raw::Field {
+        raw::Field::Value(raw::Raw::Scalar(s.into()))
+    }
+
+    #[test]
+    fn add_challenge_entry_creates_nested_list_when_absent() {
+        // Statistics block `x` with no `242` field — must create it.
+        let mut root = raw::Raw::Struct(vec![(
+            "x".into(),
+            raw::Field::Value(raw::Raw::Struct(vec![("013".into(), val("0"))])),
+        )]);
+        add_challenge_entry(&mut root, 10, "5", 0).unwrap();
+        add_challenge_entry(&mut root, 3, "8", 1).unwrap();
+        let Some(raw::Raw::List(items)) = root.get_path(&["x", "242"]) else {
+            panic!("x.242 should be a list");
+        };
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].get("a"), Some(&raw::Raw::Scalar("10".into())));
+        assert_eq!(items[0].get("b"), Some(&raw::Raw::Scalar("5".into())));
+        assert_eq!(items[1].get("c"), Some(&raw::Raw::Scalar("1".into())));
+    }
+
+    #[test]
+    fn ensure_list_at_normalizes_lone_struct() {
+        // `x.242` present but as a lone struct (1-element, no `&`) — must become
+        // a real list with that struct as element 0, then accept appends.
+        let mut root = raw::Raw::Struct(vec![(
+            "x".into(),
+            raw::Field::Value(raw::Raw::Struct(vec![(
+                "242".into(),
+                raw::Field::Value(raw::Raw::Struct(vec![("a".into(), val("10"))])),
+            )])),
+        )]);
+        assert_eq!(ensure_list_at(&mut root, &["x", "242"]).unwrap().len(), 1);
+        add_challenge_entry(&mut root, 3, "8", 0).unwrap();
+        let Some(raw::Raw::List(items)) = root.get_path(&["x", "242"]) else {
+            panic!("x.242 should be a list");
+        };
+        assert_eq!(items.len(), 2);
     }
 
     #[test]
