@@ -339,19 +339,21 @@ pub const PENDING_LOOT_FIELDS: &[FieldLabel] =
 /// difficulty/depth/timer, so those team fields are unused.)
 pub const CHALLENGE_TEAM_FIELDS: &[FieldLabel] = &[lbl!("a", "Member Pet Type Ids")];
 
-/// Active dungeon runs — `X.P.<index>` (`MKDNAHGDLPI`). `a`=dungeon id,
-/// `b`=elapsed ms (counts up to `c`), `c`=target duration ms (43,200,000 = 12 h),
-/// `d`=depth, `f`=team index (ties the run to its `X.S` team). `e`/`j` are RNG
-/// seeds. To force near-completion, set `b` just under `c`.
-pub const ACTIVE_DUNGEON_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Dungeon Id", Resolve::Dungeon),
-    lbl!("b", "Elapsed (ms)"),
-    lbl!("c", "Target Duration (ms)"),
-    lbl!("d", "Depth"),
-    lbl!("e", "RNG seed (e)"),
-    lbl!("f", "Team Index"),
-    lbl!("j", "RNG seed (j)"),
-];
+save_block! {
+    /// Active dungeon runs — `X.P.<index>` (`MKDNAHGDLPI`). `a`=dungeon id,
+    /// `b`=elapsed ms (a float counting up to `c`), `c`=target duration ms
+    /// (43,200,000 = 12 h), `d`=depth, `f`=team index (ties the run to its `X.S`
+    /// team). `e`/`j` are RNG seeds. Setting `b` ≥ `c` completes the run.
+    /// (Verified field-by-field on the reference save's 3 active runs.)
+    ActiveDungeonField => ACTIVE_DUNGEON_FIELDS;
+    DungeonId:      "a", "Dungeon Id",           FieldKind::Id,   None, Some(Resolve::Dungeon);
+    Elapsed:        "b", "Elapsed (ms)",         FieldKind::Text, None, None;
+    TargetDuration: "c", "Target Duration (ms)", FieldKind::Text, None, None;
+    Depth:          "d", "Depth",                FieldKind::UInt, None, None;
+    RngE:           "e", "RNG seed (e)",         FieldKind::Text, None, None;
+    TeamIndex:      "f", "Team Index",           FieldKind::UInt, None, None;
+    RngJ:           "j", "RNG seed (j)",         FieldKind::Text, None, None;
+}
 
 /// Museum statues — `024.f.a.<index>` (`MCEIHMMCDNH`). `a` = level (20 when
 /// maxed), `b` = statue id (event commemoratives; you can own two of each).
