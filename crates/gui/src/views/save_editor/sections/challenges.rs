@@ -198,14 +198,17 @@ fn table(
                         .cell_buffers
                         .entry(row.index)
                         .or_insert_with(|| row.completions.clone());
-                    // Keep the buffer in sync if the underlying value changed
-                    // elsewhere and this row isn't being actively edited.
                     let resp = ui.add(egui::TextEdit::singleline(buf).desired_width(100.0));
                     if resp.changed() {
                         let v = buf.trim();
                         if v.parse::<u64>().is_ok() && v != row.completions.trim() {
                             edit = Some((row.index, "b", row.challenge_id, v.to_string()));
                         }
+                    } else if !resp.has_focus() && buf.trim() != row.completions.trim() {
+                        // Idle cell drifted from the tree value (e.g. the Add modal
+                        // upserted this id, or an undo shifted list indices) —
+                        // re-seed it from the save so it shows the current count.
+                        *buf = row.completions.clone();
                     }
                 });
                 tr.col(|ui| {
