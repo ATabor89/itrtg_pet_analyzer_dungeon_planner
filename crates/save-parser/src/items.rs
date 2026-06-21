@@ -1078,9 +1078,11 @@ pub fn divinity_upgrade_name(id: u32) -> Option<&'static str> {
 /// Display names come from the in-game name strings in `KPLPGPEOFNB` matched to
 /// each abbreviation by initialism; the eleven the player has completed (UUC=2,
 /// DRC=8, UPC=8, AAC=10, UBC=1, CPC=2, PMC=1, MMC=13, GPC=2, PLC=12, BHC=1) were
-/// cross-checked against an in-game capture (2026-06-20). A few legacy enum
-/// slots (OKC, PBC, OKBHC, TLC) have no surviving UI string and keep their raw
-/// abbreviation; `UNUSED` is a retired slot.
+/// cross-checked against an in-game capture (2026-06-20). The five that had no
+/// surviving UI string (OKC, PBC, OKBHC, RTI, TLC) were named from the player +
+/// the wiki (2026-06-21); note RTI(30) = the "Road to Infinity" Day challenge,
+/// distinct from TLC(37) = "RTI Temp Level Challenge" (an earlier pass wrongly
+/// gave RTI's slot TLC's name). `UNUSED` is a retired slot.
 pub fn challenge_name(id: u32) -> Option<&'static str> {
     Some(match id {
         1 => "Ultimate Universe Challenge",
@@ -1089,7 +1091,7 @@ pub fn challenge_name(id: u32) -> Option<&'static str> {
         4 => "Ultimate Pet Challenge",
         5 => "God Skip Challenge",
         6 => "Clone Buildup Challenge",
-        7 => "OKC", // no surviving UI string
+        7 => "1000 Clone Challenge", // OKC — abbrev not shown in-game; wiki + player-confirmed
         8 => "No Divinity Challenge",
         9 => "Planet Multi Challenge",
         10 => "All Achievements Challenge",
@@ -1100,9 +1102,9 @@ pub fn challenge_name(id: u32) -> Option<&'static str> {
         15 => "Day Universe Challenge",
         16 => "Day Pet Challenge",
         17 => "Crystal Power Challenge",
-        18 => "PBC", // no surviving UI string
+        18 => "P. Baal Challenge", // PBC — abbrev not shown in-game; player-confirmed
         19 => "Ultimate Challenge Challenge",
-        20 => "OKBHC", // no surviving UI string
+        20 => "1K Clones Black Hole Challenge", // OKBHC — player-confirmed (abbrev shown in-game)
         21 => "Day Might Challenge",
         22 => "Day No Divinity Challenge",
         23 => "Total Might Challenge",
@@ -1112,14 +1114,14 @@ pub fn challenge_name(id: u32) -> Option<&'static str> {
         27 => "Ultimate Beings V2 Challenge",
         28 => "No Div Monument Challenge",
         29 => "Overflow Challenge",
-        30 => "RTI Temp Level Challenge",
+        30 => "Road to Infinity Challenge", // RTI — the Day challenge (distinct from TLC); was wrongly "RTI Temp Level Challenge"
         31 => "Patreon Gods Challenge",
         32 => "God Power Challenge",
         33 => "Ultimate Gods Challenge",
         34 => "One CC Challenge",
         35 => "Ultimate Beings V4 Challenge",
         36 => "Monster Queen Challenge",
-        37 => "TLC", // no surviving UI string
+        37 => "RTI Temp Level Challenge", // TLC — C# "TLCs" feed RTI level speed; player-confirmed
         38 => "Light Clone Challenge",
         39 => "Universes for Clones Challenge",
         40 => "Ultimate Stats Challenge",
@@ -2260,6 +2262,12 @@ mod tests {
         assert_eq!(challenge_name(32), Some("God Power Challenge"));
         assert_eq!(challenge_name(48), Some("Pet Level Challenge"));
         assert_eq!(challenge_name(76), Some("Boosting Capacity Challenge")); // last id
+        // The five named from player+wiki (2026-06-21); RTI(30) vs TLC(37) must not collide.
+        assert_eq!(challenge_name(7), Some("1000 Clone Challenge"));
+        assert_eq!(challenge_name(18), Some("P. Baal Challenge"));
+        assert_eq!(challenge_name(20), Some("1K Clones Black Hole Challenge"));
+        assert_eq!(challenge_name(30), Some("Road to Infinity Challenge"));
+        assert_eq!(challenge_name(37), Some("RTI Temp Level Challenge"));
         assert_eq!(challenge_name(0), None); // None sentinel
         assert_eq!(challenge_name(77), None); // past the end
         assert_eq!(challenge_difficulty_name(0), Some("Normal"));
