@@ -31,6 +31,7 @@ pub enum SectionId {
     Campaigns,
     Dungeons,
     Planet,
+    Adventure,
     RawTree,
 }
 
@@ -49,6 +50,7 @@ impl SectionId {
         SectionId::Campaigns,
         SectionId::Dungeons,
         SectionId::Planet,
+        SectionId::Adventure,
         SectionId::RawTree,
     ];
 
@@ -66,6 +68,7 @@ impl SectionId {
             SectionId::Campaigns => "Campaigns",
             SectionId::Dungeons => "Dungeons",
             SectionId::Planet => "Planet / UBs",
+            SectionId::Adventure => "Adventure",
             SectionId::RawTree => "Raw Save Tree",
         }
     }

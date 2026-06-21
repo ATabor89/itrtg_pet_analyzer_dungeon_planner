@@ -503,18 +503,22 @@ save_block! {
     Bonus:          "f", "Bonus",                FieldKind::Text, None, None;
 }
 
-/// Adventure-mode inventory — `032.d.<index>` (`c`/`d` are 0, unlabeled).
-pub const ADVENTURE_ITEM_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Item Id", Resolve::AdventureItem),
-    lbl!("b", "Count"),
-];
+save_block! {
+    /// Adventure-mode inventory — `032.d.<index>` (`c`/`d` are 0, unlabeled).
+    /// `a` = item id, `b` = count (verified varied counts on the reference save).
+    AdventureItemField => ADVENTURE_ITEM_FIELDS;
+    Item:  "a", "Item Id", FieldKind::Id,   None, Some(Resolve::AdventureItem);
+    Count: "b", "Count",   FieldKind::Text, None, None;
+}
 
-/// Adventure-mode cores — `032.G.<index>`. `b` (always 1) is unlabeled.
-pub const CORE_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Enemy Id", Resolve::AdventureEnemy),
-    lbl!("c", "Count"),
-    lbl!("d", "Quality"),
-];
+save_block! {
+    /// Adventure-mode cores — `032.G.<index>`. `a` = enemy id, `c` = count,
+    /// `d` = quality (0–8 = F…SSS); `b` (always 1) is unlabeled.
+    CoreField => CORE_FIELDS;
+    Enemy:   "a", "Enemy Id", FieldKind::Id,   None,         Some(Resolve::AdventureEnemy);
+    Count:   "c", "Count",    FieldKind::Text, None,         None;
+    Quality: "d", "Quality",  FieldKind::UInt, Some((0, 8)), None;
+}
 
 /// Adventure-mode researches — `032.H.a.<index>`.
 pub const RESEARCH_FIELDS: &[FieldLabel] = &[
