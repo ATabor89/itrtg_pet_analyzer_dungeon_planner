@@ -21,7 +21,7 @@ use eframe::egui::{self, RichText};
 use crate::style;
 use registry::{FieldRegistry, SectionId};
 use session::EditSession;
-use sections::{equipment, gems, inventory, pets, raw_tree, resources, stats};
+use sections::{challenges, equipment, gems, inventory, pets, raw_tree, resources, stats};
 
 #[derive(Default)]
 pub struct SaveEditorState {
@@ -43,6 +43,7 @@ pub struct SaveEditorState {
     physical: stats::StatEditState,
     skills: stats::StatEditState,
     monsters: stats::StatEditState,
+    challenges: challenges::ChallengeEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -112,6 +113,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         physical: physical_state,
         skills: skills_state,
         monsters: monsters_state,
+        challenges: challenges_state,
         buffers,
         ..
     } = state;
@@ -155,6 +157,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     SectionId::Monsters => {
                         stats::show(ui, session, monsters_state, &stats::MONSTERS)
                     }
+                    SectionId::Challenges => challenges::show(ui, session, challenges_state),
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,
@@ -310,6 +313,7 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
             let mut undo_added: Option<usize> = None;
             let mut undo_added_material: Option<usize> = None;
             let mut undo_added_gem: Option<usize> = None;
+            let mut undo_added_challenge: Option<usize> = None;
             let mut undo_removed: Option<usize> = None;
             // Cap the height so a huge batch doesn't run off-screen — scroll within.
             egui::ScrollArea::vertical()
@@ -420,6 +424,28 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
                             });
                     }
 
+                    if !session.added_challenges().is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(
+                            RichText::new("Added challenges").color(style::TEXT_MUTED).size(11.0),
+                        );
+                        egui::Grid::new("save_editor_added_chal_grid")
+                            .num_columns(2)
+                            .spacing([12.0, 4.0])
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for (i, c) in session.added_challenges().iter().enumerate() {
+                                    ui.label(
+                                        RichText::new(format!("+ {}", c.label)).color(style::SUCCESS),
+                                    );
+                                    if ui.small_button("undo").clicked() {
+                                        undo_added_challenge = Some(i);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    }
+
                     if !session.removed().is_empty() {
                         ui.add_space(4.0);
                         ui.label(RichText::new("Deleted").color(style::TEXT_MUTED).size(11.0));
@@ -451,6 +477,9 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession) {
             }
             if let Some(i) = undo_added_gem {
                 session.undo_added_gem(i);
+            }
+            if let Some(i) = undo_added_challenge {
+                session.undo_added_challenge(i);
             }
             if let Some(i) = undo_removed {
                 session.undo_removed(i);
