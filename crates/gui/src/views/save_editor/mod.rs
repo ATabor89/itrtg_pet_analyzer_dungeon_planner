@@ -486,14 +486,34 @@ fn load_from_file(state: &mut SaveEditorState) {
     }
 }
 
+/// Build the default export filename by prepending `edited_` (or
+/// `edited_redacted_`) to the original save's name, so an export stays tied to
+/// the save it came from — important on wasm, where there's no name dialog and
+/// generic names otherwise pile up as `edited_save (N).txt`. Falls back to a
+/// generic name when the source name is unknown (e.g. loaded from pasted text),
+/// and avoids stacking prefixes when re-editing an already-edited file.
+fn edited_filename(source: Option<&str>, redacted: bool) -> String {
+    let prefix = if redacted { "edited_redacted_" } else { "edited_" };
+    match source {
+        Some(name) if !name.is_empty() => {
+            let stem = name
+                .strip_prefix("edited_redacted_")
+                .or_else(|| name.strip_prefix("edited_"))
+                .unwrap_or(name);
+            format!("{prefix}{stem}")
+        }
+        _ => format!("{prefix}save.txt"),
+    }
+}
+
 /// Encode the (optionally redacted) save, round-trip validate it, and write it
 /// out — to a file via the native dialog, or as a browser download on wasm.
 fn save_to_file(state: &mut SaveEditorState, redacted: bool) {
-    let default_name = if redacted {
-        "edited_redacted_save.txt"
-    } else {
-        "edited_save.txt"
-    };
+    let source = state
+        .session
+        .as_ref()
+        .and_then(|s| s.source_name.clone());
+    let default_name = edited_filename(source.as_deref(), redacted);
 
     let status = {
         let session = state.session.as_ref().unwrap();
@@ -512,7 +532,7 @@ fn save_to_file(state: &mut SaveEditorState, redacted: bool) {
                 };
                 match validated {
                     Err(e) => Some((format!("Validation failed — not written: {e}"), true)),
-                    Ok(()) => output_save(default_name, &enc),
+                    Ok(()) => output_save(&default_name, &enc),
                 }
             }
         }
@@ -543,4 +563,45 @@ fn output_save(default_name: &str, encoded: &str) -> Option<(String, bool)> {
         Ok(()) => (format!("Downloaded {default_name}"), false),
         Err(e) => (format!("Download failed: {e}"), true),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::edited_filename;
+
+    #[test]
+    fn edited_filename_prepends_to_source() {
+        assert_eq!(
+            edited_filename(Some("ManualSave_2026-06-09.txt"), false),
+            "edited_ManualSave_2026-06-09.txt"
+        );
+        assert_eq!(
+            edited_filename(Some("ManualSave_2026-06-09.txt"), true),
+            "edited_redacted_ManualSave_2026-06-09.txt"
+        );
+    }
+
+    #[test]
+    fn edited_filename_falls_back_when_source_unknown() {
+        assert_eq!(edited_filename(None, false), "edited_save.txt");
+        assert_eq!(edited_filename(Some(""), true), "edited_redacted_save.txt");
+    }
+
+    #[test]
+    fn edited_filename_does_not_stack_prefixes() {
+        // Re-editing an already-edited file keeps a single prefix.
+        assert_eq!(
+            edited_filename(Some("edited_ManualSave.txt"), false),
+            "edited_ManualSave.txt"
+        );
+        assert_eq!(
+            edited_filename(Some("edited_redacted_ManualSave.txt"), true),
+            "edited_redacted_ManualSave.txt"
+        );
+        // Promoting an edited file to a redacted export swaps the prefix cleanly.
+        assert_eq!(
+            edited_filename(Some("edited_ManualSave.txt"), true),
+            "edited_redacted_ManualSave.txt"
+        );
+    }
 }
