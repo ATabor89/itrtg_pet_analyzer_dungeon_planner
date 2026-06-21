@@ -29,8 +29,8 @@ impl EField {
 
     fn label(self) -> &'static str {
         match self {
-            EField::Quality => "Quality (0–8)",
-            EField::Plus => "Plus",
+            EField::Quality => "Quality (F–SSS / 0–8)",
+            EField::Plus => "Upgrade Level",
             EField::GemLevel => "Gem Level",
         }
     }
@@ -303,7 +303,7 @@ fn passes_filter(st: &EquipEditState, r: &EquipRow) -> bool {
     {
         return false;
     }
-    if !in_range(r.quality, &st.f_quality_min, &st.f_quality_max) {
+    if !quality_in_range(r.quality, &st.f_quality_min, &st.f_quality_max) {
         return false;
     }
     if !in_range(r.plus, &st.f_plus_min, &st.f_plus_max) {
@@ -321,6 +321,40 @@ fn passes_filter(st: &EquipEditState, r: &EquipRow) -> bool {
     }
     if let Some(eq) = st.f_equipped
         && r.equipped_on.is_some() != eq
+    {
+        return false;
+    }
+    true
+}
+
+/// Parse a quality value the user typed into a Set op or override cell: a letter
+/// grade (F..SSS / Ult) or a number, clamped to the valid 0–8 (SSS) range so an
+/// out-of-range number lands on SSS rather than producing an invalid quality.
+fn parse_quality_set(s: &str) -> Option<u32> {
+    let t = s.trim();
+    if let Ok(n) = t.parse::<u32>() {
+        return Some(n.min(8));
+    }
+    items::quality_from_str(t).map(|q| q.min(8))
+}
+
+/// Quality range filter that accepts letter grades (F..SSS) or numbers in the
+/// min/max bounds. Empty bound = unbounded on that side.
+fn quality_in_range(v: u32, min: &str, max: &str) -> bool {
+    let bound = |s: &str| {
+        let t = s.trim();
+        if t.is_empty() {
+            return None;
+        }
+        t.parse::<u32>().ok().or_else(|| items::quality_from_str(t))
+    };
+    if let Some(lo) = bound(min)
+        && v < lo
+    {
+        return false;
+    }
+    if let Some(hi) = bound(max)
+        && v > hi
     {
         return false;
     }
@@ -359,45 +393,49 @@ fn cmp_rows(a: &EquipRow, b: &EquipRow, col: ESort) -> Ordering {
 fn filter_bar(ui: &mut egui::Ui, st: &mut EquipEditState, total: usize, shown: usize) {
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new("Filter:").color(style::TEXT_MUTED));
+        ui.label(RichText::new("Slot").color(style::TEXT_MUTED).size(11.0));
         egui::ComboBox::from_id_salt("eq_f_category")
-            .selected_text(st.f_category.map_or("Any slot", EquipCategory::name))
+            .selected_text(st.f_category.map_or("Any", EquipCategory::name))
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut st.f_category, None, "Any slot");
+                ui.selectable_value(&mut st.f_category, None, "Any");
                 for &c in CATEGORIES {
                     ui.selectable_value(&mut st.f_category, Some(c), c.name());
                 }
             });
-        ui.label("type");
+        ui.label(RichText::new("Name").color(style::TEXT_MUTED).size(11.0));
         ui.add(egui::TextEdit::singleline(&mut st.f_name).desired_width(120.0));
-        ui.label("Quality");
-        ui.add(egui::TextEdit::singleline(&mut st.f_quality_min).desired_width(36.0));
+        ui.label(RichText::new("Quality").color(style::TEXT_MUTED).size(11.0));
+        ui.add(egui::TextEdit::singleline(&mut st.f_quality_min).desired_width(40.0));
         ui.label("–");
-        ui.add(egui::TextEdit::singleline(&mut st.f_quality_max).desired_width(36.0));
-        ui.label("Plus");
+        ui.add(egui::TextEdit::singleline(&mut st.f_quality_max).desired_width(40.0));
+        ui.label(RichText::new("Upgrade").color(style::TEXT_MUTED).size(11.0));
         ui.add(egui::TextEdit::singleline(&mut st.f_plus_min).desired_width(36.0));
         ui.label("–");
         ui.add(egui::TextEdit::singleline(&mut st.f_plus_max).desired_width(36.0));
     });
     ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new("Gem").color(style::TEXT_MUTED).size(11.0));
         egui::ComboBox::from_id_salt("eq_f_gem")
             .selected_text(match st.f_gem {
-                None => "Any gem",
+                None => "Any",
                 Some(true) => "Gemmed",
                 Some(false) => "No gem",
             })
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut st.f_gem, None, "Any gem");
+                ui.selectable_value(&mut st.f_gem, None, "Any");
                 ui.selectable_value(&mut st.f_gem, Some(true), "Gemmed");
                 ui.selectable_value(&mut st.f_gem, Some(false), "No gem");
             });
+        ui.label(RichText::new("Gem element").color(style::TEXT_MUTED).size(11.0));
         egui::ComboBox::from_id_salt("eq_f_gem_elem")
-            .selected_text(st.f_gem_element.map_or("Any element", element_name))
+            .selected_text(st.f_gem_element.map_or("Any", element_name))
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut st.f_gem_element, None, "Any element");
+                ui.selectable_value(&mut st.f_gem_element, None, "Any");
                 for &(label, id) in ELEMENT_CHOICES {
                     ui.selectable_value(&mut st.f_gem_element, Some(id), label);
                 }
             });
+        ui.label(RichText::new("Equipped").color(style::TEXT_MUTED).size(11.0));
         egui::ComboBox::from_id_salt("eq_f_equipped")
             .selected_text(match st.f_equipped {
                 None => "Any",
@@ -508,6 +546,8 @@ fn bulk_target(st: &EquipEditState, row: &EquipRow, field: EField) -> Option<Str
     let (kind, value) = st.ops.get(&field)?;
     let cur = row.current(field).parse::<u64>().ok()?;
     let new = match kind {
+        // Quality "Set" accepts a letter grade (F..SSS) or a number (clamped).
+        OpKind::Set if field == EField::Quality => parse_quality_set(value)? as u64,
         OpKind::Set => parse_u64(value)?,
         OpKind::Add => cur.checked_add(parse_u64(value)?)?,
         OpKind::Mul => return None,
@@ -540,9 +580,9 @@ fn table(ui: &mut egui::Ui, st: &mut EquipEditState, rows: &[EquipRow], filtered
         .header(20.0, |mut h| {
             h.col(|_| {});
             let cols = [
-                ("Type", ESort::Type),
+                ("Name", ESort::Type),
                 ("Quality", ESort::Quality),
-                ("Plus", ESort::Plus),
+                ("Upgrade Level", ESort::Plus),
                 ("Gem", ESort::GemLevel),
                 ("Equipped", ESort::Equipped),
             ];
@@ -688,6 +728,19 @@ fn apply(session: &mut EditSession, st: &EquipEditState, rows: &[EquipRow]) -> (
 
         for field in EField::ALL {
             let Some(target) = effective_target(st, row, field) else { continue };
+            // Quality may arrive as a letter grade (typed into an override cell);
+            // normalize to a clamped number before validating/staging.
+            let target = if field == EField::Quality {
+                match parse_quality_set(&target) {
+                    Some(q) => q.to_string(),
+                    None => {
+                        skipped += 1;
+                        continue;
+                    }
+                }
+            } else {
+                target
+            };
             if target.trim() == row.current(field).trim() {
                 continue;
             }
@@ -764,6 +817,28 @@ mod tests {
         assert_eq!(bulk_target(&st, &row(), EField::Quality).as_deref(), Some("8"));
         st.ops.insert(EField::Quality, (OpKind::Set, "12".into()));
         assert_eq!(bulk_target(&st, &row(), EField::Quality).as_deref(), Some("8"));
+    }
+
+    #[test]
+    fn quality_set_accepts_letters_and_numbers() {
+        let mut st = EquipEditState::default();
+        st.ops.insert(EField::Quality, (OpKind::Set, "SSS".into()));
+        assert_eq!(bulk_target(&st, &row(), EField::Quality).as_deref(), Some("8"));
+        st.ops.insert(EField::Quality, (OpKind::Set, "a".into())); // 'A' = 5
+        assert_eq!(bulk_target(&st, &row(), EField::Quality).as_deref(), Some("5"));
+        st.ops.insert(EField::Quality, (OpKind::Set, "7".into()));
+        assert_eq!(bulk_target(&st, &row(), EField::Quality).as_deref(), Some("7"));
+        st.ops.insert(EField::Quality, (OpKind::Set, "Z".into())); // invalid grade
+        assert_eq!(bulk_target(&st, &row(), EField::Quality), None);
+    }
+
+    #[test]
+    fn quality_filter_accepts_letters() {
+        // row quality is 6 (S).
+        assert!(quality_in_range(6, "A", "SSS")); // 5..=8 includes 6
+        assert!(!quality_in_range(6, "SS", "SSS")); // 7..=8 excludes 6
+        assert!(quality_in_range(6, "", "")); // unbounded
+        assert!(quality_in_range(6, "0", "8")); // numbers still work
     }
 
     #[test]
