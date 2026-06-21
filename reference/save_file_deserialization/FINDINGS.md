@@ -425,10 +425,10 @@ marker, purpose inferred; LOW = scrambled marker, class only):
 |-----|-------|--------|------------------|------|
 | `029` | `CDNMNLIAPKA` | `UltimateOverflowBoosts` | **WIRED** — Ultimate Overflow upgrades; `.a` = list of `FDJCCPFCJAO` `{a: IDFOIHJPCHP type, b: level}`; 6 types (1 Dungeon Slot, 2 Multiverse Rebirth Multi, 3 Multiverse GP Increase, 4 Multiverse Growth %, 5 Multiverse Growth Levels, 6 Higher PBaal) | DONE |
 | `y`/`z`/`A`/`B` | `OEFPEEEHKDB` | `AchievementId` | Achievement/milestone state lists (`{a:bool, b:int}`); sizes 168/168/136/84 | HIGH |
-| `P` | `HAGJGEFFJMM` | `PBaal` | PBaal system | MED-HIGH |
+| `P` | `HAGJGEFFJMM` | `PBaal` | **CONFIRMED** = the current P.Baal god-fight (reconciles with the existing registry label "Current God Fight"). `c` = **Highest P.Baal Defeated** (shown +1; in "The last P.Baal you defeated is …" / Day Baal Challenge); `a`/`e` flags, `b` accumulator (receives root.`b` at load), `d` running-max. Fields mostly transient → **not wired** (container already labeled; low value) | IDENTIFIED |
 | `Q` | `LLCEGHMEDHK` | `AvatarOptions` | Avatar / cosmetic options | MED-HIGH |
 | `012` | `ANNEDIJDLIC` | `BattleUBV4` | UBV4 battle state | MED-HIGH |
-| `014` | `DIGFPPNEEOC` | `RTIBonuses` | RTI bonuses/upgrades | MED |
+| `014` | `DIGFPPNEEOC` | `RTIBonuses` | **WIRED** — RTI (Road to Infinity) bonuses; `.a` = list of 10 `HEIPGLPOGEJ` (`RtiElement`), one per `BDAFIPJBPFN` stat type (1 Physical … 10 CreatingSpeed); entry `a`=type, `b`=Bonus Amount, `e`=elapsed timer (`LDMJEPGEOME`), `c`/`d`/`g`/`h`=per-type values (neutral). `.b` = `&`-list of `HFNFDKEMAIK` special pets (not wired) | DONE |
 | `027` | `JCNIFKADIBN` | `Multiverse` | Multiverse system | MED |
 | `o` | `IFBFOMJDBLH` | `---MightsStart---` (also "Salamander"/"Elemental Manipulation") | Might / elemental detail | LOW-MED |
 | `O` | `ACDDNFHBJCD` | (decoy "Event will be removed in:") | Events (active event state) | LOW-MED |
@@ -439,8 +439,9 @@ Method to map any of these (per the usual recipe): find the class's real
 deserializer (letter/numeric keys, **not** the prose-key decoys), label fields
 from a debug/tooltip anchor, confirm the root key + non-empty struct in the
 fixture, wire as a block, validate via the coverage test. Each is its own PR.
-These are the remaining C#-tractable targets; `029` is now wired, so `P`/`Q`/`012`
-(clean markers) are the most tractable next.
+Remaining C#-tractable targets after `029`/`014` (wired) and `P` (identified,
+not worth wiring): `Q` (AvatarOptions), `012` (UBV4 battle), `027` (Multiverse),
+the `y`/`z`/`A`/`B` achievement lists, then `o`/`O`/`015`/`031`.
 
 Anni Cake's bonus: stored **directly at root `033`** as a fractional
 percent — save 1: 709.0245829717 (exactly the user's predicted "709%"),
