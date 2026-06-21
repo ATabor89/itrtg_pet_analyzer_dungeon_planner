@@ -582,6 +582,16 @@ pub const STATISTICS_FIELDS: &[FieldLabel] = &[
     lbl!("311", "Gold Dragon bonus growth"),
     lbl!("324", "Serow items saved"),
     lbl!("336", "Bag bonus growth"),
+    // Day-challenge high scores — these (not the x.242 completion count) drive
+    // each Day challenge's ChP reward (per the `OIHGOPGKAJO` score formulas in
+    // KPLPGPEOFNB.cs ~6190). Editing these is how you change a Day challenge's ChP.
+    lbl!("045", "Day Baal Challenge score (ChP basis)"),
+    lbl!("047", "Day Universe Challenge score (ChP basis)"),
+    lbl!("049", "Day Pet Challenge highest multiplier (ChP basis)"),
+    lbl!("065", "Day Might Challenge score (ChP basis)"),
+    lbl!("068", "Day No Divinity Challenge score (ChP basis)"),
+    lbl!("134", "Road to Infinity — highest P.Baal (ChP basis)"),
+    lbl!("304", "Day Extreme Building Challenge score (ChP basis)"),
 ];
 
 /// Per-challenge completion record (`KPLPGPEOFNB`), one per element of the
