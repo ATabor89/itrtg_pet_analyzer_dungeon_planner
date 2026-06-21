@@ -81,6 +81,9 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::ChallengeDifficulty => {
             items::challenge_difficulty_name(v.parse().ok()?).map(str::to_string)
         }
+        Resolve::UltimateOverflowUpgrade => {
+            items::ultimate_overflow_upgrade_name(v.parse().ok()?).map(str::to_string)
+        }
         Resolve::EquipmentInstance => resolve_equipment_instance(v, root),
         // Node-based: handled directly in `element_label`, never as a scalar.
         Resolve::EquipmentNode | Resolve::CoreNode => None,

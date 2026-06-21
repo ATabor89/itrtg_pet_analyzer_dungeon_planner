@@ -1176,6 +1176,21 @@ pub fn challenge_difficulty_name(id: u32) -> Option<&'static str> {
     })
 }
 
+/// Ultimate-Overflow upgrade type by id — the `IDFOIHJPCHP` enum (entry field
+/// `a` of the `root.029` list, marker `UltimateOverflowBoost`). These are the
+/// boosts bought with Ultimate Overflow Points; names transcribed from the enum.
+pub fn ultimate_overflow_upgrade_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        1 => "Dungeon Slot",
+        2 => "Multiverse Rebirth Multi",
+        3 => "Multiverse GP Increase",
+        4 => "Multiverse Growth %",
+        5 => "Multiverse Growth Levels",
+        6 => "Higher PBaal",
+        _ => return None,
+    })
+}
+
 /// Adventure-mode inventory item name by id (the `032.d` namespace — distinct
 /// from the main `X.Q` materials and from the core/enemy ids). Player-identified
 /// 2026-06-18 by matching the save's `032.d` list (id `a`, count `b`) against the
@@ -2230,5 +2245,13 @@ mod tests {
         assert_eq!(challenge_difficulty_name(0), Some("Normal"));
         assert_eq!(challenge_difficulty_name(2), Some("Root"));
         assert_eq!(challenge_difficulty_name(4), None);
+    }
+
+    #[test]
+    fn ultimate_overflow_upgrade_ids_map_to_names() {
+        assert_eq!(ultimate_overflow_upgrade_name(1), Some("Dungeon Slot"));
+        assert_eq!(ultimate_overflow_upgrade_name(6), Some("Higher PBaal"));
+        assert_eq!(ultimate_overflow_upgrade_name(0), None); // None sentinel
+        assert_eq!(ultimate_overflow_upgrade_name(7), None); // past the end
     }
 }
