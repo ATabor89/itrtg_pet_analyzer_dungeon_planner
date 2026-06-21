@@ -3,6 +3,7 @@
 //! navigator lives here too as a special "section".
 
 pub mod bulk;
+pub mod campaigns;
 pub mod challenges;
 pub mod equip_builder;
 pub mod equipment;

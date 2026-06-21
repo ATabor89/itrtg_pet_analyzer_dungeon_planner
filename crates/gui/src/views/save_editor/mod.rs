@@ -21,7 +21,9 @@ use eframe::egui::{self, RichText};
 use crate::style;
 use registry::{FieldRegistry, SectionId};
 use session::EditSession;
-use sections::{challenges, equipment, gems, inventory, pets, raw_tree, resources, stats};
+use sections::{
+    campaigns, challenges, equipment, gems, inventory, pets, raw_tree, resources, stats,
+};
 
 #[derive(Default)]
 pub struct SaveEditorState {
@@ -48,6 +50,7 @@ pub struct SaveEditorState {
     skills: stats::StatEditState,
     monsters: stats::StatEditState,
     challenges: challenges::ChallengeEditState,
+    campaigns: campaigns::CampaignEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -119,6 +122,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         skills: skills_state,
         monsters: monsters_state,
         challenges: challenges_state,
+        campaigns: campaigns_state,
         buffers,
         ..
     } = state;
@@ -173,6 +177,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                         stats::show(ui, session, monsters_state, &stats::MONSTERS)
                     }
                     SectionId::Challenges => challenges::show(ui, session, challenges_state),
+                    SectionId::Campaigns => campaigns::show(ui, session, campaigns_state),
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,
