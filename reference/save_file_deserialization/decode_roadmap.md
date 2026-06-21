@@ -150,7 +150,17 @@ data point per event item at a known quality/plus to sanity-check each `base`
   (`GDIIPNIODAD`, BigDouble) = a load-time pending value** (transferred to a root
   `CCIDPLFLDIA` via the `ENLNNIPOEBB` recompute flag, then zeroed; player meaning
   unclear — left unnamed). Only the bools `q`/`t`/`u` still want a per-field
-  chase; low value individually. No struct sub-blocks remain unopened at root.
+  chase; low value individually.
+- **CORRECTION (2026-06-20): struct sub-blocks DO remain unopened at root** — the
+  earlier "none remain" was wrong (it only covered the *scalars*). A coverage-gap
+  sweep of the fixture's root keys vs. the editor registry found **~10 unmapped
+  root structs + 4 unmapped lists** (see "Root-level coverage gap" in FINDINGS):
+  e.g. `root.029` = Ultimate Overflow Point upgrades (marker `UltimateOverflowBoosts`,
+  sibling of the now-wired `013`), `root.O` = Events, `root.P` = PBaal,
+  `root.Q` = Avatar options, `root.012` = UBV4 battle state, `root.014` = RTI
+  bonuses, `root.027` = Multiverse, and `root.y`/`z`/`A`/`B` = Achievement-state
+  lists (`OEFPEEEHKDB`, `{a:bool, b:int}`). These are the real remaining
+  C#-tractable mapping targets — each its own subsystem/PR.
 - **Need from user:** occasional targeted before/after Steam saves to pin a
   specific scalar's meaning if one matters.
 
