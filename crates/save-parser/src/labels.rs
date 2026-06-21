@@ -482,17 +482,21 @@ pub const FISHING_BAIT_FIELDS: &[FieldLabel] =
 pub const FISHING_FISH_FIELDS: &[FieldLabel] =
     &[lblr!("a", "Fish", Resolve::Material), lbl!("c", "Caught")];
 
-/// Campaign slots — `X.x.<index>` (`FMOLELEHAFD`). `a` = campaign type
-/// (`AGGDKICFOAI`), `c` = elapsed ms (counts up to `e`), `e` = target duration ms
-/// (43,200,000 = 12 h) — same elapsed/target shape as a dungeon run, so setting
-/// `c` = `e` completes the campaign. `d` = `&`-joined pet type ids.
-pub const CAMPAIGN_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Campaign Type", Resolve::CampaignType),
-    lbl!("c", "Elapsed (ms)"),
-    lbl!("d", "Pet Type Ids"),
-    lbl!("e", "Target Duration (ms)"),
-    lbl!("f", "Bonus"),
-];
+save_block! {
+    /// Campaign slots — `X.x.<index>` (`FMOLELEHAFD`). One persistent slot per
+    /// campaign type. `a` = campaign **type** (`AGGDKICFOAI`, 0 = Growth — NOT a
+    /// slot index; verified on the reference save where the 8 slots carry types
+    /// 0,1,2,3,4,5,6,8). `c` = elapsed ms (a float, counts up to `e`), `e` =
+    /// target duration ms (43,200,000 = 12 h) — same elapsed/target shape as a
+    /// dungeon run, so setting `c` = `e` completes the campaign. `d` = `&`-joined
+    /// pet type ids; `f` = bonus.
+    CampaignField => CAMPAIGN_FIELDS;
+    CampaignType:   "a", "Campaign Type",        FieldKind::Id,   None, Some(Resolve::CampaignType);
+    Elapsed:        "c", "Elapsed (ms)",         FieldKind::Text, None, None;
+    PetTypeIds:     "d", "Pet Type Ids",         FieldKind::Text, None, None;
+    TargetDuration: "e", "Target Duration (ms)", FieldKind::Text, None, None;
+    Bonus:          "f", "Bonus",                FieldKind::Text, None, None;
+}
 
 /// Adventure-mode inventory — `032.d.<index>` (`c`/`d` are 0, unlabeled).
 pub const ADVENTURE_ITEM_FIELDS: &[FieldLabel] = &[

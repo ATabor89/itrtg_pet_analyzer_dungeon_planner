@@ -439,8 +439,23 @@ fn materials_match_main_stats_export() {
 fn campaigns_have_twelve_hour_durations() {
     let save = require_save!();
     assert_eq!(save.campaigns.len(), 8);
+    // `a` is the campaign TYPE, not a contiguous slot index: the 8 slots carry
+    // types 0,1,2,3,4,5,6,8 (every AGGDKICFOAI type except 7 = All), each
+    // resolving to a name. Regression guard for the old `a`-as-index bug.
+    let mut types: Vec<u32> = save.campaigns.iter().map(|c| c.campaign_type_id).collect();
+    types.sort_unstable();
+    assert_eq!(types, vec![0, 1, 2, 3, 4, 5, 6, 8]);
+    for slot in &save.campaigns {
+        assert!(
+            slot.campaign_type_name().is_some(),
+            "type {} resolves",
+            slot.campaign_type_id
+        );
+    }
     for slot in save.campaigns.iter().filter(|c| !c.pet_type_ids.is_empty()) {
-        assert_eq!(slot.duration_ms, 43_200_000, "slot {}", slot.index);
+        assert_eq!(slot.duration_ms, 43_200_000, "type {}", slot.campaign_type_id);
+        // An active campaign's elapsed time is positive and below its target.
+        assert!(slot.elapsed_ms > 0.0 && slot.elapsed_ms < slot.duration_ms as f64);
         assert!(slot.pet_type_ids.len() <= 10);
         for id in &slot.pet_type_ids {
             assert!(
