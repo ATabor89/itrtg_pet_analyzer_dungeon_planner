@@ -1516,8 +1516,12 @@ impl CampaignSlot {
                 .and_then(Node::as_int_list)
                 .unwrap_or_default(),
             elapsed_ms: get_f64(node, F::Elapsed.key()),
-            duration_ms: get_u64(node, F::TargetDuration.key()),
-            bonus: get_u64(node, F::Bonus.key()),
+            // `c`/`e`/`f` are the same float type in the game (C# `AGJPDMBDHHG`);
+            // read `e`/`f` as float-then-truncate so a fractional value can't slip
+            // through `u64::from_str` and silently become 0 (a 0 duration would
+            // look like an instantly-complete campaign).
+            duration_ms: get_f64(node, F::TargetDuration.key()) as u64,
+            bonus: get_f64(node, F::Bonus.key()) as u64,
         }
     }
 }
