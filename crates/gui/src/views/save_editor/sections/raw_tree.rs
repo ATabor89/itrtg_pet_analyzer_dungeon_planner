@@ -478,7 +478,8 @@ impl Walk<'_> {
                 let force_open = self.force_state(path);
                 let extra = self.element_label(path, value);
                 let summary = format!("{{{} fields}}", fields.len());
-                self.container(ui, path, &name, extra, summary, force_open, |w, path, ui| {
+                let raw = value.peel().serialize();
+                self.container(ui, path, &name, extra, summary, raw, force_open, |w, path, ui| {
                     for (k, f) in fields {
                         w.render_field(ui, path, k, f);
                     }
@@ -491,7 +492,8 @@ impl Walk<'_> {
                 let force_open = self.force_state(path);
                 let extra = self.element_label(path, value);
                 let summary = format!("[{} items]", items.len());
-                self.container(ui, path, &name, extra, summary, force_open, |w, path, ui| {
+                let raw = value.peel().serialize();
+                self.container(ui, path, &name, extra, summary, raw, force_open, |w, path, ui| {
                     for (i, item) in items.iter().enumerate() {
                         path.push(i.to_string());
                         w.render_value(ui, path, NodeName::Index(i), item);
@@ -541,6 +543,7 @@ impl Walk<'_> {
         name: &NodeName,
         extra: Option<String>,
         summary: String,
+        raw: String,
         force_open: Option<bool>,
         build: impl FnOnce(&mut Walk, &mut Vec<String>, &mut egui::Ui),
     ) {
@@ -568,6 +571,14 @@ impl Walk<'_> {
         resp.header_response.context_menu(|ui| {
             if ui.button("Copy path").clicked() {
                 ui.ctx().copy_text(path_str.clone());
+                ui.close_menu();
+            }
+            if ui
+                .button("Copy node (raw)")
+                .on_hover_text("Copy this node and its whole subtree as raw save text")
+                .clicked()
+            {
+                ui.ctx().copy_text(raw.clone());
                 ui.close_menu();
             }
         });
@@ -805,6 +816,21 @@ mod tests {
         // Slot 20 → the equipped Legendary Stick (type 80), not the Magic Stick.
         let got = resolve_name(Resolve::EquipmentInstance, "20", &root).expect("resolves");
         assert!(got.contains("Legendary Stick"), "got {got}");
+    }
+
+    /// "Copy node (raw)" copies `value.peel().serialize()`: a base64-wrapped
+    /// struct copies as its readable `k:v;` text (not a base64 blob), and the
+    /// result re-parses to the same tree (so it can be pasted back later, #17).
+    #[test]
+    fn copy_node_raw_is_readable_and_round_trips() {
+        let wrapped = Raw::Base64(Box::new(Raw::Struct(vec![
+            ("a".into(), scalar("5")),
+            ("b".into(), scalar("9")),
+        ])));
+        let copied = wrapped.peel().serialize();
+        assert_eq!(copied, "a:5;b:9;", "readable struct text, not a base64 blob");
+        // The copied text re-parses back to the same (peeled) structure.
+        assert_eq!(save_parser::raw::parse(&copied), *wrapped.peel());
     }
 
     /// A value/key match is included; unrelated siblings are not.
