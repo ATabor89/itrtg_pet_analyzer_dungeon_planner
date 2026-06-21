@@ -376,6 +376,15 @@ whole system. Key findings:
   **confirms** (and explains) the earlier "no stored ChP integer" observation;
   it was right that nothing is stored, but the cause is that ChP is a sum.
   "Hard mode Challenge points" is a separate static (`MECCLHFLOIK.MOJDJOCCILM`).
+  - **Per-challenge ChP values now tabulated** in `items::challenge_chp(id)`
+    (transcribed from each challenge's wiki page, 2026-06-21): normal challenges
+    pay a flat amount per completion (e.g. AAC 30, UBHC 30, UBC 25, UPC 8, MMC 4,
+    PMC 10, PLC 1, GPC 1, BHC 2, NRC 40, NRCPC 60, LCNRC/NMNRC 50, …), so
+    `total ≈ Σ(completions × challenge_chp)` over non-Day challenges. **Validated
+    exactly** against an in-game capture (20 AAC + 4 UBHC + 4 UBC + 12 UPC +
+    14 MMC + 4 PMC + 12 PLC + 8 GPC + 4 BHC = 1040 ChP). The **Day** challenges
+    (`OIHGOPGKAJO` score formulas) contribute score-based ChP instead — not in
+    the per-completion table (return `None`).
 - **Overflow Points "left" is a computed method** `LLMCMCKAABP.JHDPFECPEOM()`
   (root.x); "Ultimate Overflow Points left" derives from `LLMCMCKAABP.IGFIHCDIGOM`.
 - **Overflow-Point UPGRADE levels are stored at `root.013`** (`HNFHEBJIPEL`,
