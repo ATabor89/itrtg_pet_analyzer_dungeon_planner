@@ -414,6 +414,34 @@ sum, Overflow Points is a derived method, and the upgrade levels are plain
 stored fields (OfP at `root.013` done; ChP upgrades on `root.X` next). A
 before/after save is *not* required.
 
+**Root-level coverage gap — inventory (2026-06-20).** A sweep of the fixture's
+root keys against the editor registry found the root is **not** fully opened
+(correcting the roadmap's earlier "no struct sub-blocks remain"). Unmapped
+root sub-blocks, with their C# class + real-deserializer marker + inferred
+purpose + confidence (HIGH = clean internal marker / known sibling; MED = clean
+marker, purpose inferred; LOW = scrambled marker, class only):
+
+| key | class | marker | inferred purpose | conf |
+|-----|-------|--------|------------------|------|
+| `029` | `CDNMNLIAPKA` | `UltimateOverflowBoosts` | Ultimate Overflow Point upgrades (sibling of `013`); `.a` = `&`-list of entries | HIGH |
+| `y`/`z`/`A`/`B` | `OEFPEEEHKDB` | `AchievementId` | Achievement/milestone state lists (`{a:bool, b:int}`); sizes 168/168/136/84 | HIGH |
+| `P` | `HAGJGEFFJMM` | `PBaal` | PBaal system | MED-HIGH |
+| `Q` | `LLCEGHMEDHK` | `AvatarOptions` | Avatar / cosmetic options | MED-HIGH |
+| `012` | `ANNEDIJDLIC` | `BattleUBV4` | UBV4 battle state | MED-HIGH |
+| `014` | `DIGFPPNEEOC` | `RTIBonuses` | RTI bonuses/upgrades | MED |
+| `027` | `JCNIFKADIBN` | `Multiverse` | Multiverse system | MED |
+| `o` | `IFBFOMJDBLH` | `---MightsStart---` (also "Salamander"/"Elemental Manipulation") | Might / elemental detail | LOW-MED |
+| `O` | `ACDDNFHBJCD` | (decoy "Event will be removed in:") | Events (active event state) | LOW-MED |
+| `015` | `DNIMPNBKPGO` | `AvatarNew` / "Multi from UBv1C" | Avatar v2 or UBv1 multi — unclear | LOW |
+| `031` | `JGAHOCEHBFJ` | (decoy; "bgmusic"/"_front") | settings / cosmetic — unclear | LOW |
+
+Method to map any of these (per the usual recipe): find the class's real
+deserializer (letter/numeric keys, **not** the prose-key decoys), label fields
+from a debug/tooltip anchor, confirm the root key + non-empty struct in the
+fixture, wire as a block, validate via the coverage test. Each is its own PR.
+These are the remaining C#-tractable targets; `029` (Ultimate Overflow, a `013`
+sibling) and `P`/`Q`/`012` (clean markers) are the most tractable next.
+
 Anni Cake's bonus: stored **directly at root `033`** as a fractional
 percent — save 1: 709.0245829717 (exactly the user's predicted "709%"),
 save 2: 948.969027416145 (displays as 949%), delta ≈ +239.94 = ~24 h of
