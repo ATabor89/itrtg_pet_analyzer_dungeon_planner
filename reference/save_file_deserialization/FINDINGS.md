@@ -423,7 +423,7 @@ marker, purpose inferred; LOW = scrambled marker, class only):
 
 | key | class | marker | inferred purpose | conf |
 |-----|-------|--------|------------------|------|
-| `029` | `CDNMNLIAPKA` | `UltimateOverflowBoosts` | Ultimate Overflow Point upgrades (sibling of `013`); `.a` = `&`-list of entries | HIGH |
+| `029` | `CDNMNLIAPKA` | `UltimateOverflowBoosts` | **WIRED** — Ultimate Overflow upgrades; `.a` = list of `FDJCCPFCJAO` `{a: IDFOIHJPCHP type, b: level}`; 6 types (1 Dungeon Slot, 2 Multiverse Rebirth Multi, 3 Multiverse GP Increase, 4 Multiverse Growth %, 5 Multiverse Growth Levels, 6 Higher PBaal) | DONE |
 | `y`/`z`/`A`/`B` | `OEFPEEEHKDB` | `AchievementId` | Achievement/milestone state lists (`{a:bool, b:int}`); sizes 168/168/136/84 | HIGH |
 | `P` | `HAGJGEFFJMM` | `PBaal` | PBaal system | MED-HIGH |
 | `Q` | `LLCEGHMEDHK` | `AvatarOptions` | Avatar / cosmetic options | MED-HIGH |
@@ -439,8 +439,8 @@ Method to map any of these (per the usual recipe): find the class's real
 deserializer (letter/numeric keys, **not** the prose-key decoys), label fields
 from a debug/tooltip anchor, confirm the root key + non-empty struct in the
 fixture, wire as a block, validate via the coverage test. Each is its own PR.
-These are the remaining C#-tractable targets; `029` (Ultimate Overflow, a `013`
-sibling) and `P`/`Q`/`012` (clean markers) are the most tractable next.
+These are the remaining C#-tractable targets; `029` is now wired, so `P`/`Q`/`012`
+(clean markers) are the most tractable next.
 
 Anni Cake's bonus: stored **directly at root `033`** as a fractional
 percent — save 1: 709.0245829717 (exactly the user's predicted "709%"),
