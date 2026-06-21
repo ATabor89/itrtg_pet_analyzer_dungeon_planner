@@ -84,6 +84,7 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::UltimateOverflowUpgrade => {
             items::ultimate_overflow_upgrade_name(v.parse().ok()?).map(str::to_string)
         }
+        Resolve::RtiBonus => items::rti_bonus_name(v.parse().ok()?).map(str::to_string),
         Resolve::EquipmentInstance => resolve_equipment_instance(v, root),
         // Node-based: handled directly in `element_label`, never as a scalar.
         Resolve::EquipmentNode | Resolve::CoreNode => None,
