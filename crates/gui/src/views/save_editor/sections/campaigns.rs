@@ -17,6 +17,8 @@ use std::collections::HashMap;
 use eframe::egui::{self, RichText};
 use egui_extras::{Column, TableBuilder};
 
+use save_parser::raw::Raw;
+
 use crate::style;
 use crate::views::save_editor::session::EditSession;
 
@@ -56,6 +58,21 @@ fn percent(elapsed_ms: f64, duration_ms: u64) -> f64 {
 
 pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut CampaignEditState) {
     ui.heading("Campaigns");
+
+    // Edits address slots by raw list index (`X.x.<i>`), which only holds when
+    // `X.x` is a real list. A degenerate 1-element lone-struct (list_or_single)
+    // can't be indexed that way, so fall back to the raw tree rather than stage
+    // edits that would miss. Real saves always carry the full multi-slot list.
+    if !matches!(session.root().get_path(&["X", "x"]), Some(Raw::List(_))) {
+        ui.label(
+            RichText::new(
+                "Campaign data isn't in the expected multi-slot list form — edit via the \
+                 Raw Save Tree.",
+            )
+            .color(style::TEXT_MUTED),
+        );
+        return;
+    }
 
     // Owned snapshot, so the session borrow is free for edits below.
     let Some(save) = session.derived() else {
