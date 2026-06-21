@@ -5,6 +5,7 @@
 pub mod bulk;
 pub mod campaigns;
 pub mod challenges;
+pub mod dungeons;
 pub mod equip_builder;
 pub mod equipment;
 pub mod gems;
