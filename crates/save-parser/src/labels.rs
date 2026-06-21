@@ -99,6 +99,8 @@ pub enum Resolve {
     /// Ultimate-Overflow upgrade type id (`IDFOIHJPCHP`) →
     /// `items::ultimate_overflow_upgrade_name`.
     UltimateOverflowUpgrade,
+    /// RTI bonus stat-type id (`BDAFIPJBPFN`) → `items::rti_bonus_name`.
+    RtiBonus,
 }
 
 /// One labeled field within a block element. `key` is the path *relative to the
@@ -618,6 +620,22 @@ pub const OFP_UPGRADE_FIELDS: &[FieldLabel] = &[
     lbl!("n", "OfP Space Dim"),
 ];
 
+/// RTI (Road to Infinity) bonus entry (`HEIPGLPOGEJ`, marker `RtiElement`; one
+/// per element of the `root.014.a` list — 10 entries, one per `BDAFIPJBPFN` stat
+/// type). `a` = stat type, `e` = elapsed timer (`LDMJEPGEOME`, the universal
+/// elapsed-timer field). `b` feeds the in-game "Increases your <stat> by …"
+/// tooltip (the stored bonus amount); `c`/`d`/`g`/`h` are per-type values whose
+/// exact roles aren't separately anchored — labeled neutrally, not guessed.
+pub const RTI_BONUS_FIELDS: &[FieldLabel] = &[
+    lblr!("a", "Bonus Type", Resolve::RtiBonus),
+    lbl!("b", "Bonus Amount"),
+    lbl!("c", "Value (c)"),
+    lbl!("d", "Value (d)"),
+    lbl!("e", "Elapsed (ms)"),
+    lbl!("g", "Value (g)"),
+    lbl!("h", "Value (h)"),
+];
+
 /// Ultimate-Overflow upgrade entry (`FDJCCPFCJAO`, one per element of the
 /// `root.029.a` list; parent `CDNMNLIAPKA` marker `UltimateOverflowBoosts`).
 /// `a` = upgrade type (`IDFOIHJPCHP`), `b` = bought level. These are the boosts
@@ -671,6 +689,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["x", "242"], name: "Challenge", plural: "Challenge Completions", is_list: true, element_name: elem("a", Resolve::Challenge), fields: CHALLENGE_COMPLETION_FIELDS },
     BlockSchema { base: &["013"], name: "Overflow Point Upgrades", plural: "Overflow Point Upgrades", is_list: false, element_name: None, fields: OFP_UPGRADE_FIELDS },
     BlockSchema { base: &["029", "a"], name: "Ultimate Overflow Upgrade", plural: "Ultimate Overflow Upgrades", is_list: true, element_name: elem("a", Resolve::UltimateOverflowUpgrade), fields: UOFP_UPGRADE_FIELDS },
+    BlockSchema { base: &["014", "a"], name: "RTI Bonus", plural: "RTI Bonuses", is_list: true, element_name: elem("a", Resolve::RtiBonus), fields: RTI_BONUS_FIELDS },
     // Base `["X"]` overlaps the explicit `def(&["X"], "Pets / Pet System")` in
     // the GUI registry; that explicit def is seeded first and wins on lookup for
     // the container label, while these fields land at the distinct `X.<key>`

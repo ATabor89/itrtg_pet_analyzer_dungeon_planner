@@ -1191,6 +1191,26 @@ pub fn ultimate_overflow_upgrade_name(id: u32) -> Option<&'static str> {
     })
 }
 
+/// RTI (Road to Infinity) bonus type by id — the `BDAFIPJBPFN` enum (entry
+/// field `a` of the `root.014.a` list, marker `RtiElement`). One entry per stat
+/// type; names transcribed from the enum (the game derives the display name from
+/// the same enum via `ToString`).
+pub fn rti_bonus_name(id: u32) -> Option<&'static str> {
+    Some(match id {
+        1 => "Physical",
+        2 => "Mystic",
+        3 => "Battle",
+        4 => "Creating",
+        5 => "TBS",
+        6 => "GodCrystal",
+        7 => "SpaceDim",
+        8 => "Divinity",
+        9 => "BuildingSpeed",
+        10 => "CreatingSpeed",
+        _ => return None,
+    })
+}
+
 /// Adventure-mode inventory item name by id (the `032.d` namespace — distinct
 /// from the main `X.Q` materials and from the core/enemy ids). Player-identified
 /// 2026-06-18 by matching the save's `032.d` list (id `a`, count `b`) against the
@@ -2253,5 +2273,13 @@ mod tests {
         assert_eq!(ultimate_overflow_upgrade_name(6), Some("Higher PBaal"));
         assert_eq!(ultimate_overflow_upgrade_name(0), None); // None sentinel
         assert_eq!(ultimate_overflow_upgrade_name(7), None); // past the end
+    }
+
+    #[test]
+    fn rti_bonus_ids_map_to_names() {
+        assert_eq!(rti_bonus_name(1), Some("Physical"));
+        assert_eq!(rti_bonus_name(10), Some("CreatingSpeed"));
+        assert_eq!(rti_bonus_name(0), None); // None sentinel
+        assert_eq!(rti_bonus_name(11), None); // past the end
     }
 }
