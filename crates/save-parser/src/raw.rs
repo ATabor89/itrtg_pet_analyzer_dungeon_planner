@@ -289,6 +289,48 @@ impl Raw {
         Some(node)
     }
 
+    /// Normalize a dotted path (struct keys + list index/`field=value`
+    /// selectors) into the equivalent path that uses only **numeric list
+    /// indices** — the form the raw-tree navigator emits for each node. This
+    /// drives "navigate to tree" from a staged edit whose path may carry a
+    /// selector (e.g. inventory `["X","Q","a=42","b"]` → `["X","Q","7","b"]`).
+    ///
+    /// A `field=value` selector against a 1-element list stored as a lone struct
+    /// (list_or_single — see [`get_path`](Self::get_path)) contributes **no**
+    /// segment, because the tree renders that struct's fields directly under the
+    /// parent key (there is no `[0]` level). Returns `None` if any segment is
+    /// missing or a selector matches nothing.
+    pub fn resolve_index_path(&self, path: &[&str]) -> Option<Vec<String>> {
+        let mut node = self;
+        let mut out: Vec<String> = Vec::with_capacity(path.len());
+        for key in path {
+            let peeled = node.peel();
+            match peeled {
+                Raw::List(items) => {
+                    let idx = list_index(items, key)?;
+                    out.push(idx.to_string());
+                    node = items[idx].peel();
+                }
+                Raw::Struct(_) => match key.split_once('=') {
+                    // Selector against a lone struct: it must match this struct
+                    // itself; add no segment and stay on the same node.
+                    Some((field, val)) => {
+                        if !matches!(peeled.get(field), Some(Raw::Scalar(s)) if s == val) {
+                            return None;
+                        }
+                        node = peeled;
+                    }
+                    None => {
+                        node = peeled.get(key)?;
+                        out.push((*key).to_string());
+                    }
+                },
+                _ => return None,
+            }
+        }
+        Some(out)
+    }
+
     /// Replace the scalar at a dotted path with `value`, returning the previous
     /// value's serialized form. Base64 wrappers are peeled at each level, so
     /// `["p", "j"]` reaches available god power inside the base64-wrapped `p`
@@ -566,6 +608,38 @@ mod tests {
         assert_eq!(r2.get_path(&["Q", "a=159", "b"]), Some(&Raw::Scalar("99".into())));
         // A selector that matches nothing errors, not panics.
         assert!(r.set_scalar_path(&["Q", "a=999", "b"], "1").is_err());
+    }
+
+    #[test]
+    fn resolve_index_path_normalizes_selectors_to_indices() {
+        // Two-element `Q` list: a selector resolves to its 0-based index, a bare
+        // index passes through, and a struct key is kept verbatim.
+        let list = format!("{}&{}", b64("a:117;b:50;"), b64("a:159;b:99;"));
+        let r = parse(&format!("X:{};", b64(&format!("Q:{list};"))));
+        assert_eq!(
+            r.resolve_index_path(&["X", "Q", "a=159", "b"]),
+            Some(vec!["X".into(), "Q".into(), "1".into(), "b".into()])
+        );
+        assert_eq!(
+            r.resolve_index_path(&["X", "Q", "0", "b"]),
+            Some(vec!["X".into(), "Q".into(), "0".into(), "b".into()])
+        );
+        // A selector that matches nothing fails (no panic).
+        assert_eq!(r.resolve_index_path(&["X", "Q", "a=999", "b"]), None);
+    }
+
+    #[test]
+    fn resolve_index_path_lone_struct_selector_adds_no_segment() {
+        // A 1-element list re-parses as a lone struct (list_or_single); the tree
+        // renders its fields directly under the parent key, so a selector that
+        // matches the struct contributes no index segment.
+        let r = parse(&format!("Q:{};", b64("a:117;b:50;")));
+        assert_eq!(
+            r.resolve_index_path(&["Q", "a=117", "b"]),
+            Some(vec!["Q".into(), "b".into()])
+        );
+        // Wrong selector value → no match.
+        assert_eq!(r.resolve_index_path(&["Q", "a=999", "b"]), None);
     }
 
     #[test]
