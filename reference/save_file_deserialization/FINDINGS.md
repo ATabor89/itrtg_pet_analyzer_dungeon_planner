@@ -366,6 +366,52 @@ into the editor as the **Challenge** block (`x.242`, titled by challenge name).
 **Distinct** from the challenge *tries* (root **`X`** capital, pet system:
 `X.001` used / `X.017` max-upgrade) — different block, do not confuse `x`/`X`.
 
+**Challenge Points (ChP) + Overflow Points — mechanism SOLVED 2026-06-20.**
+The ChP debug tooltip (`LLMCMCKAABP.cs:4063`) is the Rosetta stone for this
+whole system. Key findings:
+- **ChP total is DERIVED, not stored** (`LLMCMCKAABP.NFHDEHOCFMP`, lines
+  4897–4902: reset to 0, summed over the challenge dict as `Σ item.Value.OIHGOPGKAJO`,
+  then floored). So total ChP is a deterministic function of the
+  `root.x.242` completion list — *computable*, no stored integer. This
+  **confirms** (and explains) the earlier "no stored ChP integer" observation;
+  it was right that nothing is stored, but the cause is that ChP is a sum.
+  "Hard mode Challenge points" is a separate static (`MECCLHFLOIK.MOJDJOCCILM`).
+- **Overflow Points "left" is a computed method** `LLMCMCKAABP.JHDPFECPEOM()`
+  (root.x); "Ultimate Overflow Points left" derives from `LLMCMCKAABP.IGFIHCDIGOM`.
+- **Overflow-Point UPGRADE levels are stored at `root.013`** (`HNFHEBJIPEL`,
+  marker `"OverflowBoosts"`, real `EBOFJJHOOLP` keys `a`–`n`; root key settled
+  empirically — the `098` assignment is a decoy, `013` holds the `a`–`n` struct
+  in the fixture). Each field = bought amount; the effect getter
+  (`HNFHEBJIPEL.cs:39–63`) adds a base. Field→label (getter→raw-field traced):
+  `a` Black Hole, `b` Black Hole Upgrade, `c` Gem Cap, `d` Gem Gain,
+  `e` V2 Auto Kill, `f` Hp Regen, `g` Crystal Power, `i` Creating Stat,
+  `j` Powersurge, `k` Creation Count, `l` Might Speed, `m` Stats Multi,
+  `n` Space Dim; `h` has no getter/label (vestigial here). **Wired** as the
+  "Overflow Point Upgrades" block.
+- **ChP UPGRADE levels are scalar fields on `root.X`** (`MLILKGIALMB`, the
+  `FIHAENJIDAO` accessor in the tooltip), NOT a separate object. The tooltip
+  names them all (getters → fields, still to map to `X.*` save keys):
+  Planet Level (`KLEAGBCADCJ`), Divinity boost (`FMJLFCIDDJL`), Damage
+  Reduction UBs (`PMCFEAPHFHB`), Faster UB spawn (`HEGBPDDBEOA`), Crystal
+  Upgrade boost (`MICPKBGNGBL`), Damage Boost V2s (`HCFLDNABDFI`), CP boost
+  (`HNGIMEBJFLC`), Crystal Sacrifice boost (`KNPAPPGJILO`), BS boost
+  (`MHGHDENBKEM`), CS boost (`IKPKHFJBAEE`), TBS Level Loss decrease
+  (`PMBOAICKNLE`), Pet Stone Drop boost (`OJDPMCCLPHN`), Stone Pet improvement
+  (`CMHGNNMOOFL`), Adv EXP boost (`EPKLKKIMKEC`), Dungeon Drop boost
+  (`DOPGFJJOLAD`), Dungeon Exp boost (`NINELPPICBG`), Dungeon Overtime
+  (`KJIKHMKFHJD`), Quest Overtime (`INIGKFAPLFK`), D4 boss room (`PFKAIGAFCDM`,
+  shown as `60 − x`), Crafting boost (`ICHENIOGMNP`), SpaceDim boost
+  (`FNBNKMDAIGH`), Self Replicating AI boost (`FKGKMKCAEIO`). **Next:** trace
+  each of these to its `root.X` save key and wire (a NEW subsystem, no in-game
+  capture needed — these are stored upgrade levels).
+
+**Self-correct (2026-06-20):** the roadmap had ChP/Overflow filed as
+*user-gated* (needing a before/after save). That was based on my earlier wrong
+read that ChP was opaque. It is fully **C#-tractable**: ChP total is a derived
+sum, Overflow Points is a derived method, and the upgrade levels are plain
+stored fields (OfP at `root.013` done; ChP upgrades on `root.X` next). A
+before/after save is *not* required.
+
 Anni Cake's bonus: stored **directly at root `033`** as a fractional
 percent — save 1: 709.0245829717 (exactly the user's predicted "709%"),
 save 2: 948.969027416145 (displays as 949%), delta ≈ +239.94 = ~24 h of

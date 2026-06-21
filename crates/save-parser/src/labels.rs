@@ -592,6 +592,29 @@ pub const CHALLENGE_COMPLETION_FIELDS: &[FieldLabel] = &[
     lbl!("e", "Flag (e)"),
 ];
 
+/// Overflow-Point upgrade levels (`HNFHEBJIPEL`, `root.013`). Each stored field
+/// is the bought upgrade amount; the in-game effect getter adds a base on top.
+/// Labels are the literal "OfP …" names from the Challenge-Points debug tooltip
+/// (`LLMCMCKAABP.cs:4063`), mapped to save keys via each getter's underlying
+/// field (`HNFHEBJIPEL.cs:39–63`). Field `h` has no getter/label there (vestigial
+/// here — the external matches are a name collision in another class).
+pub const OFP_UPGRADE_FIELDS: &[FieldLabel] = &[
+    lbl!("a", "OfP Black Hole"),
+    lbl!("b", "OfP Black Hole Upgrade"),
+    lbl!("c", "OfP Gem Cap"),
+    lbl!("d", "OfP Gem Gain"),
+    lbl!("e", "OfP V2 Auto Kill"),
+    lbl!("f", "OfP Hp Regen"),
+    lbl!("g", "OfP Crystal Power"),
+    lbl!("h", "OfP Upgrade (h, unlabeled)"),
+    lbl!("i", "OfP Creating Stat"),
+    lbl!("j", "OfP Powersurge"),
+    lbl!("k", "OfP Creation Count"),
+    lbl!("l", "OfP Might Speed"),
+    lbl!("m", "OfP Stats Multi"),
+    lbl!("n", "OfP Space Dim"),
+];
+
 /// Title each element from one of its fields (id → name).
 const fn elem(key: &'static str, resolve: Resolve) -> Option<ElementName> {
     Some(ElementName { key, resolve })
@@ -602,6 +625,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "b"], name: "Pet", plural: "Pets", is_list: true, element_name: elem("a", Resolve::Literal), fields: PET_FIELDS },
     BlockSchema { base: &["x"], name: "Statistics", plural: "Statistics", is_list: false, element_name: None, fields: STATISTICS_FIELDS },
     BlockSchema { base: &["x", "242"], name: "Challenge", plural: "Challenge Completions", is_list: true, element_name: elem("a", Resolve::Challenge), fields: CHALLENGE_COMPLETION_FIELDS },
+    BlockSchema { base: &["013"], name: "Overflow Point Upgrades", plural: "Overflow Point Upgrades", is_list: false, element_name: None, fields: OFP_UPGRADE_FIELDS },
     BlockSchema { base: &["X", "R"], name: "Equipment", plural: "Equipment", is_list: true, element_name: elem("a", Resolve::EquipmentNode), fields: EQUIPMENT_FIELDS },
     BlockSchema { base: &["X", "Q"], name: "Material", plural: "Materials", is_list: true, element_name: elem("a", Resolve::Material), fields: MATERIAL_FIELDS },
     BlockSchema { base: &["X", "002"], name: "Gem", plural: "Gems", is_list: true, element_name: elem("a", Resolve::Element), fields: GEM_FIELDS },
