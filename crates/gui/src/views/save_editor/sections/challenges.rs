@@ -203,7 +203,7 @@ fn table(
                         .on_hover_text(
                             "Day challenge: ChP comes from your high score (a Statistics-block \
                              stat), not this completion count. Edit the score in the Raw Save \
-                             Tree / Statistics (the labeled \u{201c}… score (ChP basis)\u{201d} field).",
+                             Tree / Statistics (the labeled \u{201c}(ChP basis)\u{201d} field).",
                         );
                     }
                 });
@@ -316,7 +316,7 @@ fn add_window(ctx: &egui::Context, st: &mut AddChalState) -> Option<(u32, String
                         "\u{26a0} This is a Day challenge: its ChP is based on your highest \
                          SCORE, not the completion count. Setting completions here won't change \
                          its ChP — edit the score in the Raw Save Tree / Statistics (the labeled \
-                         \u{201c}… score (ChP basis)\u{201d} field).",
+                         \u{201c}(ChP basis)\u{201d} field).",
                     )
                     .color(style::WARNING)
                     .size(10.0),
