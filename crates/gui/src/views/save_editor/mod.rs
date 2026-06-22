@@ -43,6 +43,8 @@ pub struct SaveEditorState {
     /// the raw tree should reveal and scroll to. Set by the pending-changes
     /// panel; cleared when the user searches or hits Clear.
     tree_jump: Option<String>,
+    /// State for the raw tree's "Paste over node" editor.
+    tree_paste: raw_tree::PasteState,
     pets: pets::PetEditState,
     equipment: equipment::EquipEditState,
     inventory: inventory::InventoryEditState,
@@ -126,6 +128,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         tree_scrolled_query,
         tree_generation,
         tree_jump,
+        tree_paste,
         pets: pet_state,
         equipment: equip_state,
         inventory: inv_state,
@@ -230,6 +233,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                         tree_scrolled_query,
                         tree_generation,
                         tree_jump,
+                        tree_paste,
                     ),
                 });
         });
@@ -380,6 +384,7 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<
             let mut undo_added_adv_item: Option<usize> = None;
             let mut undo_added_core: Option<usize> = None;
             let mut undo_removed: Option<usize> = None;
+            let mut undo_tree: Option<usize> = None;
             // Cap the height so a huge batch doesn't run off-screen — scroll within.
             egui::ScrollArea::vertical()
                 .max_height(240.0)
@@ -587,6 +592,31 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<
                                 }
                             });
                     }
+
+                    if !session.tree_edits().is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(
+                            RichText::new("Pasted subtrees").color(style::TEXT_MUTED).size(11.0),
+                        );
+                        egui::Grid::new("save_editor_tree_edits_grid")
+                            .num_columns(2)
+                            .spacing([12.0, 4.0])
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for (i, t) in session.tree_edits().iter().enumerate() {
+                                    ui.label(
+                                        RichText::new(format!("⎘ {}", t.path.join(".")))
+                                            .color(style::ACCENT)
+                                            .monospace()
+                                            .size(11.0),
+                                    );
+                                    if ui.small_button("undo").clicked() {
+                                        undo_tree = Some(i);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    }
                 });
             if let Some(i) = undo {
                 let _ = session.undo(i);
@@ -611,6 +641,9 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<
             }
             if let Some(i) = undo_removed {
                 session.undo_removed(i);
+            }
+            if let Some(i) = undo_tree {
+                session.undo_tree_edit(i);
             }
         });
 }
