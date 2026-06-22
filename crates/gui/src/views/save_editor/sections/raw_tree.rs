@@ -176,6 +176,23 @@ fn resolve_equipment_instance(value: &str, root: &Raw) -> Option<String> {
     equip_label(item)
 }
 
+/// The `X.R` list **index** of the equipment instance a slot value references,
+/// using the same `d`-first / `h`-fallback matching as
+/// [`resolve_equipment_instance`]. Drives the cross-reference jump (a pet's
+/// weapon/armor/accessory slot → the item's node). `None` for 0/empty or no match.
+fn equipment_instance_index(value: &str, root: &Raw) -> Option<usize> {
+    let instance: u32 = value.parse().ok()?;
+    if instance == 0 {
+        return None;
+    }
+    let Raw::List(list) = root.get_path(&["X", "R"])? else {
+        return None;
+    };
+    list.iter()
+        .position(|it| scalar_u32(it, "d") == Some(instance))
+        .or_else(|| list.iter().position(|it| scalar_u32(it, "h") == Some(instance)))
+}
+
 fn scalar_u32(node: &Raw, key: &str) -> Option<u32> {
     match node.get(key) {
         Some(Raw::Scalar(s)) => s.parse().ok(),
@@ -282,6 +299,7 @@ pub fn show(
 
     let mut edits: Vec<StagedEdit> = Vec::new();
     let mut scrolled = false;
+    let mut jump_request: Option<String> = None;
     {
         let root = session.root();
         let mut walk = Walk {
@@ -295,6 +313,7 @@ pub fn show(
             scrolled: &mut scrolled,
             generation: *generation,
             root,
+            jump_request: &mut jump_request,
         };
         let mut path: Vec<String> = Vec::new();
         if let Raw::Struct(fields) = root.peel() {
@@ -305,6 +324,15 @@ pub fn show(
     }
     if want_scroll {
         *scrolled_query = Some(reveal_key);
+    }
+
+    // A clicked cross-reference link: reveal the referenced node. Clear the
+    // search so the jump (not a stale query) drives the view, and reset the
+    // scroll dedupe so the new target scrolls into view.
+    if let Some(target) = jump_request {
+        *jump = Some(target);
+        search.clear();
+        *scrolled_query = None;
     }
 
     // Apply staged edits now that the read-only borrow of the tree is released.
@@ -428,6 +456,9 @@ struct Walk<'a> {
     generation: u64,
     /// The whole tree, for cross-references (equipment-instance id → item).
     root: &'a Raw,
+    /// Set when a cross-reference link is clicked: the dotted path to jump to
+    /// (applied after the walk — switches the tree to reveal that node).
+    jump_request: &'a mut Option<String>,
 }
 
 impl Walk<'_> {
@@ -461,6 +492,19 @@ impl Walk<'_> {
         let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
         let resolve = self.registry.lookup(&p)?.resolve?;
         resolve_name(resolve, value, self.root)
+    }
+
+    /// If this scalar is an equipment-instance reference (a pet's `w.e`/`w.f`/
+    /// `w.g` slot), the dotted `X.R.<i>` path of the item it points at — the
+    /// target of a cross-reference jump. Only `EquipmentInstance` ids reference
+    /// another tree node; every other id resolves to a static name table.
+    fn cross_ref_target(&self, path: &[String], value: &str) -> Option<String> {
+        let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
+        if self.registry.lookup(&p)?.resolve? != Resolve::EquipmentInstance {
+            return None;
+        }
+        let idx = equipment_instance_index(value, self.root)?;
+        Some(format!("X.R.{idx}"))
     }
 
     /// Is this node a match or ancestor-of-match (from the pre-pass)?
@@ -676,7 +720,22 @@ impl Walk<'_> {
                 }
             }
             if let Some(a) = &annotation {
-                ui.label(RichText::new(format!("→ {a}")).color(style::SUCCESS));
+                // An equipment-instance reference is a clickable cross-ref that
+                // jumps to the item's node; other ids are plain name labels.
+                match self.cross_ref_target(path, current) {
+                    Some(target) => {
+                        if ui
+                            .link(RichText::new(format!("→ {a}")).color(style::ACCENT))
+                            .on_hover_text("Go to this item in the tree")
+                            .clicked()
+                        {
+                            *self.jump_request = Some(target);
+                        }
+                    }
+                    None => {
+                        ui.label(RichText::new(format!("→ {a}")).color(style::SUCCESS));
+                    }
+                }
             }
             if is_match {
                 ui.label(RichText::new("◀").color(style::WARNING).small());
@@ -838,6 +897,33 @@ mod tests {
         // Slot 20 → the equipped Legendary Stick (type 80), not the Magic Stick.
         let got = resolve_name(Resolve::EquipmentInstance, "20", &root).expect("resolves");
         assert!(got.contains("Legendary Stick"), "got {got}");
+    }
+
+    /// The cross-ref jump finds the item's `X.R` index by the same `d`-first /
+    /// `h`-fallback rule as resolution (here index 1 holds `d=20`).
+    #[test]
+    fn equipment_instance_index_finds_the_item() {
+        let item = |a: &str, d: &str, h: &str| {
+            Raw::Struct(vec![
+                ("a".into(), scalar(a)),
+                ("d".into(), scalar(d)),
+                ("h".into(), scalar(h)),
+            ])
+        };
+        let root = Raw::Struct(vec![(
+            "X".into(),
+            Field::Value(Raw::Base64(Box::new(Raw::Struct(vec![(
+                "R".into(),
+                Field::Value(Raw::List(vec![
+                    item("51", "0", "858"), // [0] unequipped
+                    item("80", "20", "0"),  // [1] equipped, equip id 20
+                ])),
+            )])))),
+        )]);
+        assert_eq!(equipment_instance_index("20", &root), Some(1)); // by d
+        assert_eq!(equipment_instance_index("858", &root), Some(0)); // by h fallback
+        assert_eq!(equipment_instance_index("0", &root), None); // empty slot
+        assert_eq!(equipment_instance_index("999", &root), None); // no match
     }
 
     /// "Copy node (raw)" copies `value.peel().serialize()`: a base64-wrapped
