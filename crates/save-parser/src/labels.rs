@@ -652,7 +652,7 @@ save_block! {
     /// at the factory level (CrystalCloneField). `c`/`d` are BigDouble production
     /// counters (accumulated / progress timer; exact roles unconfirmed).
     CrystalFactoryField => CRYSTAL_FACTORY_FIELDS;
-    CrystalPower: "a", "Crystal Power",       FieldKind::Text, None, None;
+    CrystalPower: "a", "Crystal Power (Factory)", FieldKind::Text, None, None;
     Accumulated:  "c", "Accumulated (c)",     FieldKind::Text, None, None;
     Progress:     "d", "Progress (d)",        FieldKind::Text, None, None;
 }
