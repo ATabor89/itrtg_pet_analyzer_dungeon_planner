@@ -85,6 +85,14 @@ struct AddState {
     quality: u32,
 }
 
+/// State for the "Unlock class" modal.
+#[derive(Default)]
+struct AddClassState {
+    open: bool,
+    /// Chosen target class id.
+    target: u32,
+}
+
 #[derive(Default)]
 pub struct AdventureEditState {
     /// Adventure-inventory name filter.
@@ -97,7 +105,51 @@ pub struct AdventureEditState {
     /// the field's dotted raw path (each cell is unique, so one map suffices).
     cell_buffers: HashMap<String, String>,
     add: AddState,
+    add_class: AddClassState,
     status: Option<(String, bool)>,
+}
+
+/// A step in a class-unlock plan: set class `class_id` to `level` (tier `d`).
+struct UnlockStep {
+    class_id: u32,
+    level: u32,
+    tier: &'static str,
+}
+
+/// Compute the class-progression entries needed so `target` becomes selectable:
+/// the prerequisite closure (each prereq at its required level, recursively) plus
+/// the target itself at level 1. `existing` maps class id → current level. Returns
+/// only the classes that are missing or below the needed level, sorted by id.
+/// `None` if the target has no known unlock chain.
+fn unlock_plan(target: u32, existing: &HashMap<u32, u32>) -> Option<Vec<UnlockStep>> {
+    fn visit(class: u32, need: u32, required: &mut HashMap<u32, u32>) -> Option<()> {
+        let (_tier, prereqs) = items::adventure_class_unlock(class)?;
+        let slot = required.entry(class).or_insert(0);
+        if need > *slot {
+            *slot = need;
+        }
+        for &(p, lvl) in prereqs {
+            visit(p, lvl, required)?;
+        }
+        Some(())
+    }
+    let mut required: HashMap<u32, u32> = HashMap::new();
+    visit(target, 1, &mut required)?;
+    let mut steps: Vec<UnlockStep> = required
+        .into_iter()
+        .filter_map(|(class, need)| {
+            let cur = existing.get(&class).copied();
+            // Skip classes already present at or above the needed level.
+            if cur.is_some_and(|c| c >= need) {
+                return None;
+            }
+            let level = need.max(cur.unwrap_or(0));
+            let (tier, _) = items::adventure_class_unlock(class)?;
+            Some(UnlockStep { class_id: class, level, tier })
+        })
+        .collect();
+    steps.sort_by_key(|s| s.class_id);
+    Some(steps)
 }
 
 /// Quality letter for an id (F…SSS), falling back to the number.
@@ -364,7 +416,23 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut AdventureEdit
     // --- Class progression ---
     ui.add_space(8.0);
     ui.separator();
-    ui.label(RichText::new("Class Progression").strong());
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Class Progression").strong());
+        if ui
+            .button("➕ Unlock class")
+            .on_hover_text("Unlock a class by materializing its full prerequisite chain")
+            .clicked()
+        {
+            // Default to the first unlockable class not already present.
+            let present: std::collections::HashSet<u32> =
+                class_rows.iter().map(|r| r.class_id).collect();
+            let first = unlockable_classes()
+                .into_iter()
+                .find(|(id, _)| !present.contains(id))
+                .map_or(2, |(id, _)| id);
+            st.add_class = AddClassState { open: true, target: first };
+        }
+    });
     ui.label(
         RichText::new("Per-class level & exp; classes advance independently.")
             .color(style::TEXT_MUTED)
@@ -455,6 +523,142 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut AdventureEdit
             });
         }
     }
+
+    // Unlock-class modal. `existing` reflects the loaded class levels; the plan
+    // uses non-lowering sets, so a stale read can only under-raise, never harm.
+    let existing: HashMap<u32, u32> = class_rows
+        .iter()
+        .filter_map(|r| Some((r.class_id, r.level.trim().parse().ok()?)))
+        .collect();
+    if let Some(target) = unlock_class_window(ui.ctx(), &mut st.add_class, &existing) {
+        let cname = items::adventure_class_name(target).unwrap_or("class");
+        match unlock_plan(target, &existing) {
+            Some(steps) => {
+                let mut created = 0;
+                let mut raised = 0;
+                let mut err = None;
+                for step in &steps {
+                    let sname = items::adventure_class_name(step.class_id).unwrap_or("class");
+                    let label = format!("unlock {cname}: {sname} L{}", step.level);
+                    match session.set_class_progression(step.class_id, step.level, step.tier, label) {
+                        Ok(true) => created += 1,
+                        Ok(false) => raised += 1,
+                        Err(e) => {
+                            err = Some(e);
+                            break;
+                        }
+                    }
+                }
+                st.status = Some(match err {
+                    Some(e) => (format!("Unlock failed: {e}"), true),
+                    None => {
+                        (format!("Unlocked {cname} ({created} created, {raised} raised)"), false)
+                    }
+                });
+            }
+            None => {
+                st.status = Some(("That class has no known unlock chain.".to_string(), true));
+            }
+        }
+    }
+}
+
+/// The classes that have a known unlock chain (for the picker), `(id, name)`.
+fn unlockable_classes() -> Vec<(u32, &'static str)> {
+    (0..=110u32)
+        .filter_map(|id| {
+            items::adventure_class_unlock(id)?;
+            items::adventure_class_name(id).map(|n| (id, n))
+        })
+        .collect()
+}
+
+/// The "Unlock class" modal: pick a target class, preview the entries that will
+/// be created/raised (its full prerequisite chain), and confirm. Returns the
+/// chosen target id on Unlock.
+fn unlock_class_window(
+    ctx: &egui::Context,
+    st: &mut AddClassState,
+    existing: &HashMap<u32, u32>,
+) -> Option<u32> {
+    if !st.open {
+        return None;
+    }
+    let mut result = None;
+    let mut close = false;
+    let mut window_open = true;
+    egui::Window::new("Unlock Class")
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut window_open)
+        .show(ctx, |ui| {
+            let opts = unlockable_classes();
+            let selected = opts
+                .iter()
+                .find(|(id, _)| *id == st.target)
+                .map_or_else(|| format!("id {}", st.target), |(_, n)| (*n).to_string());
+            ui.horizontal(|ui| {
+                ui.label("Class:");
+                egui::ComboBox::from_id_salt("adv_unlock_class")
+                    .selected_text(selected)
+                    .width(200.0)
+                    .show_ui(ui, |ui| {
+                        for (id, name) in &opts {
+                            ui.selectable_value(&mut st.target, *id, *name);
+                        }
+                    });
+            });
+            let plan = unlock_plan(st.target, existing);
+            match &plan {
+                Some(steps) if steps.is_empty() => {
+                    ui.label(
+                        RichText::new("Already unlocked — nothing to do.")
+                            .color(style::TEXT_MUTED)
+                            .size(11.0),
+                    );
+                }
+                Some(steps) => {
+                    ui.label(RichText::new("Will create / raise:").size(11.0));
+                    for s in steps {
+                        let n = items::adventure_class_name(s.class_id).unwrap_or("?");
+                        ui.label(
+                            RichText::new(format!("• {n} → level {}", s.level))
+                                .color(style::TEXT_MUTED)
+                                .size(11.0),
+                        );
+                    }
+                }
+                None => {
+                    ui.label(
+                        RichText::new("No known unlock chain for this class.")
+                            .color(style::ERROR)
+                            .size(11.0),
+                    );
+                }
+            }
+            if st.target == 32 {
+                ui.label(
+                    RichText::new(
+                        "Alchemist also needs the Alchemy profession ≥ 30 (set it under Professions).",
+                    )
+                    .color(style::WARNING)
+                    .size(10.0),
+                );
+            }
+            ui.separator();
+            ui.horizontal(|ui| {
+                let can_apply = plan.as_ref().is_some_and(|s| !s.is_empty());
+                if ui.add_enabled(can_apply, egui::Button::new("Unlock")).clicked() {
+                    result = Some(st.target);
+                    close = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    close = true;
+                }
+            });
+        });
+    st.open = window_open && !close;
+    result
 }
 
 /// The add-item / add-core modal. Returns `Some((is_core, id, count, quality))`
@@ -971,6 +1175,31 @@ mod tests {
         assert_eq!(rows[0].name, "Basic Attack");
         assert_eq!(rows[1].name, "Magic Arrow");
         assert_eq!(rows[1].level, "11");
+    }
+
+    #[test]
+    fn unlock_plan_builds_full_prereq_chain_from_empty() {
+        let existing = HashMap::new();
+        let steps = unlock_plan(20, &existing).expect("Rogue has a known chain");
+        // Rogue needs Newbie10 → Adventurer35 → Thief55 & Archer55 → Rogue1.
+        let got: Vec<(u32, u32)> = steps.iter().map(|s| (s.class_id, s.level)).collect();
+        assert_eq!(got, vec![(1, 10), (2, 35), (5, 55), (6, 55), (20, 1)]);
+    }
+
+    #[test]
+    fn unlock_plan_skips_satisfied_prereqs_and_raises_low_ones() {
+        let existing = HashMap::from([(1, 99), (2, 40), (5, 30)]);
+        let steps = unlock_plan(20, &existing).unwrap();
+        let got: Vec<(u32, u32)> = steps.iter().map(|s| (s.class_id, s.level)).collect();
+        // Newbie(99≥10) and Adventurer(40≥35) skipped; Thief raised 30→55;
+        // Archer created at 55; Rogue created at 1.
+        assert_eq!(got, vec![(5, 55), (6, 55), (20, 1)]);
+    }
+
+    #[test]
+    fn unlock_plan_unknown_class_is_none() {
+        // Samurai (41) has no confirmed unlock chain.
+        assert!(unlock_plan(41, &HashMap::new()).is_none());
     }
 
     #[test]
