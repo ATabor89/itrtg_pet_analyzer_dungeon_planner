@@ -300,16 +300,20 @@ save_block! {
     InstanceId: "h", "Unique Instance Id",         FieldKind::UInt, None,         None;
 }
 
-/// Material / item stacks — `X.Q.<index>`.
-pub const MATERIAL_FIELDS: &[FieldLabel] =
-    &[lblr!("a", "Item Id", Resolve::Material), lbl!("b", "Count")];
+save_block! {
+    /// Material / item stacks — `X.Q.<index>`.
+    MaterialField => MATERIAL_FIELDS;
+    Item:  "a", "Item Id", FieldKind::Id,   None, Some(Resolve::Material);
+    Count: "b", "Count",   FieldKind::Text, None, None;
+}
 
-/// Gem inventory — `X.002.<index>`.
-pub const GEM_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Element Id", Resolve::Element),
-    lbl!("b", "Level"),
-    lbl!("c", "Count"),
-];
+save_block! {
+    /// Gem inventory — `X.002.<index>`.
+    GemField => GEM_FIELDS;
+    Element: "a", "Element Id", FieldKind::Id,   None, Some(Resolve::Element);
+    Level:   "b", "Level",      FieldKind::UInt, None, None;
+    Count:   "c", "Count",      FieldKind::Text, None, None;
+}
 
 /// Persistent dungeon teams — `X.S.<index>` (`PCDCANGLENI`). These are the
 /// static team settings. Per-depth difficulty: `e`=D1, `f`=D2, `g`=D3
@@ -327,10 +331,13 @@ pub const DUNGEON_TEAM_FIELDS: &[FieldLabel] = &[
     lbl!("c", "Pending Loot"),
 ];
 
-/// A team's pending-loot / inventory entry — `X.S.<i>.c.<index>` (`GCJMGGFGKBN`,
-/// same shape as the material inventory). `a`=item id, `b`=count.
-pub const PENDING_LOOT_FIELDS: &[FieldLabel] =
-    &[lblr!("a", "Item Id", Resolve::Material), lbl!("b", "Count")];
+save_block! {
+    /// A team's pending-loot / inventory entry — `X.S.<i>.c.<index>`
+    /// (`GCJMGGFGKBN`, same shape as the material inventory). `a`=item id, `b`=count.
+    PendingLootField => PENDING_LOOT_FIELDS;
+    Item:  "a", "Item Id", FieldKind::Id,   None, Some(Resolve::Material);
+    Count: "b", "Count",   FieldKind::Text, None, None;
+}
 
 /// The Challenge team — `X.Z` (a single `PCDCANGLENI`, same class as a dungeon
 /// team; C# `NMGIGAGPLCL`). `a` = members (`&`-joined pet ids). Its own inventory
@@ -529,90 +536,98 @@ pub const RESEARCH_FIELDS: &[FieldLabel] = &[
     lbl!("d", "Progress"),
 ];
 
-/// Creations — `i.<index>`.
-pub const CREATION_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Creation Id", Resolve::Creation),
-    lbl!("d", "Current Amount"),
-    lbl!("e", "Clone Cost"),
-    lbl!("g", "Total Created"),
-    lbl!("i", "Next At"),
-];
+save_block! {
+    /// Creations — `i.<index>`.
+    CreationField => CREATION_FIELDS;
+    Creation:      "a", "Creation Id",    FieldKind::Id,   None, Some(Resolve::Creation);
+    CurrentAmount: "d", "Current Amount", FieldKind::Text, None, None;
+    CloneCost:     "e", "Clone Cost",     FieldKind::Text, None, None;
+    TotalCreated:  "g", "Total Created",  FieldKind::Text, None, None;
+    NextAt:        "i", "Next At",        FieldKind::Text, None, None;
+}
 
-/// Monuments — `D.<index>`. The `e` sub-struct holds the monument's *upgrade*
-/// (the level/next-at/spread that FINDINGS previously had as "unlocated").
-pub const MONUMENT_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Monument Id", Resolve::Monument),
-    lbl!("b", "Level"),
-    lbl!("g", "Next At"),
-    lbl!("h", "Spread"),
-    lbl!("f", "Building"),
-    lbl!("c", "Clones Allocated"),
-    lbl!("d", "Progress"),
-    lbl!("e", "Upgrade"),
-    lbl!("e.b", "Upgrade Level"),
-    lbl!("e.f", "Upgrade Next At"),
-    lbl!("e.g", "Upgrade Spread"),
-];
+save_block! {
+    /// Monuments — `D.<index>`. The `e` sub-struct holds the monument's *upgrade*
+    /// (the level/next-at/spread that FINDINGS previously had as "unlocated").
+    MonumentField => MONUMENT_FIELDS;
+    Monument:        "a",   "Monument Id",      FieldKind::Id,   None, Some(Resolve::Monument);
+    Level:           "b",   "Level",            FieldKind::UInt, None, None;
+    NextAt:          "g",   "Next At",          FieldKind::Text, None, None;
+    Spread:          "h",   "Spread",           FieldKind::Text, None, None;
+    Building:        "f",   "Building",         FieldKind::Text, None, None;
+    ClonesAllocated: "c",   "Clones Allocated", FieldKind::Text, None, None;
+    Progress:        "d",   "Progress",         FieldKind::Text, None, None;
+    Upgrade:         "e",   "Upgrade",          FieldKind::Text, None, None;
+    UpgradeLevel:    "e.b", "Upgrade Level",    FieldKind::UInt, None, None;
+    UpgradeNextAt:   "e.f", "Upgrade Next At",  FieldKind::Text, None, None;
+    UpgradeSpread:   "e.g", "Upgrade Spread",   FieldKind::Text, None, None;
+}
 
-/// Mights — `V.<index>`.
-pub const MIGHT_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Might Id", Resolve::Might),
-    lbl!("b", "Level"),
-    lbl!("m", "Next At"),
-    lbl!("n", "Spread"),
-    lbl!("e", "Special (Unleash)"),
-    lbl!("g", "Base Duration (s)"),
-    lbl!("i", "Unleash HP Recovery %"),
-    lbl!("j", "Unleash Attack %"),
-    lbl!("k", "Unleash Mystic %"),
-];
+save_block! {
+    /// Mights — `V.<index>`.
+    MightField => MIGHT_FIELDS;
+    Might:           "a", "Might Id",              FieldKind::Id,   None, Some(Resolve::Might);
+    Level:           "b", "Level",                 FieldKind::UInt, None, None;
+    NextAt:          "m", "Next At",               FieldKind::Text, None, None;
+    Spread:          "n", "Spread",                FieldKind::Text, None, None;
+    Special:         "e", "Special (Unleash)",     FieldKind::Text, None, None;
+    BaseDuration:    "g", "Base Duration (s)",     FieldKind::Text, None, None;
+    UnleashRecovery: "i", "Unleash HP Recovery %", FieldKind::Text, None, None;
+    UnleashAttack:   "j", "Unleash Attack %",      FieldKind::Text, None, None;
+    UnleashMystic:   "k", "Unleash Mystic %",      FieldKind::Text, None, None;
+}
 
-/// SpaceDim / Light-Dimension elements — `009.b.<index>`.
-pub const SPACEDIM_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Element Id", Resolve::SpaceDim),
-    lbl!("b", "Clones Allocated"),
-    lbl!("c", "Level"),
-    lbl!("d", "Next At"),
-    lbl!("e", "Progress"),
-    lbl!("f", "Spread"),
-];
+save_block! {
+    /// SpaceDim / Light-Dimension elements — `009.b.<index>`.
+    SpaceDimField => SPACEDIM_FIELDS;
+    Element:         "a", "Element Id",       FieldKind::Id,   None, Some(Resolve::SpaceDim);
+    ClonesAllocated: "b", "Clones Allocated", FieldKind::Text, None, None;
+    Level:           "c", "Level",            FieldKind::UInt, None, None;
+    NextAt:          "d", "Next At",          FieldKind::Text, None, None;
+    Progress:        "e", "Progress",         FieldKind::Text, None, None;
+    Spread:          "f", "Spread",           FieldKind::Text, None, None;
+}
 
-/// Physical conditioning exercises — `h.<index>`. The `d` field (always 0 so
-/// far) is left unlabeled pending identification.
-pub const PHYSICAL_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Training Id", Resolve::PhysicalTraining),
-    lbl!("b", "Level"),
-    lbl!("c", "Clones Allocated"),
-];
+save_block! {
+    /// Physical conditioning exercises — `h.<index>`. The `d` field (always 0 so
+    /// far) is left unlabeled pending identification.
+    PhysicalField => PHYSICAL_FIELDS;
+    Training:        "a", "Training Id",      FieldKind::Id,   None, Some(Resolve::PhysicalTraining);
+    Level:           "b", "Level",            FieldKind::UInt, None, None;
+    ClonesAllocated: "c", "Clones Allocated", FieldKind::Text, None, None;
+}
 
-/// Skills — `j.<index>`. The `e` sub-struct holds the "Special"-menu usage data:
-/// `e.b` is the usage count that drives the training cap for this Skill and the
-/// index-matched Physical. `e.c` (a small stable int) and the outer `d` stay
-/// unlabeled pending identification.
-pub const SKILL_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Skill Id", Resolve::Skill),
-    lbl!("b", "Level"),
-    lbl!("c", "Clones Allocated"),
-    lbl!("e", "Usage"),
-    lblr!("e.a", "Skill Id", Resolve::Skill),
-    lbl!("e.b", "Usage Count"),
-];
+save_block! {
+    /// Skills — `j.<index>`. The `e` sub-struct holds the "Special"-menu usage
+    /// data: `e.b` is the usage count that drives the training cap for this Skill
+    /// and the index-matched Physical. `e.c` (a small stable int) and the outer
+    /// `d` stay unlabeled pending identification.
+    SkillField => SKILL_FIELDS;
+    Skill:           "a",   "Skill Id",         FieldKind::Id,   None, Some(Resolve::Skill);
+    Level:           "b",   "Level",            FieldKind::UInt, None, None;
+    ClonesAllocated: "c",   "Clones Allocated", FieldKind::Text, None, None;
+    Usage:           "e",   "Usage",            FieldKind::Text, None, None;
+    UsageSkill:      "e.a", "Skill Id",         FieldKind::Id,   None, Some(Resolve::Skill);
+    UsageCount:      "e.b", "Usage Count",      FieldKind::Text, None, None;
+}
 
-/// Monsters (fought for Battle/Divinity) — `k.<index>`.
-pub const MONSTER_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Monster Id", Resolve::Monster),
-    lbl!("b", "Defeated"),
-    lbl!("c", "Clones Allocated"),
-];
+save_block! {
+    /// Monsters (fought for Battle/Divinity) — `k.<index>`.
+    MonsterField => MONSTER_FIELDS;
+    Monster:         "a", "Monster Id",       FieldKind::Id,   None, Some(Resolve::Monster);
+    Defeated:        "b", "Defeated",         FieldKind::Text, None, None;
+    ClonesAllocated: "c", "Clones Allocated", FieldKind::Text, None, None;
+}
 
-/// Divinity Generator upgrade tracks — `K.l.<index>` (0 = Capacity, 1 = Divinity
-/// Gain, 2 = Converting Speed). `c`/`d`/`e`/`h` stay unlabeled pending ID.
-pub const DIVINITY_UPGRADE_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Upgrade Id", Resolve::DivinityUpgrade),
-    lbl!("b", "Level"),
-    lbl!("f", "Next At"),
-    lbl!("g", "Spread"),
-];
+save_block! {
+    /// Divinity Generator upgrade tracks — `K.l.<index>` (0 = Capacity, 1 =
+    /// Divinity Gain, 2 = Converting Speed). `c`/`d`/`e`/`h` stay unlabeled pending ID.
+    DivinityUpgradeField => DIVINITY_UPGRADE_FIELDS;
+    Upgrade: "a", "Upgrade Id", FieldKind::Id,   None, Some(Resolve::DivinityUpgrade);
+    Level:   "b", "Level",      FieldKind::UInt, None, None;
+    NextAt:  "f", "Next At",    FieldKind::Text, None, None;
+    Spread:  "g", "Spread",     FieldKind::Text, None, None;
+}
 
 /// Baal-Slayer (TBS) component levels — single struct at `S`.
 pub const TBS_FIELDS: &[FieldLabel] = &[
