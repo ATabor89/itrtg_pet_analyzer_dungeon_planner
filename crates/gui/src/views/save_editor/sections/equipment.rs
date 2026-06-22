@@ -167,6 +167,10 @@ pub struct EquipEditState {
     pending_delete: Option<usize>,
     /// Equip-row index requested to be unequipped (slot cleared, item → inventory).
     pending_unequip: Option<usize>,
+    /// Equip-row index awaiting a pet choice in the "equip to pet" modal.
+    pending_equip: Option<usize>,
+    /// The pet (X.b index) selected in that modal.
+    equip_pet: usize,
 
     apply_requested: bool,
     status: Option<(String, bool)>,
@@ -204,6 +208,10 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
             }
         }
     }
+    // Pet (index, name) list for the "equip to pet" modal — captured while the
+    // derived borrow is live, before any session mutation below.
+    let pet_names: Vec<(usize, String)> =
+        save.pets.iter().enumerate().map(|(i, p)| (i, p.name.clone())).collect();
 
     let rows: Vec<EquipRow> = (0..save.equipment.len())
         .map(|index| {
@@ -335,6 +343,92 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
             st.status = Some((format!("Unequip failed: {e}"), true));
         }
     }
+
+    // Equip an existing inventory item onto a chosen pet (the equip half of
+    // unequip — mints a fresh equip-ref, swap-aware; see session::equip_existing).
+    if let Some((eidx, pet_i, slot, name)) = equip_window(ui.ctx(), st, &rows, &pet_names) {
+        let pet_name =
+            pet_names.iter().find(|(i, _)| *i == pet_i).map_or("pet", |(_, n)| n.as_str());
+        let label = format!("Equip {name} on {pet_name}");
+        st.status = Some(match session.equip_existing(eidx, pet_i, slot, label) {
+            Ok(()) => (format!("Equipped {name} on {pet_name}"), false),
+            Err(e) => (format!("Equip failed: {e}"), true),
+        });
+    }
+}
+
+/// Raw pet-slot key (`e`/`f`/`g`) for an equipment category.
+fn category_slot_key(c: EquipCategory) -> &'static str {
+    match c {
+        EquipCategory::Weapon => "e",
+        EquipCategory::Armor => "f",
+        EquipCategory::Accessory => "g",
+    }
+}
+
+/// The "equip to pet" modal. Returns `Some((equip_index, pet_index, slot_key,
+/// item_name))` when the user confirms. The slot is fixed by the item's category.
+fn equip_window(
+    ctx: &egui::Context,
+    st: &mut EquipEditState,
+    rows: &[EquipRow],
+    pets: &[(usize, String)],
+) -> Option<(usize, usize, &'static str, String)> {
+    let eidx = st.pending_equip?;
+    let Some(row) = rows.iter().find(|r| r.index == eidx) else {
+        st.pending_equip = None;
+        return None;
+    };
+    let Some(slot) = row.category.map(category_slot_key) else {
+        st.pending_equip = None;
+        return None;
+    };
+    let mut result = None;
+    let mut close = false;
+    let mut open = true;
+    egui::Window::new(format!("Equip {}", row.name))
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut open)
+        .show(ctx, |ui| {
+            ui.label(
+                RichText::new(format!("Slot: {}", row.category.map_or("?", EquipCategory::name)))
+                    .color(style::TEXT_MUTED)
+                    .size(11.0),
+            );
+            ui.horizontal(|ui| {
+                ui.label("Pet:");
+                let sel = pets
+                    .iter()
+                    .find(|(i, _)| *i == st.equip_pet)
+                    .map_or_else(|| "—".to_string(), |(_, n)| n.clone());
+                egui::ComboBox::from_id_salt("eq_equip_pet")
+                    .selected_text(sel)
+                    .width(200.0)
+                    .show_ui(ui, |ui| {
+                        for (i, n) in pets {
+                            ui.selectable_value(&mut st.equip_pet, *i, n);
+                        }
+                    });
+            });
+            ui.label(
+                RichText::new("If the pet's slot is occupied, that item returns to inventory.")
+                    .color(style::TEXT_MUTED)
+                    .size(10.0),
+            );
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui.button("Equip").clicked() {
+                    result = Some((eidx, st.equip_pet, slot, row.name.clone()));
+                    close = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    close = true;
+                }
+            });
+        });
+    st.pending_equip = if open && !close { Some(eidx) } else { None };
+    result
 }
 
 fn passes_filter(st: &EquipEditState, r: &EquipRow) -> bool {
@@ -688,7 +782,19 @@ fn table(ui: &mut egui::Ui, st: &mut EquipEditState, rows: &[EquipRow], filtered
                         });
                     }
                     None => {
-                        ui.label(RichText::new("—").color(style::TEXT_MUTED));
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("—").color(style::TEXT_MUTED));
+                            // Only categorized items map to a pet slot.
+                            if row.category.is_some()
+                                && ui
+                                    .small_button("equip")
+                                    .on_hover_text("Equip this item onto a pet")
+                                    .clicked()
+                            {
+                                st.pending_equip = Some(row.index);
+                                st.equip_pet = 0;
+                            }
+                        });
                     }
                 });
                 tr.col(|ui| {
