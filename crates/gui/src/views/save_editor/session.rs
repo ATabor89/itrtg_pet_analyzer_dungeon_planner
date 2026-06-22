@@ -98,6 +98,19 @@ pub struct RemovedElement {
     cleared_slots: Vec<(Vec<String>, String)>,
 }
 
+/// A whole-subtree replacement staged this session (the inverse of the tree's
+/// "Copy node (raw)"): the node at `path` was swapped for pasted raw text. The
+/// original node is kept so the paste can be undone. Validated by a full encode
+/// round-trip before it is ever recorded, so a recorded `TreeEdit` always
+/// re-encodes cleanly.
+#[derive(Clone)]
+pub struct TreeEdit {
+    /// Dotted (all-index) path of the replaced node.
+    pub path: Vec<String>,
+    /// The node as it was before the paste, for undo.
+    original: Raw,
+}
+
 /// A loaded save plus all in-progress edits.
 pub struct EditSession {
     /// File name the save was loaded from, for display.
@@ -127,6 +140,8 @@ pub struct EditSession {
     added_cores: Vec<AddedCore>,
     /// Loaded list elements deleted this session (see [`RemovedElement`]).
     removed: Vec<RemovedElement>,
+    /// Whole-subtree pastes staged this session (see [`TreeEdit`]).
+    tree_edits: Vec<TreeEdit>,
     /// Set when an edit invalidates `derived`; cleared by `rederive_if_needed`.
     dirty_derived: bool,
 }
@@ -153,6 +168,7 @@ impl EditSession {
             added_adventure_items: Vec::new(),
             added_cores: Vec::new(),
             removed: Vec::new(),
+            tree_edits: Vec::new(),
             dirty_derived: false,
         })
     }
@@ -210,6 +226,10 @@ impl EditSession {
         &self.removed
     }
 
+    pub fn tree_edits(&self) -> &[TreeEdit] {
+        &self.tree_edits
+    }
+
     pub fn is_dirty(&self) -> bool {
         !self.pending.is_empty()
             || !self.added.is_empty()
@@ -219,9 +239,10 @@ impl EditSession {
             || !self.added_adventure_items.is_empty()
             || !self.added_cores.is_empty()
             || !self.removed.is_empty()
+            || !self.tree_edits.is_empty()
     }
 
-    /// Total staged changes (scalar edits + created/added + deleted).
+    /// Total staged changes (scalar edits + created/added + deleted + pastes).
     pub fn change_count(&self) -> usize {
         self.pending.len()
             + self.added.len()
@@ -231,6 +252,53 @@ impl EditSession {
             + self.added_adventure_items.len()
             + self.added_cores.len()
             + self.removed.len()
+            + self.tree_edits.len()
+    }
+
+    /// Replace the whole subtree at `path` with `new_text` (raw save text — the
+    /// inverse of the tree's "Copy node (raw)"). The candidate is applied, then
+    /// the *entire* save is re-encoded and round-trip validated; if that fails
+    /// the original node is restored and an error is returned, so a malformed
+    /// paste can never corrupt the staged save. `path` must name an existing,
+    /// non-root node.
+    pub fn replace_node(&mut self, path: &[&str], new_text: &str) -> Result<()> {
+        if path.is_empty() {
+            anyhow::bail!("cannot replace the root node");
+        }
+        let candidate = raw::parse(new_text.trim());
+        let node = self
+            .root
+            .get_path_mut(path)
+            .ok_or_else(|| anyhow::anyhow!("path not found: {}", path.join(".")))?;
+        let original = node.clone();
+        *node = candidate;
+        // Validate the whole save still round-trips; revert on failure.
+        let encoded = self.encode();
+        if let Err(e) = self.validate_encoded(&encoded) {
+            if let Some(n) = self.root.get_path_mut(path) {
+                *n = original;
+            }
+            return Err(anyhow::anyhow!("pasted subtree does not round-trip: {e}"));
+        }
+        self.tree_edits.push(TreeEdit {
+            path: path.iter().map(|s| s.to_string()).collect(),
+            original,
+        });
+        self.dirty_derived = true;
+        Ok(())
+    }
+
+    /// Undo a staged subtree paste, restoring the original node.
+    pub fn undo_tree_edit(&mut self, index: usize) {
+        if index >= self.tree_edits.len() {
+            return;
+        }
+        let entry = self.tree_edits.remove(index);
+        let p: Vec<&str> = entry.path.iter().map(String::as_str).collect();
+        if let Some(node) = self.root.get_path_mut(&p) {
+            *node = entry.original;
+        }
+        self.dirty_derived = true;
     }
 
     /// Delete the equipment instance at `X.R.<index>`. If it's a session-created
@@ -1099,6 +1167,31 @@ mod tests {
         assert!(s.added_materials().is_empty());
         let out = s.encode();
         s.validate_encoded(&out).unwrap();
+    }
+
+    #[test]
+    fn replace_node_swaps_subtree_round_trips_and_undoes() {
+        let mut s = EditSession::load(&encoded(&mat_root()), None).unwrap();
+        // Replace the first material element's whole subtree via raw text.
+        s.replace_node(&["X", "Q", "0"], "a:117;b:9999;").unwrap();
+        assert_eq!(s.value(&["X", "Q", "0", "b"]).as_deref(), Some("9999"));
+        assert_eq!(s.tree_edits().len(), 1);
+        assert!(s.is_dirty());
+        // The whole save still round-trips.
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+        // Undo restores the original element.
+        s.undo_tree_edit(0);
+        assert!(s.tree_edits().is_empty());
+        assert_eq!(s.value(&["X", "Q", "0", "b"]).as_deref(), Some("10"));
+    }
+
+    #[test]
+    fn replace_node_rejects_root_and_missing_path() {
+        let mut s = EditSession::load(&encoded(&mat_root()), None).unwrap();
+        assert!(s.replace_node(&[], "x").is_err());
+        assert!(s.replace_node(&["X", "Q", "99"], "a:1;b:1;").is_err());
+        assert!(s.tree_edits().is_empty());
     }
 
     #[test]
