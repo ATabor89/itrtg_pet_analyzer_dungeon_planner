@@ -845,6 +845,31 @@ pub fn research_name(id: u32) -> Option<&'static str> {
     }
 }
 
+/// Maximum level for an Adventure research, by id (matching [`research_name`]).
+/// `None` = the research has no cap (unlimited). The save's per-entry "max"
+/// field is unreliable (reads 0 for many researches), so these caps are
+/// hardcoded from the in-game values (player-provided 2026-06-22): only the
+/// listed researches have a cap; all others are uncapped.
+pub fn research_max(id: u32) -> Option<u64> {
+    Some(match id {
+        7 => 800,   // Core Quality
+        22 => 100,  // Equip Quality Min
+        27 => 15,   // Research Slots
+        30 => 100,  // Might Speed
+        31 => 100,  // Spacedim Speed
+        32 => 100,  // Multiverse Speed
+        33 => 80,   // Max Class Lv
+        34 => 50,   // Side Crafting Speed
+        35 => 100,  // Min Pow
+        37 => 20,   // Reduce Class Lv Req
+        38 => 35,   // Crit Chance
+        40 => 100,  // No Overkill Crit
+        41 => 20,   // Max Skill Lv
+        43 => 100,  // Core Removal Cost
+        _ => return None,
+    })
+}
+
 /// One campaign slot (`X.x[i]`).
 #[derive(Debug, Clone)]
 pub struct CampaignSlot {
