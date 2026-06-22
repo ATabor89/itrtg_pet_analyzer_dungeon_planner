@@ -23,7 +23,7 @@ use registry::{FieldRegistry, SectionId};
 use session::EditSession;
 use sections::{
     adventure, campaigns, challenges, dungeons, equipment, fishing, gems, inventory, pets, planet,
-    raw_tree, resources, stats,
+    raw_tree, resources, stats, village,
 };
 
 #[derive(Default)]
@@ -56,6 +56,7 @@ pub struct SaveEditorState {
     planet: planet::PlanetEditState,
     adventure: adventure::AdventureEditState,
     fishing: fishing::FishingEditState,
+    village: village::VillageEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -132,6 +133,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         planet: planet_state,
         adventure: adventure_state,
         fishing: fishing_state,
+        village: village_state,
         buffers,
         ..
     } = state;
@@ -191,6 +193,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     SectionId::Planet => planet::show(ui, session, planet_state),
                     SectionId::Adventure => adventure::show(ui, session, adventure_state),
                     SectionId::Fishing => fishing::show(ui, session, fishing_state),
+                    SectionId::Village => village::show(ui, session, village_state),
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,
