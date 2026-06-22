@@ -84,6 +84,16 @@ pub struct AddedCore {
     pub label: String,
 }
 
+/// A newly-added museum statue (appended to `024.f.a`). Statues aren't unique
+/// (duplicates allowed), so this is a pure append; undo removes the last
+/// matching `{level, id}` element.
+#[derive(Clone)]
+pub struct AddedStatue {
+    pub statue_id: u32,
+    pub level: u32,
+    pub label: String,
+}
+
 /// A loaded list element removed this session, kept so the deletion shows in the
 /// pending panel and can be undone (re-inserted).
 #[derive(Clone)]
@@ -138,6 +148,8 @@ pub struct EditSession {
     added_adventure_items: Vec<AddedAdventureItem>,
     /// Adventure cores created this session.
     added_cores: Vec<AddedCore>,
+    /// Museum statues added this session (see [`AddedStatue`]).
+    added_statues: Vec<AddedStatue>,
     /// Loaded list elements deleted this session (see [`RemovedElement`]).
     removed: Vec<RemovedElement>,
     /// Whole-subtree pastes staged this session (see [`TreeEdit`]).
@@ -167,6 +179,7 @@ impl EditSession {
             added_challenges: Vec::new(),
             added_adventure_items: Vec::new(),
             added_cores: Vec::new(),
+            added_statues: Vec::new(),
             removed: Vec::new(),
             tree_edits: Vec::new(),
             dirty_derived: false,
@@ -221,6 +234,11 @@ impl EditSession {
         &self.added_cores
     }
 
+    /// Museum statues added this session.
+    pub fn added_statues(&self) -> &[AddedStatue] {
+        &self.added_statues
+    }
+
     /// Loaded list elements deleted this session.
     pub fn removed(&self) -> &[RemovedElement] {
         &self.removed
@@ -238,6 +256,7 @@ impl EditSession {
             || !self.added_challenges.is_empty()
             || !self.added_adventure_items.is_empty()
             || !self.added_cores.is_empty()
+            || !self.added_statues.is_empty()
             || !self.removed.is_empty()
             || !self.tree_edits.is_empty()
     }
@@ -251,6 +270,7 @@ impl EditSession {
             + self.added_challenges.len()
             + self.added_adventure_items.len()
             + self.added_cores.len()
+            + self.added_statues.len()
             + self.removed.len()
             + self.tree_edits.len()
     }
@@ -663,6 +683,44 @@ impl EditSession {
             self.reindex_pending_after_removal(&["032", "G"], pos);
         }
         self.added_cores.remove(index);
+        self.dirty_derived = true;
+    }
+
+    /// Add a museum statue (append `{a:level, b:id}` to `024.f.a`). Statues
+    /// aren't unique, so this always creates a new entry.
+    pub fn add_statue(
+        &mut self,
+        statue_id: u32,
+        level: u32,
+        label: impl Into<String>,
+    ) -> Result<()> {
+        edit::add_statue(&mut self.root, statue_id, level)?;
+        self.added_statues.push(AddedStatue { statue_id, level, label: label.into() });
+        self.dirty_derived = true;
+        Ok(())
+    }
+
+    /// Undo an added statue (by index into [`added_statues`]). Removes the last
+    /// `024.f.a` element matching the added `{level, id}` (entries are identical,
+    /// so removing any match restores the same state).
+    pub fn undo_added_statue(&mut self, index: usize) {
+        let Some(entry) = self.added_statues.get(index).cloned() else {
+            return;
+        };
+        let mut removed_pos = None;
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["024", "f", "a"])
+            && let Some(pos) = items.iter().rposition(|it| {
+                scalar_u32(it, "b") == Some(entry.statue_id)
+                    && scalar_u32(it, "a") == Some(entry.level)
+            })
+        {
+            items.remove(pos);
+            removed_pos = Some(pos);
+        }
+        if let Some(pos) = removed_pos {
+            self.reindex_pending_after_removal(&["024", "f", "a"], pos);
+        }
+        self.added_statues.remove(index);
         self.dirty_derived = true;
     }
 
@@ -1371,6 +1429,35 @@ mod tests {
         s.undo_added_core(0);
         assert!(s.added_cores().is_empty());
         assert!(s.value(&["032", "G", "1", "a"]).is_none());
+    }
+
+    #[test]
+    fn add_statue_appends_and_undoes() {
+        // Museum 024.f.a with one existing statue (so the list doesn't start as a
+        // lone struct), nested base64 like a real save.
+        let museum = Raw::Struct(vec![(
+            "a".into(),
+            Field::Value(Raw::List(vec![Raw::Struct(vec![
+                ("a".into(), sc("20")),
+                ("b".into(), sc("1")),
+            ])])),
+        )]);
+        let village = Raw::Struct(vec![("f".into(), b64(museum))]);
+        let root = Raw::Struct(vec![("024".into(), b64(village))]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+
+        s.add_statue(8, 15, "Halloween 2025 statue").unwrap();
+        assert_eq!(s.added_statues().len(), 1);
+        assert_eq!(s.value(&["024", "f", "a", "1", "b"]).as_deref(), Some("8"));
+        assert_eq!(s.value(&["024", "f", "a", "1", "a"]).as_deref(), Some("15"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+
+        s.undo_added_statue(0);
+        assert!(s.added_statues().is_empty());
+        assert!(s.value(&["024", "f", "a", "1", "b"]).is_none());
+        // The original statue is untouched.
+        assert_eq!(s.value(&["024", "f", "a", "0", "b"]).as_deref(), Some("1"));
     }
 
     #[test]
