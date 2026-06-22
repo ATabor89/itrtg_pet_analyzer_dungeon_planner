@@ -125,11 +125,16 @@ fn unlock_plan(target: u32, existing: &HashMap<u32, u32>) -> Option<Vec<UnlockSt
     fn visit(class: u32, need: u32, required: &mut HashMap<u32, u32>) -> Option<()> {
         let (_tier, prereqs) = items::adventure_class_unlock(class)?;
         let slot = required.entry(class).or_insert(0);
-        if need > *slot {
-            *slot = need;
-        }
-        for &(p, lvl) in prereqs {
-            visit(p, lvl, required)?;
+        // A class's prerequisites are constant (independent of how high *it* is
+        // needed), so each class only needs visiting once — we just keep the max
+        // required level. `*slot == 0` means not yet visited (needs are always
+        // ≥ 1). This dedups diamond chains and is safe against bad-data cycles.
+        let first_visit = *slot == 0;
+        *slot = need.max(*slot);
+        if first_visit {
+            for &(p, lvl) in prereqs {
+                visit(p, lvl, required)?;
+            }
         }
         Some(())
     }
