@@ -1,5 +1,6 @@
 //! Progression-track sections: Creations (`i`), Monuments (`D`), Might (`V`),
-//! and SpaceDim / Light-Dimension elements (`009.b`).
+//! SpaceDim / Light-Dimension elements (`009.b`), and the Divinity Generator
+//! upgrades (`K.l`, via [`show_divinity`] which adds a read-only context header).
 //!
 //! These four are structurally the same — a root list whose elements carry an id
 //! (resolved to a name), a level/amount, and a handful of stat fields — so they
@@ -15,7 +16,9 @@ use std::collections::HashMap;
 use eframe::egui::{self, RichText};
 use egui_extras::{Column, TableBuilder};
 use save_parser::items;
-use save_parser::labels::{CreationField, MightField, MonumentField, SpaceDimField};
+use save_parser::labels::{
+    CreationField, DivinityUpgradeField, MightField, MonumentField, SpaceDimField,
+};
 use save_parser::raw::Raw;
 
 use crate::style;
@@ -108,6 +111,20 @@ const SPACEDIM: TrackSpec = TrackSpec {
     id_salt: "prog_spacedim",
 };
 
+const DIVINITY: TrackSpec = TrackSpec {
+    title: "Divinity Upgrade",
+    blurb: "",
+    base: &["K", "l"],
+    id_key: DivinityUpgradeField::Upgrade.key(),
+    resolve: items::divinity_upgrade_name,
+    cols: &[
+        Col { label: "Level", key: DivinityUpgradeField::Level.key(), cell: Cell::Uint },
+        Col { label: "Next At", key: DivinityUpgradeField::NextAt.key(), cell: Cell::Ro },
+        Col { label: "Spread", key: DivinityUpgradeField::Spread.key(), cell: Cell::Ro },
+    ],
+    id_salt: "prog_divinity",
+};
+
 #[derive(Default)]
 pub struct ProgEditState {
     /// Per-cell buffers keyed by the field's dotted raw path.
@@ -172,18 +189,68 @@ fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut ProgEditState, sp
     ui.label(RichText::new(spec.blurb).color(style::TEXT_MUTED).size(11.0));
     ui.separator();
 
+    show_status(ui, st);
+
+    let mut edits: Vec<(Vec<String>, String, String)> = Vec::new();
+    render_track(ui, &mut st.buffers, session, spec, &mut edits);
+    apply(session, st, spec.title, edits);
+}
+
+/// Divinity Generator (`K`): the K.l upgrade tracks (editable level), plus a
+/// read-only context header for the capacity / clones / storage scalars (which
+/// are editable in the Resources section, so they're not duplicated here).
+pub fn show_divinity(ui: &mut egui::Ui, session: &mut EditSession, st: &mut ProgEditState) {
+    ui.heading("Divinity Generator");
+
+    if session.root().get_path(&["K"]).is_none() {
+        ui.label(RichText::new("No Divinity Generator data in this save.").color(style::TEXT_MUTED));
+        return;
+    }
+
+    let ctx = |path: &[&str]| session.value(path).unwrap_or_else(|| "—".into());
+    egui::Grid::new("divinity_ctx").num_columns(2).spacing([12.0, 4.0]).show(ui, |ui| {
+        for (label, key) in [("Capacity In Use", "g"), ("Worker Clones", "c"), ("Stone Storage", "n")] {
+            ui.label(label);
+            ui.label(RichText::new(ctx(&["K", key])).color(style::TEXT_MUTED).monospace().size(11.0));
+            ui.end_row();
+        }
+    });
+    ui.label(
+        RichText::new("Capacity, worker clones, and stone storage are editable in the Resources section.")
+            .color(style::TEXT_MUTED)
+            .size(10.0),
+    );
+    ui.separator();
+    ui.label(RichText::new("Upgrades").strong());
+
+    show_status(ui, st);
+
+    let mut edits: Vec<(Vec<String>, String, String)> = Vec::new();
+    render_track(ui, &mut st.buffers, session, &DIVINITY, &mut edits);
+    apply(session, st, "Divinity", edits);
+}
+
+fn show_status(ui: &mut egui::Ui, st: &ProgEditState) {
     if let Some((msg, err)) = &st.status {
         let color = if *err { style::ERROR } else { style::SUCCESS };
         ui.label(RichText::new(msg).color(color).size(12.0));
     }
+}
 
+/// Render one track's table, collecting edits. (Heading/blurb/status/apply are
+/// the caller's job, so this can be shared by `show` and `show_divinity`.)
+fn render_track(
+    ui: &mut egui::Ui,
+    buffers: &mut HashMap<String, String>,
+    session: &EditSession,
+    spec: &TrackSpec,
+    edits: &mut Vec<(Vec<String>, String, String)>,
+) {
     let rows = read_rows(session, spec);
     if rows.is_empty() {
         ui.label(RichText::new("No entries.").color(style::TEXT_MUTED));
         return;
     }
-
-    let mut edits: Vec<(Vec<String>, String, String)> = Vec::new();
 
     let mut table = TableBuilder::new(ui)
         .striped(true)
@@ -222,20 +289,27 @@ fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut ProgEditState, sp
                             path.extend(c.key.split('.'));
                             edit_cell(
                                 ui,
-                                &mut st.buffers,
+                                buffers,
                                 &path,
                                 current,
                                 format!("{} {}", row.name, c.label),
                                 c.cell,
-                                &mut edits,
+                                edits,
                             );
                         }
                     });
                 }
             });
         });
+}
 
-    // Apply.
+/// Apply staged edits to the session, recording status on `st`.
+fn apply(
+    session: &mut EditSession,
+    st: &mut ProgEditState,
+    title: &str,
+    edits: Vec<(Vec<String>, String, String)>,
+) {
     let mut ok = false;
     let mut had_err = false;
     for (path, label, value) in edits {
@@ -249,7 +323,7 @@ fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut ProgEditState, sp
         }
     }
     if ok && !had_err {
-        st.status = Some((format!("Staged {} edit", spec.title), false));
+        st.status = Some((format!("Staged {title} edit"), false));
     }
 }
 
@@ -318,5 +392,22 @@ mod tests {
         let s = might_session();
         // No Creations block in this save.
         assert!(read_rows(&s, &CREATIONS).is_empty());
+    }
+
+    #[test]
+    fn reads_divinity_upgrade_rows() {
+        // K.l: the 3 divinity-generator upgrade tracks.
+        let l = Raw::List(vec![
+            Raw::Struct(vec![("a".into(), sc("0")), ("b".into(), sc("512")), ("f".into(), sc("512")), ("g".into(), sc("1"))]),
+            Raw::Struct(vec![("a".into(), sc("1")), ("b".into(), sc("256")), ("f".into(), sc("256")), ("g".into(), sc("2"))]),
+        ]);
+        let k = Raw::Struct(vec![("l".into(), Field::Value(l))]);
+        let root = Raw::Struct(vec![("K".into(), Field::Value(Raw::Base64(Box::new(k))))]);
+        let s = EditSession::load(&encode_container(&root.serialize(), "V2"), None).unwrap();
+        let rows = read_rows(&s, &DIVINITY);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].name, "Capacity");
+        assert_eq!(rows[0].values[0], "512"); // level
+        assert_eq!(rows[1].name, "Divinity Gain");
     }
 }
