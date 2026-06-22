@@ -160,21 +160,6 @@ pub struct BlockSchema {
     pub fields: &'static [FieldLabel],
 }
 
-/// A plain labeled field. Kind/range default to `Text`/unbounded — blocks that
-/// need typed bounds are declared with [`save_block!`] instead.
-macro_rules! lbl {
-    ($k:literal, $l:literal) => {
-        FieldLabel { key: $k, label: $l, kind: FieldKind::Text, range: None, resolve: None }
-    };
-}
-
-/// A labeled id field that resolves to a name.
-macro_rules! lblr {
-    ($k:literal, $l:literal, $r:expr) => {
-        FieldLabel { key: $k, label: $l, kind: FieldKind::Id, range: None, resolve: Some($r) }
-    };
-}
-
 /// Declare a block's fields **once** as a canonical per-block enum plus the
 /// `&[FieldLabel]` slice the registry consumes — the realization of the
 /// type-driven model refactor (Option B). Each field's key, label, kind, range,
@@ -241,47 +226,48 @@ macro_rules! save_block {
     };
 }
 
-/// Pets — `X.b.<index>` (with nested `w` dungeon/class sub-structs).
-pub const PET_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Name"),
-    lblr!("k", "Type Id", Resolve::PetType),
-    lbl!("l", "Unlocked"),
-    lbl!("E", "Growth (base)"),
-    lbl!("d", "Growth Component (d)"),
-    lbl!("e", "Growth Component (e)"),
-    lbl!("f", "Growth Component (f)"),
-    lbl!("n", "Growth Pool"),
-    lbl!("g", "Normal Level"),
-    lbl!("h", "Normal Exp (current)"),
-    lbl!("j", "Normal Health"),
-    lbl!("o", "Clone Physical"),
-    lbl!("p", "Clone Mystic"),
-    lbl!("q", "Clone Battle"),
-    lbl!("r", "Clone HP"),
-    lbl!("s", "Recovery Timer (ms)"),
-    lbl!("v", "Team Slot"),
-    lblr!("F", "Partner Type Id", Resolve::PetType),
-    lbl!("G", "Partner Days"),
-    lbl!("H", "Working Exp (ms)"),
-    lblr!("y", "Elemental Form", Resolve::ElementalForm),
-    lbl!("B", "Token Improved"),
-    lblr!("t", "Favorite Camp", Resolve::CampaignPref),
-    lblr!("u", "Hate Camp", Resolve::CampaignPref),
-    lblr!("x", "Feeding Setting", Resolve::FeedingSetting),
-    lbl!("A", "Vaccinated"),
-    lbl!("C", "Skin Index"),
-    lbl!("w", "Dungeon & Class"),
-    lblr!("w.a", "Element Id", Resolve::Element),
-    lbl!("w.b", "Dungeon Level"),
-    lbl!("w.c", "Dungeon Exp (current)"),
-    lbl!("w.d", "Class"),
-    lblr!("w.d.a", "Class Id", Resolve::Class),
-    lbl!("w.d.b", "Class Level"),
-    lbl!("w.d.c", "Class Exp (current)"),
-    lblr!("w.e", "Weapon (instance id)", Resolve::EquipmentInstance),
-    lblr!("w.f", "Armor (instance id)", Resolve::EquipmentInstance),
-    lblr!("w.g", "Accessory (instance id)", Resolve::EquipmentInstance),
-];
+save_block! {
+    /// Pets — `X.b.<index>` (with nested `w` dungeon/class sub-structs).
+    PetField => PET_FIELDS;
+    Name:           "a",     "Name",                    FieldKind::Text, None, None;
+    TypeId:         "k",     "Type Id",                 FieldKind::Id,   None, Some(Resolve::PetType);
+    Unlocked:       "l",     "Unlocked",                FieldKind::Bool, None, None;
+    Growth:         "E",     "Growth (base)",           FieldKind::Text, None, None;
+    GrowthD:        "d",     "Growth Component (d)",    FieldKind::Text, None, None;
+    GrowthE:        "e",     "Growth Component (e)",    FieldKind::Text, None, None;
+    GrowthF:        "f",     "Growth Component (f)",    FieldKind::Text, None, None;
+    GrowthPool:     "n",     "Growth Pool",             FieldKind::Text, None, None;
+    NormalLevel:    "g",     "Normal Level",            FieldKind::UInt, None, None;
+    NormalExp:      "h",     "Normal Exp (current)",    FieldKind::Text, None, None;
+    NormalHealth:   "j",     "Normal Health",           FieldKind::Text, None, None;
+    ClonePhysical:  "o",     "Clone Physical",          FieldKind::Text, None, None;
+    CloneMystic:    "p",     "Clone Mystic",            FieldKind::Text, None, None;
+    CloneBattle:    "q",     "Clone Battle",            FieldKind::Text, None, None;
+    CloneHp:        "r",     "Clone HP",                FieldKind::Text, None, None;
+    RecoveryTimer:  "s",     "Recovery Timer (ms)",     FieldKind::Text, None, None;
+    TeamSlot:       "v",     "Team Slot",               FieldKind::UInt, None, None;
+    PartnerTypeId:  "F",     "Partner Type Id",         FieldKind::Id,   None, Some(Resolve::PetType);
+    PartnerDays:    "G",     "Partner Days",            FieldKind::UInt, None, None;
+    WorkingExp:     "H",     "Working Exp (ms)",        FieldKind::Text, None, None;
+    ElementalForm:  "y",     "Elemental Form",          FieldKind::Id,   None, Some(Resolve::ElementalForm);
+    TokenImproved:  "B",     "Token Improved",          FieldKind::Bool, None, None;
+    FavoriteCamp:   "t",     "Favorite Camp",           FieldKind::Id,   None, Some(Resolve::CampaignPref);
+    HateCamp:       "u",     "Hate Camp",               FieldKind::Id,   None, Some(Resolve::CampaignPref);
+    FeedingSetting: "x",     "Feeding Setting",         FieldKind::Id,   None, Some(Resolve::FeedingSetting);
+    Vaccinated:     "A",     "Vaccinated",              FieldKind::Bool, None, None;
+    SkinIndex:      "C",     "Skin Index",              FieldKind::UInt, None, None;
+    DungeonClass:   "w",     "Dungeon & Class",         FieldKind::Text, None, None;
+    ElementId:      "w.a",   "Element Id",              FieldKind::Id,   None, Some(Resolve::Element);
+    DungeonLevel:   "w.b",   "Dungeon Level",           FieldKind::UInt, None, None;
+    DungeonExp:     "w.c",   "Dungeon Exp (current)",   FieldKind::Text, None, None;
+    Class:          "w.d",   "Class",                   FieldKind::Text, None, None;
+    ClassId:        "w.d.a", "Class Id",                FieldKind::Id,   None, Some(Resolve::Class);
+    ClassLevel:     "w.d.b", "Class Level",             FieldKind::UInt, None, None;
+    ClassExp:       "w.d.c", "Class Exp (current)",     FieldKind::Text, None, None;
+    WeaponSlot:     "w.e",   "Weapon (instance id)",    FieldKind::Id,   None, Some(Resolve::EquipmentInstance);
+    ArmorSlot:      "w.f",   "Armor (instance id)",     FieldKind::Id,   None, Some(Resolve::EquipmentInstance);
+    AccessorySlot:  "w.g",   "Accessory (instance id)", FieldKind::Id,   None, Some(Resolve::EquipmentInstance);
+}
 
 save_block! {
     /// Owned equipment instances — `X.R.<index>`. The pilot block for the
@@ -659,85 +645,85 @@ save_block! {
     Feet:  "f", "Feet Level",  FieldKind::UInt, None, None;
 }
 
-/// Adventure-mode adventurer ("MVBattleStats") — single struct at `032.b`
-/// (`KPJFCPPKHDL`). The same struct shape backs enemies too, hence `a` = entity.
-pub const ADVENTURER_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Entity", Resolve::AdventureEnemy),
-    lbl!("b", "Level"),
-    lbl!("c", "Exp"),
-    // `d` (BigDouble) feeds the Attack calc (`0.8 * d/5`); exact role unconfirmed.
-    lbl!("d", "Unknown (d)"),
-    lblr!("e", "Class", Resolve::AdventureClass),
-    // `f` = per-class progression (`HGKLOMCJAIM`): one record per class the player
-    // has leveled (class levels track independently). See CLASS_PROGRESSION_FIELDS.
-    lbl!("f", "Class Progression"),
-    lbl!("g", "Battle Skills"), // PGEICDFPINA = AdvBattleSkill instances
-    // `h` (a second skill-id list) is omitted when empty — present only when the
-    // adventurer has skills in that slot, so it is intentionally NOT labeled
-    // (the registry test requires every labeled path to exist in the ref save).
-    // `i` is the populated skill-id list (e.g. `19&6&48&5` = Dodge / Speed Boost
-    // / Dual Wield / Drops Boost).
-    lbl!("i", "Skill Ids (&-list)"),
-    // `j`/`k` are stored BigDoubles with no in-class reads (live: 136 / 1,064,697)
-    // — meaning unconfirmed. `l` tracks a running maximum of something (live 1923).
-    lbl!("j", "Unknown (j)"),
-    lbl!("k", "Unknown (k)"),
-    lbl!("l", "Unknown (l)"),
-    lbl!("m", "Equipment"), // DDKDNIFCAJO = adventure gear (same class as 032.c)
-    lbl!("n", "Current HP"),       // clamped to max-HP method INJMAMDMHFJ()
-    lbl!("o", "Current MP"),       // clamped to max-MP method AKAIHHFEFMM()
-    lbl!("p", "Recovery timer"),   // >0 shows "Recovering"; 0 = active
-    lbl!("q", "Screen X"),         // entity UI x-position (FLCAOMHAGOB, default 110)
-    lbl!("r", "Screen Y"),         // entity UI y-position (NJHJAPPCPAA, default 150)
-    lbl!("s", "Active Pill"),      // BEFDMHPNDHH = AdvPill buff (feeds Attack)
-    lbl!("t", "Skill Loadout"),    // OKOCFJJNMAK = SetSkill assignments
-];
+save_block! {
+    /// Adventure-mode adventurer ("MVBattleStats") — single struct at `032.b`
+    /// (`KPJFCPPKHDL`). Same struct shape backs enemies, hence `a` = entity. Notes:
+    /// `d` (BigDouble) feeds the Attack calc (0.8·d/5); `f` = per-class progression
+    /// (`HGKLOMCJAIM`, see ClassProgressionField); `g` = AdvBattleSkill instances;
+    /// `i` = populated skill-id list (e.g. `19&6&48&5`); `j`/`k`/`l` BigDoubles,
+    /// role unconfirmed; `m` = adventure gear; `n`/`o` clamp to max HP/MP; `p`
+    /// recovery timer; `q`/`r` UI position; `s` active pill; `t` skill loadout.
+    /// (`h`, a 2nd skill list, is omitted when empty — intentionally unlabeled.)
+    AdventurerField => ADVENTURER_FIELDS;
+    Entity:        "a", "Entity",             FieldKind::Id,   None, Some(Resolve::AdventureEnemy);
+    Level:         "b", "Level",              FieldKind::UInt, None, None;
+    Exp:           "c", "Exp",                FieldKind::Text, None, None;
+    UnknownD:      "d", "Unknown (d)",        FieldKind::Text, None, None;
+    Class:         "e", "Class",              FieldKind::Id,   None, Some(Resolve::AdventureClass);
+    ClassProgress: "f", "Class Progression",  FieldKind::Text, None, None;
+    BattleSkills:  "g", "Battle Skills",      FieldKind::Text, None, None;
+    SkillIds:      "i", "Skill Ids (&-list)", FieldKind::Text, None, None;
+    UnknownJ:      "j", "Unknown (j)",        FieldKind::Text, None, None;
+    UnknownK:      "k", "Unknown (k)",        FieldKind::Text, None, None;
+    UnknownL:      "l", "Unknown (l)",        FieldKind::Text, None, None;
+    Equipment:     "m", "Equipment",          FieldKind::Text, None, None;
+    CurrentHp:     "n", "Current HP",         FieldKind::Text, None, None;
+    CurrentMp:     "o", "Current MP",         FieldKind::Text, None, None;
+    RecoveryTimer: "p", "Recovery timer",     FieldKind::Text, None, None;
+    ScreenX:       "q", "Screen X",           FieldKind::Text, None, None;
+    ScreenY:       "r", "Screen Y",           FieldKind::Text, None, None;
+    ActivePill:    "s", "Active Pill",        FieldKind::Text, None, None;
+    SkillLoadout:  "t", "Skill Loadout",      FieldKind::Text, None, None;
+}
 
-/// Adventure-mode per-class progression — `032.b.f.<index>` (`HGKLOMCJAIM`).
-/// One entry per class the player has leveled; class levels advance independently.
-pub const CLASS_PROGRESSION_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Class", Resolve::AdventureClass),
-    lbl!("b", "Level"),
-    lbl!("c", "Exp"),
-    lbl!("d", "Unknown (d)"), // small flag/counter (live 0/1)
-];
+save_block! {
+    /// Adventure-mode per-class progression — `032.b.f.<index>` (`HGKLOMCJAIM`).
+    /// One entry per class the player has leveled; class levels advance
+    /// independently. `d` is a small flag/counter (live 0/1).
+    ClassProgressionField => CLASS_PROGRESSION_FIELDS;
+    Class:    "a", "Class",       FieldKind::Id,   None, Some(Resolve::AdventureClass);
+    Level:    "b", "Level",       FieldKind::UInt, None, None;
+    Exp:      "c", "Exp",         FieldKind::Text, None, None;
+    UnknownD: "d", "Unknown (d)", FieldKind::Text, None, None;
+}
 
-/// Statistics block — `root.x` (`LLMCMCKAABP`, marker "Statistic"): a large bag
-/// of ~360 numeric-key counters/totals. The confirmed gameplay trackers are
-/// labeled here (mirroring `model::trackers`, diff-confirmed against tooltips);
-/// the rest stay raw. Per-pet trackers feed the matching pet's campaign bonus.
-pub const STATISTICS_FIELDS: &[FieldLabel] = &[
-    lbl!("013", "AFK clones killed"),
-    lbl!("071", "Lucky Draws opened"),
-    lbl!("074", "Crystal power"),
-    lbl!("078", "Dungeon bosses defeated"),
-    lbl!("079", "Dungeon enemies defeated"),
-    lbl!("080", "Dungeon rooms beaten"),
-    lbl!("089", "Chocobear banked hours"),
-    lbl!("129", "Total might"),
-    lbl!("169", "Pandora feedings (this rebirth)"),
-    lbl!("185", "Earth Eater planets (lifetime)"),
-    lbl!("186", "Aether Ring lvl / Delirious Essence wins"),
-    lbl!("216", "Pignata bashes"),
-    lbl!("218", "God Power campaign hours"),
-    lbl!("234", "Meteor campaign hours"),
-    lbl!("259", "Caterpillar materials upgraded"),
-    lbl!("270", "Pet stones via Baal Power (Vermillion Pheasant prog.)"),
-    lbl!("310", "Mule quests"),
-    lbl!("311", "Gold Dragon bonus growth"),
-    lbl!("324", "Serow items saved"),
-    lbl!("336", "Bag bonus growth"),
-    // Day-challenge high scores — these (not the x.242 completion count) drive
-    // each Day challenge's ChP reward (per the `OIHGOPGKAJO` score formulas in
-    // KPLPGPEOFNB.cs ~6190). Editing these is how you change a Day challenge's ChP.
-    lbl!("045", "Day Baal Challenge score (ChP basis)"),
-    lbl!("047", "Day Universe Challenge score (ChP basis)"),
-    lbl!("049", "Day Pet Challenge highest multiplier (ChP basis)"),
-    lbl!("065", "Day Might Challenge score (ChP basis)"),
-    lbl!("068", "Day No Divinity Challenge score (ChP basis)"),
-    lbl!("134", "Road to Infinity — highest P.Baal (ChP basis)"),
-    lbl!("304", "Day Extreme Building Challenge score (ChP basis)"),
-];
+save_block! {
+    /// Statistics block — `root.x` (`LLMCMCKAABP`, marker "Statistic"): a large bag
+    /// of ~360 numeric-key counters/totals. The confirmed gameplay trackers are
+    /// labeled here (mirroring `model::trackers`, diff-confirmed against tooltips);
+    /// the rest stay raw. Per-pet trackers feed the matching pet's campaign bonus.
+    /// The `04x`/`134`/`304` entries are Day-challenge high scores — these (not
+    /// the x.242 completion count) drive each Day challenge's ChP reward (per the
+    /// `OIHGOPGKAJO` formulas in KPLPGPEOFNB.cs ~6190).
+    StatisticsField => STATISTICS_FIELDS;
+    AfkClonesKilled:     "013", "AFK clones killed",                              FieldKind::Text, None, None;
+    LuckyDrawsOpened:    "071", "Lucky Draws opened",                            FieldKind::Text, None, None;
+    CrystalPower:        "074", "Crystal power",                                 FieldKind::Text, None, None;
+    DungeonBosses:       "078", "Dungeon bosses defeated",                       FieldKind::Text, None, None;
+    DungeonEnemies:      "079", "Dungeon enemies defeated",                      FieldKind::Text, None, None;
+    DungeonRooms:        "080", "Dungeon rooms beaten",                          FieldKind::Text, None, None;
+    ChocobearHours:      "089", "Chocobear banked hours",                        FieldKind::Text, None, None;
+    TotalMight:          "129", "Total might",                                   FieldKind::Text, None, None;
+    PandoraFeedings:     "169", "Pandora feedings (this rebirth)",              FieldKind::Text, None, None;
+    EarthEaterPlanets:   "185", "Earth Eater planets (lifetime)",              FieldKind::Text, None, None;
+    AetherRing:          "186", "Aether Ring lvl / Delirious Essence wins",    FieldKind::Text, None, None;
+    PignataBashes:       "216", "Pignata bashes",                               FieldKind::Text, None, None;
+    GodPowerHours:       "218", "God Power campaign hours",                      FieldKind::Text, None, None;
+    MeteorHours:         "234", "Meteor campaign hours",                        FieldKind::Text, None, None;
+    CaterpillarMaterials:"259", "Caterpillar materials upgraded",              FieldKind::Text, None, None;
+    PetStonesBaal:       "270", "Pet stones via Baal Power (Vermillion Pheasant prog.)", FieldKind::Text, None, None;
+    MuleQuests:          "310", "Mule quests",                                   FieldKind::Text, None, None;
+    GoldDragonGrowth:    "311", "Gold Dragon bonus growth",                      FieldKind::Text, None, None;
+    SerowItems:          "324", "Serow items saved",                            FieldKind::Text, None, None;
+    BagGrowth:           "336", "Bag bonus growth",                             FieldKind::Text, None, None;
+    DayBaal:             "045", "Day Baal Challenge score (ChP basis)",        FieldKind::Text, None, None;
+    DayUniverse:         "047", "Day Universe Challenge score (ChP basis)",    FieldKind::Text, None, None;
+    DayPet:              "049", "Day Pet Challenge highest multiplier (ChP basis)", FieldKind::Text, None, None;
+    DayMight:            "065", "Day Might Challenge score (ChP basis)",       FieldKind::Text, None, None;
+    DayNoDivinity:       "068", "Day No Divinity Challenge score (ChP basis)", FieldKind::Text, None, None;
+    RoadToInfinity:      "134", "Road to Infinity — highest P.Baal (ChP basis)", FieldKind::Text, None, None;
+    DayExtremeBuilding:  "304", "Day Extreme Building Challenge score (ChP basis)", FieldKind::Text, None, None;
+}
 
 save_block! {
     /// Per-challenge completion record (`KPLPGPEOFNB`), one per element of the
