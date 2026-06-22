@@ -3,6 +3,7 @@
 //! navigator lives here too as a special "section".
 
 pub mod adventure;
+pub mod afky_god;
 pub mod bulk;
 pub mod campaigns;
 pub mod challenges;
