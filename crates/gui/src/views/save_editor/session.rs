@@ -598,6 +598,50 @@ impl EditSession {
         self.dirty_derived = true;
     }
 
+    /// Equip an existing inventory equipment instance (`X.R.<equip_index>`,
+    /// normally `d`=0) onto a pet's slot (`X.b.<pet_index>.w.<slot_key>`, slot_key
+    /// = `e`/`f`/`g`). Mints a fresh equip-ref `d` = max(d)+1 (collision-free,
+    /// like the builder), and sets both the item's `d` and the pet slot to it. If
+    /// the slot already holds an item, that item is returned to inventory first
+    /// (its `d` → 0). All staged as scalar edits (individually undoable).
+    pub fn equip_existing(
+        &mut self,
+        equip_index: usize,
+        pet_index: usize,
+        slot_key: &str,
+        label: impl Into<String>,
+    ) -> Result<()> {
+        let label = label.into();
+        let new_d = edit::max_instance_id(&self.root) + 1;
+        let pet = pet_index.to_string();
+        let slot_path = ["X", "b", &pet, "w", slot_key];
+        // Swap: find the item currently in the slot (if any), to unequip it.
+        let displaced: Option<usize> = match self.root.get_path(&slot_path) {
+            Some(Raw::Scalar(s)) => s
+                .parse::<u32>()
+                .ok()
+                .filter(|&c| c != 0)
+                .and_then(|cur| match self.root.get_path(&["X", "R"]) {
+                    Some(Raw::List(items)) => {
+                        items.iter().position(|it| scalar_u32(it, "d") == Some(cur))
+                    }
+                    _ => None,
+                }),
+            _ => None,
+        };
+        if let Some(idx) = displaced {
+            self.set_scalar(
+                &["X", "R", &idx.to_string(), "d"],
+                format!("{label} (unequip displaced)"),
+                "0",
+            )?;
+        }
+        let ei = equip_index.to_string();
+        self.set_scalar(&["X", "R", &ei, "d"], label.clone(), &new_d.to_string())?;
+        self.set_scalar(&slot_path, label, &new_d.to_string())?;
+        Ok(())
+    }
+
     /// Set the quantity of material `item_id` (upsert): edit the existing `X.Q`
     /// stack if present, else create one. Returns whether a new stack was added.
     pub fn set_material(
@@ -1234,6 +1278,42 @@ mod tests {
         s.undo_added_core(0);
         assert!(s.added_cores().is_empty());
         assert!(s.value(&["032", "G", "1", "a"]).is_none());
+    }
+
+    #[test]
+    fn equip_existing_assigns_fresh_ref_and_sets_slot() {
+        // X.R: [0] unequipped (d=0), [1] equipped (d=5). Pet 0 weapon empty.
+        // Two pets so X.b stays an index-addressable list (1 pet → lone struct).
+        let x = Raw::Struct(vec![
+            ("R".into(), Field::Value(Raw::List(vec![instance("0"), instance("5")]))),
+            ("b".into(), Field::Value(Raw::List(vec![pet("0"), pet("0")]))),
+        ]);
+        let root = Raw::Struct(vec![("X".into(), b64(x))]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+        s.equip_existing(0, 0, "e", "Magic Stick").unwrap();
+        // Fresh d = max(0,5)+1 = 6, written to the item and the pet slot.
+        assert_eq!(s.value(&["X", "R", "0", "d"]).as_deref(), Some("6"));
+        assert_eq!(s.value(&["X", "b", "0", "w", "e"]).as_deref(), Some("6"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+    }
+
+    #[test]
+    fn equip_existing_swaps_out_current_item() {
+        // Pet 0 weapon already holds d=5 (item index 1). Equipping item index 0
+        // returns the displaced item to inventory (d→0).
+        let x = Raw::Struct(vec![
+            ("R".into(), Field::Value(Raw::List(vec![instance("0"), instance("5")]))),
+            ("b".into(), Field::Value(Raw::List(vec![pet("5"), pet("0")]))),
+        ]);
+        let root = Raw::Struct(vec![("X".into(), b64(x))]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+        s.equip_existing(0, 0, "e", "New Weapon").unwrap();
+        assert_eq!(s.value(&["X", "R", "1", "d"]).as_deref(), Some("0")); // displaced
+        assert_eq!(s.value(&["X", "R", "0", "d"]).as_deref(), Some("6")); // new ref
+        assert_eq!(s.value(&["X", "b", "0", "w", "e"]).as_deref(), Some("6"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
     }
 
     #[test]
