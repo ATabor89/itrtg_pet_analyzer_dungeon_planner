@@ -1092,6 +1092,13 @@ pub fn divinity_upgrade_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// Crystal Factory module grade by id — the `KEMALIHPLCG` enum (one module per
+/// crystal grade; `X.w.b[i].a`). Confirmed against the save (grades 0–5).
+pub fn crystal_module_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 6] = ["Physical", "Mystic", "Battle", "Creation", "Ultimate", "God"];
+    NAMES.get(id as usize).copied()
+}
+
 /// Challenge name by id — the `OIDDHCOBPLG` enum (challenge struct field `a`,
 /// `root.x.242` completion list). Ids are the enum's declaration order (None=0).
 /// Display names come from the in-game name strings in `KPLPGPEOFNB` matched to
