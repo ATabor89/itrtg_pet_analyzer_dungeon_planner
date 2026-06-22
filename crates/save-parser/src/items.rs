@@ -243,15 +243,22 @@ pub fn known_materials() -> Vec<(u32, &'static str)> {
 }
 
 /// All identified adventure-inventory item ids with names (for the editor's
-/// "add item" picker). Same enum as the `032.d` inventory.
+/// "add item" picker). Same enum as the `032.d` inventory. The range spans the
+/// full id space (incl. the 1000+ Event/Pet-Stone/Growth items); `filter_map`
+/// drops the gaps.
 pub fn known_adventure_items() -> Vec<(u32, &'static str)> {
-    (0..=400).filter_map(|id| adventure_item_name(id).map(|n| (id, n))).collect()
+    (0..=1002).filter_map(|id| adventure_item_name(id).map(|n| (id, n))).collect()
 }
 
 /// All identified adventure enemy/entity ids with names (for the editor's "add
-/// core" picker). Same enum as the `032.G` cores.
+/// core" picker). Same enum as the `032.G` cores; spans the event bosses (480,
+/// 500-507). Excludes the "Player" entity (id 0/1 in the entity enum) — you
+/// don't get a core from yourself.
 pub fn known_adventure_enemies() -> Vec<(u32, &'static str)> {
-    (0..=300).filter_map(|id| adventure_enemy_name(id).map(|n| (id, n))).collect()
+    (0..=600)
+        .filter_map(|id| adventure_enemy_name(id).map(|n| (id, n)))
+        .filter(|(_, n)| *n != "Player")
+        .collect()
 }
 
 /// Look up the display name for an equipment *type* id (the `X.R[i].a`
