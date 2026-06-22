@@ -13,7 +13,7 @@
 
 use std::collections::HashMap;
 
-use save_parser::labels::{BLOCKS, BlockSchema, Resolve};
+use save_parser::labels::{BLOCKS, BlockSchema, FieldKind as ValueKind, Resolve};
 
 /// Which editor section a field is surfaced in (also the left-nav identity).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -103,6 +103,9 @@ pub struct FieldDef {
     pub resolve: Option<Resolve>,
     /// If this is an element container, `(child key, resolve)` for its title.
     pub element_name: Option<(&'static str, Resolve)>,
+    /// Inclusive `(min, max)` bound from the field descriptor, if any — used by
+    /// the raw-tree editor as a hint / out-of-range warning (never a hard clamp).
+    pub range: Option<(u32, u32)>,
 }
 
 /// The registry of known fields, indexed by pattern length for fast lookup.
@@ -169,6 +172,7 @@ fn def(
         help: if help.is_empty() { None } else { Some(help) },
         resolve: None,
         element_name: None,
+        range: None,
     }
 }
 
@@ -182,6 +186,17 @@ fn label(path: Vec<&'static str>, name: &'static str) -> FieldDef {
         help: None,
         resolve: None,
         element_name: None,
+        range: None,
+    }
+}
+
+/// Map a descriptor's value-type to the registry's edit-widget kind: bools edit
+/// as a toggle, ids/uints as validated numbers, everything else as free text.
+fn widget_kind(vk: ValueKind) -> FieldKind {
+    match vk {
+        ValueKind::Bool => FieldKind::Bool,
+        ValueKind::UInt | ValueKind::Id => FieldKind::Number,
+        ValueKind::Text => FieldKind::Text,
     }
 }
 
@@ -207,6 +222,8 @@ fn push_block(out: &mut Vec<FieldDef>, block: &BlockSchema) {
         p.extend(fl.key.split('.'));
         let mut def = label(p, fl.label);
         def.resolve = fl.resolve;
+        def.kind = widget_kind(fl.kind);
+        def.range = fl.range;
         out.push(def);
     }
 }
@@ -409,5 +426,21 @@ mod tests {
             Some("Class Level")
         );
         assert!(registry.lookup(&["X", "b", "0", "zzz"]).is_none());
+    }
+
+    #[test]
+    fn block_fields_carry_descriptor_kind_and_range() {
+        let registry = FieldRegistry::new();
+        // Equipment Plus: UInt with the 0–30 cap → Number widget + range.
+        let plus = registry.lookup(&["X", "R", "4", "b"]).expect("equip plus");
+        assert_eq!(plus.kind, FieldKind::Number);
+        assert_eq!(plus.range, Some((0, 30)));
+        // A pet's Unlocked flag is a Bool field.
+        let unlocked = registry.lookup(&["X", "b", "2", "l"]).expect("pet unlocked");
+        assert_eq!(unlocked.kind, FieldKind::Bool);
+        // A plain large-number field stays Text with no range (e.g. a pet's growth).
+        let growth = registry.lookup(&["X", "b", "2", "E"]).expect("pet growth");
+        assert_eq!(growth.kind, FieldKind::Text);
+        assert_eq!(growth.range, None);
     }
 }
