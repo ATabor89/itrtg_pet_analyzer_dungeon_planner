@@ -284,8 +284,9 @@ pub fn add_equip_instance(
 }
 
 /// Highest equipment instance id (`d`) in `X.R`, or 0 if none. Tolerates an
-/// empty/absent `R`, a list, or a lone struct (1-element list).
-fn max_instance_id(root: &raw::Raw) -> u32 {
+/// empty/absent `R`, a list, or a lone struct (1-element list). `+1` gives a
+/// fresh equip-ref for equipping an item (collision-free among equipped items).
+pub fn max_instance_id(root: &raw::Raw) -> u32 {
     let Some(r) = root.get_path(&["X", "R"]) else {
         return 0;
     };
