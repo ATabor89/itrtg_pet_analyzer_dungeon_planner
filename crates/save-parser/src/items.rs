@@ -1107,6 +1107,38 @@ pub fn adventure_profession_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// Adventure-class unlock metadata: `(tier, &[(prereq_class_id, required_level)])`.
+/// `tier` is the class's `d`/`NJDOCOGAJEM` rank (derived on load, written for
+/// fidelity). The prerequisites are the in-game class-change gate (`AOCFDHHLDDH`):
+/// to select a class, every prerequisite must exist in the player's class
+/// progression (`032.b.f`) at ≥ the listed level (and recursively *their*
+/// prerequisites). Only classes with a known prerequisite chain are listed;
+/// special/secret classes (Samurai, Ninja, OnionKnight, …) are omitted because
+/// their unlock path isn't confirmed. Alchemist (32) additionally needs the
+/// Alchemy profession ≥ 30 (a separate gate the caller should warn about).
+pub fn adventure_class_unlock(id: u32) -> Option<(&'static str, &'static [(u32, u32)])> {
+    Some(match id {
+        1 => ("0", &[]),                          // Newbie
+        2..=4 => ("1", &[(1, 10)]),               // Adventurer / Squire / Student
+        5 | 6 => ("2", &[(2, 35)]),               // Thief / Archer ← Adventurer 35
+        7 | 8 => ("2", &[(3, 35)]),               // Warrior / Fighter ← Squire 35
+        9 | 10 => ("2", &[(4, 35)]),              // Mage / Cleric ← Student 35
+        20 => ("3", &[(5, 55), (6, 55)]),         // Rogue
+        21 => ("3", &[(5, 55), (8, 55)]),         // Assassin
+        22 => ("3", &[(7, 55), (6, 55)]),         // Sniper
+        23 => ("3", &[(7, 55), (8, 55)]),         // Knight
+        24..=27 => ("3", &[(9, 62)]),             // Pyro/Aero/Geo/Aquamancer ← Mage 62
+        28 => ("3", &[(10, 62)]),                 // Priest ← Cleric 62
+        29 => ("3", &[(6, 62)]),                  // Hunter ← Archer 62
+        30 => ("3", &[(1, 99)]),                  // Monk ← Newbie 99
+        31 => ("3", &[(2, 60), (9, 55)]),         // Scholar
+        32 => ("3", &[(2, 60)]),                  // Alchemist (+ Alchemy skill ≥ 30)
+        40 => ("3.5", &[(23, 125), (10, 90)]),    // Paladin
+        44 => ("4", &[(28, 125), (22, 150)]),     // HolyArcher
+        _ => return None,
+    })
+}
+
 /// Challenge name by id — the `OIDDHCOBPLG` enum (challenge struct field `a`,
 /// `root.x.242` completion list). Ids are the enum's declaration order (None=0).
 /// Display names come from the in-game name strings in `KPLPGPEOFNB` matched to
