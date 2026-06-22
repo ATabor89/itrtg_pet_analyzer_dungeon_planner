@@ -218,6 +218,18 @@ enum Mode {
     Reveal,
 }
 
+/// State for the "Paste over node" editor (a modal opened from a node's context
+/// menu). Lives in the persisted editor state so it survives across frames.
+#[derive(Default)]
+pub struct PasteState {
+    open: bool,
+    /// Dotted (all-index) path of the node being replaced.
+    path: String,
+    /// The raw text to apply (prefilled with the node's current subtree).
+    text: String,
+    error: Option<String>,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn show(
     ui: &mut egui::Ui,
@@ -229,6 +241,7 @@ pub fn show(
     scrolled_query: &mut Option<String>,
     generation: &mut u64,
     jump: &mut Option<String>,
+    paste: &mut PasteState,
 ) {
     ui.heading("Raw Save Tree");
     ui.horizontal(|ui| {
@@ -304,6 +317,7 @@ pub fn show(
     let mut edits: Vec<StagedEdit> = Vec::new();
     let mut scrolled = false;
     let mut jump_request: Option<String> = None;
+    let mut paste_request: Option<(String, String)> = None;
     {
         let root = session.root();
         let mut walk = Walk {
@@ -318,6 +332,7 @@ pub fn show(
             generation: *generation,
             root,
             jump_request: &mut jump_request,
+            paste_request: &mut paste_request,
         };
         let mut path: Vec<String> = Vec::new();
         if let Raw::Struct(fields) = root.peel() {
@@ -344,6 +359,67 @@ pub fn show(
         let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
         let _ = session.set_scalar(&p, label, &value);
     }
+
+    // A "Paste over node…" request opens the editor, prefilled with the node.
+    if let Some((path, text)) = paste_request {
+        *paste = PasteState { open: true, path, text, error: None };
+    }
+    paste_editor(ui.ctx(), session, paste);
+}
+
+/// The "Paste over node" modal: a prefilled raw-text editor that, on Apply,
+/// replaces the node's whole subtree via `session.replace_node` (which validates
+/// by a full encode round-trip and rejects malformed input).
+fn paste_editor(ctx: &egui::Context, session: &mut EditSession, st: &mut PasteState) {
+    if !st.open {
+        return;
+    }
+    let mut window_open = true;
+    let mut close = false;
+    egui::Window::new("Paste over node")
+        .collapsible(false)
+        .resizable(true)
+        .open(&mut window_open)
+        .default_width(420.0)
+        .show(ctx, |ui| {
+            ui.label(
+                RichText::new(format!("Replacing: {}", st.path))
+                    .color(style::TEXT_MUTED)
+                    .monospace()
+                    .size(11.0),
+            );
+            ui.label(
+                RichText::new(
+                    "Paste raw save text (the format from \u{201c}Copy node (raw)\u{201d}). It is \
+                     validated by a full re-encode before staging — a malformed paste is rejected.",
+                )
+                .color(style::TEXT_MUTED)
+                .size(10.0),
+            );
+            ui.add(
+                egui::TextEdit::multiline(&mut st.text)
+                    .desired_width(f32::INFINITY)
+                    .desired_rows(8)
+                    .code_editor(),
+            );
+            if let Some(err) = &st.error {
+                ui.label(RichText::new(err).color(style::ERROR).size(11.0));
+            }
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui.button("Apply").clicked() {
+                    let p: Vec<&str> = st.path.split('.').collect();
+                    match session.replace_node(&p, &st.text) {
+                        Ok(()) => close = true,
+                        Err(e) => st.error = Some(format!("{e}")),
+                    }
+                }
+                if ui.button("Cancel").clicked() {
+                    close = true;
+                }
+            });
+        });
+    st.open = window_open && !close;
 }
 
 /// The registry display-name at `path`, lowercased-contains the query?
@@ -463,6 +539,9 @@ struct Walk<'a> {
     /// Set when a cross-reference link is clicked: the dotted path to jump to
     /// (applied after the walk — switches the tree to reveal that node).
     jump_request: &'a mut Option<String>,
+    /// Set when "Paste over node…" is chosen: `(dotted path, current subtree
+    /// text)` — opens the paste editor (applied after the walk).
+    paste_request: &'a mut Option<(String, String)>,
 }
 
 impl Walk<'_> {
@@ -649,6 +728,14 @@ impl Walk<'_> {
                 .clicked()
             {
                 ui.ctx().copy_text(raw.clone());
+                ui.close_menu();
+            }
+            if ui
+                .button("Paste over node…")
+                .on_hover_text("Replace this node's whole subtree with raw save text (validated)")
+                .clicked()
+            {
+                *self.paste_request = Some((path_str.clone(), raw.clone()));
                 ui.close_menu();
             }
         });
