@@ -32,7 +32,8 @@ struct UbRow {
     /// Index into `T.f`.
     f_index: usize,
     kill_count: String,
-    god_power: f64,
+    /// God power gained (`T.f.f`) — a BigDouble; kept as raw text (can exceed f64).
+    god_power: String,
     spawn_ms: f64,
 }
 
@@ -76,7 +77,7 @@ fn read_ub_rows(session: &EditSession) -> Vec<UbRow> {
                 ub_name: ub_name(ub_id),
                 f_index: fi,
                 kill_count: fget(UbField::KillCount.key()),
-                god_power: fget(UbField::GodPowerGained.key()).trim().parse().unwrap_or(0.0),
+                god_power: fget(UbField::GodPowerGained.key()),
                 spawn_ms: fget(UbField::SpawnCountdown.key()).trim().parse().unwrap_or(0.0),
             }
         })
@@ -279,7 +280,7 @@ fn ub_table(
                     );
                 });
                 tr.col(|ui| {
-                    ui.label(RichText::new(format!("{:.3e}", row.god_power)).size(11.0));
+                    ui.label(RichText::new(&row.god_power).size(11.0));
                 });
                 tr.col(|ui| {
                     let mins = row.spawn_ms / 60_000.0;
