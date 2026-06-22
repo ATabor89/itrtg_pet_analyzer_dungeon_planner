@@ -384,6 +384,7 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<
             let mut undo_added_adv_item: Option<usize> = None;
             let mut undo_added_core: Option<usize> = None;
             let mut undo_added_statue: Option<usize> = None;
+            let mut undo_added_class: Option<usize> = None;
             let mut undo_removed: Option<usize> = None;
             let mut undo_tree: Option<usize> = None;
             // Cap the height so a huge batch doesn't run off-screen — scroll within.
@@ -594,6 +595,28 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<
                             });
                     }
 
+                    if !session.added_class_progression().is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(
+                            RichText::new("Unlocked classes").color(style::TEXT_MUTED).size(11.0),
+                        );
+                        egui::Grid::new("save_editor_added_class_grid")
+                            .num_columns(2)
+                            .spacing([12.0, 4.0])
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for (i, c) in session.added_class_progression().iter().enumerate() {
+                                    ui.label(
+                                        RichText::new(format!("+ {}", c.label)).color(style::SUCCESS),
+                                    );
+                                    if ui.small_button("undo").clicked() {
+                                        undo_added_class = Some(i);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    }
+
                     if !session.removed().is_empty() {
                         ui.add_space(4.0);
                         ui.label(RichText::new("Deleted").color(style::TEXT_MUTED).size(11.0));
@@ -662,6 +685,9 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<
             }
             if let Some(i) = undo_added_statue {
                 session.undo_added_statue(i);
+            }
+            if let Some(i) = undo_added_class {
+                session.undo_added_class_progression(i);
             }
             if let Some(i) = undo_removed {
                 session.undo_removed(i);

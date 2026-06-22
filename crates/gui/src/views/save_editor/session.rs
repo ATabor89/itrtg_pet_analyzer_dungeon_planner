@@ -94,6 +94,14 @@ pub struct AddedStatue {
     pub label: String,
 }
 
+/// A class-progression entry created this session (appended to `032.b.f`), keyed
+/// by class id.
+#[derive(Clone)]
+pub struct AddedClassProgression {
+    pub class_id: u32,
+    pub label: String,
+}
+
 /// A loaded list element removed this session, kept so the deletion shows in the
 /// pending panel and can be undone (re-inserted).
 #[derive(Clone)]
@@ -150,6 +158,8 @@ pub struct EditSession {
     added_cores: Vec<AddedCore>,
     /// Museum statues added this session (see [`AddedStatue`]).
     added_statues: Vec<AddedStatue>,
+    /// Class-progression entries created this session (see [`AddedClassProgression`]).
+    added_class_progression: Vec<AddedClassProgression>,
     /// Loaded list elements deleted this session (see [`RemovedElement`]).
     removed: Vec<RemovedElement>,
     /// Whole-subtree pastes staged this session (see [`TreeEdit`]).
@@ -180,6 +190,7 @@ impl EditSession {
             added_adventure_items: Vec::new(),
             added_cores: Vec::new(),
             added_statues: Vec::new(),
+            added_class_progression: Vec::new(),
             removed: Vec::new(),
             tree_edits: Vec::new(),
             dirty_derived: false,
@@ -239,6 +250,11 @@ impl EditSession {
         &self.added_statues
     }
 
+    /// Class-progression entries created this session.
+    pub fn added_class_progression(&self) -> &[AddedClassProgression] {
+        &self.added_class_progression
+    }
+
     /// Loaded list elements deleted this session.
     pub fn removed(&self) -> &[RemovedElement] {
         &self.removed
@@ -257,6 +273,7 @@ impl EditSession {
             || !self.added_adventure_items.is_empty()
             || !self.added_cores.is_empty()
             || !self.added_statues.is_empty()
+            || !self.added_class_progression.is_empty()
             || !self.removed.is_empty()
             || !self.tree_edits.is_empty()
     }
@@ -271,6 +288,7 @@ impl EditSession {
             + self.added_adventure_items.len()
             + self.added_cores.len()
             + self.added_statues.len()
+            + self.added_class_progression.len()
             + self.removed.len()
             + self.tree_edits.len()
     }
@@ -721,6 +739,54 @@ impl EditSession {
             self.reindex_pending_after_removal(&["024", "f", "a"], pos);
         }
         self.added_statues.remove(index);
+        self.dirty_derived = true;
+    }
+
+    /// Upsert a class-progression entry (`032.b.f`): if `class_id` is present,
+    /// set its level to `level` (the caller passes a non-lowering value); else
+    /// append `{a:class, b:level, c:0, d:tier}`. Returns whether a new entry was
+    /// created. Used by the "unlock class" flow to materialize a prerequisite
+    /// chain.
+    pub fn set_class_progression(
+        &mut self,
+        class_id: u32,
+        level: u32,
+        tier: &str,
+        label: impl Into<String>,
+    ) -> Result<bool> {
+        edit::ensure_list_at(&mut self.root, &["032", "b", "f"])?;
+        let idx = match self.root.get_path(&["032", "b", "f"]) {
+            Some(Raw::List(items)) => items.iter().position(|it| scalar_u32(it, "a") == Some(class_id)),
+            _ => None,
+        };
+        if let Some(idx) = idx {
+            self.set_scalar(&["032", "b", "f", &idx.to_string(), "b"], label, &level.to_string())?;
+            Ok(false)
+        } else {
+            edit::add_class_progression(&mut self.root, class_id, level, tier)?;
+            self.added_class_progression.push(AddedClassProgression { class_id, label: label.into() });
+            self.dirty_derived = true;
+            Ok(true)
+        }
+    }
+
+    /// Undo a created class-progression entry (by index into
+    /// [`added_class_progression`]).
+    pub fn undo_added_class_progression(&mut self, index: usize) {
+        let Some(entry) = self.added_class_progression.get(index).cloned() else {
+            return;
+        };
+        let mut removed_pos = None;
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["032", "b", "f"])
+            && let Some(pos) = items.iter().rposition(|it| scalar_u32(it, "a") == Some(entry.class_id))
+        {
+            items.remove(pos);
+            removed_pos = Some(pos);
+        }
+        if let Some(pos) = removed_pos {
+            self.reindex_pending_after_removal(&["032", "b", "f"], pos);
+        }
+        self.added_class_progression.remove(index);
         self.dirty_derived = true;
     }
 
@@ -1458,6 +1524,35 @@ mod tests {
         assert!(s.value(&["024", "f", "a", "1", "b"]).is_none());
         // The original statue is untouched.
         assert_eq!(s.value(&["024", "f", "a", "0", "b"]).as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn set_class_progression_upserts_and_undoes() {
+        // 032.b.f with two existing classes (Newbie L20, Adventurer L30).
+        let classes = Raw::List(vec![
+            Raw::Struct(vec![("a".into(), sc("1")), ("b".into(), sc("20")), ("c".into(), sc("0")), ("d".into(), sc("0"))]),
+            Raw::Struct(vec![("a".into(), sc("2")), ("b".into(), sc("30")), ("c".into(), sc("0")), ("d".into(), sc("1"))]),
+        ]);
+        let b = Raw::Struct(vec![("f".into(), Field::Value(classes))]);
+        let root = Raw::Struct(vec![("032".into(), b64(Raw::Struct(vec![("b".into(), b64(b))])))]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+
+        // Raise an existing class (Adventurer 30 → 35): not a new entry.
+        assert!(!s.set_class_progression(2, 35, "1", "raise Adventurer").unwrap());
+        assert_eq!(s.value(&["032", "b", "f", "1", "b"]).as_deref(), Some("35"));
+        assert!(s.added_class_progression().is_empty());
+
+        // Create a new class (Thief, absent): a tracked addition.
+        assert!(s.set_class_progression(5, 55, "2", "add Thief").unwrap());
+        assert_eq!(s.added_class_progression().len(), 1);
+        assert_eq!(s.value(&["032", "b", "f", "2", "a"]).as_deref(), Some("5"));
+        assert_eq!(s.value(&["032", "b", "f", "2", "b"]).as_deref(), Some("55"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+
+        s.undo_added_class_progression(0);
+        assert!(s.added_class_progression().is_empty());
+        assert!(s.value(&["032", "b", "f", "2", "a"]).is_none());
     }
 
     #[test]

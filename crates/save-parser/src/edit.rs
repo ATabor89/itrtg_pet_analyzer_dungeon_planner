@@ -230,6 +230,27 @@ pub fn add_core(root: &mut raw::Raw, enemy_id: u32, count: &str, quality: u32) -
     Ok(())
 }
 
+/// Append a class-progression entry `{a:class, b:level, c:0, d:tier}` to
+/// `032.b.f` (creating the list if absent). The caller upserts by class id.
+/// `d`/tier is re-derived from the class on load, so it's written only for
+/// round-trip fidelity.
+pub fn add_class_progression(
+    root: &mut raw::Raw,
+    class_id: u32,
+    level: u32,
+    tier: &str,
+) -> Result<()> {
+    let val = |s: String| raw::Field::Value(raw::Raw::Scalar(s));
+    let entry = raw::Raw::Struct(vec![
+        ("a".into(), val(class_id.to_string())),
+        ("b".into(), val(level.to_string())),
+        ("c".into(), val("0".into())),
+        ("d".into(), val(tier.to_string())),
+    ]);
+    ensure_list_at(root, &["032", "b", "f"])?.push(entry);
+    Ok(())
+}
+
 /// Append a museum statue `{a:level, b:statue_id}` to `024.f.a` (creating the
 /// list if absent). Statues aren't unique — a museum can hold duplicates — so
 /// this is a pure append, not an upsert.
