@@ -242,6 +242,18 @@ pub fn known_materials() -> Vec<(u32, &'static str)> {
     (0..=400).filter_map(|id| material_name(id).map(|n| (id, n))).collect()
 }
 
+/// All identified adventure-inventory item ids with names (for the editor's
+/// "add item" picker). Same enum as the `032.d` inventory.
+pub fn known_adventure_items() -> Vec<(u32, &'static str)> {
+    (0..=400).filter_map(|id| adventure_item_name(id).map(|n| (id, n))).collect()
+}
+
+/// All identified adventure enemy/entity ids with names (for the editor's "add
+/// core" picker). Same enum as the `032.G` cores.
+pub fn known_adventure_enemies() -> Vec<(u32, &'static str)> {
+    (0..=300).filter_map(|id| adventure_enemy_name(id).map(|n| (id, n))).collect()
+}
+
 /// Look up the display name for an equipment *type* id (the `X.R[i].a`
 /// namespace — distinct from material ids).
 ///
