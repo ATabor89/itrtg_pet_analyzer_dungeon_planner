@@ -134,7 +134,7 @@ team roster:
 | `G` | **days partnered** | +1 for every partnered pet between the two saves |
 | `H` | **village working experience, in ms** | Lamb 9,375,772,300 ms ↔ ~108d 12h reading (exact to seconds); Santa likewise; explains Cat's old "10920" (≈11 s worked) |
 | `k` | **internal pet type id** — the id used by team/campaign lists | team ids resolve: 89=Salamander, 25=Rudolph, 2=Cat, 0=Mouse, 803=Serow |
-| `l` | unlocked flag | locked pets `False` ✓ export Unlocked column |
+| `l` | unlocked flag (`JCJHMEDDJGJ`) | locked pets `False` ✓ export Unlocked column. **This is the *only* unlock gate** — there is no separate "secret"/"hidden" flag. **Secret pets** (Serow = type id 803, Owl/Book/Carno/Leviathan/…) are ordinary locked rows already present in `X.b`; the game checks each pet's unlock condition only at *unlock-attempt time* (C# `EKGGGJJPAIB`) and then sets `l=true` permanently — it never re-locks based on the condition. So flipping `l` to `True` unlocks any secret pet outright (the editor's existing per-pet/bulk Unlocked toggle already does this). Exceptions: **Fawn (900) / Herakles (901)** are event-spawned, *not* in the roster, so they can't be unlocked by toggling `l` (would need appending a full pet struct — out of scope). |
 | `m` | timer ms: 86,400,000 (locked) / 34,976,500 (all unlocked pets) | shared countdown — next growth tick? |
 | `v` | **dungeon team slot** (1–6, 0 = none) | matches all 18 team members ✓ |
 | `w` | dungeon sub-struct, see below | |
