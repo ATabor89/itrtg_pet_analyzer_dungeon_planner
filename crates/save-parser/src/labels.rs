@@ -65,6 +65,9 @@ pub enum Resolve {
     Monster,
     /// Divinity Generator upgrade id → `items::divinity_upgrade_name`.
     DivinityUpgrade,
+    /// Crystal Factory module grade id → `items::crystal_module_name`
+    /// (0 Physical … 5 God).
+    CrystalModule,
     /// Adventure-mode item id → `items::adventure_item_name`.
     AdventureItem,
     /// Adventure-mode enemy/entity id → `items::adventure_enemy_name`.
@@ -643,6 +646,42 @@ save_block! {
 }
 
 save_block! {
+    /// Crystal Factory — single struct at `X.w` (`GKJLJMJLMIB`, marker
+    /// "CrystalFactory"). `a` = Crystal Power (the factory's leveling resource),
+    /// `b` = the 6 per-grade modules (CrystalModuleField), `e` = clones assigned
+    /// at the factory level (CrystalCloneField). `c`/`d` are BigDouble production
+    /// counters (accumulated / progress timer; exact roles unconfirmed).
+    CrystalFactoryField => CRYSTAL_FACTORY_FIELDS;
+    CrystalPower: "a", "Crystal Power",       FieldKind::Text, None, None;
+    Accumulated:  "c", "Accumulated (c)",     FieldKind::Text, None, None;
+    Progress:     "d", "Progress (d)",        FieldKind::Text, None, None;
+}
+
+save_block! {
+    /// Crystal Factory modules — `X.w.b.<index>` (`IPNJFMOMAMB`, marker
+    /// "FactoryModule"), one per crystal grade. `a` = grade (0 Physical … 5 God),
+    /// `b` = level, `e` = clones on this module (CrystalCloneField). `c`/`d`/`f`
+    /// are BigDouble cost/timer/value fields (exact roles unconfirmed).
+    CrystalModuleField => CRYSTAL_MODULE_FIELDS;
+    Grade:   "a", "Grade",        FieldKind::Id,   None, Some(Resolve::CrystalModule);
+    Level:   "b", "Level",        FieldKind::UInt, None, None;
+    CostC:   "c", "Cost (c)",     FieldKind::Text, None, None;
+    TimerD:  "d", "Timer (d)",    FieldKind::Text, None, None;
+    ValueF:  "f", "Value (f)",    FieldKind::Text, None, None;
+}
+
+save_block! {
+    /// Crystal Factory clone allocations — the factory-level `X.w.e.<index>` and
+    /// the per-module `X.w.b.<index>.e.<index>` (`CNJMKHCJPGM`, marker "Crystal").
+    /// `a` = grade (0 Physical … 5 God), `b` = clone count, `c` a secondary
+    /// BigDouble (role unconfirmed).
+    CrystalCloneField => CRYSTAL_CLONE_FIELDS;
+    Grade: "a", "Grade",        FieldKind::Id,   None, Some(Resolve::CrystalModule);
+    Count: "b", "Clones",       FieldKind::Text, None, None;
+    ValueC: "c", "Value (c)",   FieldKind::Text, None, None;
+}
+
+save_block! {
     /// Baal-Slayer (TBS) component levels — single struct at `S`.
     TbsField => TBS_FIELDS;
     Eyes:  "b", "Eyes Level",  FieldKind::UInt, None, None;
@@ -854,6 +893,10 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "P"], name: "Active Dungeon Run", plural: "Active Dungeon Runs", is_list: true, element_name: elem("a", Resolve::Dungeon), fields: ACTIVE_DUNGEON_FIELDS },
     BlockSchema { base: &["X", "x"], name: "Campaign", plural: "Campaigns", is_list: true, element_name: elem("a", Resolve::CampaignType), fields: CAMPAIGN_FIELDS },
     BlockSchema { base: &["X", "Z"], name: "Challenge Team", plural: "Challenge Team", is_list: false, element_name: None, fields: CHALLENGE_TEAM_FIELDS },
+    BlockSchema { base: &["X", "w"], name: "Crystal Factory", plural: "Crystal Factory", is_list: false, element_name: None, fields: CRYSTAL_FACTORY_FIELDS },
+    BlockSchema { base: &["X", "w", "b"], name: "Crystal Module", plural: "Crystal Modules", is_list: true, element_name: elem("a", Resolve::CrystalModule), fields: CRYSTAL_MODULE_FIELDS },
+    BlockSchema { base: &["X", "w", "b", "*", "e"], name: "Module Clones", plural: "Module Clones", is_list: true, element_name: elem("a", Resolve::CrystalModule), fields: CRYSTAL_CLONE_FIELDS },
+    BlockSchema { base: &["X", "w", "e"], name: "Factory Clones", plural: "Factory Clones", is_list: true, element_name: elem("a", Resolve::CrystalModule), fields: CRYSTAL_CLONE_FIELDS },
     BlockSchema { base: &["T"], name: "Planet (Ultimate Beings)", plural: "Planet (Ultimate Beings)", is_list: false, element_name: None, fields: PLANET_FIELDS },
     BlockSchema { base: &["T", "f"], name: "Ultimate Being", plural: "Ultimate Beings", is_list: true, element_name: elem("c", Resolve::UltimateBeing), fields: ULTIMATE_BEING_FIELDS },
     BlockSchema { base: &["T", "k"], name: "Ultimate Being V2", plural: "Ultimate Beings V2", is_list: true, element_name: elem("c", Resolve::UltimateBeingV2), fields: UB_V2_FIELDS },

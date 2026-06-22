@@ -22,8 +22,8 @@ use crate::style;
 use registry::{FieldRegistry, SectionId};
 use session::EditSession;
 use sections::{
-    adventure, campaigns, challenges, dungeons, equipment, fishing, gems, inventory, pets, planet,
-    progression, raw_tree, resources, stats, village,
+    adventure, campaigns, challenges, crystal, dungeons, equipment, fishing, gems, inventory, pets,
+    planet, progression, raw_tree, resources, stats, village,
 };
 
 #[derive(Default)]
@@ -62,6 +62,7 @@ pub struct SaveEditorState {
     might: progression::ProgEditState,
     spacedim: progression::ProgEditState,
     divinity: progression::ProgEditState,
+    crystal: crystal::CrystalEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -144,6 +145,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         might: might_state,
         spacedim: spacedim_state,
         divinity: divinity_state,
+        crystal: crystal_state,
         buffers,
         ..
     } = state;
@@ -217,6 +219,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     SectionId::Divinity => {
                         progression::show_divinity(ui, session, divinity_state)
                     }
+                    SectionId::Crystal => crystal::show(ui, session, crystal_state),
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,
