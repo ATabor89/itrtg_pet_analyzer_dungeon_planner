@@ -1,45 +1,60 @@
 //! Planet / Ultimate Beings section: the planet's top-level scalars (`T.d`
-//! level, `T.h` unspent Baal Power) plus the 5 Ultimate Beings.
+//! level, `T.h` unspent Baal Power) plus two distinct boss lists.
 //!
-//! Each UB has two parallel records: `T.f` (live state — alive flag + spawn
-//! countdown) and `T.k` (the kill count that DRIVES the "Multi from Ultimate
-//! Beings" bonus). This section merges them per UB so you can bump the
-//! multiplier-driving kill count or force a UB to spawn (set its countdown to 0).
+//! There are two parallel UB lists in the save, and they are NOT the same bosses:
+//!  - `T.f` (`CEFAAPALBMD`) — the regular, **respawning** Ultimate Beings that
+//!    attack on staggered spawn timers (kill count, god power gained, countdown).
+//!  - `T.k` (`FPBMNCNKPHN`) — the **Ultimate Being V2** bosses, each defeatable
+//!    **once per rebirth**; their cumulative defeats drive the "Multi from
+//!    Ultimate Beings" bonus. The C# gates this list on the `UBV2C` challenge.
+//!
+//! They share the same id space / names (the V2s just append " V2"), so this
+//! section renders them as two separate tables rather than merging by id.
 //!
 //! No typed model for the UB lists, so rows read straight from the raw tree via
-//! the `UbField` / `UbMultField` descriptors; edits stage by raw list index.
+//! the `UbField` / `UbV2Field` descriptors; edits stage by raw list index.
 
 use std::collections::HashMap;
 
 use eframe::egui::{self, RichText};
 use egui_extras::{Column, TableBuilder};
 use save_parser::items;
-use save_parser::labels::{PlanetField, UbField, UbMultField};
+use save_parser::labels::{PlanetField, UbField, UbV2Field};
 use save_parser::raw::Raw;
 
 use crate::style;
 use crate::views::save_editor::session::EditSession;
 
-/// One UB row, merging its `T.f` (live) and `T.k` (multiplier) records by UB id.
+/// One regular (respawning) UB row, from `T.f`.
 struct UbRow {
     ub_id: u32,
     ub_name: String,
-    /// Index into `T.f` (live state).
+    /// Index into `T.f`.
     f_index: usize,
-    /// Index into `T.k` (multiplier), if a matching record exists.
-    k_index: Option<usize>,
-    /// Multiplier-driving kill count (`T.k.b`).
-    mult_kills: String,
-    alive: bool,
+    kill_count: String,
+    /// God power gained (`T.f.f`) — a BigDouble; kept as raw text (can exceed f64).
+    god_power: String,
     spawn_ms: f64,
+}
+
+/// One Ultimate Being V2 row, from `T.k`.
+struct UbV2Row {
+    ub_id: u32,
+    ub_name: String,
+    /// Index into `T.k`.
+    k_index: usize,
+    defeats: String,
+    state: String,
 }
 
 #[derive(Default)]
 pub struct PlanetEditState {
     /// Buffers for the top-level scalar fields, keyed by dotted path.
     scalar_buffers: HashMap<String, String>,
-    /// Buffers for the per-UB multiplier-kill cells, keyed by `T.k` index.
+    /// Buffers for the per-UB kill-count cells (`T.f` index).
     ub_buffers: HashMap<usize, String>,
+    /// Buffers for the per-UBv2 defeat cells (`T.k` index).
+    ubv2_buffers: HashMap<usize, String>,
     status: Option<(String, bool)>,
 }
 
@@ -47,38 +62,44 @@ fn ub_name(id: u32) -> String {
     items::ultimate_being_name(id).map_or_else(|| format!("UB {id}"), str::to_string)
 }
 
-/// Read and merge the UB rows from `T.f` (live) + `T.k` (multiplier).
+/// Read the regular UB rows from `T.f`.
 fn read_ub_rows(session: &EditSession) -> Vec<UbRow> {
     let Some(Raw::List(fs)) = session.root().get_path(&["T", "f"]) else {
         return Vec::new();
-    };
-    // Map UB id -> T.k index (the multiplier record).
-    let k_by_id: HashMap<u32, usize> = match session.root().get_path(&["T", "k"]) {
-        Some(Raw::List(ks)) => (0..ks.len())
-            .filter_map(|i| {
-                let id = session.value(&["T", "k", &i.to_string(), UbMultField::Ub.key()])?;
-                Some((id.trim().parse().ok()?, i))
-            })
-            .collect(),
-        _ => HashMap::new(),
     };
     (0..fs.len())
         .map(|fi| {
             let i = fi.to_string();
             let fget = |k: &str| session.value(&["T", "f", &i, k]).unwrap_or_default();
             let ub_id: u32 = fget(UbField::Ub.key()).trim().parse().unwrap_or(0);
-            let k_index = k_by_id.get(&ub_id).copied();
-            let mult_kills = k_index
-                .and_then(|ki| session.value(&["T", "k", &ki.to_string(), UbMultField::KillCount.key()]))
-                .unwrap_or_default();
             UbRow {
                 ub_id,
                 ub_name: ub_name(ub_id),
                 f_index: fi,
-                k_index,
-                mult_kills,
-                alive: fget(UbField::Alive.key()).trim().eq_ignore_ascii_case("true"),
+                kill_count: fget(UbField::KillCount.key()),
+                god_power: fget(UbField::GodPowerGained.key()),
                 spawn_ms: fget(UbField::SpawnCountdown.key()).trim().parse().unwrap_or(0.0),
+            }
+        })
+        .collect()
+}
+
+/// Read the Ultimate Being V2 rows from `T.k`.
+fn read_ubv2_rows(session: &EditSession) -> Vec<UbV2Row> {
+    let Some(Raw::List(ks)) = session.root().get_path(&["T", "k"]) else {
+        return Vec::new();
+    };
+    (0..ks.len())
+        .map(|ki| {
+            let i = ki.to_string();
+            let kget = |k: &str| session.value(&["T", "k", &i, k]).unwrap_or_default();
+            let ub_id: u32 = kget(UbV2Field::Ub.key()).trim().parse().unwrap_or(0);
+            UbV2Row {
+                ub_id,
+                ub_name: format!("{} V2", ub_name(ub_id)),
+                k_index: ki,
+                defeats: kget(UbV2Field::Defeats.key()),
+                state: kget(UbV2Field::State.key()),
             }
         })
         .collect()
@@ -94,9 +115,10 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PlanetEditSta
 
     ui.label(
         RichText::new(
-            "The planet level and unspent Baal Power are top-level values. Each Ultimate Being's \
-             kill count drives the \u{201c}Multi from Ultimate Beings\u{201d} bonus; \u{201c}Force \
-             spawn\u{201d} sets its spawn countdown to 0.",
+            "The planet level and unspent Baal Power are top-level values. The Ultimate Beings \
+             respawn on a timer (\u{201c}Force spawn\u{201d} sets the countdown to 0); the Ultimate \
+             Being V2 bosses are defeated once per rebirth, and their cumulative defeats drive the \
+             \u{201c}Multi from Ultimate Beings\u{201d} bonus.",
         )
         .color(style::TEXT_MUTED)
         .size(11.0),
@@ -127,12 +149,30 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut PlanetEditSta
     });
     ui.separator();
 
-    // --- Ultimate Beings ---
+    // --- Ultimate Beings (regular, respawning) ---
+    ui.label(RichText::new("Ultimate Beings").strong());
     let rows = read_ub_rows(session);
     if rows.is_empty() {
         ui.label(RichText::new("No Ultimate Beings in this save.").color(style::TEXT_MUTED));
     } else {
         ub_table(ui, st, &rows, &mut edits);
+    }
+
+    ui.add_space(8.0);
+    ui.separator();
+
+    // --- Ultimate Beings V2 ---
+    ui.label(RichText::new("Ultimate Beings V2").strong());
+    ui.label(
+        RichText::new("Defeated once per rebirth; defeats accumulate across rebirths.")
+            .color(style::TEXT_MUTED)
+            .size(11.0),
+    );
+    let v2_rows = read_ubv2_rows(session);
+    if v2_rows.is_empty() {
+        ui.label(RichText::new("No Ultimate Being V2 data in this save.").color(style::TEXT_MUTED));
+    } else {
+        ubv2_table(ui, st, &v2_rows, &mut edits);
     }
 
     // Apply. A failure's status must not be overwritten by a later success in
@@ -178,6 +218,29 @@ fn scalar_editor(
     }
 }
 
+/// An editable unsigned-integer cell backed by `buffers[index]`; stages into
+/// `edits` on change. `path` is the full raw path of the field being edited.
+fn uint_cell(
+    ui: &mut egui::Ui,
+    buffers: &mut HashMap<usize, String>,
+    index: usize,
+    current: &str,
+    path: Vec<String>,
+    label: String,
+    edits: &mut Vec<(Vec<String>, String, String)>,
+) {
+    let buf = buffers.entry(index).or_insert_with(|| current.to_string());
+    let resp = ui.add(egui::TextEdit::singleline(buf).desired_width(100.0));
+    if resp.changed() {
+        let v = buf.trim();
+        if v.parse::<u64>().is_ok() && v != current.trim() {
+            edits.push((path, label, v.to_string()));
+        }
+    } else if !resp.has_focus() && buf.trim() != current.trim() {
+        *buf = current.to_string();
+    }
+}
+
 fn ub_table(
     ui: &mut egui::Ui,
     st: &mut PlanetEditState,
@@ -186,13 +249,14 @@ fn ub_table(
 ) {
     TableBuilder::new(ui)
         .striped(true)
+        .id_salt("planet_ub")
         .column(Column::initial(150.0)) // UB
-        .column(Column::initial(140.0)) // multiplier kills
-        .column(Column::initial(60.0)) // alive
-        .column(Column::initial(130.0)) // spawn countdown
+        .column(Column::initial(120.0)) // kill count
+        .column(Column::initial(130.0)) // god power gained
+        .column(Column::initial(110.0)) // spawn countdown
         .column(Column::remainder()) // force spawn
         .header(20.0, |mut h| {
-            for title in ["Ultimate Being", "Kill count (bonus)", "Alive", "Spawn in", ""] {
+            for title in ["Ultimate Being", "Kill count", "God power gained", "Spawn in", ""] {
                 h.col(|ui| {
                     ui.label(RichText::new(title).strong().size(12.0));
                 });
@@ -204,29 +268,19 @@ fn ub_table(
                 tr.col(|ui| {
                     ui.label(&row.ub_name).on_hover_text(format!("UB id {}", row.ub_id));
                 });
-                // Multiplier-driving kill count (T.k.b), editable when matched.
                 tr.col(|ui| {
-                    let Some(ki) = row.k_index else {
-                        ui.label(RichText::new("—").color(style::TEXT_MUTED));
-                        return;
-                    };
-                    let buf = st.ub_buffers.entry(ki).or_insert_with(|| row.mult_kills.clone());
-                    let resp = ui.add(egui::TextEdit::singleline(buf).desired_width(110.0));
-                    if resp.changed() {
-                        let v = buf.trim();
-                        if v.parse::<u64>().is_ok() && v != row.mult_kills.trim() {
-                            edits.push((
-                                vec!["T".into(), "k".into(), ki.to_string(), UbMultField::KillCount.key().into()],
-                                format!("{} kill count", row.ub_name),
-                                v.to_string(),
-                            ));
-                        }
-                    } else if !resp.has_focus() && buf.trim() != row.mult_kills.trim() {
-                        *buf = row.mult_kills.clone();
-                    }
+                    uint_cell(
+                        ui,
+                        &mut st.ub_buffers,
+                        row.f_index,
+                        &row.kill_count,
+                        vec!["T".into(), "f".into(), row.f_index.to_string(), UbField::KillCount.key().into()],
+                        format!("{} kill count", row.ub_name),
+                        edits,
+                    );
                 });
                 tr.col(|ui| {
-                    ui.label(if row.alive { "yes" } else { "no" });
+                    ui.label(RichText::new(&row.god_power).size(11.0));
                 });
                 tr.col(|ui| {
                     let mins = row.spawn_ms / 60_000.0;
@@ -245,6 +299,49 @@ fn ub_table(
                             "0".to_string(),
                         ));
                     }
+                });
+            });
+        });
+}
+
+fn ubv2_table(
+    ui: &mut egui::Ui,
+    st: &mut PlanetEditState,
+    rows: &[UbV2Row],
+    edits: &mut Vec<(Vec<String>, String, String)>,
+) {
+    TableBuilder::new(ui)
+        .striped(true)
+        .id_salt("planet_ubv2")
+        .column(Column::initial(170.0)) // UB V2
+        .column(Column::initial(120.0)) // defeats
+        .column(Column::remainder()) // state
+        .header(20.0, |mut h| {
+            for title in ["Ultimate Being V2", "Defeats", "State"] {
+                h.col(|ui| {
+                    ui.label(RichText::new(title).strong().size(12.0));
+                });
+            }
+        })
+        .body(|body| {
+            body.rows(24.0, rows.len(), |mut tr| {
+                let row = &rows[tr.index()];
+                tr.col(|ui| {
+                    ui.label(&row.ub_name).on_hover_text(format!("UB id {}", row.ub_id));
+                });
+                tr.col(|ui| {
+                    uint_cell(
+                        ui,
+                        &mut st.ubv2_buffers,
+                        row.k_index,
+                        &row.defeats,
+                        vec!["T".into(), "k".into(), row.k_index.to_string(), UbV2Field::Defeats.key().into()],
+                        format!("{} defeats", row.ub_name),
+                        edits,
+                    );
+                });
+                tr.col(|ui| {
+                    ui.label(RichText::new(&row.state).color(style::TEXT_MUTED).size(11.0));
                 });
             });
         });
