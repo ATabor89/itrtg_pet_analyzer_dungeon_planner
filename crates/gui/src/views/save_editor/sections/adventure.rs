@@ -44,7 +44,9 @@ struct ResearchRow {
     research_id: u32,
     name: String,
     level: String,
-    max_level: u64,
+    /// Authoritative level cap (`model::research_max`); `None` = uncapped. The
+    /// save's own per-entry max field is unreliable, so it isn't used here.
+    max_level: Option<u64>,
     in_progress: bool,
 }
 
@@ -259,10 +261,7 @@ fn read_research(session: &EditSession) -> Vec<ResearchRow> {
                 level: session
                     .value(&["032", "H", "a", &i, ResearchField::Level.key()])
                     .unwrap_or_default(),
-                max_level: session
-                    .value(&["032", "H", "a", &i, ResearchField::MaxLevel.key()])
-                    .and_then(|s| s.trim().parse().ok())
-                    .unwrap_or(0),
+                max_level: model::research_max(research_id),
                 in_progress: session
                     .value(&["032", "H", "a", &i, ResearchField::InProgress.key()])
                     .is_some_and(|s| s.trim() == "1"),
@@ -1040,12 +1039,13 @@ fn research_table(
                         &["032", "H", "a", &idx, ResearchField::Level.key()],
                         &row.level,
                         format!("{} level", row.name),
-                        Some(row.max_level),
+                        row.max_level,
                         edits,
                     );
                 });
                 tr.col(|ui| {
-                    ui.label(RichText::new(row.max_level.to_string()).color(style::TEXT_MUTED).size(11.0));
+                    let txt = row.max_level.map_or_else(|| "—".to_string(), |m| m.to_string());
+                    ui.label(RichText::new(txt).color(style::TEXT_MUTED).size(11.0));
                 });
                 tr.col(|ui| {
                     if row.in_progress {
@@ -1116,11 +1116,20 @@ mod tests {
         let research = Raw::List(vec![
             // id 0 is the unused placeholder slot.
             Raw::Struct(vec![("a".into(), sc("0")), ("b".into(), sc("0")), ("f".into(), sc("0"))]),
+            // id 1 (God HP) — uncapped; `f` is intentionally bogus to prove the
+            // editor ignores the save's max field in favor of model::research_max.
             Raw::Struct(vec![
                 ("a".into(), sc("1")),
                 ("b".into(), sc("5")),
                 ("f".into(), sc("10")),
                 ("c".into(), sc("1")),
+            ]),
+            // id 7 (Core Quality) — capped at 800; `f` reads 0 (the bug we fixed).
+            Raw::Struct(vec![
+                ("a".into(), sc("7")),
+                ("b".into(), sc("40")),
+                ("f".into(), sc("0")),
+                ("c".into(), sc("0")),
             ]),
         ]);
         let classes = Raw::List(vec![
@@ -1155,10 +1164,15 @@ mod tests {
     fn research_skips_placeholder_and_resolves_names() {
         let s = adv_session();
         let rows = read_research(&s);
-        assert_eq!(rows.len(), 1, "id 0 placeholder should be filtered out");
+        assert_eq!(rows.len(), 2, "id 0 placeholder should be filtered out");
+        // God HP is uncapped — the save's bogus `f` (10) must be ignored.
         assert_eq!(rows[0].name, "God HP");
-        assert_eq!(rows[0].max_level, 10);
+        assert_eq!(rows[0].max_level, None);
         assert!(rows[0].in_progress);
+        // Core Quality is capped at 800 from model::research_max, even though the
+        // save's `f` field reads 0 (the editing-blocked bug we fixed).
+        assert_eq!(rows[1].name, "Core Quality");
+        assert_eq!(rows[1].max_level, Some(800));
     }
 
     #[test]
