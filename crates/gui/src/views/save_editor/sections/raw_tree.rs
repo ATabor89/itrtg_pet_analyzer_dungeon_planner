@@ -58,6 +58,9 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
             items::divinity_upgrade_name(v.parse().ok()?).map(str::to_string)
         }
         Resolve::CrystalModule => items::crystal_module_name(v.parse().ok()?).map(str::to_string),
+        Resolve::AdventureProfession => {
+            items::adventure_profession_name(v.parse().ok()?).map(str::to_string)
+        }
         Resolve::AdventureItem => items::adventure_item_name(v.parse().ok()?).map(str::to_string),
         Resolve::AdventureEnemy => items::adventure_enemy_name(v.parse().ok()?).map(str::to_string),
         Resolve::AdventureClass => items::adventure_class_name(v.parse().ok()?).map(str::to_string),

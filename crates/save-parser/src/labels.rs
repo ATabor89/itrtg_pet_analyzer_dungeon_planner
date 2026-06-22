@@ -68,6 +68,9 @@ pub enum Resolve {
     /// Crystal Factory module grade id → `items::crystal_module_name`
     /// (0 Physical … 5 God).
     CrystalModule,
+    /// Adventure-mode side-profession id → `items::adventure_profession_name`
+    /// (1 Crafting … 5 Alchemy).
+    AdventureProfession,
     /// Adventure-mode item id → `items::adventure_item_name`.
     AdventureItem,
     /// Adventure-mode enemy/entity id → `items::adventure_enemy_name`.
@@ -734,6 +737,18 @@ save_block! {
 }
 
 save_block! {
+    /// Adventure-mode side-professions — `032.j.<index>` (`OPPFHHDLOPE`,
+    /// "AdvSkill"). One entry per profession the player has touched. `a` =
+    /// profession id (1 Crafting / 2 Smithing / 3 Mining / 4 Researching /
+    /// 5 Alchemy / 6 Battle), `b` = level, `c` = current exp (BigDouble). The
+    /// next-level exp threshold is computed from the level, not stored.
+    AdvProfessionField => ADV_PROFESSION_FIELDS;
+    Profession: "a", "Profession", FieldKind::Id,   None, Some(Resolve::AdventureProfession);
+    Level:      "b", "Level",      FieldKind::UInt, None, None;
+    Exp:        "c", "Exp",        FieldKind::Text, None, None;
+}
+
+save_block! {
     /// Statistics block — `root.x` (`LLMCMCKAABP`, marker "Statistic"): a large bag
     /// of ~360 numeric-key counters/totals. The confirmed gameplay trackers are
     /// labeled here (mirroring `model::trackers`, diff-confirmed against tooltips);
@@ -918,6 +933,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["032", "G"], name: "Core", plural: "Cores", is_list: true, element_name: elem("a", Resolve::CoreNode), fields: CORE_FIELDS },
     BlockSchema { base: &["032", "b"], name: "Adventurer", plural: "Adventurer", is_list: false, element_name: None, fields: ADVENTURER_FIELDS },
     BlockSchema { base: &["032", "b", "f"], name: "Class Progression", plural: "Class Progression", is_list: true, element_name: elem("a", Resolve::AdventureClass), fields: CLASS_PROGRESSION_FIELDS },
+    BlockSchema { base: &["032", "j"], name: "Profession", plural: "Professions", is_list: true, element_name: elem("a", Resolve::AdventureProfession), fields: ADV_PROFESSION_FIELDS },
     BlockSchema { base: &["i"], name: "Creation", plural: "Creations", is_list: true, element_name: elem("a", Resolve::Creation), fields: CREATION_FIELDS },
     BlockSchema { base: &["D"], name: "Monument", plural: "Monuments", is_list: true, element_name: elem("a", Resolve::Monument), fields: MONUMENT_FIELDS },
     BlockSchema { base: &["V"], name: "Might", plural: "Mights", is_list: true, element_name: elem("a", Resolve::Might), fields: MIGHT_FIELDS },
