@@ -70,6 +70,20 @@ pub struct AddedChallenge {
     pub label: String,
 }
 
+/// A newly-created adventure-inventory item (appended to `032.d`), keyed by id.
+#[derive(Clone)]
+pub struct AddedAdventureItem {
+    pub item_id: u32,
+    pub label: String,
+}
+
+/// A newly-created adventure core (appended to `032.G`), keyed by enemy id.
+#[derive(Clone)]
+pub struct AddedCore {
+    pub enemy_id: u32,
+    pub label: String,
+}
+
 /// A loaded list element removed this session, kept so the deletion shows in the
 /// pending panel and can be undone (re-inserted).
 #[derive(Clone)]
@@ -107,6 +121,10 @@ pub struct EditSession {
     added_gems: Vec<AddedGem>,
     /// Challenge entries created this session (see [`AddedChallenge`]).
     added_challenges: Vec<AddedChallenge>,
+    /// Adventure-inventory items created this session.
+    added_adventure_items: Vec<AddedAdventureItem>,
+    /// Adventure cores created this session.
+    added_cores: Vec<AddedCore>,
     /// Loaded list elements deleted this session (see [`RemovedElement`]).
     removed: Vec<RemovedElement>,
     /// Set when an edit invalidates `derived`; cleared by `rederive_if_needed`.
@@ -132,6 +150,8 @@ impl EditSession {
             added_materials: Vec::new(),
             added_gems: Vec::new(),
             added_challenges: Vec::new(),
+            added_adventure_items: Vec::new(),
+            added_cores: Vec::new(),
             removed: Vec::new(),
             dirty_derived: false,
         })
@@ -175,6 +195,16 @@ impl EditSession {
         &self.added_challenges
     }
 
+    /// Adventure-inventory items created this session.
+    pub fn added_adventure_items(&self) -> &[AddedAdventureItem] {
+        &self.added_adventure_items
+    }
+
+    /// Adventure cores created this session.
+    pub fn added_cores(&self) -> &[AddedCore] {
+        &self.added_cores
+    }
+
     /// Loaded list elements deleted this session.
     pub fn removed(&self) -> &[RemovedElement] {
         &self.removed
@@ -186,6 +216,8 @@ impl EditSession {
             || !self.added_materials.is_empty()
             || !self.added_gems.is_empty()
             || !self.added_challenges.is_empty()
+            || !self.added_adventure_items.is_empty()
+            || !self.added_cores.is_empty()
             || !self.removed.is_empty()
     }
 
@@ -196,6 +228,8 @@ impl EditSession {
             + self.added_materials.len()
             + self.added_gems.len()
             + self.added_challenges.len()
+            + self.added_adventure_items.len()
+            + self.added_cores.len()
             + self.removed.len()
     }
 
@@ -469,6 +503,98 @@ impl EditSession {
             self.reindex_pending_after_removal(&["x", "242"], pos);
         }
         self.added_challenges.remove(index);
+        self.dirty_derived = true;
+    }
+
+    /// Upsert an adventure-inventory item (`032.d`): set the existing item's
+    /// count `b` if the id is present, else append a new entry. Returns whether a
+    /// new entry was added.
+    pub fn set_adventure_item(
+        &mut self,
+        item_id: u32,
+        count: &str,
+        label: impl Into<String>,
+    ) -> Result<bool> {
+        edit::ensure_list_at(&mut self.root, &["032", "d"])?;
+        let idx = match self.root.get_path(&["032", "d"]) {
+            Some(Raw::List(items)) => items.iter().position(|it| scalar_u32(it, "a") == Some(item_id)),
+            _ => None,
+        };
+        if let Some(idx) = idx {
+            self.set_scalar(&["032", "d", &idx.to_string(), "b"], label, count)?;
+            Ok(false)
+        } else {
+            edit::add_adventure_item(&mut self.root, item_id, count)?;
+            self.added_adventure_items.push(AddedAdventureItem { item_id, label: label.into() });
+            self.dirty_derived = true;
+            Ok(true)
+        }
+    }
+
+    /// Undo a created adventure item (by index into [`added_adventure_items`]).
+    pub fn undo_added_adventure_item(&mut self, index: usize) {
+        let Some(entry) = self.added_adventure_items.get(index).cloned() else {
+            return;
+        };
+        let mut removed_pos = None;
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["032", "d"])
+            && let Some(pos) = items.iter().rposition(|it| scalar_u32(it, "a") == Some(entry.item_id))
+        {
+            items.remove(pos);
+            removed_pos = Some(pos);
+        }
+        if let Some(pos) = removed_pos {
+            self.reindex_pending_after_removal(&["032", "d"], pos);
+        }
+        self.added_adventure_items.remove(index);
+        self.dirty_derived = true;
+    }
+
+    /// Upsert an adventure core (`032.G`): set the existing core's count `c` and
+    /// quality `d` if the enemy id is present, else append a new entry. Returns
+    /// whether a new entry was added.
+    pub fn set_core(
+        &mut self,
+        enemy_id: u32,
+        count: &str,
+        quality: u32,
+        label: impl Into<String>,
+    ) -> Result<bool> {
+        edit::ensure_list_at(&mut self.root, &["032", "G"])?;
+        let idx = match self.root.get_path(&["032", "G"]) {
+            Some(Raw::List(items)) => items.iter().position(|it| scalar_u32(it, "a") == Some(enemy_id)),
+            _ => None,
+        };
+        if let Some(idx) = idx {
+            let label = label.into();
+            let i = idx.to_string();
+            self.set_scalar(&["032", "G", &i, "c"], label.clone(), count)?;
+            self.set_scalar(&["032", "G", &i, "d"], label, &quality.to_string())?;
+            Ok(false)
+        } else {
+            edit::add_core(&mut self.root, enemy_id, count, quality)?;
+            self.added_cores.push(AddedCore { enemy_id, label: label.into() });
+            self.dirty_derived = true;
+            Ok(true)
+        }
+    }
+
+    /// Undo a created core (by index into [`added_cores`]).
+    pub fn undo_added_core(&mut self, index: usize) {
+        let Some(entry) = self.added_cores.get(index).cloned() else {
+            return;
+        };
+        let mut removed_pos = None;
+        if let Some(Raw::List(items)) = self.root.get_path_mut(&["032", "G"])
+            && let Some(pos) = items.iter().rposition(|it| scalar_u32(it, "a") == Some(entry.enemy_id))
+        {
+            items.remove(pos);
+            removed_pos = Some(pos);
+        }
+        if let Some(pos) = removed_pos {
+            self.reindex_pending_after_removal(&["032", "G"], pos);
+        }
+        self.added_cores.remove(index);
         self.dirty_derived = true;
     }
 
@@ -804,6 +930,24 @@ impl EditSession {
                 );
             }
         }
+        // Each created adventure item must be present in 032.d (by item id).
+        for a in &self.added_adventure_items {
+            if root.get_path(&["032", "d", &format!("a={}", a.item_id), "a"]).is_none() {
+                bail!(
+                    "validation failed: added adventure item id {} missing after round-trip",
+                    a.item_id
+                );
+            }
+        }
+        // Each created core must be present in 032.G (by enemy id).
+        for c in &self.added_cores {
+            if root.get_path(&["032", "G", &format!("a={}", c.enemy_id), "a"]).is_none() {
+                bail!(
+                    "validation failed: added core enemy id {} missing after round-trip",
+                    c.enemy_id
+                );
+            }
+        }
         Ok(())
     }
 }
@@ -1033,6 +1177,63 @@ mod tests {
         s.undo_removed(0);
         assert!(s.removed().is_empty());
         assert_eq!(s.value(&["X", "b", "0", "w", "e"]).as_deref(), Some("5")); // restored
+    }
+
+    #[test]
+    fn set_adventure_item_updates_and_creates() {
+        let adv = Raw::Struct(vec![(
+            "d".into(),
+            Field::Value(Raw::List(vec![Raw::Struct(vec![
+                ("a".into(), sc("1")),
+                ("b".into(), sc("100")),
+                ("c".into(), sc("0")),
+                ("d".into(), sc("0")),
+            ])])),
+        )]);
+        let root = Raw::Struct(vec![("032".into(), b64(adv))]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+        // Update existing item 1 (index 0) — a scalar edit, not an addition.
+        assert!(!s.set_adventure_item(1, "500", "Item 1").unwrap());
+        assert_eq!(s.value(&["032", "d", "0", "b"]).as_deref(), Some("500"));
+        assert!(s.added_adventure_items().is_empty());
+        // Add a new item 50 (appended at index 1).
+        assert!(s.set_adventure_item(50, "7", "Item 50").unwrap());
+        assert_eq!(s.added_adventure_items().len(), 1);
+        assert_eq!(s.value(&["032", "d", "1", "a"]).as_deref(), Some("50"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+        s.undo_added_adventure_item(0);
+        assert!(s.added_adventure_items().is_empty());
+        assert!(s.value(&["032", "d", "1", "a"]).is_none());
+    }
+
+    #[test]
+    fn set_core_updates_and_creates() {
+        let adv = Raw::Struct(vec![(
+            "G".into(),
+            Field::Value(Raw::List(vec![Raw::Struct(vec![
+                ("a".into(), sc("50")),
+                ("b".into(), sc("1")),
+                ("c".into(), sc("1024")),
+                ("d".into(), sc("6")),
+            ])])),
+        )]);
+        let root = Raw::Struct(vec![("032".into(), b64(adv))]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+        // Update existing core 50: sets both count (c) and quality (d).
+        assert!(!s.set_core(50, "2000", 8, "Slime core").unwrap());
+        assert_eq!(s.value(&["032", "G", "0", "c"]).as_deref(), Some("2000"));
+        assert_eq!(s.value(&["032", "G", "0", "d"]).as_deref(), Some("8"));
+        assert!(s.added_cores().is_empty());
+        // Add a new core 69.
+        assert!(s.set_core(69, "5", 7, "Core 69").unwrap());
+        assert_eq!(s.added_cores().len(), 1);
+        assert_eq!(s.value(&["032", "G", "1", "a"]).as_deref(), Some("69"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+        s.undo_added_core(0);
+        assert!(s.added_cores().is_empty());
+        assert!(s.value(&["032", "G", "1", "a"]).is_none());
     }
 
     #[test]
