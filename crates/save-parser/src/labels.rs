@@ -39,6 +39,9 @@ pub enum Resolve {
     VillageBuilding,
     /// Ultimate Being id → `items::ultimate_being_name` (planet UBs, 1-5).
     UltimateBeing,
+    /// Ultimate Being **V2** id → `items::ultimate_being_name` + " V2" (the
+    /// one-time-per-rebirth V2 bosses at `T.k`; same id space as the regular UBs).
+    UltimateBeingV2,
     /// Equipment *type* id → `items::equipment_type_name`.
     Equipment,
     /// A whole equipment element struct → "Name Quality+Plus" (the editor reads
@@ -373,27 +376,31 @@ save_block! {
 }
 
 save_block! {
-    /// Planet — per-UB state — `T.k.<index>` (`FPBMNCNKPHN`), one per UB. `c` = UB
-    /// id, `b` = kill/defeat count that DRIVES the "Multi from Ultimate Beings"
-    /// (a fixed % per defeat: Planet Eater 1% / Godly Tribunal 12% / Living Sun
-    /// 21% / God Above All 32% / ITRTG 45%); `a` = a per-UB state value (~100,
-    /// exact role unconfirmed). Distinct from `T.f.b`, the per-spawn kill count.
-    UbMultField => UB_MULTIPLIER_FIELDS;
-    Ub:        "c", "UB",           FieldKind::Id,   None, Some(Resolve::UltimateBeing);
-    KillCount: "b", "Kill Count",   FieldKind::UInt, None, None;
-    State:     "a", "State (~100)", FieldKind::Text, None, None;
+    /// Planet — **Ultimate Being V2** records — `T.k.<index>` (`FPBMNCNKPHN`), one
+    /// per UB. These are the V2 bosses ("Planet Eater V2" … "ITRTG V2"), each
+    /// defeatable **once per rebirth**; the C# gates this list on the `UBV2C`
+    /// challenge (`AIDFNOPNJGK` line 560). `c` = UB id, `b` = cumulative defeats
+    /// (drives the "Multi from Ultimate Beings": a fixed % per defeat — Planet
+    /// Eater 1% / Godly Tribunal 12% / Living Sun 21% / God Above All 32% / ITRTG
+    /// 45%), `a` = a per-UB state value (~100, exact role unconfirmed).
+    UbV2Field => UB_V2_FIELDS;
+    Ub:       "c", "UB (V2)",       FieldKind::Id,   None, Some(Resolve::UltimateBeingV2);
+    Defeats:  "b", "Defeats",       FieldKind::UInt, None, None;
+    State:    "a", "State (~100)",  FieldKind::Text, None, None;
 }
 
 save_block! {
-    /// Planet — Ultimate Beings — `T.f.<index>` (`CEFAAPALBMD`). The 5 UBs that
-    /// attack on staggered spawn timers. `c` = UB id (1 Planet Eater … 5 ITRTG),
-    /// `b` = kill count, `d` = spawn countdown ms (counts DOWN; spawns at ≤0 —
-    /// set 0 to force a spawn), `e` = alive flag, `f` = god power gained.
+    /// Planet — Ultimate Beings — `T.f.<index>` (`CEFAAPALBMD`). The 5 regular
+    /// (respawning) UBs that attack on staggered spawn timers. `c` = UB id (1
+    /// Planet Eater … 5 ITRTG), `b` = kill count, `d` = spawn countdown ms (counts
+    /// DOWN; spawns at ≤0 — set 0 to force a spawn), `f` = god power gained. `e` is
+    /// a bool that reads True for all UBs on captured saves; its exact role isn't
+    /// confirmed (was guessed "alive") so it's labeled neutrally.
     UbField => ULTIMATE_BEING_FIELDS;
     Ub:             "c", "UB",                   FieldKind::Id,   None, Some(Resolve::UltimateBeing);
     KillCount:      "b", "Kill Count",           FieldKind::UInt, None, None;
     SpawnCountdown: "d", "Spawn Countdown (ms)", FieldKind::Text, None, None;
-    Alive:          "e", "Alive",                FieldKind::Bool, None, None;
+    Flag:           "e", "Flag (e, bool)",       FieldKind::Bool, None, None;
     GodPowerGained: "f", "God Power Gained",     FieldKind::Text, None, None;
 }
 
@@ -849,7 +856,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "Z"], name: "Challenge Team", plural: "Challenge Team", is_list: false, element_name: None, fields: CHALLENGE_TEAM_FIELDS },
     BlockSchema { base: &["T"], name: "Planet (Ultimate Beings)", plural: "Planet (Ultimate Beings)", is_list: false, element_name: None, fields: PLANET_FIELDS },
     BlockSchema { base: &["T", "f"], name: "Ultimate Being", plural: "Ultimate Beings", is_list: true, element_name: elem("c", Resolve::UltimateBeing), fields: ULTIMATE_BEING_FIELDS },
-    BlockSchema { base: &["T", "k"], name: "UB Multiplier", plural: "UB Multipliers", is_list: true, element_name: elem("c", Resolve::UltimateBeing), fields: UB_MULTIPLIER_FIELDS },
+    BlockSchema { base: &["T", "k"], name: "Ultimate Being V2", plural: "Ultimate Beings V2", is_list: true, element_name: elem("c", Resolve::UltimateBeingV2), fields: UB_V2_FIELDS },
     BlockSchema { base: &["024", "a"], name: "Village Building", plural: "Village Buildings", is_list: true, element_name: elem("g", Resolve::VillageBuilding), fields: VILLAGE_BUILDING_FIELDS },
     BlockSchema { base: &["024", "b"], name: "Tavern", plural: "Tavern", is_list: false, element_name: None, fields: TAVERN_FIELDS },
     BlockSchema { base: &["024", "d"], name: "Dojo", plural: "Dojo", is_list: false, element_name: None, fields: DOJO_FIELDS },
