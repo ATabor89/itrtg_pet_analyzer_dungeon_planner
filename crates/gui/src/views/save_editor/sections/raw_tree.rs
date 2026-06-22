@@ -26,7 +26,7 @@ use save_parser::raw::{Field, Raw};
 use save_parser::{items, model};
 
 use crate::style;
-use crate::views::save_editor::registry::FieldRegistry;
+use crate::views::save_editor::registry::{FieldKind, FieldRegistry};
 use crate::views::save_editor::session::EditSession;
 
 /// Turn an id field's raw value into a human name, per its [`Resolve`] hint.
@@ -662,6 +662,14 @@ impl Walk<'_> {
     ) {
         let known = self.known_name(path).map(|s| s.to_string());
         let annotation = self.scalar_annotation(path, current);
+        // Descriptor-driven edit affordances (additive — the verbatim text edit
+        // stays, so the raw tree remains fully unrestricted).
+        let (is_bool, range) = {
+            let p: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
+            self.registry
+                .lookup(&p)
+                .map_or((false, None), |d| (d.kind == FieldKind::Bool, d.range))
+        };
         let key = path.join(".");
         let path_str = path.join(".");
         let value_str = current.to_string();
@@ -718,6 +726,27 @@ impl Walk<'_> {
                     // Mirror changes made elsewhere (structured sections, undo).
                     *buf = current.to_string();
                 }
+            }
+            // Bool fields: quick True/False set buttons (text edit still works).
+            if is_bool {
+                if ui.small_button("True").clicked() && current != "True" {
+                    newval = Some("True".to_string());
+                }
+                if ui.small_button("False").clicked() && current != "False" {
+                    newval = Some("False".to_string());
+                }
+            }
+            // Ranged numeric fields: show the bound, warn (don't block) if the
+            // current value is outside it.
+            if let Some((lo, hi)) = range {
+                let oor = current.trim().parse::<u32>().is_ok_and(|v| v < lo || v > hi);
+                let (color, hover) = if oor {
+                    (style::WARNING, "value is outside the expected range")
+                } else {
+                    (style::TEXT_MUTED, "expected range")
+                };
+                ui.label(RichText::new(format!("({lo}–{hi})")).color(color).size(11.0))
+                    .on_hover_text(hover);
             }
             if let Some(a) = &annotation {
                 // An equipment-instance reference is a clickable cross-ref that
