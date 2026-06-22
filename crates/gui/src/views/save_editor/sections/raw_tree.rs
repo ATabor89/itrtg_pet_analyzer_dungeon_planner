@@ -41,6 +41,9 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::Statue => items::statue_name(v.parse().ok()?).map(str::to_string),
         Resolve::VillageBuilding => items::village_building_name(v.parse().ok()?).map(str::to_string),
         Resolve::UltimateBeing => items::ultimate_being_name(v.parse().ok()?).map(str::to_string),
+        Resolve::UltimateBeingV2 => {
+            items::ultimate_being_name(v.parse().ok()?).map(|n| format!("{n} V2"))
+        }
         Resolve::Equipment => items::equipment_type_name(v.parse().ok()?).map(str::to_string),
         Resolve::Monument => items::monument_name(v.parse().ok()?).map(str::to_string),
         Resolve::Might => items::might_name(v.parse().ok()?).map(str::to_string),
