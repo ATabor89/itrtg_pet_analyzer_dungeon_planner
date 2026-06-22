@@ -61,6 +61,7 @@ pub struct SaveEditorState {
     monuments: progression::ProgEditState,
     might: progression::ProgEditState,
     spacedim: progression::ProgEditState,
+    divinity: progression::ProgEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -142,6 +143,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         monuments: monuments_state,
         might: might_state,
         spacedim: spacedim_state,
+        divinity: divinity_state,
         buffers,
         ..
     } = state;
@@ -211,6 +213,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     SectionId::Might => progression::show_might(ui, session, might_state),
                     SectionId::SpaceDim => {
                         progression::show_spacedim(ui, session, spacedim_state)
+                    }
+                    SectionId::Divinity => {
+                        progression::show_divinity(ui, session, divinity_state)
                     }
                     SectionId::RawTree => raw_tree::show(
                         ui,
