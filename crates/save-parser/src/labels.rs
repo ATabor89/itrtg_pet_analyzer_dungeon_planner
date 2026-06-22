@@ -315,21 +315,21 @@ save_block! {
     Count:   "c", "Count",      FieldKind::Text, None, None;
 }
 
-/// Persistent dungeon teams — `X.S.<index>` (`PCDCANGLENI`). These are the
-/// static team settings. Per-depth difficulty: `e`=D1, `f`=D2, `g`=D3
-/// (player-confirmed in-game; D4 not cleanly placeable from current saves —
-/// `h` is a list, not a difficulty int). `c` = the team's loot/inventory (see
-/// PENDING_LOOT_FIELDS); loot isn't actually rolled until the run completes.
-pub const DUNGEON_TEAM_FIELDS: &[FieldLabel] = &[
-    lblr!("b", "Dungeon Id", Resolve::Dungeon),
-    lbl!("d", "Depth"),
-    lbl!("e", "D1 Difficulty"),
-    lbl!("f", "D2 Difficulty"),
-    lbl!("g", "D3 Difficulty"),
-    lbl!("i", "Dungeon Name"),
-    lbl!("a", "Member Pet Type Ids"),
-    lbl!("c", "Pending Loot"),
-];
+save_block! {
+    /// Persistent dungeon teams — `X.S.<index>` (`PCDCANGLENI`). Static team
+    /// settings. Per-depth difficulty: `e`=D1, `f`=D2, `g`=D3 (player-confirmed;
+    /// D4 not cleanly placeable — `h` is a list, not a difficulty int). `c` = the
+    /// team's loot/inventory (see PendingLootField); not rolled until the run ends.
+    DungeonTeamField => DUNGEON_TEAM_FIELDS;
+    Dungeon:      "b", "Dungeon Id",          FieldKind::Id,   None, Some(Resolve::Dungeon);
+    Depth:        "d", "Depth",               FieldKind::UInt, None, None;
+    D1Difficulty: "e", "D1 Difficulty",       FieldKind::UInt, None, None;
+    D2Difficulty: "f", "D2 Difficulty",       FieldKind::UInt, None, None;
+    D3Difficulty: "g", "D3 Difficulty",       FieldKind::UInt, None, None;
+    DungeonName:  "i", "Dungeon Name",        FieldKind::Text, None, None;
+    Members:      "a", "Member Pet Type Ids", FieldKind::Text, None, None;
+    PendingLoot:  "c", "Pending Loot",        FieldKind::Text, None, None;
+}
 
 save_block! {
     /// A team's pending-loot / inventory entry — `X.S.<i>.c.<index>`
@@ -339,12 +339,13 @@ save_block! {
     Count: "b", "Count",   FieldKind::Text, None, None;
 }
 
-/// The Challenge team — `X.Z` (a single `PCDCANGLENI`, same class as a dungeon
-/// team; C# `NMGIGAGPLCL`). `a` = members (`&`-joined pet ids). Its own inventory
-/// lives at `c` (same shape as a team's pending loot), but it's empty in the
-/// reference save so it isn't labeled here. (Challenges have no
-/// difficulty/depth/timer, so those team fields are unused.)
-pub const CHALLENGE_TEAM_FIELDS: &[FieldLabel] = &[lbl!("a", "Member Pet Type Ids")];
+save_block! {
+    /// The Challenge team — `X.Z` (a single `PCDCANGLENI`, C# `NMGIGAGPLCL`). `a`
+    /// = members (`&`-joined pet ids). Its inventory `c` is empty in the ref save
+    /// so unlabeled. (Challenges have no difficulty/depth/timer.)
+    ChallengeTeamField => CHALLENGE_TEAM_FIELDS;
+    Members: "a", "Member Pet Type Ids", FieldKind::Text, None, None;
+}
 
 save_block! {
     /// Active dungeon runs — `X.P.<index>` (`MKDNAHGDLPI`). `a`=dungeon id,
@@ -362,10 +363,13 @@ save_block! {
     RngJ:           "j", "RNG seed (j)",         FieldKind::Text, None, None;
 }
 
-/// Museum statues — `024.f.a.<index>` (`MCEIHMMCDNH`). `a` = level (20 when
-/// maxed), `b` = statue id (event commemoratives; you can own two of each).
-pub const MUSEUM_STATUE_FIELDS: &[FieldLabel] =
-    &[lbl!("a", "Level"), lblr!("b", "Statue", Resolve::Statue)];
+save_block! {
+    /// Museum statues — `024.f.a.<index>` (`MCEIHMMCDNH`). `a` = level (20 when
+    /// maxed), `b` = statue id (event commemoratives; you can own two of each).
+    MuseumStatueField => MUSEUM_STATUE_FIELDS;
+    Level:  "a", "Level",  FieldKind::UInt, None, None;
+    Statue: "b", "Statue", FieldKind::Id,   None, Some(Resolve::Statue);
+}
 
 // Planet system — `root.T` (`AIDFNOPNJGK`, marker "Planet"). `d` = planet level
 // (drives the planet name tiers; level 1-5 from feeding planet/earthlike/sun/
@@ -407,92 +411,107 @@ save_block! {
     GodPowerGained: "f", "God Power Gained",     FieldKind::Text, None, None;
 }
 
-/// Village building-state list — `024.a.<index>` (`AFELNLGMCAB`, marker
-/// "VillageBuilding"). One entry per building feature, keyed by `g` = building
-/// type (`IMBOLMEHKCG`). `c` = level, `f` = assigned pet (special-pet enum); other
-/// fields are unlock/flag state (mostly default in the ref save).
-pub const VILLAGE_BUILDING_FIELDS: &[FieldLabel] =
-    &[lblr!("g", "Building Type", Resolve::VillageBuilding)];
+save_block! {
+    /// Village building-state list — `024.a.<index>` (`AFELNLGMCAB`, marker
+    /// "VillageBuilding"). One entry per building feature, keyed by `g` = building
+    /// type (`IMBOLMEHKCG`). `c` = level, `f` = assigned pet; other fields are
+    /// unlock/flag state (mostly default in the ref save).
+    VillageBuildingField => VILLAGE_BUILDING_FIELDS;
+    BuildingType: "g", "Building Type", FieldKind::Id, None, Some(Resolve::VillageBuilding);
+}
 
-/// Worker buildings — Material Factory `024.g` (`CHDGDEINMHO`) and Alchemy Hut
-/// `024.h` (`GABIFCBBMPH`), both extending `ANECMNGBLNI`. `a` = level, `e` =
-/// manager slot (pet type id; 999 = empty), `d` = worker pet-slot list.
-pub const WORKER_BUILDING_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "Level"),
-    lblr!("e", "Manager (pet type id)", Resolve::PetType),
-];
+save_block! {
+    /// Worker buildings — Material Factory `024.g` (`CHDGDEINMHO`) and Alchemy Hut
+    /// `024.h` (`GABIFCBBMPH`), both extending `ANECMNGBLNI`. `a` = level, `e` =
+    /// manager slot (pet type id; 999 = empty), `d` = worker pet-slot list.
+    WorkerBuildingField => WORKER_BUILDING_FIELDS;
+    Level:   "a", "Level",                 FieldKind::UInt, None, None;
+    Manager: "e", "Manager (pet type id)", FieldKind::Id,   None, Some(Resolve::PetType);
+}
 
-/// A worker building's pet slot — `024.{g,h}.d.<index>` (`FGKIILDKMEA`). `a` =
-/// pet type id (999 = empty), `d` = work progress/exp. `b`/`c` are the
-/// in-progress craft (nested sub-structs, unconfirmed).
-pub const WORKER_SLOT_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Pet Type Id", Resolve::PetType),
-    lbl!("d", "Work Progress"),
-];
+save_block! {
+    /// A worker building's pet slot — `024.{g,h}.d.<index>` (`FGKIILDKMEA`). `a` =
+    /// pet type id (999 = empty), `d` = work progress/exp. `b`/`c` are the
+    /// in-progress craft (nested sub-structs, unconfirmed).
+    WorkerSlotField => WORKER_SLOT_FIELDS;
+    PetType:      "a", "Pet Type Id",   FieldKind::Id,   None, Some(Resolve::PetType);
+    WorkProgress: "d", "Work Progress", FieldKind::Text, None, None;
+}
 
-/// Pet Village Tavern — `024.b` (`IOBPPFGEBCD`). Runs pet quests. Player-mapped:
-/// `b` = level, `c` = upgrade-elapsed timer, `d` = **Quest Points**, `i` = quests
-/// per day, `j` = max concurrent quests, `u` = Tavern Keeper slot (999 = empty),
-/// `x` = favorite quests (`&`-list). `a`/`t` are quest lists (active / pool);
-/// other scalars (`e`/`g`/`l`/`m`/`p`/`q`/`r`/`v`/`w`…) unconfirmed.
-pub const TAVERN_FIELDS: &[FieldLabel] = &[
-    lbl!("b", "Level"),
-    // `c` = upgrade-elapsed timer (same as other buildings) but it's empty when
-    // not upgrading (as in the ref save), so it isn't labeled here.
-    lbl!("d", "Quest Points"),
-    lbl!("i", "Quests Per Day"),
-    lbl!("j", "Max Concurrent Quests"),
-    lbl!("u", "Tavern Keeper (slot)"),
-    lbl!("x", "Favorite Quests (&-list)"),
-];
+save_block! {
+    /// Pet Village Tavern — `024.b` (`IOBPPFGEBCD`). Runs pet quests. `b` = level,
+    /// `d` = Quest Points, `i` = quests/day, `j` = max concurrent quests, `u` =
+    /// Tavern Keeper slot (999 = empty), `x` = favorite quests (`&`-list). `a`/`t`
+    /// are quest lists; `c` (upgrade-elapsed timer) is empty when not upgrading so
+    /// unlabeled; other scalars unconfirmed.
+    TavernField => TAVERN_FIELDS;
+    Level:          "b", "Level",                    FieldKind::UInt, None, None;
+    QuestPoints:    "d", "Quest Points",             FieldKind::Text, None, None;
+    QuestsPerDay:   "i", "Quests Per Day",           FieldKind::UInt, None, None;
+    MaxConcurrent:  "j", "Max Concurrent Quests",    FieldKind::UInt, None, None;
+    TavernKeeper:   "u", "Tavern Keeper (slot)",     FieldKind::Text, None, None;
+    FavoriteQuests: "x", "Favorite Quests (&-list)", FieldKind::Text, None, None;
+}
 
-/// Pet Village Dojo — `024.d` (`JKDCFKCLCKH`). `b` = level (player-confirmed:
-/// 8 in the ref save), `c` = **elapsed upgrade time** (`LDMJEPGEOME`, the same
-/// universal elapsed-timer field as a dungeon run's `b`): it accumulates until
-/// `c >= target`, then the upgrade completes and resets to 0 — so set `c` to a
-/// large value to force-complete an in-progress upgrade. The four `999` fields
-/// (`s`/`t`/`v`/`w`) are its 4 pet slots (2 Dojo Master + 2 pupil); the many
-/// other fields are per-stat training buffs (unconfirmed).
-pub const DOJO_FIELDS: &[FieldLabel] = &[lbl!("b", "Level"), lbl!("c", "Upgrade Elapsed (ms)")];
+save_block! {
+    /// Pet Village Dojo — `024.d` (`JKDCFKCLCKH`). `b` = level, `c` = elapsed
+    /// upgrade time (`LDMJEPGEOME`; accumulates to target then resets — set large
+    /// to force-complete). The four 999 fields (`s`/`t`/`v`/`w`) are its 4 pet
+    /// slots; other fields are per-stat training buffs (unconfirmed).
+    DojoField => DOJO_FIELDS;
+    Level:          "b", "Level",                FieldKind::UInt, None, None;
+    UpgradeElapsed: "c", "Upgrade Elapsed (ms)", FieldKind::Text, None, None;
+}
 
-/// Pet Village Strategy Room — `024.e` (`CJACGIIPNIG`). The three multipliers
-/// were player-confirmed by tweaking them in-game.
-pub const STRATEGY_ROOM_FIELDS: &[FieldLabel] = &[
-    lbl!("b", "Level"),
-    lbl!("c", "Upgrade Elapsed (ms)"), // accumulates to target then resets; set large to finish
+save_block! {
+    /// Pet Village Strategy Room — `024.e` (`CJACGIIPNIG`). The three multipliers
+    /// were player-confirmed by tweaking them in-game. `c` accumulates to target
+    /// then resets; set large to finish.
+    StrategyRoomField => STRATEGY_ROOM_FIELDS;
+    Level:          "b", "Level",                 FieldKind::UInt, None, None;
+    UpgradeElapsed: "c", "Upgrade Elapsed (ms)",  FieldKind::Text, None, None;
+    PhysicalMulti:  "e", "Physical Multi %",      FieldKind::Text, None, None;
+    MysticMulti:    "f", "Mystic Multi %",        FieldKind::Text, None, None;
+    BattleMulti:    "g", "Battle Multi %",        FieldKind::Text, None, None;
+    PetSlots:       "h", "Pet Slots (&-list, 8)", FieldKind::Text, None, None;
+}
 
-    lbl!("e", "Physical Multi %"),
-    lbl!("f", "Mystic Multi %"),
-    lbl!("g", "Battle Multi %"),
-    lbl!("h", "Pet Slots (&-list, 8)"),
-];
+save_block! {
+    /// Fishing block — `root.025` (`KACINBICCNH`). `a` = Fish Power (labeled in
+    /// Resources), `b` = current exp (resets on level-up), `c` = level, `d`/`e` =
+    /// selected bait/rod (material ids), `f` = current pond. Lists g/h/i =
+    /// rods/bait/fish (see below).
+    FishingField => FISHING_FIELDS;
+    Exp:          "b", "Fishing Exp",   FieldKind::Text, None, None;
+    Level:        "c", "Fishing Level", FieldKind::UInt, None, None;
+    SelectedBait: "d", "Selected Bait", FieldKind::Id,   None, Some(Resolve::Material);
+    SelectedRod:  "e", "Selected Rod",  FieldKind::Id,   None, Some(Resolve::Material);
+    CurrentPond:  "f", "Current Pond",  FieldKind::Id,   None, Some(Resolve::Pond);
+}
 
-/// Fishing block — `root.025` (`KACINBICCNH`). `a` = Fish Power (labeled
-/// separately in Resources), `b` = current exp (resets to 0 on level-up), `c` =
-/// level, `d`/`e` = selected bait/rod (material ids), `f` = current pond. Lists:
-/// `g` = rods, `h` = bait, `i` = fish caught (see the *_FIELDS below).
-pub const FISHING_FIELDS: &[FieldLabel] = &[
-    lbl!("b", "Fishing Exp"),
-    lbl!("c", "Fishing Level"),
-    lblr!("d", "Selected Bait", Resolve::Material),
-    lblr!("e", "Selected Rod", Resolve::Material),
-    lblr!("f", "Current Pond", Resolve::Pond),
-];
+save_block! {
+    /// Owned fishing rods — `025.g.<index>` (`ANCPDAFDBPP`). `a` = rod material id
+    /// (500-504), `b` = owned (0/1).
+    FishingRodField => FISHING_ROD_FIELDS;
+    Rod:   "a", "Rod",   FieldKind::Id,   None,         Some(Resolve::Material);
+    Owned: "b", "Owned", FieldKind::UInt, Some((0, 1)), None;
+}
 
-/// Owned fishing rods — `025.g.<index>` (`ANCPDAFDBPP`). `a` = rod material id
-/// (500-504), `b` = owned (0/1).
-pub const FISHING_ROD_FIELDS: &[FieldLabel] =
-    &[lblr!("a", "Rod", Resolve::Material), lbl!("b", "Owned")];
+save_block! {
+    /// Bait stacks — `025.h.<index>` (`ANCPDAFDBPP`). `a` = bait material id
+    /// (520-524), `b` = count.
+    FishingBaitField => FISHING_BAIT_FIELDS;
+    Bait:  "a", "Bait",  FieldKind::Id,   None, Some(Resolve::Material);
+    Count: "b", "Count", FieldKind::Text, None, None;
+}
 
-/// Bait stacks — `025.h.<index>` (`ANCPDAFDBPP`). `a` = bait material id
-/// (520-524), `b` = count.
-pub const FISHING_BAIT_FIELDS: &[FieldLabel] =
-    &[lblr!("a", "Bait", Resolve::Material), lbl!("b", "Count")];
-
-/// Fish-caught records — `025.i.<index>` (`PNPLCJJOPIO`). `a` = fish material id
-/// (525+), `c` = lifetime caught count.
-pub const FISHING_FISH_FIELDS: &[FieldLabel] =
-    &[lblr!("a", "Fish", Resolve::Material), lbl!("c", "Caught")];
+save_block! {
+    /// Fish-caught records — `025.i.<index>` (`PNPLCJJOPIO`). `a` = fish material
+    /// id (525+), `c` = lifetime caught count.
+    FishingFishField => FISHING_FISH_FIELDS;
+    Fish:   "a", "Fish",   FieldKind::Id,   None, Some(Resolve::Material);
+    Caught: "c", "Caught", FieldKind::Text, None, None;
+}
 
 save_block! {
     /// Campaign slots — `X.x.<index>` (`FMOLELEHAFD`). One persistent slot per
