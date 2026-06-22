@@ -116,7 +116,19 @@ struct EquipRow {
     gem_element_id: u32,
     /// Unique mirror id (`h`) — the one pet slots reference.
     mirror_id: u32,
-    equipped_on: Option<(String, &'static str)>,
+    /// Who wears it: `(pet name, slot label, pet index in X.b)`. The index lets
+    /// the Unequip action clear the right pet slot.
+    equipped_on: Option<(String, &'static str, usize)>,
+}
+
+/// Raw key (`w.e`/`w.f`/`w.g`) for a slot label.
+fn slot_key(slot: &str) -> Option<&'static str> {
+    match slot {
+        "weapon" => Some("e"),
+        "armor" => Some("f"),
+        "accessory" => Some("g"),
+        _ => None,
+    }
 }
 
 impl EquipRow {
@@ -153,6 +165,8 @@ pub struct EquipEditState {
     builder: EquipBuilderState,
     /// Row (X.R index) the user clicked "×" to delete, consumed in `show`.
     pending_delete: Option<usize>,
+    /// Equip-row index requested to be unequipped (slot cleared, item → inventory).
+    pending_unequip: Option<usize>,
 
     apply_requested: bool,
     status: Option<(String, bool)>,
@@ -178,15 +192,15 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
     // → who has it. Pet slots reference `d`, NOT the unique id `h` — they diverge
     // for event gear (e.g. Merry Mantle `d=23`/`h=136`), so this must be keyed and
     // looked up by `d` or such items wrongly read as unequipped.
-    let mut equipped: HashMap<u32, (String, &'static str)> = HashMap::new();
-    for p in &save.pets {
+    let mut equipped: HashMap<u32, (String, &'static str, usize)> = HashMap::new();
+    for (pi, p) in save.pets.iter().enumerate() {
         for (id, slot) in [
             (p.weapon_id, "weapon"),
             (p.armor_id, "armor"),
             (p.accessory_id, "accessory"),
         ] {
             if let Some(id) = id {
-                equipped.entry(id).or_insert((p.name.clone(), slot));
+                equipped.entry(id).or_insert((p.name.clone(), slot, pi));
             }
         }
     }
@@ -213,7 +227,7 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
             // Category from the type table, falling back to the equipped slot
             // (so an unknown type that's equipped is still categorized).
             let category = items::equipment_category(e.type_id)
-                .or_else(|| equipped_on.as_ref().and_then(|(_, slot)| slot_category(slot)));
+                .or_else(|| equipped_on.as_ref().and_then(|(_, slot, _)| slot_category(slot)));
             EquipRow {
                 index,
                 name: items::equipment_type_name(e.type_id)
@@ -302,6 +316,23 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut EquipEditStat
         let label = row.name.clone();
         if let Err(e) = session.delete_equipment(idx, label) {
             st.status = Some((format!("Delete failed: {e}"), true));
+        }
+    }
+
+    // Unequip: clear the pet's slot and return the item to inventory (`d` = 0),
+    // the documented inverse of equipping (d = 0 ⟺ in inventory).
+    if let Some(idx) = st.pending_unequip.take()
+        && let Some(row) = rows.iter().find(|r| r.index == idx)
+        && let Some((pet, slot, pet_index)) = &row.equipped_on
+        && let Some(key) = slot_key(slot)
+    {
+        let label = format!("Unequip {} from {pet}", row.name);
+        let pet_i = pet_index.to_string();
+        let r_i = idx.to_string();
+        let cleared = session.set_scalar(&["X", "b", &pet_i, "w", key], label.clone(), "0");
+        let returned = session.set_scalar(&["X", "R", &r_i, "d"], label, "0");
+        if let Err(e) = cleared.and(returned) {
+            st.status = Some((format!("Unequip failed: {e}"), true));
         }
     }
 }
@@ -641,13 +672,24 @@ fn table(ui: &mut egui::Ui, st: &mut EquipEditState, rows: &[EquipRow], filtered
                 tr.col(|ui| field_cell(ui, st, row, EField::Plus, selected, false));
                 tr.col(|ui| field_cell(ui, st, row, EField::Enchant, selected, false));
                 tr.col(|ui| gem_cell(ui, st, row, selected));
-                tr.col(|ui| {
-                    match &row.equipped_on {
-                        Some((pet, slot)) => ui.label(
-                            RichText::new(format!("{pet} ({slot})")).color(style::TEXT_NORMAL),
-                        ),
-                        None => ui.label(RichText::new("—").color(style::TEXT_MUTED)),
-                    };
+                tr.col(|ui| match &row.equipped_on {
+                    Some((pet, slot, _)) => {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(format!("{pet} ({slot})")).color(style::TEXT_NORMAL),
+                            );
+                            if ui
+                                .small_button("unequip")
+                                .on_hover_text("Clear this pet's slot and return the item to inventory")
+                                .clicked()
+                            {
+                                st.pending_unequip = Some(row.index);
+                            }
+                        });
+                    }
+                    None => {
+                        ui.label(RichText::new("—").color(style::TEXT_MUTED));
+                    }
                 });
                 tr.col(|ui| {
                     ui.label(RichText::new(row.mirror_id.to_string()).color(style::TEXT_MUTED).size(11.0));
@@ -835,6 +877,14 @@ mod tests {
         assert_eq!(bulk_target(&st, &row(), EField::Plus).as_deref(), Some("30"));
         st.ops.insert(EField::Plus, (OpKind::Set, "99".into()));
         assert_eq!(bulk_target(&st, &row(), EField::Plus).as_deref(), Some("30"));
+    }
+
+    #[test]
+    fn slot_key_maps_labels_to_pet_keys() {
+        assert_eq!(slot_key("weapon"), Some("e"));
+        assert_eq!(slot_key("armor"), Some("f"));
+        assert_eq!(slot_key("accessory"), Some("g"));
+        assert_eq!(slot_key("bogus"), None);
     }
 
     #[test]
