@@ -32,6 +32,7 @@ pub enum SectionId {
     Dungeons,
     Planet,
     Adventure,
+    Fishing,
     RawTree,
 }
 
@@ -51,6 +52,7 @@ impl SectionId {
         SectionId::Dungeons,
         SectionId::Planet,
         SectionId::Adventure,
+        SectionId::Fishing,
         SectionId::RawTree,
     ];
 
@@ -69,6 +71,7 @@ impl SectionId {
             SectionId::Dungeons => "Dungeons",
             SectionId::Planet => "Planet / UBs",
             SectionId::Adventure => "Adventure",
+            SectionId::Fishing => "Fishing",
             SectionId::RawTree => "Raw Save Tree",
         }
     }
