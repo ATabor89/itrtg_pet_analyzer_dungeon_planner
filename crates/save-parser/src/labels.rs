@@ -546,14 +546,15 @@ save_block! {
     Quality: "d", "Quality",  FieldKind::UInt, Some((0, 8)), None;
 }
 
-/// Adventure-mode researches — `032.H.a.<index>`.
-pub const RESEARCH_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Research Id", Resolve::Research),
-    lbl!("b", "Level"),
-    lbl!("f", "Max Level"),
-    lbl!("c", "In Progress"),
-    lbl!("d", "Progress"),
-];
+save_block! {
+    /// Adventure-mode researches — `032.H.a.<index>`.
+    ResearchField => RESEARCH_FIELDS;
+    Research:   "a", "Research Id", FieldKind::Id,   None, Some(Resolve::Research);
+    Level:      "b", "Level",       FieldKind::UInt, None, None;
+    MaxLevel:   "f", "Max Level",   FieldKind::UInt, None, None;
+    InProgress: "c", "In Progress", FieldKind::Text, None, None;
+    Progress:   "d", "Progress",    FieldKind::Text, None, None;
+}
 
 save_block! {
     /// Creations — `i.<index>`.
@@ -648,14 +649,15 @@ save_block! {
     Spread:  "g", "Spread",     FieldKind::Text, None, None;
 }
 
-/// Baal-Slayer (TBS) component levels — single struct at `S`.
-pub const TBS_FIELDS: &[FieldLabel] = &[
-    lbl!("b", "Eyes Level"),
-    lbl!("c", "Mouth Level"),
-    lbl!("d", "Wings Level"),
-    lbl!("e", "Tail Level"),
-    lbl!("f", "Feet Level"),
-];
+save_block! {
+    /// Baal-Slayer (TBS) component levels — single struct at `S`.
+    TbsField => TBS_FIELDS;
+    Eyes:  "b", "Eyes Level",  FieldKind::UInt, None, None;
+    Mouth: "c", "Mouth Level", FieldKind::UInt, None, None;
+    Wings: "d", "Wings Level", FieldKind::UInt, None, None;
+    Tail:  "e", "Tail Level",  FieldKind::UInt, None, None;
+    Feet:  "f", "Feet Level",  FieldKind::UInt, None, None;
+}
 
 /// Adventure-mode adventurer ("MVBattleStats") — single struct at `032.b`
 /// (`KPJFCPPKHDL`). The same struct shape backs enemies too, hence `a` = entity.
@@ -737,98 +739,101 @@ pub const STATISTICS_FIELDS: &[FieldLabel] = &[
     lbl!("304", "Day Extreme Building Challenge score (ChP basis)"),
 ];
 
-/// Per-challenge completion record (`KPLPGPEOFNB`), one per element of the
-/// `root.x.242` list. `a` is the challenge id, `b` the lifetime completion count
-/// (the number shown in the Challenges menu), `c` the difficulty, `d` an ms
-/// epoch (last completion time — inferred from per-challenge recency vs. count),
-/// `e` a UI sort flag. Validated against an in-game capture 2026-06-20.
-pub const CHALLENGE_COMPLETION_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Challenge", Resolve::Challenge),
-    lbl!("b", "Completions"),
-    lblr!("c", "Difficulty", Resolve::ChallengeDifficulty),
-    lbl!("d", "Last Completed (ms)"),
-    lbl!("e", "Flag (e)"),
-];
+save_block! {
+    /// Per-challenge completion record (`KPLPGPEOFNB`), one per element of the
+    /// `root.x.242` list. `a` is the challenge id, `b` the lifetime completion
+    /// count (shown in the Challenges menu), `c` the difficulty, `d` an ms epoch
+    /// (last completion time — inferred from per-challenge recency vs. count),
+    /// `e` a UI sort flag. Validated against an in-game capture 2026-06-20.
+    ChallengeCompletionField => CHALLENGE_COMPLETION_FIELDS;
+    Challenge:     "a", "Challenge",          FieldKind::Id,   None, Some(Resolve::Challenge);
+    Completions:   "b", "Completions",        FieldKind::Text, None, None;
+    Difficulty:    "c", "Difficulty",         FieldKind::Id,   None, Some(Resolve::ChallengeDifficulty);
+    LastCompleted: "d", "Last Completed (ms)", FieldKind::Text, None, None;
+    Flag:          "e", "Flag (e)",           FieldKind::Text, None, None;
+}
 
-/// Overflow-Point upgrade levels (`HNFHEBJIPEL`, `root.013`). Each stored field
-/// is the bought upgrade amount; the in-game effect getter adds a base on top.
-/// Labels are the literal "OfP …" names from the Challenge-Points debug tooltip
-/// (`LLMCMCKAABP.cs:4063`), mapped to save keys via each getter's underlying
-/// field (`HNFHEBJIPEL.cs:39–63`). Field `h` has no getter/label there (vestigial
-/// here — the external matches are a name collision in another class).
-pub const OFP_UPGRADE_FIELDS: &[FieldLabel] = &[
-    lbl!("a", "OfP Black Hole"),
-    lbl!("b", "OfP Black Hole Upgrade"),
-    lbl!("c", "OfP Gem Cap"),
-    lbl!("d", "OfP Gem Gain"),
-    lbl!("e", "OfP V2 Auto Kill"),
-    lbl!("f", "OfP Hp Regen"),
-    lbl!("g", "OfP Crystal Power"),
-    lbl!("h", "OfP Upgrade (h, unlabeled)"),
-    lbl!("i", "OfP Creating Stat"),
-    lbl!("j", "OfP Powersurge"),
-    lbl!("k", "OfP Creation Count"),
-    lbl!("l", "OfP Might Speed"),
-    lbl!("m", "OfP Stats Multi"),
-    lbl!("n", "OfP Space Dim"),
-];
+save_block! {
+    /// Overflow-Point upgrade levels (`HNFHEBJIPEL`, `root.013`). Each stored
+    /// field is the bought upgrade amount; the in-game effect getter adds a base.
+    /// Labels are the literal "OfP …" names from the Challenge-Points debug tooltip
+    /// (`LLMCMCKAABP.cs:4063`), mapped to keys via each getter's field
+    /// (`HNFHEBJIPEL.cs:39–63`). Field `h` has no getter/label there (vestigial).
+    OfpUpgradeField => OFP_UPGRADE_FIELDS;
+    BlackHole:        "a", "OfP Black Hole",            FieldKind::Text, None, None;
+    BlackHoleUpgrade: "b", "OfP Black Hole Upgrade",    FieldKind::Text, None, None;
+    GemCap:           "c", "OfP Gem Cap",               FieldKind::Text, None, None;
+    GemGain:          "d", "OfP Gem Gain",              FieldKind::Text, None, None;
+    V2AutoKill:       "e", "OfP V2 Auto Kill",          FieldKind::Text, None, None;
+    HpRegen:          "f", "OfP Hp Regen",              FieldKind::Text, None, None;
+    CrystalPower:     "g", "OfP Crystal Power",         FieldKind::Text, None, None;
+    Vestigial:        "h", "OfP Upgrade (h, unlabeled)", FieldKind::Text, None, None;
+    CreatingStat:     "i", "OfP Creating Stat",         FieldKind::Text, None, None;
+    Powersurge:       "j", "OfP Powersurge",            FieldKind::Text, None, None;
+    CreationCount:    "k", "OfP Creation Count",        FieldKind::Text, None, None;
+    MightSpeed:       "l", "OfP Might Speed",           FieldKind::Text, None, None;
+    StatsMulti:       "m", "OfP Stats Multi",           FieldKind::Text, None, None;
+    SpaceDim:         "n", "OfP Space Dim",             FieldKind::Text, None, None;
+}
 
-/// RTI (Road to Infinity) bonus entry (`HEIPGLPOGEJ`, marker `RtiElement`; one
-/// per element of the `root.014.a` list — 10 entries, one per `BDAFIPJBPFN` stat
-/// type). `a` = stat type, `e` = elapsed timer (`LDMJEPGEOME`, the universal
-/// elapsed-timer field). `b` feeds the in-game "Increases your <stat> by …"
-/// tooltip (the stored bonus amount); `c`/`d`/`g`/`h` are per-type values whose
-/// exact roles aren't separately anchored — labeled neutrally, not guessed.
-pub const RTI_BONUS_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Bonus Type", Resolve::RtiBonus),
-    lbl!("b", "Bonus Amount"),
-    lbl!("c", "Value (c)"),
-    lbl!("d", "Value (d)"),
-    lbl!("e", "Elapsed (ms)"),
-    lbl!("g", "Value (g)"),
-    lbl!("h", "Value (h)"),
-];
+save_block! {
+    /// RTI (Road to Infinity) bonus entry (`HEIPGLPOGEJ`, marker `RtiElement`; one
+    /// per element of the `root.014.a` list — 10 entries, one per `BDAFIPJBPFN`
+    /// stat type). `a` = stat type, `e` = elapsed timer. `b` feeds the "Increases
+    /// your <stat> by …" tooltip (the stored bonus amount); `c`/`d`/`g`/`h` are
+    /// per-type values not separately anchored — labeled neutrally.
+    RtiBonusField => RTI_BONUS_FIELDS;
+    BonusType:   "a", "Bonus Type",   FieldKind::Id,   None, Some(Resolve::RtiBonus);
+    BonusAmount: "b", "Bonus Amount", FieldKind::Text, None, None;
+    ValueC:      "c", "Value (c)",    FieldKind::Text, None, None;
+    ValueD:      "d", "Value (d)",    FieldKind::Text, None, None;
+    Elapsed:     "e", "Elapsed (ms)", FieldKind::Text, None, None;
+    ValueG:      "g", "Value (g)",    FieldKind::Text, None, None;
+    ValueH:      "h", "Value (h)",    FieldKind::Text, None, None;
+}
 
-/// Ultimate-Overflow upgrade entry (`FDJCCPFCJAO`, one per element of the
-/// `root.029.a` list; parent `CDNMNLIAPKA` marker `UltimateOverflowBoosts`).
-/// `a` = upgrade type (`IDFOIHJPCHP`), `b` = bought level. These are the boosts
-/// purchased with Ultimate Overflow Points (the fixture holds all 6 types at 0).
-pub const UOFP_UPGRADE_FIELDS: &[FieldLabel] = &[
-    lblr!("a", "Upgrade Type", Resolve::UltimateOverflowUpgrade),
-    lbl!("b", "Level"),
-];
+save_block! {
+    /// Ultimate-Overflow upgrade entry (`FDJCCPFCJAO`, one per element of the
+    /// `root.029.a` list; parent `CDNMNLIAPKA` marker `UltimateOverflowBoosts`).
+    /// `a` = upgrade type (`IDFOIHJPCHP`), `b` = bought level. The boosts bought
+    /// with Ultimate Overflow Points (the fixture holds all 6 types at 0).
+    UofpUpgradeField => UOFP_UPGRADE_FIELDS;
+    UpgradeType: "a", "Upgrade Type", FieldKind::Id,   None, Some(Resolve::UltimateOverflowUpgrade);
+    Level:       "b", "Level",        FieldKind::UInt, None, None;
+}
 
-/// Challenge-Point upgrade levels — scalar fields directly on `root.X`
-/// (`MLILKGIALMB`, the `FIHAENJIDAO` accessor). Names are the literal "Chp …"
-/// labels from the Challenge-Points debug tooltip (`LLMCMCKAABP.cs:4063`);
-/// each maps straight to a save key in `MLILKGIALMB.EBOFJJHOOLP` (the real
-/// deserializer at line 10036 — the `n19`/`n41`/`-36` copies elsewhere are
-/// decoys). Total ChP spent = Σ(level × cost) per `MLILKGIALMB.cs:894`; the
-/// stored value here is the bought level. `035`/`038` are bools.
-pub const CHP_UPGRADE_FIELDS: &[FieldLabel] = &[
-    lbl!("E", "ChP Planet Level"),
-    lbl!("I", "ChP Divinity boost"),
-    lbl!("D", "ChP Damage Reduction UBs"),
-    lbl!("041", "ChP Faster UB spawn"),
-    lbl!("G", "ChP Crystal Upgrade boost"),
-    lbl!("H", "ChP Damage Boost V2s"),
-    lbl!("J", "ChP CP boost"),
-    lbl!("039", "ChP Crystal Sacrifice boost"),
-    lbl!("029", "ChP BS boost"),
-    lbl!("030", "ChP CS boost"),
-    lbl!("K", "ChP TBS Level Loss decrease"),
-    lbl!("L", "ChP Pet Stone Drop boost"),
-    lbl!("035", "ChP Stone Pet improvement"),
-    lbl!("019", "ChP Adv EXP boost"),
-    lbl!("V", "ChP Dungeon Drop boost"),
-    lbl!("W", "ChP Dungeon Exp boost"),
-    lbl!("037", "ChP Dungeon Overtime"),
-    lbl!("038", "ChP Quest Overtime"),
-    lbl!("034", "ChP D4 boss room (stored; shown as 60 − x)"),
-    lbl!("X", "ChP Crafting boost"),
-    lbl!("014", "ChP SpaceDim boost"),
-    lbl!("040", "ChP Self Replicating AI boost"),
-];
+save_block! {
+    /// Challenge-Point upgrade levels — scalar fields directly on `root.X`
+    /// (`MLILKGIALMB`, the `FIHAENJIDAO` accessor). Names are the literal "Chp …"
+    /// labels from the Challenge-Points debug tooltip (`LLMCMCKAABP.cs:4063`);
+    /// each maps to a save key in `MLILKGIALMB.EBOFJJHOOLP` (real deserializer
+    /// line 10036 — the `n19`/`n41`/`-36` copies elsewhere are decoys). Total ChP
+    /// spent = Σ(level × cost) per `MLILKGIALMB.cs:894`; stored value = bought
+    /// level. `035`/`038` are bools.
+    ChpUpgradeField => CHP_UPGRADE_FIELDS;
+    PlanetLevel:        "E",   "ChP Planet Level",                         FieldKind::UInt, None, None;
+    DivinityBoost:      "I",   "ChP Divinity boost",                       FieldKind::UInt, None, None;
+    DamageReductionUbs: "D",   "ChP Damage Reduction UBs",                 FieldKind::UInt, None, None;
+    FasterUbSpawn:      "041", "ChP Faster UB spawn",                      FieldKind::UInt, None, None;
+    CrystalUpgrade:     "G",   "ChP Crystal Upgrade boost",                FieldKind::UInt, None, None;
+    DamageBoostV2s:     "H",   "ChP Damage Boost V2s",                     FieldKind::UInt, None, None;
+    CpBoost:            "J",   "ChP CP boost",                             FieldKind::UInt, None, None;
+    CrystalSacrifice:   "039", "ChP Crystal Sacrifice boost",             FieldKind::UInt, None, None;
+    BsBoost:            "029", "ChP BS boost",                             FieldKind::UInt, None, None;
+    CsBoost:            "030", "ChP CS boost",                             FieldKind::UInt, None, None;
+    TbsLevelLoss:       "K",   "ChP TBS Level Loss decrease",             FieldKind::UInt, None, None;
+    PetStoneDrop:       "L",   "ChP Pet Stone Drop boost",                FieldKind::UInt, None, None;
+    StonePetImprove:    "035", "ChP Stone Pet improvement",               FieldKind::Bool, None, None;
+    AdvExpBoost:        "019", "ChP Adv EXP boost",                        FieldKind::UInt, None, None;
+    DungeonDrop:        "V",   "ChP Dungeon Drop boost",                  FieldKind::UInt, None, None;
+    DungeonExp:         "W",   "ChP Dungeon Exp boost",                   FieldKind::UInt, None, None;
+    DungeonOvertime:    "037", "ChP Dungeon Overtime",                    FieldKind::UInt, None, None;
+    QuestOvertime:      "038", "ChP Quest Overtime",                      FieldKind::Bool, None, None;
+    D4BossRoom:         "034", "ChP D4 boss room (stored; shown as 60 − x)", FieldKind::UInt, None, None;
+    CraftingBoost:      "X",   "ChP Crafting boost",                      FieldKind::UInt, None, None;
+    SpaceDimBoost:      "014", "ChP SpaceDim boost",                      FieldKind::UInt, None, None;
+    SelfReplicatingAi:  "040", "ChP Self Replicating AI boost",          FieldKind::UInt, None, None;
+}
 
 /// Title each element from one of its fields (id → name).
 const fn elem(key: &'static str, resolve: Resolve) -> Option<ElementName> {
