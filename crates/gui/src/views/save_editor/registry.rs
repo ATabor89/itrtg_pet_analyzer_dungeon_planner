@@ -40,6 +40,7 @@ pub enum SectionId {
     SpaceDim,
     Divinity,
     Crystal,
+    AfkyGod,
     RawTree,
 }
 
@@ -67,6 +68,7 @@ impl SectionId {
         SectionId::SpaceDim,
         SectionId::Divinity,
         SectionId::Crystal,
+        SectionId::AfkyGod,
         SectionId::RawTree,
     ];
 
@@ -93,6 +95,7 @@ impl SectionId {
             SectionId::SpaceDim => "SpaceDim",
             SectionId::Divinity => "Divinity Generator",
             SectionId::Crystal => "Crystal Factory",
+            SectionId::AfkyGod => "Afky God",
             SectionId::RawTree => "Raw Save Tree",
         }
     }
