@@ -74,10 +74,9 @@ impl SectionId {
     }
 }
 
-/// How a scalar field should be edited and validated.
-///
-/// `Bool`/`Text` aren't used by a seeded *Resources* field yet — they exist for
-/// sections added next (the resources editor already handles them).
+/// How a scalar field should be edited and validated. Block fields derive this
+/// from their `save_block!` descriptor kind (via `widget_kind`); explicit
+/// (Resources) fields set it directly.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[allow(dead_code)]
 pub enum FieldKind {
