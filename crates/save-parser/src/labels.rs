@@ -685,6 +685,23 @@ save_block! {
 }
 
 save_block! {
+    /// Afky God — single struct at `X.t` (the AFK god that fires at clones for
+    /// idle exp). Player-confirmed fields: `a.a` = god power, `b.a` = firing
+    /// speed, `c.a` = clone HP, `d.a` = clone count, `g` = experience, `h` =
+    /// clones killed, `i` = exp multiplier. The `a/b/c/d` structs' `b` sub-field
+    /// and the `e`/`f` scalars are unconfirmed and left unlabeled. Most values
+    /// are BigDoubles (so kept as text); the counts are unsigned ints.
+    AfkyGodField => AFKY_GOD_FIELDS;
+    Power:        "a.a", "Power",          FieldKind::Text, None, None;
+    FiringSpeed:  "b.a", "Firing Speed",   FieldKind::Text, None, None;
+    CloneHp:      "c.a", "Clone HP",       FieldKind::Text, None, None;
+    CloneCount:   "d.a", "Clone Count",    FieldKind::UInt, None, None;
+    Experience:   "g",   "Experience",     FieldKind::Text, None, None;
+    ClonesKilled: "h",   "Clones Killed",  FieldKind::UInt, None, None;
+    ExpMultiplier:"i",   "Exp Multiplier", FieldKind::Text, None, None;
+}
+
+save_block! {
     /// Baal-Slayer (TBS) component levels — single struct at `S`.
     TbsField => TBS_FIELDS;
     Eyes:  "b", "Eyes Level",  FieldKind::UInt, None, None;
@@ -912,6 +929,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["X", "w", "b"], name: "Crystal Module", plural: "Crystal Modules", is_list: true, element_name: elem("a", Resolve::CrystalModule), fields: CRYSTAL_MODULE_FIELDS },
     BlockSchema { base: &["X", "w", "b", "*", "e"], name: "Module Clones", plural: "Module Clones", is_list: true, element_name: elem("a", Resolve::CrystalModule), fields: CRYSTAL_CLONE_FIELDS },
     BlockSchema { base: &["X", "w", "e"], name: "Factory Clones", plural: "Factory Clones", is_list: true, element_name: elem("a", Resolve::CrystalModule), fields: CRYSTAL_CLONE_FIELDS },
+    BlockSchema { base: &["X", "t"], name: "Afky God", plural: "Afky God", is_list: false, element_name: None, fields: AFKY_GOD_FIELDS },
     BlockSchema { base: &["T"], name: "Planet (Ultimate Beings)", plural: "Planet (Ultimate Beings)", is_list: false, element_name: None, fields: PLANET_FIELDS },
     BlockSchema { base: &["T", "f"], name: "Ultimate Being", plural: "Ultimate Beings", is_list: true, element_name: elem("c", Resolve::UltimateBeing), fields: ULTIMATE_BEING_FIELDS },
     BlockSchema { base: &["T", "k"], name: "Ultimate Being V2", plural: "Ultimate Beings V2", is_list: true, element_name: elem("c", Resolve::UltimateBeingV2), fields: UB_V2_FIELDS },
