@@ -1,5 +1,6 @@
 //! Progression-track sections: Creations (`i`), Monuments (`D`), Might (`V`),
-//! and SpaceDim / Light-Dimension elements (`009.b`).
+//! SpaceDim / Light-Dimension elements (`009.b`), and the Divinity Generator
+//! upgrades (`K.l`, via [`show_divinity`] which adds a read-only context header).
 //!
 //! These four are structurally the same — a root list whose elements carry an id
 //! (resolved to a name), a level/amount, and a handful of stat fields — so they
