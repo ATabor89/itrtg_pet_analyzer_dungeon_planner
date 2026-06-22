@@ -67,13 +67,27 @@ struct StatueRow {
     level: String,
 }
 
+/// State for the "Add statue" modal.
+#[derive(Default)]
+struct AddStatueState {
+    open: bool,
+    id: u32,
+    level: String,
+}
+
 #[derive(Default)]
 pub struct VillageEditState {
     /// Buffers for the building scalar fields, keyed by dotted path.
     scalar_buffers: HashMap<String, String>,
     /// Per-row buffers for statue levels (`024.f.a` index).
     statue_buffers: HashMap<usize, String>,
+    add_statue: AddStatueState,
     status: Option<(String, bool)>,
+}
+
+/// The known museum statue ids (the `JBGNCMHGOFI` enum, 1..=11), for the picker.
+fn known_statues() -> Vec<(u32, &'static str)> {
+    (1..=11u32).filter_map(|id| items::statue_name(id).map(|n| (id, n))).collect()
 }
 
 fn read_statues(session: &EditSession) -> Vec<StatueRow> {
@@ -143,7 +157,13 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut VillageEditSt
 
     ui.add_space(8.0);
     ui.separator();
-    ui.label(RichText::new("Museum Statues").strong());
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Museum Statues").strong());
+        if ui.button("➕ Add statue").clicked() {
+            let id = known_statues().first().map_or(1, |(id, _)| *id);
+            st.add_statue = AddStatueState { open: true, id, level: "20".into() };
+        }
+    });
     if statues.is_empty() {
         ui.label(RichText::new("No statues.").color(style::TEXT_MUTED));
     } else {
@@ -166,6 +186,70 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut VillageEditSt
     if ok && !had_err {
         st.status = Some(("Staged Pet Village edit".to_string(), false));
     }
+
+    // Add-statue modal.
+    if let Some((id, level)) = add_statue_window(ui.ctx(), &mut st.add_statue) {
+        let label = format!("{} statue", items::statue_name(id).unwrap_or("Statue"));
+        st.status = Some(match session.add_statue(id, level, label) {
+            Ok(()) => ("Added statue".to_string(), false),
+            Err(e) => (format!("Add failed: {e}"), true),
+        });
+    }
+}
+
+/// The "Add statue" modal. Returns `Some((statue_id, level))` on Add.
+fn add_statue_window(ctx: &egui::Context, st: &mut AddStatueState) -> Option<(u32, u32)> {
+    if !st.open {
+        return None;
+    }
+    let mut result = None;
+    let mut close = false;
+    let mut window_open = true;
+    egui::Window::new("Add Statue")
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut window_open)
+        .show(ctx, |ui| {
+            let opts = known_statues();
+            let selected = opts
+                .iter()
+                .find(|(id, _)| *id == st.id)
+                .map_or_else(|| format!("id {}", st.id), |(_, n)| (*n).to_string());
+            ui.horizontal(|ui| {
+                ui.label("Statue:");
+                egui::ComboBox::from_id_salt("village_add_statue")
+                    .selected_text(selected)
+                    .width(200.0)
+                    .show_ui(ui, |ui| {
+                        for (id, name) in &opts {
+                            ui.selectable_value(&mut st.id, *id, *name);
+                        }
+                    });
+            });
+            ui.horizontal(|ui| {
+                ui.label("Level:");
+                ui.add(egui::TextEdit::singleline(&mut st.level).desired_width(80.0));
+                ui.label(RichText::new("(max 20)").color(style::TEXT_MUTED).size(10.0));
+            });
+            ui.label(
+                RichText::new("Statues aren't unique — you can own two of each.")
+                    .color(style::TEXT_MUTED)
+                    .size(10.0),
+            );
+            ui.separator();
+            ui.horizontal(|ui| {
+                let level_ok = st.level.trim().parse::<u32>().is_ok_and(|n| n <= 20);
+                if ui.add_enabled(level_ok, egui::Button::new("Add")).clicked() {
+                    result = Some((st.id, st.level.trim().parse().unwrap()));
+                    close = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    close = true;
+                }
+            });
+        });
+    st.open = window_open && !close;
+    result
 }
 
 /// A labeled, validated editable scalar; stages an edit into `edits` on change.

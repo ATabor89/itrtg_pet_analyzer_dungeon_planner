@@ -230,6 +230,19 @@ pub fn add_core(root: &mut raw::Raw, enemy_id: u32, count: &str, quality: u32) -
     Ok(())
 }
 
+/// Append a museum statue `{a:level, b:statue_id}` to `024.f.a` (creating the
+/// list if absent). Statues aren't unique — a museum can hold duplicates — so
+/// this is a pure append, not an upsert.
+pub fn add_statue(root: &mut raw::Raw, statue_id: u32, level: u32) -> Result<()> {
+    let val = |s: String| raw::Field::Value(raw::Raw::Scalar(s));
+    let entry = raw::Raw::Struct(vec![
+        ("a".into(), val(level.to_string())),
+        ("b".into(), val(statue_id.to_string())),
+    ]);
+    ensure_list_at(root, &["024", "f", "a"])?.push(entry);
+    Ok(())
+}
+
 /// A material-inventory element `{a:id, b:count}`.
 fn material_entry(id: &str, count: &str) -> raw::Raw {
     let val = |s: &str| raw::Field::Value(raw::Raw::Scalar(s.to_string()));
