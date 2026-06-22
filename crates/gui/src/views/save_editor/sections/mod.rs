@@ -9,6 +9,7 @@ pub mod challenges;
 pub mod dungeons;
 pub mod equip_builder;
 pub mod equipment;
+pub mod fishing;
 pub mod gems;
 pub mod inventory;
 pub mod pets;
