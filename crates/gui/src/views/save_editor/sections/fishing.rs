@@ -46,6 +46,9 @@ fn mat_name(id: u32) -> String {
     items::material_name(id).map_or_else(|| format!("id {id}"), str::to_string)
 }
 
+// `025.g`/`h`/`i` are fixed type-lists (one entry per rod/bait/fish type — 4/5/23
+// on the reference save, present even at count 0), so they're always real
+// multi-element `Raw::List`s; the lone-struct (1-element) case can't arise here.
 fn read_rods(session: &EditSession) -> Vec<RodRow> {
     let Some(Raw::List(items_list)) = session.root().get_path(&["025", "g"]) else {
         return Vec::new();
@@ -292,7 +295,7 @@ mod tests {
 
     #[test]
     fn mat_name_resolves_and_falls_back() {
-        // 500 = Wooden Rod (a known fishing material); an unknown id falls back.
+        // 500 = Stick Rod (a known fishing material); an unknown id falls back.
         assert!(items::material_name(500).is_some());
         assert_eq!(mat_name(999_999), "id 999999");
     }
