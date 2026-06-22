@@ -23,7 +23,7 @@ use registry::{FieldRegistry, SectionId};
 use session::EditSession;
 use sections::{
     adventure, campaigns, challenges, dungeons, equipment, fishing, gems, inventory, pets, planet,
-    raw_tree, resources, stats, village,
+    progression, raw_tree, resources, stats, village,
 };
 
 #[derive(Default)]
@@ -57,6 +57,10 @@ pub struct SaveEditorState {
     adventure: adventure::AdventureEditState,
     fishing: fishing::FishingEditState,
     village: village::VillageEditState,
+    creations: progression::ProgEditState,
+    monuments: progression::ProgEditState,
+    might: progression::ProgEditState,
+    spacedim: progression::ProgEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -134,6 +138,10 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         adventure: adventure_state,
         fishing: fishing_state,
         village: village_state,
+        creations: creations_state,
+        monuments: monuments_state,
+        might: might_state,
+        spacedim: spacedim_state,
         buffers,
         ..
     } = state;
@@ -194,6 +202,16 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     SectionId::Adventure => adventure::show(ui, session, adventure_state),
                     SectionId::Fishing => fishing::show(ui, session, fishing_state),
                     SectionId::Village => village::show(ui, session, village_state),
+                    SectionId::Creations => {
+                        progression::show_creations(ui, session, creations_state)
+                    }
+                    SectionId::Monuments => {
+                        progression::show_monuments(ui, session, monuments_state)
+                    }
+                    SectionId::Might => progression::show_might(ui, session, might_state),
+                    SectionId::SpaceDim => {
+                        progression::show_spacedim(ui, session, spacedim_state)
+                    }
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,

@@ -34,6 +34,10 @@ pub enum SectionId {
     Adventure,
     Fishing,
     Village,
+    Creations,
+    Monuments,
+    Might,
+    SpaceDim,
     RawTree,
 }
 
@@ -55,6 +59,10 @@ impl SectionId {
         SectionId::Adventure,
         SectionId::Fishing,
         SectionId::Village,
+        SectionId::Creations,
+        SectionId::Monuments,
+        SectionId::Might,
+        SectionId::SpaceDim,
         SectionId::RawTree,
     ];
 
@@ -75,6 +83,10 @@ impl SectionId {
             SectionId::Adventure => "Adventure",
             SectionId::Fishing => "Fishing",
             SectionId::Village => "Pet Village",
+            SectionId::Creations => "Creations",
+            SectionId::Monuments => "Monuments",
+            SectionId::Might => "Might",
+            SectionId::SpaceDim => "SpaceDim",
             SectionId::RawTree => "Raw Save Tree",
         }
     }
