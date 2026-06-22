@@ -12,7 +12,10 @@ use std::collections::HashMap;
 
 use eframe::egui::{self, RichText};
 use egui_extras::{Column, TableBuilder};
-use save_parser::labels::{AdventureItemField, AdventurerField, ClassProgressionField, CoreField, ResearchField};
+use save_parser::labels::{
+    AdvProfessionField, AdventureItemField, AdventurerField, ClassProgressionField, CoreField,
+    ResearchField,
+};
 use save_parser::raw::Raw;
 use save_parser::{items, model};
 
@@ -50,6 +53,15 @@ struct SkillRow {
     skill_id: u32,
     name: String,
     level: String,
+}
+
+/// One side-profession row (`032.j.<index>`).
+struct ProfRow {
+    index: usize,
+    prof_id: u32,
+    name: String,
+    level: String,
+    exp: String,
 }
 
 struct CoreRow {
@@ -225,6 +237,27 @@ fn read_battle_skills(session: &EditSession) -> Vec<SkillRow> {
         .collect()
 }
 
+fn read_professions(session: &EditSession) -> Vec<ProfRow> {
+    let Some(Raw::List(list)) = session.root().get_path(&["032", "j"]) else {
+        return Vec::new();
+    };
+    (0..list.len())
+        .map(|index| {
+            let i = index.to_string();
+            let at = |k: &str| session.value(&["032", "j", &i, k]).unwrap_or_default();
+            let prof_id: u32 = at(AdvProfessionField::Profession.key()).trim().parse().unwrap_or(0);
+            ProfRow {
+                index,
+                prof_id,
+                name: items::adventure_profession_name(prof_id)
+                    .map_or_else(|| format!("Profession {prof_id}"), str::to_string),
+                level: at(AdvProfessionField::Level.key()),
+                exp: at(AdvProfessionField::Exp.key()),
+            }
+        })
+        .collect()
+}
+
 pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut AdventureEditState) {
     ui.heading("Adventure");
 
@@ -241,6 +274,7 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut AdventureEdit
     let items_rows = read_items(session);
     let cores = read_cores(session);
     let class_rows = read_class_progression(session);
+    let prof_rows = read_professions(session);
     let research_rows = read_research(session);
     let skill_rows = read_battle_skills(session);
     // Adventurer summary scalars (032.b): a = active class, b = level, c = exp.
@@ -311,6 +345,21 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut AdventureEdit
         scalar_cell(ui, st, &["032", "b", AdventurerField::Exp.key()], "Exp", None, &mut edits, session);
         ui.end_row();
     });
+
+    // --- Professions (Crafting / Smithing / Alchemy / …) ---
+    ui.add_space(8.0);
+    ui.separator();
+    ui.label(RichText::new("Professions").strong());
+    ui.label(
+        RichText::new("Side-profession level & exp. The next-level threshold is computed, so only level and exp are stored.")
+            .color(style::TEXT_MUTED)
+            .size(11.0),
+    );
+    if prof_rows.is_empty() {
+        ui.label(RichText::new("No professions in this save.").color(style::TEXT_MUTED));
+    } else {
+        prof_table(ui, st, &prof_rows, &mut edits);
+    }
 
     // --- Class progression ---
     ui.add_space(8.0);
@@ -606,6 +655,29 @@ fn edit_cell(
     }
 }
 
+/// Like [`edit_cell`] but for a BigDouble field (e.g. profession exp): stages on
+/// any finite number, written verbatim so decimals / large magnitudes survive.
+fn big_cell(
+    ui: &mut egui::Ui,
+    buffers: &mut HashMap<String, String>,
+    path: &[&str],
+    current: &str,
+    label: String,
+    edits: &mut Vec<(Vec<String>, String, String)>,
+) {
+    let key = path.join(".");
+    let buf = buffers.entry(key).or_insert_with(|| current.to_string());
+    let resp = ui.add(egui::TextEdit::singleline(buf).desired_width(140.0));
+    if resp.changed() {
+        let v = buf.trim();
+        if v.parse::<f64>().is_ok_and(f64::is_finite) && v != current.trim() {
+            edits.push((path.iter().map(|s| s.to_string()).collect(), label, v.to_string()));
+        }
+    } else if !resp.has_focus() && buf.trim() != current.trim() {
+        *buf = current.to_string();
+    }
+}
+
 /// A labeled editable scalar in a grid; reads its current value from `session`.
 fn scalar_cell(
     ui: &mut egui::Ui,
@@ -666,6 +738,57 @@ fn class_table(
                         &row.exp,
                         format!("{} exp", row.name),
                         None,
+                        edits,
+                    );
+                });
+            });
+        });
+}
+
+fn prof_table(
+    ui: &mut egui::Ui,
+    st: &mut AdventureEditState,
+    rows: &[ProfRow],
+    edits: &mut Vec<(Vec<String>, String, String)>,
+) {
+    TableBuilder::new(ui)
+        .striped(true)
+        .id_salt("adv_professions")
+        .column(Column::initial(160.0)) // profession
+        .column(Column::initial(100.0)) // level
+        .column(Column::remainder()) // exp
+        .header(20.0, |mut h| {
+            for title in ["Profession", "Level", "Exp"] {
+                h.col(|ui| {
+                    ui.label(RichText::new(title).strong().size(12.0));
+                });
+            }
+        })
+        .body(|body| {
+            body.rows(24.0, rows.len(), |mut tr| {
+                let row = &rows[tr.index()];
+                let idx = row.index.to_string();
+                tr.col(|ui| {
+                    ui.label(&row.name).on_hover_text(format!("profession id {}", row.prof_id));
+                });
+                tr.col(|ui| {
+                    edit_cell(
+                        ui,
+                        &mut st.cell_buffers,
+                        &["032", "j", &idx, AdvProfessionField::Level.key()],
+                        &row.level,
+                        format!("{} level", row.name),
+                        None,
+                        edits,
+                    );
+                });
+                tr.col(|ui| {
+                    big_cell(
+                        ui,
+                        &mut st.cell_buffers,
+                        &["032", "j", &idx, AdvProfessionField::Exp.key()],
+                        &row.exp,
+                        format!("{} exp", row.name),
                         edits,
                     );
                 });
@@ -804,9 +927,17 @@ mod tests {
             ("f".into(), Field::Value(classes)),
             ("g".into(), Field::Value(skills)),
         ]);
+        let professions = Raw::List(vec![
+            Raw::Struct(vec![("a".into(), sc("1")), ("b".into(), sc("20")), ("c".into(), sc("11.89"))]),
+            Raw::Struct(vec![("a".into(), sc("5")), ("b".into(), sc("14")), ("c".into(), sc("934.54"))]),
+        ]);
         let h = Raw::Struct(vec![("a".into(), Field::Value(research))]);
         // Nested structs are base64-wrapped in real saves.
-        let blk = Raw::Struct(vec![("H".into(), b64(h)), ("b".into(), b64(b))]);
+        let blk = Raw::Struct(vec![
+            ("H".into(), b64(h)),
+            ("b".into(), b64(b)),
+            ("j".into(), Field::Value(professions)),
+        ]);
         let root = Raw::Struct(vec![("032".into(), b64(blk))]);
         EditSession::load(&encode_container(&root.serialize(), "V2"), None).unwrap()
     }
@@ -840,5 +971,17 @@ mod tests {
         assert_eq!(rows[0].name, "Basic Attack");
         assert_eq!(rows[1].name, "Magic Arrow");
         assert_eq!(rows[1].level, "11");
+    }
+
+    #[test]
+    fn professions_resolve_names_levels_and_decimal_exp() {
+        let s = adv_session();
+        let rows = read_professions(&s);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].name, "Crafting");
+        assert_eq!(rows[0].level, "20");
+        assert_eq!(rows[1].name, "Alchemy");
+        assert_eq!(rows[1].level, "14");
+        assert_eq!(rows[1].exp, "934.54"); // decimal BigDouble preserved
     }
 }

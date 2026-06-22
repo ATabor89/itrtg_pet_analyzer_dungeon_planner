@@ -1099,6 +1099,14 @@ pub fn crystal_module_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// Adventure-mode side-profession by id — the `DCCKNPICIKG` enum (`032.j[i].a`).
+/// Confirmed against the save (ids 1–5 present). 0 = None, 6 = Battle.
+pub fn adventure_profession_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 7] =
+        ["None", "Crafting", "Smithing", "Mining", "Researching", "Alchemy", "Battle"];
+    NAMES.get(id as usize).copied()
+}
+
 /// Challenge name by id — the `OIDDHCOBPLG` enum (challenge struct field `a`,
 /// `root.x.242` completion list). Ids are the enum's declaration order (None=0).
 /// Display names come from the in-game name strings in `KPLPGPEOFNB` matched to
