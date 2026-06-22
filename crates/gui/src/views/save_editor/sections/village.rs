@@ -62,7 +62,10 @@ const BUILDINGS: &[Building] = &[
 ];
 
 struct StatueRow {
-    index: usize,
+    /// Full raw path of the level (`a`) field — either list-index form
+    /// (`024.f.a.<i>.a`) or, for a single statue stored as a lone struct,
+    /// `024.f.a.a`.
+    level_path: Vec<String>,
     name: String,
     level: String,
 }
@@ -79,8 +82,8 @@ struct AddStatueState {
 pub struct VillageEditState {
     /// Buffers for the building scalar fields, keyed by dotted path.
     scalar_buffers: HashMap<String, String>,
-    /// Per-row buffers for statue levels (`024.f.a` index).
-    statue_buffers: HashMap<usize, String>,
+    /// Per-row buffers for statue levels, keyed by the level field's dotted path.
+    statue_buffers: HashMap<String, String>,
     add_statue: AddStatueState,
     status: Option<(String, bool)>,
 }
@@ -91,21 +94,32 @@ fn known_statues() -> Vec<(u32, &'static str)> {
 }
 
 fn read_statues(session: &EditSession) -> Vec<StatueRow> {
-    let Some(Raw::List(items_list)) = session.root().get_path(&["024", "f", "a"]) else {
-        return Vec::new();
+    // A single statue re-parses as a lone struct (a 1-element `&`-list collapses),
+    // so handle both the list form and the lone-struct form.
+    let prefixes: Vec<Vec<String>> = match session.root().get_path(&["024", "f", "a"]) {
+        Some(Raw::List(items)) => (0..items.len())
+            .map(|i| vec!["024".to_string(), "f".into(), "a".into(), i.to_string()])
+            .collect(),
+        Some(Raw::Struct(_)) => vec![vec!["024".to_string(), "f".into(), "a".into()]],
+        _ => return Vec::new(),
     };
-    (0..items_list.len())
-        .map(|index| {
-            let i = index.to_string();
+    prefixes
+        .into_iter()
+        .map(|prefix| {
             // MUSEUM_STATUE_FIELDS: a = level, b = statue id.
-            let id: u32 = session
-                .value(&["024", "f", "a", &i, "b"])
-                .and_then(|s| s.trim().parse().ok())
-                .unwrap_or(0);
+            let val = |k: &str| {
+                let mut path = prefix.clone();
+                path.push(k.to_string());
+                let p: Vec<&str> = path.iter().map(String::as_str).collect();
+                session.value(&p).unwrap_or_default()
+            };
+            let id: u32 = val("b").trim().parse().unwrap_or(0);
+            let mut level_path = prefix.clone();
+            level_path.push("a".to_string());
             StatueRow {
-                index,
+                level_path,
                 name: items::statue_name(id).map_or_else(|| format!("Statue {id}"), str::to_string),
-                level: session.value(&["024", "f", "a", &i, "a"]).unwrap_or_default(),
+                level: val("a"),
             }
         })
         .collect()
@@ -301,13 +315,14 @@ fn statue_table(
                     ui.label(&row.name);
                 });
                 tr.col(|ui| {
-                    let buf = st.statue_buffers.entry(row.index).or_insert_with(|| row.level.clone());
+                    let key = row.level_path.join(".");
+                    let buf = st.statue_buffers.entry(key).or_insert_with(|| row.level.clone());
                     let resp = ui.add(egui::TextEdit::singleline(buf).desired_width(80.0));
                     if resp.changed() {
                         let v = buf.trim();
                         if v.parse::<u64>().is_ok() && v != row.level.trim() {
                             edits.push((
-                                vec!["024".into(), "f".into(), "a".into(), row.index.to_string(), "a".into()],
+                                row.level_path.clone(),
                                 format!("{} level", row.name),
                                 v.to_string(),
                             ));
@@ -323,6 +338,42 @@ fn statue_table(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use save_parser::container::encode_container;
+    use save_parser::raw::Field;
+
+    fn sc(s: &str) -> Field {
+        Field::Value(Raw::Scalar(s.into()))
+    }
+    fn b64(r: Raw) -> Field {
+        Field::Value(Raw::Base64(Box::new(r)))
+    }
+
+    /// Add a statue to an EMPTY museum, save+reload, and confirm it still shows.
+    /// A 1-element list collapses to a lone struct on reload — this is the exact
+    /// scenario "Add statue" targets, so read_statues must handle it.
+    #[test]
+    fn add_first_statue_survives_reload_as_lone_struct() {
+        // Pet Village with a museum (024.f) but NO statues yet, nested base64
+        // like a real save.
+        let museum = Raw::Struct(vec![("b".into(), sc("1"))]); // some field, no `a` list
+        let village = Raw::Struct(vec![("f".into(), b64(museum))]);
+        let root = Raw::Struct(vec![("024".into(), b64(village))]);
+        let mut s = EditSession::load(&encode_container(&root.serialize(), "V2"), None).unwrap();
+        s.add_statue(8, 15, "Halloween 2025 statue").unwrap();
+
+        // Round-trip through a save+reload so the 1-element list collapses.
+        let encoded = s.encode();
+        let reloaded = EditSession::load(&encoded, None).unwrap();
+        let rows = read_statues(&reloaded);
+        assert_eq!(rows.len(), 1, "the single statue must still be visible after reload");
+        assert_eq!(rows[0].name, "Halloween 2025");
+        assert_eq!(rows[0].level, "15");
+        // The level edit path must target the lone-struct field, not an index.
+        assert_eq!(rows[0].level_path, vec!["024", "f", "a", "a"]);
+        // And it's editable via that path.
+        let p: Vec<&str> = rows[0].level_path.iter().map(String::as_str).collect();
+        assert_eq!(reloaded.value(&p).as_deref(), Some("15"));
+    }
 
     #[test]
     fn buildings_cover_the_expected_groups() {
