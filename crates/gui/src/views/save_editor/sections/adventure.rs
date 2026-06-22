@@ -34,12 +34,26 @@ struct CoreRow {
     quality: u32,
 }
 
+/// State for the "add item" / "add core" modal.
+#[derive(Default)]
+struct AddState {
+    open: bool,
+    /// `false` = add an inventory item, `true` = add a core.
+    is_core: bool,
+    /// Chosen item id (inventory) or enemy id (core).
+    id: u32,
+    count: String,
+    /// Core quality (cores only).
+    quality: u32,
+}
+
 #[derive(Default)]
 pub struct AdventureEditState {
     /// Adventure-inventory name filter.
     f_name: String,
     /// Per-row count buffers (keyed by `032.d` index).
     item_buffers: HashMap<usize, String>,
+    add: AddState,
     status: Option<(String, bool)>,
 }
 
@@ -122,6 +136,10 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut AdventureEdit
     ui.horizontal(|ui| {
         ui.label(RichText::new("Adventure Inventory").strong());
         ui.label(RichText::new("· edit item counts").color(style::TEXT_MUTED).size(11.0));
+        if ui.button("➕ Add item").clicked() {
+            let id = items::known_adventure_items().first().map_or(0, |(id, _)| *id);
+            st.add = AddState { open: true, is_core: false, id, count: "1".into(), quality: 0 };
+        }
     });
     ui.horizontal(|ui| {
         ui.label(RichText::new("Filter:").color(style::TEXT_MUTED));
@@ -148,6 +166,10 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut AdventureEdit
     ui.horizontal(|ui| {
         ui.label(RichText::new("Cores").strong());
         ui.label(RichText::new("· upgrade core quality").color(style::TEXT_MUTED).size(11.0));
+        if ui.button("➕ Add core").clicked() {
+            let id = items::known_adventure_enemies().first().map_or(0, |(id, _)| *id);
+            st.add = AddState { open: true, is_core: true, id, count: "1".into(), quality: 8 };
+        }
     });
     if cores.is_empty() {
         ui.label(RichText::new("No cores in this save.").color(style::TEXT_MUTED));
@@ -171,6 +193,104 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut AdventureEdit
     if ok && !had_err {
         st.status = Some(("Staged adventure edit".to_string(), false));
     }
+
+    // Add-entry modal (item or core).
+    if let Some((is_core, id, count, quality)) = add_window(ui.ctx(), &mut st.add) {
+        if is_core {
+            let label = format!(
+                "{} core",
+                items::adventure_enemy_name(id).unwrap_or("Enemy")
+            );
+            st.status = Some(match session.set_core(id, count.trim(), quality, label) {
+                Ok(true) => ("Added core".to_string(), false),
+                Ok(false) => ("Updated existing core".to_string(), false),
+                Err(e) => (format!("Add failed: {e}"), true),
+            });
+        } else {
+            let label = format!(
+                "{} count",
+                items::adventure_item_name(id).unwrap_or("Item")
+            );
+            st.status = Some(match session.set_adventure_item(id, count.trim(), label) {
+                Ok(true) => ("Added adventure item".to_string(), false),
+                Ok(false) => ("Updated existing item".to_string(), false),
+                Err(e) => (format!("Add failed: {e}"), true),
+            });
+        }
+    }
+}
+
+/// The add-item / add-core modal. Returns `Some((is_core, id, count, quality))`
+/// on Add. Pickers are alphabetized like the challenges add dialog.
+fn add_window(ctx: &egui::Context, st: &mut AddState) -> Option<(bool, u32, String, u32)> {
+    if !st.open {
+        return None;
+    }
+    let is_core = st.is_core;
+    let mut result = None;
+    let mut close = false;
+    let mut window_open = true;
+    let title = if is_core { "Add Core" } else { "Add Item" };
+    egui::Window::new(title)
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut window_open)
+        .show(ctx, |ui| {
+            let mut opts = if is_core {
+                items::known_adventure_enemies()
+            } else {
+                items::known_adventure_items()
+            };
+            opts.sort_by(|a, b| a.1.cmp(b.1));
+            let selected = opts
+                .iter()
+                .find(|(id, _)| *id == st.id)
+                .map_or_else(|| format!("id {}", st.id), |(_, n)| (*n).to_string());
+            ui.horizontal(|ui| {
+                ui.label(if is_core { "Enemy:" } else { "Item:" });
+                egui::ComboBox::from_id_salt("adv_add_pick")
+                    .selected_text(selected)
+                    .width(240.0)
+                    .show_ui(ui, |ui| {
+                        for (id, name) in &opts {
+                            ui.selectable_value(&mut st.id, *id, *name);
+                        }
+                    });
+            });
+            ui.horizontal(|ui| {
+                ui.label("Count:");
+                ui.add(egui::TextEdit::singleline(&mut st.count).desired_width(100.0));
+                if is_core {
+                    ui.label("Quality:");
+                    egui::ComboBox::from_id_salt("adv_add_quality")
+                        .selected_text(quality_label(st.quality))
+                        .width(80.0)
+                        .show_ui(ui, |ui| {
+                            for q in 0..=8u32 {
+                                ui.selectable_value(&mut st.quality, q, quality_label(q));
+                            }
+                        });
+                }
+            });
+            ui.label(
+                RichText::new("If the entry already exists, this updates it instead.")
+                    .color(style::TEXT_MUTED)
+                    .size(10.0),
+            );
+            ui.separator();
+            ui.horizontal(|ui| {
+                let ok = st.count.trim().parse::<u64>().is_ok();
+                if ui.add_enabled(ok, egui::Button::new("Add")).clicked() {
+                    result = Some((is_core, st.id, st.count.trim().to_string(), st.quality));
+                    close = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    close = true;
+                }
+            });
+        });
+    st.open = window_open && !close;
+    result
 }
 
 fn item_table(

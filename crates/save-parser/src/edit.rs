@@ -202,6 +202,34 @@ pub fn add_gem(root: &mut raw::Raw, element: u32, level: u32, count: &str) -> Re
     Ok(())
 }
 
+/// Append an adventure-inventory item `{a:id, b:count, c:0, d:0}` to `032.d`
+/// (creating the list if absent). The caller upserts (edit existing, else add).
+pub fn add_adventure_item(root: &mut raw::Raw, item_id: u32, count: &str) -> Result<()> {
+    let val = |s: String| raw::Field::Value(raw::Raw::Scalar(s));
+    let entry = raw::Raw::Struct(vec![
+        ("a".into(), val(item_id.to_string())),
+        ("b".into(), val(count.to_string())),
+        ("c".into(), val("0".into())),
+        ("d".into(), val("0".into())),
+    ]);
+    ensure_list_at(root, &["032", "d"])?.push(entry);
+    Ok(())
+}
+
+/// Append an adventure core `{a:enemy, b:1, c:count, d:quality}` to `032.G`
+/// (creating the list if absent). The caller upserts by enemy id.
+pub fn add_core(root: &mut raw::Raw, enemy_id: u32, count: &str, quality: u32) -> Result<()> {
+    let val = |s: String| raw::Field::Value(raw::Raw::Scalar(s));
+    let entry = raw::Raw::Struct(vec![
+        ("a".into(), val(enemy_id.to_string())),
+        ("b".into(), val("1".into())),
+        ("c".into(), val(count.to_string())),
+        ("d".into(), val(quality.to_string())),
+    ]);
+    ensure_list_at(root, &["032", "G"])?.push(entry);
+    Ok(())
+}
+
 /// A material-inventory element `{a:id, b:count}`.
 fn material_entry(id: &str, count: &str) -> raw::Raw {
     let val = |s: &str| raw::Field::Value(raw::Raw::Scalar(s.to_string()));

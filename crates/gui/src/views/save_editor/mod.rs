@@ -345,6 +345,8 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<
             let mut undo_added_material: Option<usize> = None;
             let mut undo_added_gem: Option<usize> = None;
             let mut undo_added_challenge: Option<usize> = None;
+            let mut undo_added_adv_item: Option<usize> = None;
+            let mut undo_added_core: Option<usize> = None;
             let mut undo_removed: Option<usize> = None;
             // Cap the height so a huge batch doesn't run off-screen — scroll within.
             egui::ScrollArea::vertical()
@@ -492,6 +494,48 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<
                             });
                     }
 
+                    if !session.added_adventure_items().is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(
+                            RichText::new("Added adventure items").color(style::TEXT_MUTED).size(11.0),
+                        );
+                        egui::Grid::new("save_editor_added_adv_item_grid")
+                            .num_columns(2)
+                            .spacing([12.0, 4.0])
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for (i, a) in session.added_adventure_items().iter().enumerate() {
+                                    ui.label(
+                                        RichText::new(format!("+ {}", a.label)).color(style::SUCCESS),
+                                    );
+                                    if ui.small_button("undo").clicked() {
+                                        undo_added_adv_item = Some(i);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    }
+
+                    if !session.added_cores().is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("Added cores").color(style::TEXT_MUTED).size(11.0));
+                        egui::Grid::new("save_editor_added_core_grid")
+                            .num_columns(2)
+                            .spacing([12.0, 4.0])
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for (i, c) in session.added_cores().iter().enumerate() {
+                                    ui.label(
+                                        RichText::new(format!("+ {}", c.label)).color(style::SUCCESS),
+                                    );
+                                    if ui.small_button("undo").clicked() {
+                                        undo_added_core = Some(i);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    }
+
                     if !session.removed().is_empty() {
                         ui.add_space(4.0);
                         ui.label(RichText::new("Deleted").color(style::TEXT_MUTED).size(11.0));
@@ -526,6 +570,12 @@ fn pending_panel(ui: &mut egui::Ui, session: &mut EditSession, nav: &mut Option<
             }
             if let Some(i) = undo_added_challenge {
                 session.undo_added_challenge(i);
+            }
+            if let Some(i) = undo_added_adv_item {
+                session.undo_added_adventure_item(i);
+            }
+            if let Some(i) = undo_added_core {
+                session.undo_added_core(i);
             }
             if let Some(i) = undo_removed {
                 session.undo_removed(i);
