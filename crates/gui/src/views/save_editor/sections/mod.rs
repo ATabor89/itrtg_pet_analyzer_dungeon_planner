@@ -17,3 +17,4 @@ pub mod planet;
 pub mod raw_tree;
 pub mod resources;
 pub mod stats;
+pub mod village;
