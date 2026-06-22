@@ -579,8 +579,10 @@ fn core_table(
         });
 }
 
-/// An editable text cell backed by `buffers[path]`. Stages an edit when the
-/// value parses (any number; integer ≤ `max` when `max` is set) and differs.
+/// An editable text cell backed by `buffers[path]`. Every field routed through
+/// here (level / exp) is a non-negative integer in-game, so it stages an edit
+/// only when the value parses as a `u64` (and is ≤ `max` when `max` is set) and
+/// differs — rejecting floats, negatives, and `NaN`/`inf`.
 fn edit_cell(
     ui: &mut egui::Ui,
     buffers: &mut HashMap<String, String>,
@@ -595,8 +597,7 @@ fn edit_cell(
     let resp = ui.add(egui::TextEdit::singleline(buf).desired_width(110.0));
     if resp.changed() {
         let v = buf.trim();
-        let valid = v.parse::<f64>().is_ok()
-            && max.is_none_or(|m| v.parse::<u64>().is_ok_and(|n| n <= m));
+        let valid = v.parse::<u64>().is_ok_and(|n| max.is_none_or(|m| n <= m));
         if valid && v != current.trim() {
             edits.push((path.iter().map(|s| s.to_string()).collect(), label, v.to_string()));
         }
