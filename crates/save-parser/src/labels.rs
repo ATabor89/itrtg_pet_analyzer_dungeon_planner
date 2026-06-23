@@ -71,6 +71,8 @@ pub enum Resolve {
     /// Adventure-mode side-profession id → `items::adventure_profession_name`
     /// (1 Crafting … 5 Alchemy).
     AdventureProfession,
+    /// Tavern quest id → `items::tavern_quest_name` (10 AntQueen, 11 MagicTalk …).
+    TavernQuest,
     /// Adventure-mode item id → `items::adventure_item_name`.
     AdventureItem,
     /// Adventure-mode enemy/entity id → `items::adventure_enemy_name`.
@@ -450,6 +452,21 @@ save_block! {
     MaxConcurrent:  "j", "Max Concurrent Quests",    FieldKind::UInt, None, None;
     TavernKeeper:   "u", "Tavern Keeper (slot)",     FieldKind::Text, None, None;
     FavoriteQuests: "x", "Favorite Quests (&-list)", FieldKind::Text, None, None;
+}
+
+save_block! {
+    /// Tavern active quests — `024.b.a.<index>` (`EBBFLHGBFCN`, "Quest"). One per
+    /// running quest (a single quest collapses to a lone struct). `a` = quest id
+    /// (`HGAJAIFLFFL`), `b` = **elapsed timer ms** (counts up to a per-quest-type
+    /// target ≈ 12 h / 43,200,000 ms — set ≥ it to complete; the target itself is
+    /// runtime-only, not stored), `c` = the assigned pet type id (a list, but one
+    /// pet per quest so it's stored as a scalar), `d` = a random reward roll
+    /// (0–99, consumed as `d/20` for reward quality).
+    TavernQuestField => TAVERN_QUEST_FIELDS;
+    Quest:      "a", "Quest",            FieldKind::Id,   None, Some(Resolve::TavernQuest);
+    Timer:      "b", "Elapsed (ms)",     FieldKind::Text, None, None;
+    Pet:        "c", "Pet",              FieldKind::Id,   None, Some(Resolve::PetType);
+    RewardRoll: "d", "Reward Roll (0-99)", FieldKind::UInt, Some((0, 99)), None;
 }
 
 save_block! {
@@ -935,6 +952,7 @@ pub const BLOCKS: &[BlockSchema] = &[
     BlockSchema { base: &["T", "k"], name: "Ultimate Being V2", plural: "Ultimate Beings V2", is_list: true, element_name: elem("c", Resolve::UltimateBeingV2), fields: UB_V2_FIELDS },
     BlockSchema { base: &["024", "a"], name: "Village Building", plural: "Village Buildings", is_list: true, element_name: elem("g", Resolve::VillageBuilding), fields: VILLAGE_BUILDING_FIELDS },
     BlockSchema { base: &["024", "b"], name: "Tavern", plural: "Tavern", is_list: false, element_name: None, fields: TAVERN_FIELDS },
+    BlockSchema { base: &["024", "b", "a"], name: "Active Quest", plural: "Active Quests", is_list: true, element_name: elem("a", Resolve::TavernQuest), fields: TAVERN_QUEST_FIELDS },
     BlockSchema { base: &["024", "d"], name: "Dojo", plural: "Dojo", is_list: false, element_name: None, fields: DOJO_FIELDS },
     BlockSchema { base: &["024", "e"], name: "Strategy Room", plural: "Strategy Room", is_list: false, element_name: None, fields: STRATEGY_ROOM_FIELDS },
     BlockSchema { base: &["024", "f", "a"], name: "Museum Statue", plural: "Museum Statues", is_list: true, element_name: elem("b", Resolve::Statue), fields: MUSEUM_STATUE_FIELDS },
