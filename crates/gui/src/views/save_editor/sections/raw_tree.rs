@@ -61,6 +61,7 @@ fn resolve_name(resolve: Resolve, value: &str, root: &Raw) -> Option<String> {
         Resolve::AdventureProfession => {
             items::adventure_profession_name(v.parse().ok()?).map(str::to_string)
         }
+        Resolve::TavernQuest => items::tavern_quest_name(v.parse().ok()?).map(str::to_string),
         Resolve::AdventureItem => items::adventure_item_name(v.parse().ok()?).map(str::to_string),
         Resolve::AdventureEnemy => items::adventure_enemy_name(v.parse().ok()?).map(str::to_string),
         Resolve::AdventureClass => items::adventure_class_name(v.parse().ok()?).map(str::to_string),
