@@ -32,7 +32,8 @@ const BUILDINGS: &[Building] = &[
     Building {
         name: "Tavern",
         fields: &[
-            ScalarField { label: "Level", path: &["024", "b", "b"] },
+            ScalarField { label: "Tavern Level", path: &["024", "b", "v"] },
+            ScalarField { label: "Active Level (difficulty)", path: &["024", "b", "m"] },
             ScalarField { label: "Quest Points", path: &["024", "b", "d"] },
             ScalarField { label: "Quests Per Day", path: &["024", "b", "i"] },
             ScalarField { label: "Max Concurrent Quests", path: &["024", "b", "j"] },
@@ -199,6 +200,37 @@ fn read_quests(session: &EditSession) -> Vec<QuestRow> {
         .collect()
 }
 
+/// Quest Rank picker (`024.b.e`, 0 F … 9 Ult). Stored, recomputed from quest
+/// points on quest/load events — editing it sets the rank directly.
+fn quest_rank_combo(
+    ui: &mut egui::Ui,
+    session: &EditSession,
+    edits: &mut Vec<(Vec<String>, String, String)>,
+) {
+    let current: u32 =
+        session.value(&["024", "b", "e"]).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+    let rank_label = |id: u32| items::quest_rank_name(id).unwrap_or("?");
+    ui.horizontal(|ui| {
+        ui.label("Quest Rank");
+        let mut sel = current;
+        egui::ComboBox::from_id_salt("village_quest_rank")
+            .selected_text(rank_label(sel))
+            .width(70.0)
+            .show_ui(ui, |ui| {
+                for id in 0..=9u32 {
+                    ui.selectable_value(&mut sel, id, rank_label(id));
+                }
+            });
+        if sel != current {
+            edits.push((
+                vec!["024".into(), "b".into(), "e".into()],
+                "Quest Rank".to_string(),
+                sel.to_string(),
+            ));
+        }
+    });
+}
+
 /// Resolve a worker building's manager (`024.{g,h}.e`, pet type id; 999 = empty).
 fn manager_label(session: &EditSession, building: &str) -> String {
     match session.value(&["024", building, "e"]).and_then(|s| s.trim().parse::<u32>().ok()) {
@@ -236,11 +268,13 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut VillageEditSt
                 ui.end_row();
             }
         });
-        // Worker buildings: show the manager (read-only).
+        // Worker buildings: show the manager (read-only). Tavern: quest rank combo.
         if b.name == "Material Factory" {
             ui.label(RichText::new(format!("Manager: {factory_mgr}")).color(style::TEXT_MUTED).size(11.0));
         } else if b.name == "Alchemy Hut" {
             ui.label(RichText::new(format!("Manager: {alchemy_mgr}")).color(style::TEXT_MUTED).size(11.0));
+        } else if b.name == "Tavern" {
+            quest_rank_combo(ui, session, &mut edits);
         }
     }
 
