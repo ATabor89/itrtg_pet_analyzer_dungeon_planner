@@ -188,6 +188,8 @@ Confirmed (cross-save diff vs the two Main Stats exports):
 |---|---|---|
 | `j` | available GP | 1,297 → 1,662, +365 = GP/h gain between saves ✓ |
 | `v` | total GP spent | 60,852 in both ✓ |
+| `L` / `013` / `S` | **Daily-screen timers** (class `DFGCALKGABP`): `L` = free-draw (daily lucky-draw) countdown, `013` = bonus-pack countdown, `S` = daily-pack countdown. Stored as **remaining ms** (NOT wall-clock timestamps — they decrement each tick and reset to +24h on claim), so **set 0 = ready now** (`S` is a signed long, so `<0` also = ready; `L`/`013` clamp at 0). To shift *what time of day* it ticks over, write `desired_next_tick − now` ms. There is no separate stored daily anchor. | fixture ≈4.34e7 ms (~12h) each; reset adds 86,400,000 ms (`DFGCALKGABP` claim) — wired into Resources |
+| `012` / `T` | **Bonus packs left** (`012`) / **Daily packs left** (`T`) — plain counts | fixture both 44; wired into Resources |
 | `h` | GP-purchased **creating** speed % | 45,000 in both 2026-06-13 saves (CS left untouched) |
 | `i` | GP-purchased **building** speed % | 45,000 → 50,000 exactly as the user upgraded BS (and only BS) between the 2026-06-13 saves — disambiguates `h`=creating from `i`=building |
 | `q` | **creation count from god power** (the milestone-relevant number; export "Creation Count: 166" = base 1 + this; equipped-crystal bonuses are separate) | 165 in both saves ✓ |
