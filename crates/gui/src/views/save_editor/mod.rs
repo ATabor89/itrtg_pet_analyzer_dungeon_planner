@@ -22,7 +22,7 @@ use crate::style;
 use registry::{FieldRegistry, SectionId};
 use session::EditSession;
 use sections::{
-    adventure, afky_god, campaigns, challenges, crystal, dungeons, equipment, fishing, gems,
+    adventure, afky_god, campaigns, challenges, crystal, daily, dungeons, equipment, fishing, gems,
     inventory, pets, planet, progression, raw_tree, resources, stats, village,
 };
 
@@ -66,6 +66,7 @@ pub struct SaveEditorState {
     divinity: progression::ProgEditState,
     crystal: crystal::CrystalEditState,
     afky_god: afky_god::AfkyGodEditState,
+    daily: daily::DailyEditState,
     /// Shared per-path text-edit buffers (dotted path → in-progress text),
     /// used by every section so edits keep their cursor across frames. Assumes
     /// one editor per path per frame (only one section renders at a time).
@@ -151,6 +152,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         divinity: divinity_state,
         crystal: crystal_state,
         afky_god: afky_god_state,
+        daily: daily_state,
         buffers,
         ..
     } = state;
@@ -226,6 +228,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                     }
                     SectionId::Crystal => crystal::show(ui, session, crystal_state),
                     SectionId::AfkyGod => afky_god::show(ui, session, afky_god_state),
+                    SectionId::Daily => daily::show(ui, session, daily_state),
                     SectionId::RawTree => raw_tree::show(
                         ui,
                         session,
