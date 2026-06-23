@@ -1107,6 +1107,13 @@ pub fn adventure_profession_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// Tavern quest rank by id — the `GBFGHANMFII` enum (`024.b.e`): 0=F … 8=SSS,
+/// 9=Ult (the quality ladder plus an Ult top rank).
+pub fn quest_rank_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 10] = ["F", "E", "D", "C", "B", "A", "S", "SS", "SSS", "Ult"];
+    NAMES.get(id as usize).copied()
+}
+
 /// Tavern quest name by id — the `HGAJAIFLFFL` enum (`024.b.a[i].a`, the quest
 /// type a pet is running). Names are the enum identifiers verbatim.
 pub fn tavern_quest_name(id: u32) -> Option<&'static str> {
