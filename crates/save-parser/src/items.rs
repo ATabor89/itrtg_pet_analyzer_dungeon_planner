@@ -1107,6 +1107,28 @@ pub fn adventure_profession_name(id: u32) -> Option<&'static str> {
     NAMES.get(id as usize).copied()
 }
 
+/// Tavern quest name by id — the `HGAJAIFLFFL` enum (`024.b.a[i].a`, the quest
+/// type a pet is running). Names are the enum identifiers verbatim.
+pub fn tavern_quest_name(id: u32) -> Option<&'static str> {
+    const NAMES: [&str; 81] = [
+        "None", "BeanStalk", "Eggs", "ManyProblems", "SmithingWork", "PotionBrewing",
+        "MountainClimbing", "DefendTheVillage", "HealALot", "LockPicking", "AntQueen", "MagicTalk",
+        "Chocolate", "Zoo", "FriedChicken", "BasicTools", "RatProblem", "WitchRevenge", "Quagmire",
+        "Bequito", "SaveMouse", "Merchant", "CutePets", "Shopping", "FindFlies", "Ale",
+        "MonumentDefender", "LockedChest", "Milking", "ExoticTea", "CraftWeapon", "MagicTower",
+        "SadClones", "RepairShrine", "Mead", "Assassination", "TrappedFairies", "Curse", "Lottery",
+        "BlackHoleRemoval", "WyvernHunt", "Earthquake", "HideAndSeek", "BlackHoles", "Meteor",
+        "PowerfulBeings", "MageTraining", "AberrantBeings", "ElementalSummon", "HotSun",
+        "CreatureInOtherUniverse", "WizardInLove", "DragonAttack", "StopWatch", "BurgerHeal",
+        "VesuviusEruption", "Zeus", "Dirt", "FixHorseshoe", "Thief", "PhilosopherStone",
+        "SlimeInfestation", "WaterDroplets", "WolfMedicine", "Haposti", "Firewood", "Rumor",
+        "Slimewave", "WaterInHell", "ArchdemonsRaid", "Atlantis", "FloatingCity", "ForgottenTemple",
+        "HiddenValley", "NewMaterials", "BaalsJoke", "BeachWalking", "ColdSun", "UltimateDamage",
+        "UltimateSupport", "UltimateCraft",
+    ];
+    NAMES.get(id as usize).copied()
+}
+
 /// Adventure-class unlock metadata: `(tier, &[(prereq_class_id, required_level)])`.
 /// `tier` is the class's `d`/`NJDOCOGAJEM` rank (derived on load, written for
 /// fidelity). The prerequisites are the in-game class-change gate (`AOCFDHHLDDH`):
