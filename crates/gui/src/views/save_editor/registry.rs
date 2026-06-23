@@ -41,6 +41,7 @@ pub enum SectionId {
     Divinity,
     Crystal,
     AfkyGod,
+    Daily,
     RawTree,
 }
 
@@ -69,6 +70,7 @@ impl SectionId {
         SectionId::Divinity,
         SectionId::Crystal,
         SectionId::AfkyGod,
+        SectionId::Daily,
         SectionId::RawTree,
     ];
 
@@ -96,6 +98,7 @@ impl SectionId {
             SectionId::Divinity => "Divinity Generator",
             SectionId::Crystal => "Crystal Factory",
             SectionId::AfkyGod => "Afky God",
+            SectionId::Daily => "Daily",
             SectionId::RawTree => "Raw Save Tree",
         }
     }
@@ -258,7 +261,7 @@ fn push_block(out: &mut Vec<FieldDef>, block: &BlockSchema) {
 /// then the model-schema blocks expanded into wildcard patterns.
 fn seed() -> Vec<FieldDef> {
     use FieldKind::{Number, Text};
-    use SectionId::{RawTree, Resources};
+    use SectionId::{Daily, RawTree, Resources};
 
     let mut v = vec![
         // -- Resources & currencies (the structured section) --
@@ -280,16 +283,17 @@ fn seed() -> Vec<FieldDef> {
         def(&["p", "I"], "Pet Tokens", Number, Resources, "p.I"),
         def(&["p", "023"], "Class Change Tokens", Number, Resources, "p.023"),
         def(&["p", "K"], "Lucky Draws", Number, Resources, "p.K"),
-        // Daily screen (root `p`, class DFGCALKGABP): the three timers are stored
-        // COUNTDOWNS in ms (not wall-clock anchors) that tick down and reset to
-        // +24h on claim — set a timer to 0 to make it ready now (the daily pack
-        // `p.S` is a signed long, so <0 also = ready). The packs-left are counts.
-        def(&["p", "L"], "Free Draw Timer (ms, 0 = ready)", Number, Resources, "Daily free draw / lucky draw countdown (p.L)"),
-        def(&["p", "013"], "Bonus Pack Timer (ms, 0 = ready)", Number, Resources, "Countdown to the next bonus pack (p.013)"),
-        def(&["p", "012"], "Bonus Packs Left", Number, Resources, "p.012"),
-        def(&["p", "S"], "Daily Pack Timer (ms, ≤0 = ready)", Number, Resources, "Countdown to the next daily pack; signed (p.S)"),
-        def(&["p", "T"], "Daily Packs Left", Number, Resources, "p.T"),
         def(&["X", "c"], "Puny Food", Number, Resources, "X.c"),
+        // Daily screen — rendered by the hand-built Daily section (sections/daily.rs);
+        // these defs supply the raw-tree labels. Timers are stored COUNTDOWNS in ms
+        // (set 0 = ready; the daily pack `p.S` is signed, so ≤0 = ready). Bonus
+        // Points actually live on the pet object at `X.q`.
+        def(&["p", "L"], "Free Draw Timer (ms)", Number, Daily, "Daily free draw / lucky draw countdown (p.L); 0 = ready"),
+        def(&["p", "013"], "Bonus Pack Timer (ms)", Number, Daily, "Countdown to the next bonus pack (p.013); 0 = ready"),
+        def(&["p", "012"], "Bonus Packs Left", Number, Daily, "p.012"),
+        def(&["p", "S"], "Daily Pack Timer (ms)", Number, Daily, "Countdown to the next daily pack; signed, ≤0 = ready (p.S)"),
+        def(&["p", "T"], "Daily Packs Left", Number, Daily, "p.T"),
+        def(&["X", "q"], "Bonus Points", Number, Daily, "Shown on the Daily screen but stored on the pet object (X.q)"),
         def(&["X", "d"], "Strong Food", Number, Resources, "X.d"),
         def(&["X", "e"], "Mighty Food", Number, Resources, "X.e"),
         def(&["X", "v"], "Chocolate", Number, Resources, "X.v"),
