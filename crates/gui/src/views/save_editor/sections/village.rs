@@ -70,6 +70,20 @@ struct StatueRow {
     level: String,
 }
 
+/// One active Tavern quest (`024.b.a.<i>` — or a lone struct for a single quest).
+struct QuestRow {
+    pet: String,
+    quest: String,
+    elapsed: String,
+    reward: String,
+    /// Full raw path of the elapsed-timer (`b`) field.
+    timer_path: Vec<String>,
+}
+
+/// The per-quest-type completion target (≈ 12 h). The timer counts up to it; set
+/// the elapsed value at/above it to finish. The game tolerates overshoot.
+const QUEST_COMPLETE_MS: u64 = 43_200_000;
+
 /// State for the "Add statue" modal.
 #[derive(Default)]
 struct AddStatueState {
@@ -84,6 +98,8 @@ pub struct VillageEditState {
     scalar_buffers: HashMap<String, String>,
     /// Per-row buffers for statue levels, keyed by the level field's dotted path.
     statue_buffers: HashMap<String, String>,
+    /// Per-row buffers for quest timers, keyed by the timer field's dotted path.
+    quest_buffers: HashMap<String, String>,
     add_statue: AddStatueState,
     status: Option<(String, bool)>,
 }
@@ -125,6 +141,64 @@ fn read_statues(session: &EditSession) -> Vec<StatueRow> {
         .collect()
 }
 
+fn pet_label(id: u32) -> String {
+    items::pet_type_name(id).map_or_else(|| format!("pet {id}"), str::to_string)
+}
+
+fn read_quests(session: &EditSession) -> Vec<QuestRow> {
+    // A single quest re-parses as a lone struct; handle both forms.
+    let prefixes: Vec<Vec<String>> = match session.root().get_path(&["024", "b", "a"]) {
+        Some(Raw::List(items)) => (0..items.len())
+            .map(|i| vec!["024".to_string(), "b".into(), "a".into(), i.to_string()])
+            .collect(),
+        Some(Raw::Struct(_)) => vec![vec!["024".to_string(), "b".into(), "a".into()]],
+        _ => return Vec::new(),
+    };
+    prefixes
+        .into_iter()
+        .map(|prefix| {
+            // TAVERN_QUEST_FIELDS: a = quest id, b = elapsed ms, c = pet id(s),
+            // d = reward roll.
+            let val = |k: &str| {
+                let mut path = prefix.clone();
+                path.push(k.to_string());
+                let p: Vec<&str> = path.iter().map(String::as_str).collect();
+                session.value(&p).unwrap_or_default()
+            };
+            let quest_id: u32 = val("a").trim().parse().unwrap_or(0);
+            // `c` is a pet-id list that collapses to a scalar for the usual
+            // single-pet quest; handle either shape.
+            let mut cpath = prefix.clone();
+            cpath.push("c".to_string());
+            let cp: Vec<&str> = cpath.iter().map(String::as_str).collect();
+            let pet = match session.root().get_path(&cp) {
+                Some(Raw::List(items)) => (0..items.len())
+                    .filter_map(|i| {
+                        let ip = i.to_string();
+                        let mut pp = cpath.clone();
+                        pp.push(ip);
+                        let q: Vec<&str> = pp.iter().map(String::as_str).collect();
+                        session.value(&q).and_then(|s| s.trim().parse::<u32>().ok())
+                    })
+                    .map(pet_label)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                _ => val("c").trim().parse::<u32>().map(pet_label).unwrap_or_default(),
+            };
+            let mut timer_path = prefix.clone();
+            timer_path.push("b".to_string());
+            QuestRow {
+                pet,
+                quest: items::tavern_quest_name(quest_id)
+                    .map_or_else(|| format!("Quest {quest_id}"), str::to_string),
+                elapsed: val("b"),
+                reward: val("d"),
+                timer_path,
+            }
+        })
+        .collect()
+}
+
 /// Resolve a worker building's manager (`024.{g,h}.e`, pet type id; 999 = empty).
 fn manager_label(session: &EditSession, building: &str) -> String {
     match session.value(&["024", building, "e"]).and_then(|s| s.trim().parse::<u32>().ok()) {
@@ -147,6 +221,7 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut VillageEditSt
     }
 
     let statues = read_statues(session);
+    let quests = read_quests(session);
     let factory_mgr = manager_label(session, "g");
     let alchemy_mgr = manager_label(session, "h");
 
@@ -167,6 +242,15 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut VillageEditSt
         } else if b.name == "Alchemy Hut" {
             ui.label(RichText::new(format!("Manager: {alchemy_mgr}")).color(style::TEXT_MUTED).size(11.0));
         }
+    }
+
+    ui.add_space(8.0);
+    ui.separator();
+    ui.label(RichText::new("Tavern — Active Quests").strong());
+    if quests.is_empty() {
+        ui.label(RichText::new("No active quests.").color(style::TEXT_MUTED));
+    } else {
+        quest_table(ui, st, &quests, &mut edits);
     }
 
     ui.add_space(8.0);
@@ -290,6 +374,76 @@ fn scalar_editor(
     }
 }
 
+fn quest_table(
+    ui: &mut egui::Ui,
+    st: &mut VillageEditState,
+    rows: &[QuestRow],
+    edits: &mut Vec<(Vec<String>, String, String)>,
+) {
+    TableBuilder::new(ui)
+        .striped(true)
+        .id_salt("village_quests")
+        .column(Column::initial(150.0)) // pet
+        .column(Column::initial(150.0)) // quest
+        .column(Column::initial(140.0)) // elapsed
+        .column(Column::initial(70.0)) // reward roll
+        .column(Column::remainder()) // force-complete
+        .header(20.0, |mut h| {
+            for t in ["Pet", "Quest", "Elapsed (ms)", "Roll", ""] {
+                h.col(|ui| {
+                    ui.label(RichText::new(t).strong().size(12.0));
+                });
+            }
+        })
+        .body(|body| {
+            body.rows(24.0, rows.len(), |mut tr| {
+                let row = &rows[tr.index()];
+                tr.col(|ui| {
+                    ui.label(&row.pet);
+                });
+                tr.col(|ui| {
+                    ui.label(&row.quest);
+                });
+                tr.col(|ui| {
+                    let key = row.timer_path.join(".");
+                    let buf = st.quest_buffers.entry(key).or_insert_with(|| row.elapsed.clone());
+                    let resp = ui.add(egui::TextEdit::singleline(buf).desired_width(120.0));
+                    if resp.changed() {
+                        let v = buf.trim();
+                        if v.parse::<u64>().is_ok() && v != row.elapsed.trim() {
+                            edits.push((
+                                row.timer_path.clone(),
+                                format!("{} timer", row.quest),
+                                v.to_string(),
+                            ));
+                        }
+                    } else if !resp.has_focus() && buf.trim() != row.elapsed.trim() {
+                        *buf = row.elapsed.clone();
+                    }
+                });
+                tr.col(|ui| {
+                    ui.label(RichText::new(&row.reward).color(style::TEXT_MUTED).size(11.0));
+                });
+                tr.col(|ui| {
+                    if ui
+                        .button("Force complete")
+                        .on_hover_text("Set the elapsed timer past the ~12h target so the quest finishes")
+                        .clicked()
+                    {
+                        // Snap the editable buffer too, so it reflects the change.
+                        st.quest_buffers
+                            .insert(row.timer_path.join("."), QUEST_COMPLETE_MS.to_string());
+                        edits.push((
+                            row.timer_path.clone(),
+                            format!("{} force complete", row.quest),
+                            QUEST_COMPLETE_MS.to_string(),
+                        ));
+                    }
+                });
+            });
+        });
+}
+
 fn statue_table(
     ui: &mut egui::Ui,
     st: &mut VillageEditState,
@@ -373,6 +527,55 @@ mod tests {
         // And it's editable via that path.
         let p: Vec<&str> = rows[0].level_path.iter().map(String::as_str).collect();
         assert_eq!(reloaded.value(&p).as_deref(), Some("15"));
+    }
+
+    /// A quest struct `{a:quest, b:elapsed, c:pet, d:roll}`.
+    fn quest(a: &str, b: &str, c: &str, d: &str) -> Raw {
+        Raw::Struct(vec![
+            ("a".into(), sc(a)),
+            ("b".into(), sc(b)),
+            ("c".into(), sc(c)),
+            ("d".into(), sc(d)),
+        ])
+    }
+
+    fn village_root(tavern_a: Field) -> EditSession {
+        let tavern = Raw::Struct(vec![("a".into(), tavern_a)]);
+        let village = Raw::Struct(vec![("b".into(), b64(tavern))]);
+        let root = Raw::Struct(vec![("024".into(), b64(village))]);
+        EditSession::load(&encode_container(&root.serialize(), "V2"), None).unwrap()
+    }
+
+    #[test]
+    fn read_quests_resolves_two_quests() {
+        let list = Raw::List(vec![
+            quest("10", "10432650", "37", "25"),  // Ape running Ant Queen
+            quest("11", "10428150", "128", "67"), // PackMule running Magic Talk
+        ]);
+        let s = village_root(Field::Value(list));
+        let rows = read_quests(&s);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].pet, "Ape");
+        assert_eq!(rows[0].quest, "AntQueen");
+        assert_eq!(rows[0].elapsed, "10432650");
+        assert_eq!(rows[0].timer_path, vec!["024", "b", "a", "0", "b"]);
+        assert_eq!(rows[1].pet, "PackMule");
+        assert_eq!(rows[1].quest, "MagicTalk");
+    }
+
+    #[test]
+    fn read_quests_handles_single_quest_lone_struct() {
+        // One quest: a 1-element list collapses to a lone struct on load.
+        let list = Raw::List(vec![quest("11", "10428150", "128", "67")]);
+        let s = village_root(Field::Value(list));
+        let rows = read_quests(&s);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].pet, "PackMule");
+        assert_eq!(rows[0].quest, "MagicTalk");
+        // Timer path targets the lone-struct field directly (no list index).
+        assert_eq!(rows[0].timer_path, vec!["024", "b", "a", "b"]);
+        let p: Vec<&str> = rows[0].timer_path.iter().map(String::as_str).collect();
+        assert_eq!(s.value(&p).as_deref(), Some("10428150"));
     }
 
     #[test]
