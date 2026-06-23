@@ -280,6 +280,15 @@ fn seed() -> Vec<FieldDef> {
         def(&["p", "I"], "Pet Tokens", Number, Resources, "p.I"),
         def(&["p", "023"], "Class Change Tokens", Number, Resources, "p.023"),
         def(&["p", "K"], "Lucky Draws", Number, Resources, "p.K"),
+        // Daily screen (root `p`, class DFGCALKGABP): the three timers are stored
+        // COUNTDOWNS in ms (not wall-clock anchors) that tick down and reset to
+        // +24h on claim — set a timer to 0 to make it ready now (the daily pack
+        // `p.S` is a signed long, so <0 also = ready). The packs-left are counts.
+        def(&["p", "L"], "Free Draw Timer (ms, 0 = ready)", Number, Resources, "Daily free draw / lucky draw countdown (p.L)"),
+        def(&["p", "013"], "Bonus Pack Timer (ms, 0 = ready)", Number, Resources, "Countdown to the next bonus pack (p.013)"),
+        def(&["p", "012"], "Bonus Packs Left", Number, Resources, "p.012"),
+        def(&["p", "S"], "Daily Pack Timer (ms, ≤0 = ready)", Number, Resources, "Countdown to the next daily pack; signed (p.S)"),
+        def(&["p", "T"], "Daily Packs Left", Number, Resources, "p.T"),
         def(&["X", "c"], "Puny Food", Number, Resources, "X.c"),
         def(&["X", "d"], "Strong Food", Number, Resources, "X.d"),
         def(&["X", "e"], "Mighty Food", Number, Resources, "X.e"),
