@@ -73,6 +73,8 @@ pub enum Resolve {
     AdventureProfession,
     /// Tavern quest id → `items::tavern_quest_name` (10 AntQueen, 11 MagicTalk …).
     TavernQuest,
+    /// Tavern quest rank → `items::quest_rank_name` (0 F … 9 Ult).
+    QuestRank,
     /// Adventure-mode item id → `items::adventure_item_name`.
     AdventureItem,
     /// Adventure-mode enemy/entity id → `items::adventure_enemy_name`.
@@ -440,18 +442,28 @@ save_block! {
 }
 
 save_block! {
-    /// Pet Village Tavern — `024.b` (`IOBPPFGEBCD`). Runs pet quests. `b` = level,
-    /// `d` = Quest Points, `i` = quests/day, `j` = max concurrent quests, `u` =
-    /// Tavern Keeper slot (999 = empty), `x` = favorite quests (`&`-list). `a`/`t`
-    /// are quest lists; `c` (upgrade-elapsed timer) is empty when not upgrading so
-    /// unlabeled; other scalars unconfirmed.
+    /// Pet Village Tavern — `024.b` (`IOBPPFGEBCD`). Runs pet quests. Corrected
+    /// 2026-06-23 (decompile + player): `v` = **Tavern level** (the upgraded/max
+    /// level — *not* `b`), `m` = active level (selected quest difficulty, 0..v),
+    /// `e` = **quest rank** (0 F … 9 Ult, stored; recomputed from quest points on
+    /// quest/load events), `d` = Quest Points, `i` = quests/day, `j` = max
+    /// concurrent quests, `n` = upgrade-elapsed timer ms (set ≥ target to finish),
+    /// `o` = upgrading flag, `u` = Tavern Keeper slot (999 = empty), `x` = favorite
+    /// quests (`&`-list). `b` = BeanStalk-quest counter (0–9 → WonderAxe), NOT the
+    /// level. `a`/`t` are active/pool quest lists; `c` is a (usually empty)
+    /// quest-id list; `g`/`l`/`p`(seed)/`q`/`r`/`s`/`w` unconfirmed.
     TavernField => TAVERN_FIELDS;
-    Level:          "b", "Level",                    FieldKind::UInt, None, None;
-    QuestPoints:    "d", "Quest Points",             FieldKind::Text, None, None;
-    QuestsPerDay:   "i", "Quests Per Day",           FieldKind::UInt, None, None;
-    MaxConcurrent:  "j", "Max Concurrent Quests",    FieldKind::UInt, None, None;
-    TavernKeeper:   "u", "Tavern Keeper (slot)",     FieldKind::Text, None, None;
-    FavoriteQuests: "x", "Favorite Quests (&-list)", FieldKind::Text, None, None;
+    TavernLevel:    "v", "Tavern Level",             FieldKind::UInt, None,          None;
+    ActiveLevel:    "m", "Active Level (difficulty)", FieldKind::UInt, None,         None;
+    QuestRank:      "e", "Quest Rank",               FieldKind::Id,   Some((0, 9)),  Some(Resolve::QuestRank);
+    QuestPoints:    "d", "Quest Points",             FieldKind::Text, None,          None;
+    QuestsPerDay:   "i", "Quests Per Day",           FieldKind::UInt, None,          None;
+    MaxConcurrent:  "j", "Max Concurrent Quests",    FieldKind::UInt, None,          None;
+    UpgradeElapsed: "n", "Upgrade Elapsed (ms)",     FieldKind::Text, None,          None;
+    Upgrading:      "o", "Upgrading?",               FieldKind::Bool, None,          None;
+    Beanstalk:      "b", "BeanStalk Progress (0-9)", FieldKind::UInt, None,          None;
+    TavernKeeper:   "u", "Tavern Keeper (slot)",     FieldKind::Text, None,          None;
+    FavoriteQuests: "x", "Favorite Quests (&-list)", FieldKind::Text, None,          None;
 }
 
 save_block! {
