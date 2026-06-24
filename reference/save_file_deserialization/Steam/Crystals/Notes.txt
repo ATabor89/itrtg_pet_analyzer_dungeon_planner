@@ -1,0 +1,27 @@
+Stored crystals:
+	Battle Crystals (grade 1): 1814
+	Ultimate Crystals (grade 1): 297
+	God Crystals (grade 1): 1279
+
+Equipped crystals:
+	Ultimate Crystal grade 16
+	Battle Crystal grade 23
+	God Crystal grade 12
+
+Energy: 2,058
+	This energy is received each time you defeat an Ultimate Being, depending on which one it is. By default, Planet Eater is worth 100 Energy, Godly Tribunal is worth 200, ..., and ITRTG is worth 500. The value you get can increase from challenges. This energy is used to upgrade the modules, so it would be nice to find. It doesn't look like the number itself has a tooltip, though. The "Energy" text does say, "Each UB you defeat will give you energy. You can use this energy to upgrade your modules." But the most reliable way to find it is likely going to be tracing the module levels to see the function that upgrades them since that actually spends energy.
+
+In a similar vein, since modules actually generate grade 1 crystals and we already know where thier level is, that should also help us trace where they are actually stored. Notably, a module generates N grade 1 crystals of its type when the timer runs out, where N is the level of the module. So, tracing the module level will likely also get us there as well.
+
+Helpful tooltips:
+
+	When mousing over an equipped crystal, you get a dynamic tooltip that shows the exact bonuses. This should help find them. I'm just going to transcribe my numbers, but they should also match this save.
+
+	Ultimate Crystal: "Increases your Physical, Mystic, Battle and Creating by 1,600%, your building speed by 48%, defender clones will take 48% less damage from Ultimate Beings attacks, divinity you earn from monsters and the divinity generator is increased by 48%, and your creation count is increased by 16."
+	Battle Crystal: "Increases your Battle by 2,300%, and the divinity you earn from monsters and the divinity generator is increased by 69%."
+		Side note: nice
+	God Crystal: "You will gain one god power every 37:30 minutes."
+
+	Where the unequipped crystals are stored, you have a "Max" button next to each one that will upgrade all of your unequipped crystals to the maximum grade possible. In order to populate this, it must be referencing the number of stored crystals somewhere, even if it's a layer or two deep via formulas. The formatting is the same for each button, just replacing the name of the crystal and the actual values, so I'll only provide one variation of it:
+
+		"Click only once to upgrade all your Battle Crystals to the maximum grade which is possible with all your current crystals. This will give you 1.5 x grade 23 crystals."
