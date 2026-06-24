@@ -526,7 +526,8 @@ pub fn monument_name(id: u32) -> Option<&'static str> {
 /// 8–13 are the special "Unleash Might" abilities whose level adds +1 s to
 /// the base duration.
 pub fn might_name(id: u32) -> Option<&'static str> {
-    const NAMES: [&str; 14] = [
+    // The `DBLLJGOKFJG.DIPOABKGODI` enum (15 members, 0-14).
+    const NAMES: [&str; 15] = [
         "Physical HP +",
         "Physical Attack +",
         "Mystic Defense +",
@@ -538,9 +539,10 @@ pub fn might_name(id: u32) -> Option<&'static str> {
         "Focused Breathing +",
         "Defensive Aura +",
         "Offensive Aura +",
-        "Elemental Manipulation",
+        "Elemental Manipulation +",
         "Mystic Mode +",
         "Transformation Aura +",
+        "Black Hole +",
     ];
     NAMES.get(id as usize).copied()
 }
@@ -2085,6 +2087,15 @@ pub fn campaign_boost_pct(type_id: u32, quality_id: u32, plus: u32) -> Option<f6
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn might_names_cover_black_hole() {
+        assert_eq!(might_name(0), Some("Physical HP +"));
+        assert_eq!(might_name(11), Some("Elemental Manipulation +"));
+        assert_eq!(might_name(13), Some("Transformation Aura +"));
+        assert_eq!(might_name(14), Some("Black Hole +"));
+        assert_eq!(might_name(15), None);
+    }
 
     #[test]
     fn known_materials_lists_named_ids() {

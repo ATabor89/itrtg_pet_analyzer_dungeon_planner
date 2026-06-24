@@ -612,17 +612,24 @@ save_block! {
 }
 
 save_block! {
-    /// Mights — `V.<index>`.
+    /// Mights — `V.<index>` (`DBLLJGOKFJG`). `a` = Might id (enum `DIPOABKGODI`,
+    /// 0..=14; 14 = Black Hole +), `b` = level, `m` = target level, `n` =
+    /// clone-spread ratio. Usable-skill Mights (ids 8–13): `e` = usable flag
+    /// (bool), `g` = base unleash duration (s), **`h` = cooldown ms remaining**
+    /// (0 = ready), `i`/`j`/`k` = unleash recovery/attack/mystic %, **`l` =
+    /// active-buff timer ms** (>0 while live).
     MightField => MIGHT_FIELDS;
     Might:           "a", "Might Id",              FieldKind::Id,   None, Some(Resolve::Might);
     Level:           "b", "Level",                 FieldKind::UInt, None, None;
     NextAt:          "m", "Next At",               FieldKind::Text, None, None;
     Spread:          "n", "Spread",                FieldKind::Text, None, None;
-    Special:         "e", "Special (Unleash)",     FieldKind::Text, None, None;
+    Usable:          "e", "Usable Skill",          FieldKind::Bool, None, None;
     BaseDuration:    "g", "Base Duration (s)",     FieldKind::Text, None, None;
+    Cooldown:        "h", "Cooldown (ms)",         FieldKind::Text, None, None;
     UnleashRecovery: "i", "Unleash HP Recovery %", FieldKind::Text, None, None;
     UnleashAttack:   "j", "Unleash Attack %",      FieldKind::Text, None, None;
     UnleashMystic:   "k", "Unleash Mystic %",      FieldKind::Text, None, None;
+    ActiveTimer:     "l", "Active Timer (ms)",     FieldKind::Text, None, None;
 }
 
 save_block! {

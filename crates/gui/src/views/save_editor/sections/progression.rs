@@ -87,13 +87,14 @@ const MONUMENTS: TrackSpec = TrackSpec {
 
 const MIGHT: TrackSpec = TrackSpec {
     title: "Might",
-    blurb: "The Might upgrades (Physical HP +, Battle Might +, …). Edit the level.",
+    blurb: "The Might upgrades (Physical HP +, Battle Might +, …). Edit the level; \
+            usable-skill Mights show their cooldown (0 = ready).",
     base: &["V"],
     id_key: MightField::Might.key(),
     resolve: items::might_name,
     cols: &[
         Col { label: "Level", key: MightField::Level.key(), cell: Cell::Uint },
-        Col { label: "Next At", key: MightField::NextAt.key(), cell: Cell::Ro },
+        Col { label: "Cooldown (ms)", key: MightField::Cooldown.key(), cell: Cell::Ro },
     ],
     id_salt: "prog_might",
 };
@@ -140,7 +141,46 @@ pub fn show_monuments(ui: &mut egui::Ui, session: &mut EditSession, st: &mut Pro
     show(ui, session, st, &MONUMENTS);
 }
 pub fn show_might(ui: &mut egui::Ui, session: &mut EditSession, st: &mut ProgEditState) {
-    show(ui, session, st, &MIGHT);
+    ui.heading(MIGHT.title);
+    if session.root().get_path(MIGHT.base).is_none() {
+        ui.label(RichText::new("No Might data in this save.").color(style::TEXT_MUTED));
+        return;
+    }
+    ui.label(RichText::new(MIGHT.blurb).color(style::TEXT_MUTED).size(11.0));
+    ui.separator();
+    show_status(ui, st);
+
+    let mut edits: Vec<(Vec<String>, String, String)> = Vec::new();
+    // "Reset all cooldowns": zero the cooldown (`h`) and active timer (`l`) on
+    // every usable-skill Might (`e` = true), so they're immediately re-usable.
+    if ui
+        .button("Reset all cooldowns")
+        .on_hover_text("Make every usable-skill Might ready (Focused Breathing, Auras, etc.)")
+        .clicked()
+        && let Some(Raw::List(items)) = session.root().get_path(&["V"])
+    {
+        let mut n = 0;
+        for i in 0..items.len() {
+            let idx = i.to_string();
+            let usable = session
+                .value(&["V", &idx, MightField::Usable.key()])
+                .is_some_and(|s| s.trim().eq_ignore_ascii_case("true"));
+            if usable {
+                let name = session
+                    .value(&["V", &idx, MightField::Might.key()])
+                    .and_then(|s| s.trim().parse().ok())
+                    .and_then(items::might_name)
+                    .unwrap_or("Might");
+                edits.push((vec!["V".into(), idx.clone(), MightField::Cooldown.key().into()], format!("{name} cooldown"), "0".into()));
+                edits.push((vec!["V".into(), idx.clone(), MightField::ActiveTimer.key().into()], format!("{name} active timer"), "0".into()));
+                n += 1;
+            }
+        }
+        st.status = Some((format!("Reset {n} cooldown(s)"), false));
+    }
+
+    render_track(ui, &mut st.buffers, session, &MIGHT, &mut edits);
+    apply(session, st, MIGHT.title, edits);
 }
 pub fn show_spacedim(ui: &mut egui::Ui, session: &mut EditSession, st: &mut ProgEditState) {
     show(ui, session, st, &SPACEDIM);
