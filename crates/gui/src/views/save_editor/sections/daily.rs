@@ -49,6 +49,18 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut DailyEditStat
 
     let mut edits: Vec<(Vec<String>, String, String)> = Vec::new();
 
+    if ui
+        .button("Set all ready")
+        .on_hover_text("Make the free draw and both packs claimable now")
+        .clicked()
+    {
+        // Free draw / bonus pack clamp at 0; the daily pack is signed (<0 = ready).
+        for (path, ready) in [(["p", "L"], "0"), (["p", "013"], "0"), (["p", "S"], "-1")] {
+            st.buffers.insert(path.join("."), ready.to_string());
+            edits.push((path.iter().map(|s| s.to_string()).collect(), "Daily timer".into(), ready.into()));
+        }
+    }
+
     egui::Grid::new("daily_fields").num_columns(3).spacing([12.0, 6.0]).show(ui, |ui| {
         // Free draw + bonus pack timers clamp at 0; the daily pack is signed (<0 =
         // ready), so its "ready" value is -1.
