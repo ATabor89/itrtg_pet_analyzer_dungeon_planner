@@ -280,7 +280,24 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut VillageEditSt
 
     ui.add_space(8.0);
     ui.separator();
-    ui.label(RichText::new("Tavern — Active Quests").strong());
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Tavern — Active Quests").strong());
+        if !quests.is_empty()
+            && ui
+                .button("Complete all")
+                .on_hover_text("Force-complete every active quest")
+                .clicked()
+        {
+            for q in &quests {
+                st.quest_buffers.insert(q.timer_path.join("."), QUEST_COMPLETE_MS.to_string());
+                edits.push((
+                    q.timer_path.clone(),
+                    format!("{} force complete", q.quest),
+                    QUEST_COMPLETE_MS.to_string(),
+                ));
+            }
+        }
+    });
     if quests.is_empty() {
         ui.label(RichText::new("No active quests.").color(style::TEXT_MUTED));
     } else {

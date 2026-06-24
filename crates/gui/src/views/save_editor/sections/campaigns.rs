@@ -133,6 +133,25 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut CampaignEditS
         return;
     }
 
+    if ui
+        .button("Complete all campaigns")
+        .on_hover_text("Force-complete every active campaign (set elapsed = target)")
+        .clicked()
+    {
+        let mut n = 0;
+        for row in &rows {
+            if row.active {
+                let v = row.duration_ms.to_string();
+                st.cell_buffers.insert(row.index, v.clone());
+                let label = format!("{} campaign elapsed", row.type_name);
+                if session.set_scalar(&["X", "x", &row.index.to_string(), "c"], label, &v).is_ok() {
+                    n += 1;
+                }
+            }
+        }
+        st.status = Some((format!("Completed {n} campaign(s)"), false));
+    }
+
     table(ui, session, st, &rows);
 }
 
