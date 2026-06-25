@@ -97,12 +97,23 @@ fn moai_levels_are_exact() {
     assert_eq!(moai_levels(&save), vec![20, 20]);
 }
 
-/// The two fields the save can't faithfully supply stay `None` so selective-fill
-/// never clobbers a prior/manual value.
+/// Total Challenge Points is derived (non-Day completions + capped Day-score
+/// formulas) and must match the export's "Challenge Points" total earned.
 #[test]
-fn underivable_fields_are_none() {
-    let (save, _export) = require_pair!();
+fn challenge_points_match_the_export_total() {
+    let (save, export) = require_pair!();
     let got = save_to_main_stats(&save);
-    assert_eq!(got.challenge_points, None, "challenge_points must not be guessed");
-    assert_eq!(got.base_growth_per_hour, None, "base_growth handled via moai_levels");
+    // Export: "Challenge Points: 751" (539 flat-rate + ~212 from the Day Pet
+    // score). Confirms the export reports total *earned*, not the spendable
+    // balance, and that our Day-challenge formulas reproduce it.
+    assert_eq!(got.challenge_points, export.challenge_points);
+    assert_eq!(got.challenge_points, Some(751));
+}
+
+/// `base_growth_per_hour` stays `None` (handled via exact `moai_levels`) so
+/// selective-fill never clobbers a prior/manual value.
+#[test]
+fn base_growth_per_hour_is_none() {
+    let (save, _export) = require_pair!();
+    assert_eq!(save_to_main_stats(&save).base_growth_per_hour, None);
 }
