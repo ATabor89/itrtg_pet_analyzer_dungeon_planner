@@ -24,9 +24,11 @@ pub mod lzf;
 pub mod model;
 pub mod raw;
 pub mod redact;
+pub mod to_export;
 pub mod tree;
 
 pub use model::SaveFile;
+pub use to_export::save_to_export_pets;
 pub use tree::Node;
 
 /// Decode and parse a raw save file string into the typed model.
