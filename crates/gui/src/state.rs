@@ -35,6 +35,11 @@ pub struct AppState {
     /// deviations from each event's default (optional events default to
     /// disabled, normal events to enabled), so the file stays minimal.
     pub event_overrides: Vec<EventOverride>,
+    /// When set, loading a save file in the Save Editor also populates the
+    /// analyzer + growth chamber from it (roster + account stats). Off by
+    /// default — a save is never required; the Save Editor's "Populate planner
+    /// now" button does the same on demand. Remembered across sessions.
+    pub populate_planner_from_save: bool,
     pub analyzer: AnalyzerState,
     pub chamber: ChamberState,
 }

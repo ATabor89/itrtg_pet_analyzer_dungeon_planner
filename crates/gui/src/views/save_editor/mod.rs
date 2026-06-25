@@ -17,6 +17,7 @@ mod sections;
 use std::collections::HashMap;
 
 use eframe::egui::{self, RichText};
+use itrtg_models::{ExportPet, MainStats};
 
 use crate::style;
 use registry::{FieldRegistry, SectionId};
@@ -73,6 +74,12 @@ pub struct SaveEditorState {
     /// one editor per path per frame (only one section renders at a time).
     buffers: HashMap<String, String>,
     status: Option<(String, bool)>,
+    /// Set whenever a save is freshly loaded (any path); drained by `app.rs`,
+    /// which then auto-populates the planner if the user's preference is on.
+    just_loaded: bool,
+    /// Set when the header's "Populate planner now" button is clicked; drained
+    /// by `app.rs` (which owns the analyzer/chamber/data this acts on).
+    populate_requested: bool,
 }
 
 impl SaveEditorState {
@@ -81,6 +88,7 @@ impl SaveEditorState {
         let name = session.source_name.clone();
         self.session = Some(session);
         self.buffers.clear();
+        self.just_loaded = true;
         self.status = Some((
             match name {
                 Some(n) => format!("Loaded {n}"),
@@ -102,14 +110,37 @@ impl SaveEditorState {
             Err(_) => false,
         }
     }
+
+    /// Take the "a save was just loaded this frame" signal (clears it).
+    pub fn take_just_loaded(&mut self) -> bool {
+        std::mem::take(&mut self.just_loaded)
+    }
+
+    /// Take the "populate the planner now" request from the header button.
+    pub fn take_populate_requested(&mut self) -> bool {
+        std::mem::take(&mut self.populate_requested)
+    }
+
+    /// Planner-ready data converted from the currently-loaded save, or `None`
+    /// when no save is loaded or it didn't fully parse: the pet roster, the
+    /// account-level [`MainStats`], and the owned Moai levels (for the analyzer's
+    /// two Moai slots). Keeps the `EditSession` encapsulated.
+    pub fn extract_for_planner(&self) -> Option<(Vec<ExportPet>, MainStats, Vec<u32>)> {
+        let save = self.session.as_ref()?.derived()?;
+        Some((
+            save_parser::save_to_export_pets(save),
+            save_parser::save_to_main_stats(save),
+            save_parser::moai_levels(save),
+        ))
+    }
 }
 
-pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
+pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState, populate_pref: &mut bool) {
     if let Some(s) = state.session.as_mut() {
         s.rederive_if_needed();
     }
 
-    header_bar(ui, state);
+    header_bar(ui, state, populate_pref);
     if let Some((msg, err)) = &state.status {
         let color = if *err { style::ERROR } else { style::SUCCESS };
         ui.label(RichText::new(msg).color(color).size(11.0));
@@ -249,7 +280,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
     });
 }
 
-fn header_bar(ui: &mut egui::Ui, state: &mut SaveEditorState) {
+fn header_bar(ui: &mut egui::Ui, state: &mut SaveEditorState, populate_pref: &mut bool) {
     // Toolbar row: left-aligned so the action buttons are always visible (a
     // long summary row used to squeeze them off the right edge).
     ui.horizontal(|ui| {
@@ -286,6 +317,22 @@ fn header_bar(ui: &mut egui::Ui, state: &mut SaveEditorState) {
             {
                 save_to_file(state, true);
             }
+
+            ui.separator();
+
+            if ui
+                .button(RichText::new("⮈ Populate Planner").size(12.0))
+                .on_hover_text(
+                    "Use this save to fill the Pet Analyzer and Growth Chamber — the pet \
+                     roster plus account-level inputs (campaign bonuses, Moai, fishing, …). \
+                     Overwrites the current imported values.",
+                )
+                .clicked()
+            {
+                state.populate_requested = true;
+            }
+            ui.checkbox(populate_pref, RichText::new("on load").size(12.0))
+                .on_hover_text("Automatically populate the planner whenever a save is loaded.");
         }
 
         #[cfg(target_arch = "wasm32")]
