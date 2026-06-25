@@ -31,6 +31,9 @@ pub struct App {
     save_editor_state: save_editor::SaveEditorState,
     show_import_dialog: bool,
     import_text: String,
+    /// User preference (persisted in `AppState`): auto-populate the planner from
+    /// a save whenever one is loaded in the Save Editor.
+    populate_from_save: bool,
     /// Last successfully persisted serialization of `AppState`. Used by
     /// `update` to skip writes when nothing has changed frame-to-frame.
     last_saved_yaml: String,
@@ -85,6 +88,7 @@ impl App {
             save_editor_state: save_editor::SaveEditorState::default(),
             show_import_dialog: false,
             import_text: String::new(),
+            populate_from_save: app_state.populate_planner_from_save,
             last_saved_yaml,
         }
     }
@@ -99,10 +103,42 @@ impl App {
         self.dungeon_state.write_into(&mut snapshot);
         self.analyzer_state.write_into(&mut snapshot);
         self.chamber_state.write_into(&mut snapshot);
+        snapshot.populate_planner_from_save = self.populate_from_save;
         let yaml = state::serialize(&snapshot);
         if yaml != self.last_saved_yaml && platform::save_app_state(&yaml).is_ok() {
             self.last_saved_yaml = yaml;
         }
+    }
+
+    /// Populate the analyzer + growth chamber from the currently-loaded save:
+    /// the pet roster (through the export pipeline), the account-level inputs
+    /// (applied to analyzer + chamber next frame via `pending_main_stats`), and
+    /// the exact Moai levels. Overwrites the current imported values, matching
+    /// the "any import overwrites the relevant values" convention.
+    fn populate_planner_from_save(&mut self) {
+        let Some((pets, ms, moai_levels)) = self.save_editor_state.extract_for_planner() else {
+            self.data.import_status = Some((
+                "No fully-parsed save to import from — load a save first.".to_string(),
+                true,
+            ));
+            return;
+        };
+        let count = self.data.import_export_pets(pets);
+        // Apply the account stats to the analyzer + chamber inline (rather than
+        // deferring through `pending_main_stats`) so our combined status message
+        // isn't overwritten by the next-frame main-stats handler.
+        self.analyzer_state.apply_main_stats(&ms);
+        self.chamber_state.apply_main_stats(&ms);
+        // The save's exact Museum-statue levels fill the analyzer's two Moai
+        // slots directly — more accurate than the Main-stats `== 2` inference.
+        for (slot, statue) in self.analyzer_state.moai.iter_mut().enumerate() {
+            *statue = match moai_levels.get(slot) {
+                Some(&level) => analyzer::MoaiStatue { owned: true, level: level.min(20) as u8 },
+                None => analyzer::MoaiStatue { owned: false, level: statue.level },
+            };
+        }
+        self.data.import_status =
+            Some((format!("Imported {count} pets + account stats from save"), false));
     }
 }
 
@@ -409,9 +445,19 @@ impl eframe::App for App {
                     chamber::show(ui, &mut self.chamber_state, &self.data, &ctx, &rates);
                 }
                 Tab::SaveEditor => {
-                    save_editor::show(ui, &mut self.save_editor_state);
+                    save_editor::show(ui, &mut self.save_editor_state, &mut self.populate_from_save);
                 }
             }
         });
+
+        // Drain the save-editor's load/populate signals *outside* the panel
+        // closure (where `self` is free to borrow mutably again). A fresh load
+        // auto-populates only when the user's preference is on; the header button
+        // populates on demand regardless.
+        let just_loaded = self.save_editor_state.take_just_loaded();
+        let populate_now = self.save_editor_state.take_populate_requested();
+        if populate_now || (just_loaded && self.populate_from_save) {
+            self.populate_planner_from_save();
+        }
     }
 }

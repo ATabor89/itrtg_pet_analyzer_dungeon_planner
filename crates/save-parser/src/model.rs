@@ -949,6 +949,13 @@ pub mod trackers {
     pub const DUNGEON_ROOMS: &str = "080";
     /// Total might.
     pub const TOTAL_MIGHT: &str = "129";
+    /// Day Pet Challenge highest multiplier — the Main Stats export's "Day Pet
+    /// Challenge highest multi" line; drives the Growth Chamber's food DPC boost.
+    pub const DAY_PET_CHALLENGE_MULTI: &str = "049";
+    /// Honey consumed by Bear — the Main Stats export's "Honey consumed by Bear"
+    /// line (Bear's campaign-bonus input). Distinct from the held *Honey*
+    /// material (id 166) used by Bee. C# accessor `n377` (`LLMCMCKAABP.cs:4699`).
+    pub const HONEY_CONSUMED_BY_BEAR: &str = "377";
 }
 
 pub fn element_from_id(id: u32) -> Option<Element> {

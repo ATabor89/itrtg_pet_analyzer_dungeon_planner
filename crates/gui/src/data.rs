@@ -207,6 +207,17 @@ impl DataStore {
         }
     }
 
+    /// Ingest an already-parsed pet roster (e.g. converted from a save file),
+    /// replacing the current roster exactly as a text export would. Returns the
+    /// pet count; the caller sets the status message. See
+    /// [`import_export`](Self::import_export) for the text-source path.
+    pub fn import_export_pets(&mut self, pets: Vec<ExportPet>) -> usize {
+        let count = pets.len();
+        self.export_pets = pets;
+        self.rebuild_merged();
+        count
+    }
+
     /// Import from clipboard.
     ///
     /// On native: reads synchronously via arboard.
