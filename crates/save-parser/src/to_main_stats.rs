@@ -164,6 +164,10 @@ fn non_day_challenge_chp(save: &SaveFile) -> f64 {
 /// Three Day challenges whose score key isn't located yet — No Rebirth (41),
 /// God Power (52), Multiverse (54) — are omitted and contribute 0 until a save
 /// with non-zero completions surfaces their keys.
+///
+/// TODO: locate the score keys for Day challenges 41/52/54 (see the Day-challenge
+/// notes in `reference/save_file_deserialization/FINDINGS.md`); until then their
+/// ChP is under-reported for any account that has completed them.
 fn day_challenge_chp(save: &SaveFile) -> f64 {
     // Highest-score stat for a Day challenge, clamped non-negative.
     let score = |key: &str| save.global_tracker(key).unwrap_or(0.0).max(0.0);
