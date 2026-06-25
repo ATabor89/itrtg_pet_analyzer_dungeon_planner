@@ -15,6 +15,7 @@ pub mod equipment;
 pub mod fishing;
 pub mod gems;
 pub mod inventory;
+pub mod partners;
 pub mod pets;
 pub mod planet;
 pub mod progression;
