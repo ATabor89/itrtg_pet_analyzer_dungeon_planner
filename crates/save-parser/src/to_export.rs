@@ -115,7 +115,9 @@ fn equipment_from_item(item: &EquipmentItem) -> Equipment {
 }
 
 /// Map the save's numeric quality (`0..=8`) to the model's [`Quality`] grade.
-/// Out-of-range values clamp to `SSS` (the save only ever stores `0..=8`).
+/// Out-of-range values clamp to `SSS`. Pet *equipment* only ever stores `0..=8`;
+/// the `9 => "Ult"` grade that `items::quality_name` recognizes is for adventure
+/// cores, which the model's [`Quality`] enum can't represent and gear never uses.
 fn quality_from_id(quality: u32) -> Quality {
     match quality {
         0 => Quality::F,
