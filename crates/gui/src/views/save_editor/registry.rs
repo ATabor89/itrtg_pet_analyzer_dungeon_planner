@@ -21,6 +21,7 @@ pub enum SectionId {
     #[default]
     Resources,
     Pets,
+    Partners,
     Equipment,
     Inventory,
     Gems,
@@ -50,6 +51,7 @@ impl SectionId {
     pub const ALL: &'static [SectionId] = &[
         SectionId::Resources,
         SectionId::Pets,
+        SectionId::Partners,
         SectionId::Equipment,
         SectionId::Inventory,
         SectionId::Gems,
@@ -78,6 +80,7 @@ impl SectionId {
         match self {
             SectionId::Resources => "Resources & Currencies",
             SectionId::Pets => "Pets",
+            SectionId::Partners => "Partners",
             SectionId::Equipment => "Equipment",
             SectionId::Inventory => "Inventory",
             SectionId::Gems => "Gems",

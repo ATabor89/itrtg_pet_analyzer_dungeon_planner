@@ -23,7 +23,7 @@ use registry::{FieldRegistry, SectionId};
 use session::EditSession;
 use sections::{
     adventure, afky_god, campaigns, challenges, crystal, daily, dungeons, equipment, fishing, gems,
-    inventory, pets, planet, progression, raw_tree, resources, stats, village,
+    inventory, partners, pets, planet, progression, raw_tree, resources, stats, village,
 };
 
 #[derive(Default)]
@@ -46,6 +46,7 @@ pub struct SaveEditorState {
     /// State for the raw tree's "Paste over node" editor.
     tree_paste: raw_tree::PasteState,
     pets: pets::PetEditState,
+    partners: partners::PartnerEditState,
     equipment: equipment::EquipEditState,
     inventory: inventory::InventoryEditState,
     gems: gems::GemEditState,
@@ -132,6 +133,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
         tree_jump,
         tree_paste,
         pets: pet_state,
+        partners: partners_state,
         equipment: equip_state,
         inventory: inv_state,
         gems: gem_state,
@@ -196,6 +198,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut SaveEditorState) {
                 .show(ui, |ui| match *current {
                     SectionId::Resources => resources::show(ui, session, registry, buffers),
                     SectionId::Pets => pets::show(ui, session, pet_state),
+                    SectionId::Partners => partners::show(ui, session, partners_state),
                     SectionId::Equipment => equipment::show(ui, session, equip_state),
                     SectionId::Inventory => inventory::show(ui, session, inv_state),
                     SectionId::Gems => gems::show(ui, session, gem_state),

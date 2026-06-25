@@ -12,7 +12,7 @@
 use anyhow::{Context, Result, bail};
 use save_parser::container::{self, ContainerFormat};
 use save_parser::edit;
-use save_parser::model::SaveFile;
+use save_parser::model::{self, SaveFile};
 use save_parser::raw::{self, Raw};
 use save_parser::redact;
 use save_parser::tree;
@@ -834,6 +834,138 @@ impl EditSession {
         Ok(())
     }
 
+    /// Set pet `pet_index`'s partner to `partner_type_id` (pass the pet's own type
+    /// id for a self-partner). Maintains the mutual invariant: any prior partner
+    /// on this pet *or* the new partner is unlinked first, then the two are linked
+    /// (`F` = the other's type id, `G` = 1 day). All staged as scalar edits.
+    ///
+    /// Reads the partner state straight from the raw tree (not the typed view, so
+    /// it stays correct across consecutive calls before a re-derive).
+    pub fn set_partner(&mut self, pet_index: usize, partner_type_id: u32) -> Result<()> {
+        let a_type =
+            self.pet_type_at(pet_index).ok_or_else(|| anyhow::anyhow!("no pet at index {pet_index}"))?;
+        // Unlink A's current partner (the "ex"), unless self or already the target.
+        let a_old = self.pet_partner_at(pet_index);
+        if a_old != model::PARTNER_NONE
+            && a_old != a_type
+            && a_old != partner_type_id
+            && let Some(ex) = self.pet_index_by_type(a_old)
+        {
+            self.write_partner(ex, model::PARTNER_NONE, 0)?;
+        }
+        if partner_type_id == a_type {
+            return self.write_partner(pet_index, a_type, 1); // self-partner
+        }
+        let b_index = self
+            .pet_index_by_type(partner_type_id)
+            .ok_or_else(|| anyhow::anyhow!("no pet with type id {partner_type_id}"))?;
+        let b_old = self.pet_partner_at(b_index);
+        if b_old != model::PARTNER_NONE
+            && b_old != partner_type_id
+            && b_old != a_type
+            && let Some(ex) = self.pet_index_by_type(b_old)
+        {
+            self.write_partner(ex, model::PARTNER_NONE, 0)?;
+        }
+        self.write_partner(pet_index, partner_type_id, 1)?;
+        self.write_partner(b_index, a_type, 1)
+    }
+
+    /// Clear pet `pet_index`'s partner (and unlink its partner, keeping the pair
+    /// symmetric). Both `F` go to 999.
+    pub fn clear_partner(&mut self, pet_index: usize) -> Result<()> {
+        let a_type =
+            self.pet_type_at(pet_index).ok_or_else(|| anyhow::anyhow!("no pet at index {pet_index}"))?;
+        let a_old = self.pet_partner_at(pet_index);
+        if a_old != model::PARTNER_NONE
+            && a_old != a_type
+            && let Some(ex) = self.pet_index_by_type(a_old)
+        {
+            self.write_partner(ex, model::PARTNER_NONE, 0)?;
+        }
+        self.write_partner(pet_index, model::PARTNER_NONE, 0)
+    }
+
+    /// Auto-pair every unlocked, unpartnered pet (shuffled); an odd one out is
+    /// self-partnered. Returns the number of pets assigned.
+    pub fn assign_all_partners(&mut self) -> Result<usize> {
+        let Some(Raw::List(items)) = self.root.get_path(&["X", "b"]) else {
+            return Ok(0);
+        };
+        let mut pool: Vec<(usize, u32)> = (0..items.len())
+            .filter(|&i| {
+                let unlocked = self
+                    .value(&["X", "b", &i.to_string(), "l"])
+                    .is_some_and(|s| s.trim().eq_ignore_ascii_case("true"));
+                unlocked && self.pet_partner_at(i) == model::PARTNER_NONE
+            })
+            .filter_map(|i| self.pet_type_at(i).map(|t| (i, t)))
+            .collect();
+        if pool.is_empty() {
+            return Ok(0);
+        }
+        // Deterministic shuffle (xorshift seeded from the pool) — no rng dep, and
+        // varied per save state.
+        let mut seed = pool
+            .iter()
+            .map(|(_, t)| *t as u64)
+            .fold(1u64, |a, t| a.wrapping_mul(31).wrapping_add(t))
+            | 1;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for i in (1..pool.len()).rev() {
+            let j = (next() % (i as u64 + 1)) as usize;
+            pool.swap(i, j);
+        }
+        let mut assigned = 0;
+        for pair in pool.chunks(2) {
+            match pair {
+                [(ai, _), (_, bt)] => {
+                    self.set_partner(*ai, *bt)?; // links both
+                    assigned += 2;
+                }
+                [(ai, at)] => {
+                    self.set_partner(*ai, *at)?; // odd one out → self
+                    assigned += 1;
+                }
+                _ => unreachable!(),
+            }
+        }
+        Ok(assigned)
+    }
+
+    /// Write a pet's partner fields (`F` = partner type id, `G` = days).
+    fn write_partner(&mut self, pet_index: usize, partner_type_id: u32, days: u64) -> Result<()> {
+        let i = pet_index.to_string();
+        self.set_scalar(&["X", "b", &i, "F"], "partner", &partner_type_id.to_string())?;
+        self.set_scalar(&["X", "b", &i, "G"], "partner days", &days.to_string())?;
+        Ok(())
+    }
+
+    /// Pet `X.b[idx]`'s type id (`k`), read from the raw tree.
+    fn pet_type_at(&self, idx: usize) -> Option<u32> {
+        self.value(&["X", "b", &idx.to_string(), "k"]).and_then(|s| s.trim().parse().ok())
+    }
+
+    /// Pet `X.b[idx]`'s partner type id (`F`); `PARTNER_NONE` (999) if unset.
+    fn pet_partner_at(&self, idx: usize) -> u32 {
+        self.value(&["X", "b", &idx.to_string(), "F"])
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(model::PARTNER_NONE)
+    }
+
+    /// First `X.b` index whose pet type id (`k`) is `type_id`.
+    fn pet_index_by_type(&self, type_id: u32) -> Option<usize> {
+        let Raw::List(items) = self.root.get_path(&["X", "b"])? else {
+            return None;
+        };
+        (0..items.len()).find(|&i| self.pet_type_at(i) == Some(type_id))
+    }
+
     /// Set the quantity of material `item_id` (upsert): edit the existing `X.Q`
     /// stack if present, else create one. Returns whether a new stack was added.
     pub fn set_material(
@@ -1266,6 +1398,69 @@ mod tests {
             ("b".into(), Field::Value(Raw::List(vec![pet("0"), pet("0")]))),
         ]);
         Raw::Struct(vec![("X".into(), b64(x))])
+    }
+
+    /// An unlocked pet with type id `k` and partner `f` (999 = none).
+    fn ppet(k: &str, f: &str) -> Raw {
+        Raw::Struct(vec![
+            ("k".into(), sc(k)),
+            ("l".into(), sc("True")),
+            ("F".into(), sc(f)),
+            ("G".into(), sc("0")),
+        ])
+    }
+    fn partner_root(pets: Vec<Raw>) -> Raw {
+        let x = Raw::Struct(vec![("b".into(), Field::Value(Raw::List(pets)))]);
+        Raw::Struct(vec![("X".into(), b64(x))])
+    }
+
+    #[test]
+    fn set_partner_links_mutually_and_frees_ex() {
+        let root = partner_root(vec![ppet("10", "999"), ppet("20", "999"), ppet("30", "999")]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+        s.set_partner(0, 20).unwrap();
+        assert_eq!(s.value(&["X", "b", "0", "F"]).as_deref(), Some("20"));
+        assert_eq!(s.value(&["X", "b", "1", "F"]).as_deref(), Some("10")); // mutual
+        assert_eq!(s.value(&["X", "b", "0", "G"]).as_deref(), Some("1"));
+        // Re-pair pet0 with type 30 → frees the ex (pet1) and links 0<->2.
+        s.set_partner(0, 30).unwrap();
+        assert_eq!(s.value(&["X", "b", "1", "F"]).as_deref(), Some("999"), "ex freed");
+        assert_eq!(s.value(&["X", "b", "0", "F"]).as_deref(), Some("30"));
+        assert_eq!(s.value(&["X", "b", "2", "F"]).as_deref(), Some("10"));
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
+    }
+
+    #[test]
+    fn self_partner_and_clear() {
+        let root = partner_root(vec![ppet("10", "999"), ppet("20", "999")]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+        s.set_partner(0, 10).unwrap(); // self
+        assert_eq!(s.value(&["X", "b", "0", "F"]).as_deref(), Some("10"));
+        assert_eq!(s.value(&["X", "b", "1", "F"]).as_deref(), Some("999"), "other untouched");
+        s.set_partner(0, 20).unwrap();
+        s.clear_partner(0).unwrap();
+        assert_eq!(s.value(&["X", "b", "0", "F"]).as_deref(), Some("999"));
+        assert_eq!(s.value(&["X", "b", "1", "F"]).as_deref(), Some("999"), "partner freed too");
+    }
+
+    #[test]
+    fn assign_all_pairs_everyone_mutually() {
+        // Three single unlocked pets (odd) → one couple + one self.
+        let root = partner_root(vec![ppet("10", "999"), ppet("20", "999"), ppet("30", "999")]);
+        let mut s = EditSession::load(&encoded(&root), None).unwrap();
+        assert_eq!(s.assign_all_partners().unwrap(), 3);
+        let f = |i: usize| s.value(&["X", "b", &i.to_string(), "F"]).unwrap().parse::<u32>().unwrap();
+        let k = |i: usize| s.value(&["X", "b", &i.to_string(), "k"]).unwrap().parse::<u32>().unwrap();
+        for i in 0..3 {
+            assert_ne!(f(i), 999, "everyone assigned");
+            if f(i) != k(i) {
+                let pj = (0..3).find(|&j| k(j) == f(i)).unwrap();
+                assert_eq!(f(pj), k(i), "pairing is mutual");
+            }
+        }
+        let out = s.encode();
+        s.validate_encoded(&out).unwrap();
     }
 
     /// A material stack `{a:id, b:count}`.

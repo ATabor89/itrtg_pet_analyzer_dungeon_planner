@@ -12,7 +12,7 @@ use itrtg_models::{Class, Element};
 use crate::tree::Node;
 
 /// Sentinel in the pet `F` field meaning "no partner".
-const PARTNER_NONE: u32 = 999;
+pub const PARTNER_NONE: u32 = 999;
 
 /// A fully parsed save file: the typed parts we understand, plus the raw
 /// tree for everything else.
