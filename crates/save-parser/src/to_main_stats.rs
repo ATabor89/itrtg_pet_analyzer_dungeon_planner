@@ -102,7 +102,9 @@ pub fn moai_levels(save: &SaveFile) -> Vec<u32> {
         .collect()
 }
 
-/// Held count of a material/item id from the `X.Q` inventory (`0` when absent).
+/// Held count of a material/item id from the `X.Q` inventory. Always `Some`:
+/// a material absent from the inventory means a real count of `0` (you own
+/// none), not unknown data — matching what the text export reports.
 fn material_count(save: &SaveFile, item_id: u32) -> Option<u64> {
     save.materials
         .iter()

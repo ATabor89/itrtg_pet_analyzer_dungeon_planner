@@ -124,12 +124,16 @@ impl App {
             return;
         };
         let count = self.data.import_export_pets(pets);
-        self.data.pending_main_stats = Some(ms);
+        // Apply the account stats to the analyzer + chamber inline (rather than
+        // deferring through `pending_main_stats`) so our combined status message
+        // isn't overwritten by the next-frame main-stats handler.
+        self.analyzer_state.apply_main_stats(&ms);
+        self.chamber_state.apply_main_stats(&ms);
         // The save's exact Museum-statue levels fill the analyzer's two Moai
         // slots directly — more accurate than the Main-stats `== 2` inference.
         for (slot, statue) in self.analyzer_state.moai.iter_mut().enumerate() {
             *statue = match moai_levels.get(slot) {
-                Some(&level) => analyzer::MoaiStatue { owned: true, level: level.clamp(1, 20) as u8 },
+                Some(&level) => analyzer::MoaiStatue { owned: true, level: level.min(20) as u8 },
                 None => analyzer::MoaiStatue { owned: false, level: statue.level },
             };
         }
