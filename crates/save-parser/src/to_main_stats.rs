@@ -6,20 +6,21 @@
 //! Every field below was cross-checked against the same-session Main Stats
 //! export paired with the `2026-06-09` reference save (see `tests/to_main_stats.rs`).
 //!
-//! Two deliberate omissions (left `None`, so selective-fill never clobbers a
+//! One deliberate omission (left `None`, so selective-fill never clobbers a
 //! prior/manual value):
 //!
-//! - **`challenge_points`** — the export's "Challenge Points" is the *available*
-//!   (spendable) balance = `total − used`, and `total` includes Day-challenge
-//!   score contributions whose formulas aren't decoded yet. The flat
-//!   `Σ(completions × challenge_chp)` is a different (and wrong) quantity for
-//!   this field, so we don't auto-fill it from the save.
 //! - **`base_growth_per_hour`** — the Main Stats export only exposes the Moai
 //!   sum for an all-or-nothing `== 2` inference. We instead read the exact Moai
 //!   levels via [`moai_levels`] and set them directly, so this stays `None`.
+//!
+//! `challenge_points` *is* derived — it's the **total ChP earned** (the quantity
+//! the export reports and the Unicorn / Aether formulas consume), computed as
+//! `Σ(non-Day completions × per-completion ChP) + Σ(Day-challenge capped score
+//! formula)`. See [`total_challenge_points`].
 
 use itrtg_models::MainStats;
 
+use crate::items;
 use crate::model::{SaveFile, trackers};
 use crate::tree::Node;
 
@@ -57,8 +58,7 @@ pub fn save_to_main_stats(save: &SaveFile) -> MainStats {
         honey_consumed_by_bear: save
             .global_tracker(trackers::HONEY_CONSUMED_BY_BEAR)
             .map(|v| v.round() as u64),
-        // Available-ChP balance isn't cleanly derivable from the save — see docs.
-        challenge_points: None,
+        challenge_points: Some(total_challenge_points(save)),
         goblin_ucc: Some(challenge_completions(save, CHALLENGE_UCC) as u32),
         goblin_oc: Some(challenge_completions(save, CHALLENGE_OC) as u32),
         ultimate_pet_challenges: Some((challenge_completions(save, CHALLENGE_UPC) as u32, UPC_MAX)),
@@ -124,4 +124,63 @@ fn challenge_completions(save: &SaveFile, challenge_id: u32) -> u64 {
         .filter(|e| e.get("a").and_then(Node::as_u32) == Some(challenge_id))
         .filter_map(|e| e.get("b").and_then(Node::as_u64))
         .sum()
+}
+
+/// Total Challenge Points **earned** — the value the export's "Challenge Points"
+/// line reports and the Unicorn campaign bonus / Aether plan consume. ChP is a
+/// derived sum (never stored): the flat-rate challenges pay per completion, the
+/// Day challenges pay a single capped amount based on their best score. The
+/// result is the *total earned*, not the spendable balance — spending ChP on
+/// upgrades doesn't reduce it. Cross-checked to the export's 751 for the
+/// 2026-06-09 save (`tests/to_main_stats.rs`).
+fn total_challenge_points(save: &SaveFile) -> u64 {
+    // Our transcribed Day-challenge constants (e.g. 6.67) carry sub-ChP error
+    // vs. the game's exact internals, so round the derived sum rather than floor.
+    (non_day_challenge_chp(save) + day_challenge_chp(save)).round() as u64
+}
+
+/// Σ over the `x.242` list of `completions × per-completion ChP` for the
+/// flat-rate challenges. [`items::challenge_chp`] returns `None` for the
+/// score-based Day challenges, so they're skipped here (see [`day_challenge_chp`]).
+fn non_day_challenge_chp(save: &SaveFile) -> f64 {
+    let Some(list) = save.root.get_path(&["x", "242"]) else {
+        return 0.0;
+    };
+    list.list_or_single()
+        .iter()
+        .filter_map(|e| {
+            let id = e.get("a").and_then(Node::as_u32)?;
+            let count = e.get("b").and_then(Node::as_u64)?;
+            Some(count as f64 * items::challenge_chp(id)? as f64)
+        })
+        .sum()
+}
+
+/// Σ of each Day challenge's score-based ChP. Each Day challenge pays a single
+/// amount from its **highest score** (a stat at `root.x.<key>`) run through the
+/// game's per-challenge formula and cap — completion *count* is irrelevant.
+/// A 0/absent score contributes 0.
+///
+/// Three Day challenges whose score key isn't located yet — No Rebirth (41),
+/// God Power (52), Multiverse (54) — are omitted and contribute 0 until a save
+/// with non-zero completions surfaces their keys.
+///
+/// TODO: locate the score keys for Day challenges 41/52/54 (see the Day-challenge
+/// notes in `reference/save_file_deserialization/FINDINGS.md`); until then their
+/// ChP is under-reported for any account that has completed them.
+fn day_challenge_chp(save: &SaveFile) -> f64 {
+    // Highest-score stat for a Day challenge, clamped non-negative.
+    let score = |key: &str| save.global_tracker(key).unwrap_or(0.0).max(0.0);
+    let capped = |v: f64, cap: f64| v.clamp(0.0, cap);
+    // log2 is only meaningful for scores ≥ 1; below that the challenge is untouched.
+    let log2 = |x: f64| if x >= 1.0 { x.log2() } else { 0.0 };
+
+    // (challenge name, score key) — formulas transcribed from the game, each capped.
+    capped(3.0 * score("045"), 666.0)               // Day Baal: 3 × strongest P.Baal
+        + capped(log2(score("047")) * 8.0, 666.0)   // Day Universe: log2(universes) × 8
+        + capped(log2(score("049")) * 6.67, 666.0)  // Day Pet: log2(pet multi) × 6.67
+        + capped(score("065").sqrt() / 1.6, 666.0)  // Day Might: sqrt(might) / 1.6
+        + capped(score("068").sqrt() / 100.0, 666.0) // Day No Divinity: sqrt(points) / 100
+        + capped(5.0 * score("134"), 2000.0)        // Road to Infinity: 5 × strongest P.Baal
+        + capped(score("304").powf(0.15) * 35.0, 666.0) // Day Extreme Building: points^0.15 × 35
 }
