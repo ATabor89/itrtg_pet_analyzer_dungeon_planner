@@ -55,6 +55,42 @@ fn update_added_only_boar_to_pets() {
     assert!(removed.is_empty(), "no pets should be removed: {removed:?}");
 }
 
+/// Non-sentinel members of a registered enum that have no Rust entry — the
+/// "MISSING from Rust" set the audit computes. Mirrors the binary's logic.
+fn missing_against_rust(dir: &Path, key: &str) -> Vec<(i64, String)> {
+    let enums = parse::parse_dir(dir).expect("dump parses");
+    let known = REGISTRY.iter().find(|k| k.key == key).unwrap();
+    let fp = registry::rust_fingerprint(known);
+    let (e, _) = registry::match_enum(known, &enums).expect("enum located");
+    let mut missing: Vec<(i64, String)> = e
+        .by_value()
+        .iter()
+        .filter(|(v, n)| !fp.contains_key(v) && !registry::is_sentinel(n))
+        .map(|(v, n)| (*v, n.to_string()))
+        .collect();
+    missing.sort();
+    missing
+}
+
+#[test]
+fn complete_tables_with_high_ids_report_no_false_missing() {
+    // Regression: these tables have real entries above the old per-enum scan
+    // ceilings (equipment_type→311, gem_element→99, adventure_item→1000+), which
+    // used to be excluded from the fingerprint and falsely flagged as missing.
+    let new = dump("_cs_decomp_new");
+    if !new.exists() {
+        eprintln!("skipping: {} not present", new.display());
+        return;
+    }
+    for key in ["equipment_type", "gem_element", "adventure_item"] {
+        let missing = missing_against_rust(&new, key);
+        assert!(
+            missing.is_empty(),
+            "{key} should be in sync, but tool reports missing: {missing:?}"
+        );
+    }
+}
+
 #[test]
 fn monk_class_was_already_present_before_the_update() {
     // The class enum slot was reserved ahead of release, so an old↔new diff of

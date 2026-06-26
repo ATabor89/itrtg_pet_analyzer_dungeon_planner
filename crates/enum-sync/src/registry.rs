@@ -21,14 +21,19 @@ pub enum Coverage {
     Partial,
 }
 
-/// A game enum we mirror in Rust, plus how far to scan its id space.
+/// Inclusive id ceiling scanned when building a fingerprint from a Rust table.
+/// The lookups return `None` past their real range, so a generous fixed ceiling
+/// is essentially free and avoids per-table bounds (which, set too low, would
+/// drop real high-id entries from the fingerprint and then falsely report them
+/// as missing). The highest id in any table today is 1002; this leaves headroom.
+pub const SCAN_MAX: u32 = 4096;
+
+/// A game enum we mirror in Rust.
 pub struct KnownEnum {
     /// Stable label used on the CLI (`--only <key>`) and in reports.
     pub key: &'static str,
     /// The `save-parser` lookup that encodes this enum's ids today.
     pub lookup: fn(u32) -> Option<&'static str>,
-    /// Inclusive upper bound to scan when building the fingerprint map.
-    pub max_id: u32,
     /// Whether the table aims to be exhaustive (drives against-Rust severity).
     pub coverage: Coverage,
 }
@@ -41,27 +46,27 @@ use Coverage::{Complete, Partial};
 /// curate a subset, so against-Rust mode summarizes their gaps instead of
 /// flagging every entry.
 pub const REGISTRY: &[KnownEnum] = &[
-    KnownEnum { key: "pets", lookup: items::pet_type_name, max_id: 999, coverage: Complete },
-    KnownEnum { key: "adventure_class", lookup: items::adventure_class_name, max_id: 200, coverage: Complete },
-    KnownEnum { key: "adventure_skill", lookup: items::adventure_skill_name, max_id: 400, coverage: Partial },
-    KnownEnum { key: "adventure_craft_gear", lookup: items::adventure_craft_gear_name, max_id: 400, coverage: Partial },
-    KnownEnum { key: "adventure_recipe", lookup: items::adventure_recipe_name, max_id: 400, coverage: Complete },
-    KnownEnum { key: "adventure_item", lookup: items::adventure_item_name, max_id: 700, coverage: Complete },
-    KnownEnum { key: "adventure_enemy", lookup: items::adventure_enemy_name, max_id: 700, coverage: Complete },
-    KnownEnum { key: "material", lookup: items::material_name, max_id: 300, coverage: Partial },
-    KnownEnum { key: "equipment_type", lookup: items::equipment_type_name, max_id: 300, coverage: Complete },
-    KnownEnum { key: "elemental_form", lookup: items::elemental_form_name, max_id: 64, coverage: Complete },
-    KnownEnum { key: "gem_element", lookup: items::gem_element_name, max_id: 64, coverage: Complete },
-    KnownEnum { key: "campaign_type", lookup: items::campaign_type_name, max_id: 64, coverage: Complete },
-    KnownEnum { key: "dungeon", lookup: items::dungeon_name, max_id: 128, coverage: Complete },
-    KnownEnum { key: "spacedim", lookup: items::spacedim_name, max_id: 64, coverage: Complete },
-    KnownEnum { key: "might", lookup: items::might_name, max_id: 64, coverage: Complete },
-    KnownEnum { key: "monument", lookup: items::monument_name, max_id: 128, coverage: Complete },
-    KnownEnum { key: "creation", lookup: items::creation_name, max_id: 64, coverage: Complete },
-    KnownEnum { key: "village_building", lookup: items::village_building_name, max_id: 128, coverage: Partial },
-    KnownEnum { key: "statue", lookup: items::statue_name, max_id: 128, coverage: Complete },
-    KnownEnum { key: "pond", lookup: items::pond_name, max_id: 64, coverage: Complete },
-    KnownEnum { key: "challenge", lookup: items::challenge_name, max_id: 64, coverage: Complete },
+    KnownEnum { key: "pets", lookup: items::pet_type_name, coverage: Complete },
+    KnownEnum { key: "adventure_class", lookup: items::adventure_class_name, coverage: Complete },
+    KnownEnum { key: "adventure_skill", lookup: items::adventure_skill_name, coverage: Partial },
+    KnownEnum { key: "adventure_craft_gear", lookup: items::adventure_craft_gear_name, coverage: Partial },
+    KnownEnum { key: "adventure_recipe", lookup: items::adventure_recipe_name, coverage: Complete },
+    KnownEnum { key: "adventure_item", lookup: items::adventure_item_name, coverage: Complete },
+    KnownEnum { key: "adventure_enemy", lookup: items::adventure_enemy_name, coverage: Complete },
+    KnownEnum { key: "material", lookup: items::material_name, coverage: Partial },
+    KnownEnum { key: "equipment_type", lookup: items::equipment_type_name, coverage: Complete },
+    KnownEnum { key: "elemental_form", lookup: items::elemental_form_name, coverage: Complete },
+    KnownEnum { key: "gem_element", lookup: items::gem_element_name, coverage: Complete },
+    KnownEnum { key: "campaign_type", lookup: items::campaign_type_name, coverage: Complete },
+    KnownEnum { key: "dungeon", lookup: items::dungeon_name, coverage: Complete },
+    KnownEnum { key: "spacedim", lookup: items::spacedim_name, coverage: Complete },
+    KnownEnum { key: "might", lookup: items::might_name, coverage: Complete },
+    KnownEnum { key: "monument", lookup: items::monument_name, coverage: Complete },
+    KnownEnum { key: "creation", lookup: items::creation_name, coverage: Complete },
+    KnownEnum { key: "village_building", lookup: items::village_building_name, coverage: Partial },
+    KnownEnum { key: "statue", lookup: items::statue_name, coverage: Complete },
+    KnownEnum { key: "pond", lookup: items::pond_name, coverage: Complete },
+    KnownEnum { key: "challenge", lookup: items::challenge_name, coverage: Complete },
 ];
 
 /// Sentinel members the Rust tables intentionally omit (the caller handles
@@ -85,7 +90,7 @@ pub fn normalize(s: &str) -> String {
 /// Rust table.
 pub fn rust_fingerprint(known: &KnownEnum) -> BTreeMap<i64, String> {
     let mut map = BTreeMap::new();
-    for id in 0..=known.max_id {
+    for id in 0..=SCAN_MAX {
         if let Some(name) = (known.lookup)(id) {
             map.insert(id as i64, normalize(name));
         }
