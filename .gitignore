@@ -20,10 +20,12 @@
 **/edited_*.txt
 
 # Decompiled game C# from the Mono `Assembly-CSharp.dll`, produced by the
-# save-model cross-check (e.g. `ilspycmd ... -o _cs_decomp`). This is
-# copyrighted game source — reference only, NEVER commit. Only derived findings
-# (key→field mappings written into FINDINGS.md / the Rust model) go in git.
-/reference/save_file_deserialization/_cs_decomp/
+# save-model cross-check (e.g. `ilspycmd ... -o _cs_decomp`) or the enum-sync
+# tool. This is copyrighted game source — reference only, NEVER commit. Only
+# derived findings (key→field mappings written into FINDINGS.md / the Rust
+# model) go in git. The glob also catches post-update variants kept side by
+# side for diffing, e.g. `_cs_decomp_new/`.
+/reference/save_file_deserialization/_cs_decomp*/
 
 # Kongregate / web-build "Save to file" exports (any name containing
 # "SaveItRtG") carry identity and use a custom container our tooling decodes but

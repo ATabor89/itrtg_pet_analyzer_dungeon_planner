@@ -1,0 +1,16 @@
+[package]
+name = "enum-sync"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "enum_sync"
+path = "src/lib.rs"
+
+[[bin]]
+name = "enum-sync"
+path = "src/main.rs"
+
+[dependencies]
+save-parser = { path = "../save-parser" }
+anyhow = "1"
