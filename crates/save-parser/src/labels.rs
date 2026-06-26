@@ -835,6 +835,7 @@ save_block! {
     GoldDragonGrowth:    "311", "Gold Dragon bonus growth",                      FieldKind::Text, None, None;
     SerowItems:          "324", "Serow items saved",                            FieldKind::Text, None, None;
     BagGrowth:           "336", "Bag bonus growth",                             FieldKind::Text, None, None;
+    BoarPetStones:       "384", "Boar extra pet stones found in item campaigns (caps 600k; evo at 300k)", FieldKind::Text, None, None;
     DayBaal:             "045", "Day Baal Challenge score (ChP basis)",        FieldKind::Text, None, None;
     DayUniverse:         "047", "Day Universe Challenge score (ChP basis)",    FieldKind::Text, None, None;
     DayPet:              "049", "Day Pet Challenge highest multiplier (ChP basis)", FieldKind::Text, None, None;
