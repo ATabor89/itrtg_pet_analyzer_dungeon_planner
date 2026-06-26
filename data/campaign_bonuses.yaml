@@ -70,6 +70,9 @@ UFO:
 Eagle:
   - when: Always
     set: { Item: 75 }
+Boar:
+  - when: Always
+    set: { Item: 111 }
 # Same phrasing pattern as Eagle/Squirrel/Octopus (confirmed in-game as
 # standard bonuses), though these three weren't individually verified:
 Dog:

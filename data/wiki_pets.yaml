@@ -2581,6 +2581,23 @@
     other: Rebirth it having an empty hunger bar 6 times
   campaign_bonus:
     raw: -108% (Food), +108% (Growth)
+- name: Boar
+  wiki_url: https://itrtg.wiki.gg/wiki/Boar
+  element: Earth
+  recommended_class: !Single Adventurer
+  class_bonus: 0.63% x CL
+  unlock_condition: SpecialTask
+  evo_difficulty:
+    base: 3
+    with_conditions: 5
+  token_improvable: false
+  special_ability: Bonus Pet Stones in Item Camp
+  evo_requirements:
+    growth: !Total 12500
+    material: 625 Special Wood
+    other: Have Boar find 300k Pet Stones in Item Camp
+  campaign_bonus:
+    raw: +111% (Item)
 - name: Nothing (Other)
   wiki_url: https://itrtg.wiki.gg/wiki/Nothing_(Other)
   element: Neutral

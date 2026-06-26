@@ -865,6 +865,10 @@ pub fn pet_type_name(type_id: u32) -> Option<&'static str> {
         149 => "Baphomate",
         150 => "Dorgegebelle",
         151 => "Bear",
+        // TODO(boar): the 2026-06 update added "Boar" (Adventurer, Earth). Its
+        // type id is presumably 152 but isn't confirmed until the decompiled pet
+        // enum is refreshed — add it here once known. Until then a Boar in a save
+        // falls back to its display name via `convert_pet`.
         750 => "GrayChild1",
         751 => "GrayChild2",
         752 => "Dummy",
