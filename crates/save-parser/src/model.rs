@@ -927,6 +927,12 @@ pub mod trackers {
     /// Pet stones bought with Baal Power (global across rebirths) — the
     /// Vermillion Pheasant unlock progress (10,000 needed).
     pub const PET_STONES_BAAL_POWER: &str = "270";
+    /// Boar: extra pet stones found in item campaigns (+300/hour). Drives both
+    /// the tooltip ("So far it found an extra N pet stones") and Boar's evo,
+    /// which needs 300,000; the find caps at 600,000 total. C# accessor `n384`
+    /// (field `IOCFPIPBFEI` on the statistics block, read as
+    /// `root.x.BOHOMOEKOCP.IOCFPIPBFEI`).
+    pub const BOAR_PET_STONES_FOUND: &str = "384";
     // NOTE: x.138 was briefly misidentified as Anni Cake's bonus because
     // floor(x.138/3600) happened to equal the displayed 949% in save 2 — a
     // genuine coincidence (save 1 disagrees: 911 vs the actual 709). The
