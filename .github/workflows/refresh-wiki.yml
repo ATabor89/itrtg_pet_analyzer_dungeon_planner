@@ -21,6 +21,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Cache cargo registry and target
         uses: Swatinem/rust-cache@v2
@@ -41,6 +43,14 @@ jobs:
             echo "data/wiki_pets.yaml changed:"
             git diff --stat -- data/wiki_pets.yaml
           fi
+
+      - name: Test refreshed data
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo test --workspace
+
+      - name: Clippy
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo clippy --workspace --all-targets
 
       - name: Commit and push
         if: steps.diff.outputs.changed == 'true'
