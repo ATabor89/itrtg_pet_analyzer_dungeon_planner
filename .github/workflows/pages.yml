@@ -30,6 +30,14 @@ jobs:
         with:
           version: latest
 
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pages
+
+      - name: Test workspace
+        run: cargo test --workspace
+
       - name: Build WASM
         run: trunk build --release --public-url /itrtg_pet_analyzer_dungeon_planner/
         working-directory: crates/gui
