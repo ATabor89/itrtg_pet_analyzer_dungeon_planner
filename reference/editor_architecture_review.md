@@ -1,9 +1,17 @@
-# Editor architecture review
+# Editor architecture review (historical)
 
-Decision-oriented review of two raised refactors. **These are recommendations,
-not committed work** — nothing here is implemented; the new editor sections
-(#2–#5) are intentionally held until you pick a direction, since the choice
-changes how they're built.
+> **Status, 2026-07:** This document records the decision process that shaped the
+> save editor; it is no longer a current implementation plan. The field-model
+> work progressed beyond the original Option A recommendation: the canonical
+> descriptor/typed-block approach described as Option B was completed in PRs
+> #25–#26. `save-parser::labels` now owns field kind, range, label, and resolver
+> metadata; the GUI registry and raw-tree editor consume those descriptors.
+> The editor sections that were held during this review have also shipped.
+> The recommendation to remain on egui still stands.
+
+The remainder is retained as a decision record of the alternatives and evidence
+considered at the time. Future-tense statements below should be read in that
+historical context.
 
 - **Part 1 — Model / type-driven correctness (#19)** — below.
 - **Part 2 — UI framework / egui vs alternatives (#20)** — further below.
