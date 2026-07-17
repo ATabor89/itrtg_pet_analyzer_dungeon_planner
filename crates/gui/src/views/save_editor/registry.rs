@@ -387,6 +387,14 @@ mod tests {
     use crate::views::save_editor::session::EditSession;
     use save_parser::raw::Raw;
 
+    /// Registry paths introduced by game versions newer than the committed
+    /// reference save. Keep this list narrow: entries must exist in the
+    /// registry and must still be absent from the fixture, so replacing the
+    /// fixture with a newer save makes stale exceptions fail loudly.
+    const VERSION_GATED_FIXTURE_PATHS: &[&[&str]] = &[
+        &["x", "384"], // Boar pet-stone tracker, added in the 2026-06 update.
+    ];
+
     /// Load the committed (redacted) reference save for coverage checks.
     fn fixture_session() -> EditSession {
         let path = concat!(
@@ -431,15 +439,33 @@ mod tests {
         }
     }
 
-    /// Every seeded pattern must resolve in a real save — guards against typo'd
-    /// or stale keys, in the spirit of the planner's `test_campaign_bonus_coverage`.
+    /// Every seeded pattern must resolve in a real save unless the field was
+    /// introduced after that save was written. This guards against typo'd or
+    /// stale keys in the spirit of the planner's `test_campaign_bonus_coverage`.
     #[test]
     fn every_registry_path_resolves() {
         let session = fixture_session();
         let registry = FieldRegistry::new();
+
+        for path in VERSION_GATED_FIXTURE_PATHS {
+            assert!(
+                registry.fields.iter().any(|field| field.path == *path),
+                "version-gated fixture path is not registered: {}",
+                path.join(".")
+            );
+            assert!(
+                !pattern_resolves(&session, path),
+                "version-gated fixture path now exists; remove its exception: {}",
+                path.join(".")
+            );
+        }
+
         let mut missing = Vec::new();
         for field in &registry.fields {
-            if !pattern_resolves(&session, &field.path) {
+            let version_gated = VERSION_GATED_FIXTURE_PATHS
+                .iter()
+                .any(|path| field.path == *path);
+            if !version_gated && !pattern_resolves(&session, &field.path) {
                 missing.push(format!("{} ({})", field.path.join("."), field.name));
             }
         }
