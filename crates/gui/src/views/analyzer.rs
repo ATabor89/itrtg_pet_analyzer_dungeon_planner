@@ -3,9 +3,9 @@ use std::cell::RefCell;
 use eframe::egui::{self, Color32, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 use itrtg_models::{
-    parse_flexible_number, CampaignInputs, CampaignType, Class, Dungeon, Element,
-    GrowthRequirement, MainStats, MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass,
-    UnlockCondition, VillageJob,
+    base_growth_for_displayed_target, displayed_growth, parse_flexible_number, pgc_growth_mult,
+    CampaignInputs, CampaignType, Class, Dungeon, Element, GrowthRequirement, MainStats,
+    MAGIC_EGG_GROWTH_MULT, PetAction, RecommendedClass, UnlockCondition, VillageJob,
 };
 use itrtg_planner::growth::{format_duration, CapRelation, GrowthRates};
 use itrtg_planner::merge::{CampaignContext, ELEMENTAL_EVO_GROWTH, EvoReadiness, MergedPet};
@@ -257,9 +257,16 @@ pub struct AnalyzerState {
     /// Renamed from the earlier free-list `moai_statues`; the old key is simply
     /// ignored on load.
     pub moai: [MoaiStatue; 2],
-    /// Global growth target (base growth) used for the "time to target" table
-    /// sort. Persisted; `0` means unset. Distinct from the pet card's ephemeral
-    /// `custom_target` scratch input.
+    /// PGC completion counts used by displayed growth, evolution readiness, and
+    /// growth-target estimates. Auto-filled from Main stats and persisted so a
+    /// pet-export-only refresh keeps the account-wide multiplier.
+    pub pgc_done: u32,
+    pub pgc_max: u32,
+    /// Global displayed-growth target used for the "time to target" table
+    /// sort. Persisted; `0` means unset. Before analyzer PGC support this was
+    /// described as base growth; existing numeric values are intentionally
+    /// retained and reinterpreted as displayed targets once PGC is non-1.
+    /// Distinct from the pet card's ephemeral `custom_target` scratch input.
     pub global_growth_target: u64,
     /// Whether the "time to evolve" sort uses egg-boosted targets (base =
     /// threshold / 1.3) for total-growth thresholds. Persisted. Base-growth
@@ -308,6 +315,8 @@ impl Default for AnalyzerState {
             sort_column: SortColumn::default(),
             sort_ascending: SortColumn::default().default_ascending(),
             moai: [MoaiStatue::default(), MoaiStatue::default()],
+            pgc_done: 0,
+            pgc_max: 25,
             global_growth_target: 0,
             evolve_sort_use_egg: false,
             time_sort_tiebreak: TimeSortTiebreak::default(),
@@ -337,6 +346,8 @@ impl AnalyzerState {
         self.sort_column = src.sort_column;
         self.sort_ascending = src.sort_ascending;
         self.moai = src.moai.clone();
+        self.pgc_max = src.pgc_max;
+        self.pgc_done = src.pgc_done.min(src.pgc_max);
         self.global_growth_target = src.global_growth_target;
         self.evolve_sort_use_egg = src.evolve_sort_use_egg;
         self.time_sort_tiebreak = src.time_sort_tiebreak;
@@ -351,10 +362,11 @@ impl AnalyzerState {
         state.analyzer = self.clone();
     }
 
-    /// Auto-fill campaign inputs (and the Moai statues) from a parsed Main-stats
-    /// export. Returns short labels for the fields that were filled (for a status
-    /// message). Only values present in the export are applied; the rest are left
-    /// untouched, so importing never clears a field the export didn't carry.
+    /// Auto-fill campaign inputs, Moai statues, and PGC from a parsed Main-stats
+    /// export. Returns short labels for the fields that were filled (for a
+    /// status message). Only values present in the export are applied; the rest
+    /// are left untouched, so importing never clears a field the export didn't
+    /// carry.
     pub fn apply_main_stats(&mut self, ms: &MainStats) -> Vec<&'static str> {
         let ci = &mut self.campaign_inputs;
         let mut applied = Vec::new();
@@ -402,7 +414,16 @@ impl AnalyzerState {
             ];
             applied.push("Moai (both, L20)");
         }
+        if let Some((done, max)) = ms.patreon_god_challenges {
+            self.pgc_max = max;
+            self.pgc_done = done.min(max);
+            applied.push("PGC");
+        }
         applied
+    }
+
+    fn pgc_mult(&self) -> f64 {
+        pgc_growth_mult(self.pgc_done, self.pgc_max)
     }
 }
 
@@ -494,6 +515,7 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
         .map(|m| m.level)
         .collect();
     let rates = GrowthRates::compute(&data.merged, &moai_levels);
+    let growth_mult = state.pgc_mult();
 
     // Effective-campaign-bonus context (curated overrides applied to the parsed
     // baseline). Cheap to build; borrows the loaded overrides.
@@ -513,10 +535,10 @@ pub fn show(ui: &mut Ui, state: &mut AnalyzerState, data: &DataStore) {
     };
 
     // Pet detail window (rendered before table so it floats above)
-    show_detail_window(ui, state, data, &rates, &camp_ctx);
+    show_detail_window(ui, state, data, &rates, &camp_ctx, growth_mult);
 
     // Stats bar
-    show_stats_bar(ui, data);
+    show_stats_bar(ui, data, growth_mult);
 
     ui.add_space(4.0);
 
@@ -580,6 +602,7 @@ fn show_detail_window(
     data: &DataStore,
     rates: &GrowthRates,
     camp_ctx: &CampaignContext,
+    growth_mult: f64,
 ) {
     if let Some(pet_name) = state.selected_pet.clone() {
         let pet = data.merged.iter().find(|p| p.name == pet_name);
@@ -593,7 +616,7 @@ fn show_detail_window(
             .default_size([400.0, 350.0])
             .show(ui.ctx(), |ui| {
                 if let Some(pet) = pet {
-                    show_pet_details(ui, pet, rates, custom_target, camp_ctx);
+                    show_pet_details(ui, pet, rates, custom_target, camp_ctx, growth_mult);
                 } else {
                     ui.label(
                         RichText::new("Pet not found in current data.")
@@ -614,6 +637,7 @@ fn show_pet_details(
     rates: &GrowthRates,
     custom_target: &mut String,
     camp_ctx: &CampaignContext,
+    growth_mult: f64,
 ) {
     // Wiki data section
     if let Some(wiki) = &pet.wiki {
@@ -685,7 +709,7 @@ fn show_pet_details(
     }
 
     // Evolution requirements + readiness
-    show_evolution_section(ui, pet, rates, camp_ctx);
+    show_evolution_section(ui, pet, rates, camp_ctx, growth_mult);
 
     // Campaign bonus (raw prose + effective per-campaign chips)
     show_campaign_section(ui, pet, camp_ctx);
@@ -706,7 +730,7 @@ fn show_pet_details(
             .num_columns(2)
             .spacing([12.0, 4.0])
             .show(ui, |ui| {
-                ui.label(RichText::new("Growth:").color(style::TEXT_MUTED).size(12.0));
+                ui.label(RichText::new("Base growth:").color(style::TEXT_MUTED).size(12.0));
                 ui.label(
                     RichText::new(format_number(export.growth))
                         .color(style::TEXT_NORMAL)
@@ -715,12 +739,29 @@ fn show_pet_details(
                 );
                 ui.end_row();
 
+                if growth_mult > 1.0 {
+                    ui.label(RichText::new("w/ PGC:").color(style::TEXT_MUTED).size(12.0));
+                    ui.label(
+                        RichText::new(format_number(
+                            displayed_growth(export.growth, growth_mult),
+                        ))
+                        .color(style::TEXT_NORMAL)
+                        .size(12.0)
+                        .family(egui::FontFamily::Monospace),
+                    );
+                    ui.end_row();
+                }
+
                 ui.label(
-                    RichText::new("w/ Magic Egg:")
+                    RichText::new(if growth_mult > 1.0 {
+                        "w/ PGC + Magic Egg:"
+                    } else {
+                        "w/ Magic Egg:"
+                    })
                         .color(style::TEXT_MUTED)
                         .size(12.0),
                 );
-                let egg_growth = (export.growth as f64 * 1.3).round() as u64;
+                let egg_growth = export.growth_with_magic_egg_and_global_mult(growth_mult);
                 ui.label(
                     RichText::new(format_number(egg_growth))
                         .color(style::TEXT_NORMAL)
@@ -832,14 +873,20 @@ fn show_pet_details(
     // Growth-time calculator — works for any pet with export data, evolved or
     // not (e.g. "how long to grow this pet before slotting it into rotation").
     if let Some(export) = &pet.export {
-        show_custom_target(ui, export.growth, rates, custom_target);
+        show_custom_target(ui, export.growth, rates, custom_target, growth_mult);
     }
 }
 
-/// A growth-time calculator: enter an arbitrary target base growth and see the
-/// estimated time to reach it, with and without a Magic Egg. Like the evolution
-/// estimate, "with egg" reaches the target at base = target / 1.3.
-fn show_custom_target(ui: &mut Ui, base: u64, rates: &GrowthRates, input: &mut String) {
+/// A growth-time calculator: enter an arbitrary displayed-growth target and see
+/// the estimated time to reach it, with and without a Magic Egg. PGC applies to
+/// both estimates; the egg stacks on top for the second.
+fn show_custom_target(
+    ui: &mut Ui,
+    base: u64,
+    rates: &GrowthRates,
+    input: &mut String,
+    growth_mult: f64,
+) {
     ui.add_space(8.0);
     ui.separator();
     ui.label(
@@ -858,7 +905,7 @@ fn show_custom_target(ui: &mut Ui, base: u64, rates: &GrowthRates, input: &mut S
         !t.is_empty() && parse_flexible_number(t).is_none()
     };
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Target base growth:").color(style::TEXT_MUTED).size(12.0));
+        ui.label(RichText::new("Target displayed growth:").color(style::TEXT_MUTED).size(12.0));
         let mut edit = egui::TextEdit::singleline(input)
             .desired_width(110.0)
             .hint_text("e.g. 50000 or 5e6");
@@ -875,10 +922,14 @@ fn show_custom_target(ui: &mut Ui, base: u64, rates: &GrowthRates, input: &mut S
         return;
     };
 
-    let target_egg = (target as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
+    let target_base = base_growth_for_displayed_target(target, growth_mult);
+    let target_egg = base_growth_for_displayed_target(
+        target,
+        MAGIC_EGG_GROWTH_MULT * growth_mult,
+    );
     ui.horizontal(|ui| {
         ui.label(RichText::new("Time — no egg:").color(style::TEXT_MUTED).size(11.0));
-        eta_label(ui, rates.hours_to_target(base, target));
+        eta_label(ui, rates.hours_to_target(base, target_base));
         ui.label(RichText::new("· with egg:").color(style::TEXT_MUTED).size(11.0));
         eta_label(ui, rates.hours_to_target(base, target_egg));
     });
@@ -888,8 +939,8 @@ fn show_custom_target(ui: &mut Ui, base: u64, rates: &GrowthRates, input: &mut S
             .italics()
             .size(10.0),
     );
-    if base < target {
-        show_cap_note(ui, rates, base, target);
+    if base < target_base {
+        show_cap_note(ui, rates, base, target_base);
     }
 }
 
@@ -909,13 +960,26 @@ fn parse_growth_target(input: &str) -> Option<u64> {
 /// thresholds the egg-assisted target — the base growth at which equipping a
 /// Magic Egg clears the bar — is shown alongside, as the number to actually
 /// aim for. Base-growth thresholds (Baby Carno) show the bare figure.
-fn growth_threshold_text(req: &GrowthRequirement) -> String {
+fn growth_threshold_text(req: &GrowthRequirement, growth_mult: f64) -> String {
     let threshold = req.value().max(0) as u64;
     if !req.magic_egg_counts() {
         return format_number(threshold);
     }
-    let egg_target = (threshold as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
-    format!("{} ({} with Magic Egg)", format_number(threshold), format_number(egg_target))
+    let no_egg_target = base_growth_for_displayed_target(threshold, growth_mult);
+    let egg_target = base_growth_for_displayed_target(
+        threshold,
+        MAGIC_EGG_GROWTH_MULT * growth_mult,
+    );
+    if growth_mult > 1.0 {
+        format!(
+            "{} ({} with PGC; {} with PGC + Magic Egg)",
+            format_number(threshold),
+            format_number(no_egg_target),
+            format_number(egg_target)
+        )
+    } else {
+        format!("{} ({} with Magic Egg)", format_number(threshold), format_number(egg_target))
+    }
 }
 
 /// The "more growth to threshold" line for a pet that can't evolve yet, given
@@ -923,20 +987,35 @@ fn growth_threshold_text(req: &GrowthRequirement) -> String {
 /// total-growth thresholds the Magic Egg's +30% lowers the bar, so the smaller
 /// egg-assisted remainder is shown alongside; base-growth thresholds (Baby
 /// Carno) ignore the egg, so only the base figure appears — labelled as such.
-fn growth_needed_text(req: &GrowthRequirement, base_growth: u64) -> String {
+fn growth_needed_text(req: &GrowthRequirement, base_growth: u64, growth_mult: f64) -> String {
     let needed = (req.value() - base_growth as i64).max(0) as u64;
     if !req.magic_egg_counts() {
         return format!("{} more base growth to threshold", format_number(needed));
     }
-    // With an egg the threshold is met at base = ceil(threshold / 1.3) — same
-    // arithmetic as the ETA estimate below.
-    let egg_target = (req.value().max(0) as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
+    // Convert the displayed threshold back to the base-growth accumulator,
+    // with PGC alone and with PGC + egg.
+    let threshold = req.value().max(0) as u64;
+    let no_egg_target = base_growth_for_displayed_target(threshold, growth_mult);
+    let egg_target = base_growth_for_displayed_target(
+        threshold,
+        MAGIC_EGG_GROWTH_MULT * growth_mult,
+    );
+    let needed_pgc = no_egg_target.saturating_sub(base_growth);
     let needed_egg = egg_target.saturating_sub(base_growth);
-    format!(
-        "{} more growth to threshold ({} with Magic Egg)",
-        format_number(needed),
-        format_number(needed_egg)
-    )
+    if growth_mult > 1.0 {
+        format!(
+            "{} more base growth ({} with PGC; {} with PGC + Magic Egg)",
+            format_number(needed),
+            format_number(needed_pgc),
+            format_number(needed_egg)
+        )
+    } else {
+        format!(
+            "{} more growth to threshold ({} with Magic Egg)",
+            format_number(needed),
+            format_number(needed_egg)
+        )
+    }
 }
 
 /// Evolution requirements (growth threshold, material, other) plus a
@@ -947,6 +1026,7 @@ fn show_evolution_section(
     pet: &MergedPet,
     rates: &GrowthRates,
     camp_ctx: &CampaignContext,
+    growth_mult: f64,
 ) {
     let Some(req) = pet.wiki.as_ref().and_then(|w| w.evo_requirements.as_ref()) else {
         return;
@@ -975,7 +1055,7 @@ fn show_evolution_section(
             };
             ui.label(RichText::new(label).color(style::TEXT_MUTED).size(12.0));
             ui.label(
-                RichText::new(growth_threshold_text(&req.growth))
+                RichText::new(growth_threshold_text(&req.growth, growth_mult))
                     .color(style::TEXT_NORMAL)
                     .size(12.0)
                     .family(egui::FontFamily::Monospace),
@@ -995,7 +1075,7 @@ fn show_evolution_section(
         });
 
     // Readiness badge — only present for unlocked, still-unevolved pets.
-    if let Some(readiness) = pet.evo_readiness() {
+    if let Some(readiness) = pet.evo_readiness_with_growth_mult(growth_mult) {
         ui.add_space(2.0);
         match readiness {
             EvoReadiness::Ready => {
@@ -1017,7 +1097,7 @@ fn show_evolution_section(
             EvoReadiness::NotYet => {
                 if let Some(export) = &pet.export {
                     ui.label(
-                        RichText::new(growth_needed_text(&req.growth, export.growth))
+                        RichText::new(growth_needed_text(&req.growth, export.growth, growth_mult))
                             .color(style::TEXT_MUTED)
                             .size(12.0),
                     );
@@ -1030,6 +1110,11 @@ fn show_evolution_section(
             && let Some(export) = &pet.export
         {
             let threshold = req.growth.value().max(0) as u64;
+            let cap_target = if req.growth.requires_base_growth() {
+                threshold
+            } else {
+                base_growth_for_displayed_target(threshold, growth_mult)
+            };
             ui.add_space(2.0);
             if req.growth.requires_base_growth() {
                 // Base-growth threshold: the egg never helps, so one estimate.
@@ -1041,10 +1126,14 @@ fn show_evolution_section(
             } else {
                 // Total-growth threshold: with the egg you only need
                 // threshold / 1.3 of base growth.
-                let target_egg = (threshold as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64;
+                let target_no_egg = base_growth_for_displayed_target(threshold, growth_mult);
+                let target_egg = base_growth_for_displayed_target(
+                    threshold,
+                    MAGIC_EGG_GROWTH_MULT * growth_mult,
+                );
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Est. grow time — no egg:").color(style::TEXT_MUTED).size(11.0));
-                    eta_label(ui, rates.hours_to_target(export.growth, threshold));
+                    eta_label(ui, rates.hours_to_target(export.growth, target_no_egg));
                     ui.label(RichText::new("· with egg:").color(style::TEXT_MUTED).size(11.0));
                     // Stay consistent with the readiness badge: if the egg
                     // already clears the threshold, it's ready now (avoids a
@@ -1063,7 +1152,7 @@ fn show_evolution_section(
                     .size(10.0),
             );
             // Explain a slow estimate when the threshold is past the cap.
-            show_cap_note(ui, rates, export.growth, threshold);
+            show_cap_note(ui, rates, export.growth, cap_target);
         }
     }
 
@@ -1415,19 +1504,35 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
             });
         }
 
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("PGC completions:").color(style::TEXT_MUTED).size(12.0));
+            ui.add(
+                egui::DragValue::new(&mut state.pgc_done)
+                    .range(0..=state.pgc_max)
+                    .clearable(),
+            );
+            ui.label(
+                RichText::new(format!("/ {}  → ×{:.2} displayed growth", state.pgc_max, state.pgc_mult()))
+                    .color(style::TEXT_NORMAL)
+                    .size(11.0),
+            );
+        });
+
         ui.separator();
 
         // Persisted global target + the time-based table sorts. These override
         // any active column sort; clicking a column header switches back.
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Custom target:").color(style::TEXT_MUTED).size(12.0));
+            ui.label(RichText::new("Displayed-growth target:").color(style::TEXT_MUTED).size(12.0));
             ui.add(
                 egui::DragValue::new(&mut state.global_growth_target)
                     .speed(100.0)
                     .range(0..=1_000_000_000)
                     .clearable(),
             )
-            .on_hover_text("Base growth target for the 'time to target' sort (0 = unset)");
+            .on_hover_text(
+                "Displayed total-growth target for the 'time to target' sort (0 = unset); PGC lowers the base growth needed",
+            );
         });
 
         ui.horizontal(|ui| {
@@ -1442,8 +1547,8 @@ fn show_growth_settings(ui: &mut Ui, state: &mut AnalyzerState, rates: &GrowthRa
                 RichText::new("'Time to evolve' uses egg growth (+30%)").size(11.0),
             )
             .on_hover_text(
-                "On: total-growth thresholds are reached at base = threshold / 1.3. \
-                 Base-growth pets (e.g. Baby Carno) are unaffected — the egg can't help them.",
+                "On: total-growth thresholds include both the egg and PGC multipliers. \
+                 Base-growth pets (e.g. Baby Carno) are unaffected by either multiplier.",
             );
         });
         ui.horizontal(|ui| {
@@ -1578,7 +1683,7 @@ fn sort_toggle_button(
     }
 }
 
-fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
+fn show_stats_bar(ui: &mut Ui, data: &DataStore, growth_mult: f64) {
     ui.horizontal(|ui| {
         let total = data.merged.len();
         let unlocked = data.merged.iter().filter(|p| p.is_unlocked()).count();
@@ -1610,12 +1715,20 @@ fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
         let ready = data
             .merged
             .iter()
-            .filter(|p| p.is_unlocked() && p.evo_readiness() == Some(EvoReadiness::Ready))
+            .filter(|p| {
+                p.is_unlocked()
+                    && p.evo_readiness_with_growth_mult(growth_mult)
+                        == Some(EvoReadiness::Ready)
+            })
             .count();
         let ready_egg = data
             .merged
             .iter()
-            .filter(|p| p.is_unlocked() && p.evo_readiness() == Some(EvoReadiness::ReadyWithEgg))
+            .filter(|p| {
+                p.is_unlocked()
+                    && p.evo_readiness_with_growth_mult(growth_mult)
+                        == Some(EvoReadiness::ReadyWithEgg)
+            })
             .count();
         if ready + ready_egg > 0 {
             ui.separator();
@@ -1634,7 +1747,7 @@ fn show_stats_bar(ui: &mut Ui, data: &DataStore) {
             .iter()
             .filter_map(|p| p.export.as_ref())
             .filter(|e| e.unlocked)
-            .map(|e| e.effective_growth())
+            .map(|e| e.effective_growth_with_global_mult(growth_mult))
             .sum();
         if total_growth > 0 {
             ui.separator();
@@ -1868,6 +1981,7 @@ fn show_filters(ui: &mut Ui, state: &mut AnalyzerState) {
 
 fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
     let available = ui.available_size();
+    let growth_mult = state.pgc_mult();
 
     // Track clicks via RefCell so the closure can mutate it
     let clicked_pet: RefCell<Option<String>> = RefCell::new(None);
@@ -1957,7 +2071,7 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                     if let Some(export) = &pet.export {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 2.0;
-                            if export.has_magic_egg() {
+                            if export.has_magic_egg() || growth_mult > 1.0 {
                                 ui.label(
                                     RichText::new(format_number(export.growth))
                                         .color(style::TEXT_MUTED)
@@ -1965,7 +2079,10 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                                         .family(egui::FontFamily::Monospace),
                                 );
                                 ui.label(
-                                    RichText::new(format!("({})", format_number(export.effective_growth())))
+                                    RichText::new(format!(
+                                        "({})",
+                                        format_number(export.effective_growth_with_global_mult(growth_mult))
+                                    ))
                                         .color(style::SUCCESS)
                                         .size(12.0)
                                         .family(egui::FontFamily::Monospace),
@@ -1980,7 +2097,7 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                             }
                             // Readiness check-mark: green = ready now, amber =
                             // only with a Magic Egg. Nothing when not ready.
-                            match pet.evo_readiness() {
+                            match pet.evo_readiness_with_growth_mult(growth_mult) {
                                 Some(EvoReadiness::Ready) => {
                                     ui.label(RichText::new("✓").color(style::SUCCESS).size(12.0))
                                         .on_hover_text("Meets the evolution growth threshold — ready to evolve");
@@ -2341,8 +2458,17 @@ fn filter_and_sort<'a>(
     // Sort — growth descending is the universal tiebreaker (strongest first in ties)
     let asc = state.sort_ascending;
     filtered.sort_by(|a, b| {
-        let ga = a.export.as_ref().map(|e| e.effective_growth()).unwrap_or(0);
-        let gb = b.export.as_ref().map(|e| e.effective_growth()).unwrap_or(0);
+        let growth_mult = state.pgc_mult();
+        let ga = a
+            .export
+            .as_ref()
+            .map(|e| e.effective_growth_with_global_mult(growth_mult))
+            .unwrap_or(0);
+        let gb = b
+            .export
+            .as_ref()
+            .map(|e| e.effective_growth_with_global_mult(growth_mult))
+            .unwrap_or(0);
 
         let ord = match state.sort_column {
             SortColumn::Name => a.name.cmp(&b.name),
@@ -2400,16 +2526,24 @@ fn filter_and_sort<'a>(
             // user-chosen secondary key, then name for stability.
             SortColumn::TimeToEvolve => {
                 let egg = state.evolve_sort_use_egg;
-                let ta = a.hours_to_evolve(rates, egg).unwrap_or(f64::INFINITY);
-                let tb = b.hours_to_evolve(rates, egg).unwrap_or(f64::INFINITY);
+                let ta = a
+                    .hours_to_evolve_with_growth_mult(rates, egg, growth_mult)
+                    .unwrap_or(f64::INFINITY);
+                let tb = b
+                    .hours_to_evolve_with_growth_mult(rates, egg, growth_mult)
+                    .unwrap_or(f64::INFINITY);
                 ta.partial_cmp(&tb)
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| time_tiebreak(a, b, ga, gb, state.time_sort_tiebreak))
             }
             SortColumn::TimeToTarget => {
                 let target = state.global_growth_target;
-                let ta = a.hours_to_growth(target, rates).unwrap_or(f64::INFINITY);
-                let tb = b.hours_to_growth(target, rates).unwrap_or(f64::INFINITY);
+                let ta = a
+                    .hours_to_growth_with_mult(target, rates, growth_mult)
+                    .unwrap_or(f64::INFINITY);
+                let tb = b
+                    .hours_to_growth_with_mult(target, rates, growth_mult)
+                    .unwrap_or(f64::INFINITY);
                 ta.partial_cmp(&tb)
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| time_tiebreak(a, b, ga, gb, state.time_sort_tiebreak))
@@ -2521,10 +2655,11 @@ mod tests {
             stone_campaign_upgrade: Some(true),
             earth_eater_planets_text: Some("7.142 E+6".to_string()),
             base_growth_per_hour: Some(2),
+            patreon_god_challenges: Some((24, 25)),
             ..Default::default()
         };
         let applied = st.apply_main_stats(&ms);
-        assert_eq!(applied.len(), 9);
+        assert_eq!(applied.len(), 10);
         assert_eq!(st.campaign_inputs.pet_stones, 250_882);
         assert_eq!(st.campaign_inputs.ants, 187_331);
         assert_eq!(st.campaign_inputs.honey, 5);
@@ -2534,6 +2669,8 @@ mod tests {
         assert!(st.campaign_inputs.stone_campaign_upgrade);
         assert_eq!(st.earth_eater_planets_text, "7.142 E+6");
         assert!(st.moai.iter().all(|m| m.owned && m.level == 20));
+        assert_eq!((st.pgc_done, st.pgc_max), (24, 25));
+        assert!((st.pgc_mult() - 1.24).abs() < 1e-12);
     }
 
     #[test]
@@ -2544,6 +2681,17 @@ mod tests {
         assert!(applied.is_empty());
         assert_eq!(st.campaign_inputs.ants, 42); // not clobbered
         assert!(st.moai.iter().all(|m| !m.owned)); // default Moai untouched
+    }
+
+    #[test]
+    fn persisted_pgc_completions_are_clamped_to_max() {
+        let mut app = AppState::default();
+        app.analyzer.pgc_done = 30;
+        app.analyzer.pgc_max = 25;
+        let mut st = AnalyzerState::default();
+        st.apply_app_state(&app);
+        assert_eq!((st.pgc_done, st.pgc_max), (25, 25));
+        assert!((st.pgc_mult() - 1.5).abs() < 1e-12);
     }
 
     #[test]
@@ -2575,13 +2723,13 @@ mod tests {
     fn growth_needed_shows_egg_assisted_remainder_for_total_thresholds() {
         // Egg target is ceil(13_000 / 1.3) = 10_000.
         assert_eq!(
-            growth_needed_text(&GrowthRequirement::Total(13_000), 2_889),
+            growth_needed_text(&GrowthRequirement::Total(13_000), 2_889, 1.0),
             "10,111 more growth to threshold (7,111 with Magic Egg)"
         );
         // Already past the egg-assisted bar (rounding edge): clamps to 0
         // instead of going negative.
         assert_eq!(
-            growth_needed_text(&GrowthRequirement::Total(13_000), 11_000),
+            growth_needed_text(&GrowthRequirement::Total(13_000), 11_000, 1.0),
             "2,000 more growth to threshold (0 with Magic Egg)"
         );
     }
@@ -2590,11 +2738,26 @@ mod tests {
     fn growth_threshold_shows_egg_target_only_when_the_egg_counts() {
         // ceil(13_000 / 1.3) = 10_000 — the base growth to aim for.
         assert_eq!(
-            growth_threshold_text(&GrowthRequirement::Total(13_000)),
+            growth_threshold_text(&GrowthRequirement::Total(13_000), 1.0),
             "13,000 (10,000 with Magic Egg)"
         );
         // Base-growth thresholds (Baby Carno): no egg target.
-        assert_eq!(growth_threshold_text(&GrowthRequirement::Base(300_000)), "300,000");
+        assert_eq!(
+            growth_threshold_text(&GrowthRequirement::Base(300_000), 1.5),
+            "300,000"
+        );
+    }
+
+    #[test]
+    fn growth_threshold_stacks_pgc_and_egg_for_total_thresholds() {
+        assert_eq!(
+            growth_threshold_text(&GrowthRequirement::Total(14_300), 1.1),
+            "14,300 (13,000 with PGC; 10,000 with PGC + Magic Egg)"
+        );
+        assert_eq!(
+            growth_needed_text(&GrowthRequirement::Total(14_300), 9_000, 1.1),
+            "5,300 more base growth (4,000 with PGC; 1,000 with PGC + Magic Egg)"
+        );
     }
 
     #[test]
@@ -2602,7 +2765,7 @@ mod tests {
         // Baby Carno's threshold is checked against base growth, so the egg
         // figure must not appear.
         assert_eq!(
-            growth_needed_text(&GrowthRequirement::Base(300_000), 100_000),
+            growth_needed_text(&GrowthRequirement::Base(300_000), 100_000, 1.5),
             "200,000 more base growth to threshold"
         );
     }

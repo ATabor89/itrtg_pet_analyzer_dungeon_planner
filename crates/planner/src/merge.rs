@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
 
 use itrtg_models::{
-    CampaignBonusRules, CampaignInputs, CampaignType, Class, ElementalForm, Element, Equipment,
-    ExportPet, MAGIC_EGG_GROWTH_MULT, Quality, RecommendedClass, WikiPet, resolve_wiki_name,
+    base_growth_for_displayed_target, CampaignBonusRules, CampaignInputs, CampaignType, Class,
+    ElementalForm, Element, Equipment, ExportPet, MAGIC_EGG_GROWTH_MULT, Quality,
+    RecommendedClass, WikiPet, resolve_wiki_name,
 };
 
 use crate::growth::GrowthRates;
@@ -374,6 +375,13 @@ impl MergedPet {
     /// reaching the bar; for base-growth thresholds (Baby Carno) it cannot, so
     /// `ReadyWithEgg` is never produced for those.
     pub fn evo_readiness(&self) -> Option<EvoReadiness> {
+        self.evo_readiness_with_growth_mult(1.0)
+    }
+
+    /// [`Self::evo_readiness`] with an account-wide growth multiplier (PGC).
+    /// The multiplier counts only for total-growth requirements; requirements
+    /// explicitly marked as base growth ignore it just as they ignore the egg.
+    pub fn evo_readiness_with_growth_mult(&self, global_mult: f64) -> Option<EvoReadiness> {
         let export = self.export.as_ref()?;
         // Already-evolved pets have no readiness; locked pets still do.
         if export.class.is_some() {
@@ -396,9 +404,9 @@ impl MergedPet {
         // which already includes the egg's boost if one is equipped (export
         // growth is stored as true base). Otherwise, see whether equipping an
         // egg would clear the bar.
-        if export.effective_growth() as i64 >= threshold {
+        if export.effective_growth_with_global_mult(global_mult) as i64 >= threshold {
             Some(EvoReadiness::Ready)
-        } else if export.growth_with_magic_egg() as i64 >= threshold {
+        } else if export.growth_with_magic_egg_and_global_mult(global_mult) as i64 >= threshold {
             Some(EvoReadiness::ReadyWithEgg)
         } else {
             Some(EvoReadiness::NotYet)
@@ -419,6 +427,16 @@ impl MergedPet {
     /// With `use_egg = false`, this is the honest base-growth grind time and
     /// orders pets Ready (0) → ReadyWithEgg (small) → NotYet (large).
     pub fn hours_to_evolve(&self, rates: &GrowthRates, use_egg: bool) -> Option<f64> {
+        self.hours_to_evolve_with_growth_mult(rates, use_egg, 1.0)
+    }
+
+    /// [`Self::hours_to_evolve`] with an account-wide growth multiplier (PGC).
+    pub fn hours_to_evolve_with_growth_mult(
+        &self,
+        rates: &GrowthRates,
+        use_egg: bool,
+        global_mult: f64,
+    ) -> Option<f64> {
         let export = self.export.as_ref()?;
         if export.class.is_some() {
             return None;
@@ -427,8 +445,9 @@ impl MergedPet {
         let threshold = req.growth.value().max(0) as u64;
         // The egg only discounts total-growth thresholds; base-growth pets gain
         // nothing, so never discount them (or we'd report a false, too-short time).
-        let target = if use_egg && req.growth.magic_egg_counts() {
-            (threshold as f64 / MAGIC_EGG_GROWTH_MULT).ceil() as u64
+        let target = if req.growth.magic_egg_counts() {
+            let egg_mult = if use_egg { MAGIC_EGG_GROWTH_MULT } else { 1.0 };
+            base_growth_for_displayed_target(threshold, egg_mult * global_mult)
         } else {
             threshold
         };
@@ -439,8 +458,20 @@ impl MergedPet {
     /// via a dedicated pendant + Moai. `None` when there's no export data or the
     /// target is unreachable. Applies to any pet — evolved or not, owned or not.
     pub fn hours_to_growth(&self, target: u64, rates: &GrowthRates) -> Option<f64> {
+        self.hours_to_growth_with_mult(target, rates, 1.0)
+    }
+
+    /// [`Self::hours_to_growth`] for a displayed total-growth target under an
+    /// account-wide growth multiplier such as PGC.
+    pub fn hours_to_growth_with_mult(
+        &self,
+        target: u64,
+        rates: &GrowthRates,
+        global_mult: f64,
+    ) -> Option<f64> {
         let export = self.export.as_ref()?;
-        rates.hours_to_target(export.growth, target)
+        let base_target = base_growth_for_displayed_target(target, global_mult);
+        rates.hours_to_target(export.growth, base_target)
     }
 
     /// Form-evolution plan for an unevolved elemental pet at its current form.
@@ -975,6 +1006,25 @@ mod tests {
     }
 
     #[test]
+    fn test_evo_readiness_applies_pgc_only_to_total_growth() {
+        let total = readiness_pet(900, None, true, Some(GrowthRequirement::Total(1000)));
+        assert_eq!(
+            total.evo_readiness_with_growth_mult(1.1),
+            Some(EvoReadiness::ReadyWithEgg)
+        );
+        assert_eq!(
+            total.evo_readiness_with_growth_mult(1.24),
+            Some(EvoReadiness::Ready)
+        );
+
+        let base = readiness_pet(900, None, true, Some(GrowthRequirement::Base(1000)));
+        assert_eq!(
+            base.evo_readiness_with_growth_mult(1.5),
+            Some(EvoReadiness::NotYet)
+        );
+    }
+
+    #[test]
     fn test_evo_readiness_egg_already_equipped_is_ready_now() {
         // base 800 < threshold 1000, but with an egg equipped the in-game total
         // is 800*1.3 = 1040 >= 1000 — evolvable *now*, so Ready (not ReadyWithEgg).
@@ -1059,6 +1109,29 @@ mod tests {
     }
 
     #[test]
+    fn test_hours_to_evolve_stacks_pgc_with_optional_egg() {
+        let r = rates(80, 0.0, 1_000_000);
+        let pet = readiness_pet(200, None, true, Some(GrowthRequirement::Total(1430)));
+        // 1430 / 1.1 = 1300 base target; with egg, / (1.1 * 1.3) = 1000.
+        assert_eq!(
+            pet.hours_to_evolve_with_growth_mult(&r, false, 1.1),
+            Some(13.75)
+        );
+        assert_eq!(
+            pet.hours_to_evolve_with_growth_mult(&r, true, 1.1),
+            Some(10.0)
+        );
+
+        // Boundary: round(699 × 1.1 × 1.3) = 1000, so readiness and ETA must
+        // both say the threshold is already met.
+        let boundary = readiness_pet(699, None, true, Some(GrowthRequirement::Total(1000)));
+        assert_eq!(
+            boundary.hours_to_evolve_with_growth_mult(&r, true, 1.1),
+            Some(0.0)
+        );
+    }
+
+    #[test]
     fn test_hours_to_growth_arbitrary_target() {
         let r = rates(80, 0.0, 1_000_000);
         // Applies to any pet — evolved or not, owned or not.
@@ -1073,6 +1146,17 @@ mod tests {
             export: None,
         };
         assert_eq!(no_export.hours_to_growth(1000, &r), None);
+    }
+
+    #[test]
+    fn test_hours_to_growth_discounts_displayed_target_by_pgc() {
+        let r = rates(80, 0.0, 1_000_000);
+        let pet = readiness_pet(200, Some(Class::Mage), true, None);
+        // 1100 displayed total at ×1.1 needs 1000 base: (1000 - 200) / 80.
+        assert_eq!(pet.hours_to_growth_with_mult(1100, &r, 1.1), Some(10.0));
+
+        let boundary = readiness_pet(909, Some(Class::Mage), true, None);
+        assert_eq!(boundary.hours_to_growth_with_mult(1000, &r, 1.1), Some(0.0));
     }
 
     #[test]

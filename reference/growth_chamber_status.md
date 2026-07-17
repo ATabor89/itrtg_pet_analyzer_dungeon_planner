@@ -160,13 +160,13 @@ The chamber lives in two files plus supporting data:
 
 Roughly highest-leverage first. Each has enough context to start cold.
 
-1. **PGC follow-ups.** The chamber side is done (see above). Still open:
-   (a) **evo thresholds / analyzer** — `evo_readiness`, `hours_to_evolve`, and
-   the analyzer's growth-target ETA only discount the Magic Egg (`/1.3`); with
-   PGC the discount becomes `/(1.3 × pgc_growth_mult)` and `effective_growth`
-   gains the global PGC multiplier — needs done/max threaded into those
-   `MergedPet` seams.
-   (b) **importer check** — verify whether the *pet* export's growth column
+1. **PGC importer check.** The chamber and analyzer sides are done. The analyzer
+   persists done/max from Main stats and applies PGC to displayed growth,
+   total-growth evolution readiness, custom targets, and time sorts; PGC and the
+   Magic Egg stack before rounding. Explicit base-growth requirements remain
+   unaffected.
+
+   Still open: verify whether the *pet* export's growth column
    includes the PGC multiplier (the way it includes the egg's ×1.3). If so,
    `pet-importer` must divide it back out (like the `has_magic_egg` block) or
    every stored base growth inflates — and the chamber, folding the multiplier

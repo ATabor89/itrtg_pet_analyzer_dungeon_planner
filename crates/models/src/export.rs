@@ -59,8 +59,42 @@ pub const MAGIC_EGG_GROWTH_MULT: f64 = 1.3;
 /// 25/25 jumps to ×1.50. Applies to every pet and stacks multiplicatively with
 /// the Magic Egg (at 25/25: 1.5 × 1.3 = 1.95×).
 pub fn pgc_growth_mult(done: u32, max: u32) -> f64 {
+    let done = if max > 0 { done.min(max) } else { 0 };
     let pct = if max > 0 && done >= max { 2.0 * done as f64 } else { done as f64 };
     1.0 + pct / 100.0
+}
+
+/// Apply a positive growth multiplier using the game's displayed whole-growth
+/// rounding convention.
+pub fn displayed_growth(base: u64, multiplier: f64) -> u64 {
+    (base as f64 * multiplier).round() as u64
+}
+
+/// Smallest base growth whose rounded displayed value reaches `target`.
+///
+/// The direct `ceil(target / multiplier)` inversion is one point too high near
+/// rounding boundaries. Start from the inverse of `round(x) >= target`, then
+/// correct around floating-point boundaries against [`displayed_growth`].
+pub fn base_growth_for_displayed_target(target: u64, multiplier: f64) -> u64 {
+    if target == 0 {
+        return 0;
+    }
+    if !multiplier.is_finite() || multiplier <= 0.0 {
+        return u64::MAX;
+    }
+
+    let mut base = ((target as f64 - 0.5) / multiplier).ceil() as u64;
+    while base > 0 && displayed_growth(base - 1, multiplier) >= target {
+        base -= 1;
+    }
+    while displayed_growth(base, multiplier) < target {
+        let next = base.saturating_add(1);
+        if next == base {
+            break;
+        }
+        base = next;
+    }
+    base
 }
 
 impl ExportPet {
@@ -75,16 +109,28 @@ impl ExportPet {
     /// Growth this pet *would* have with a Magic Egg equipped, regardless of its
     /// current loadout. Used for "could evolve if the egg were equipped" checks.
     pub fn growth_with_magic_egg(&self) -> u64 {
-        (self.growth as f64 * MAGIC_EGG_GROWTH_MULT).round() as u64
+        self.growth_with_magic_egg_and_global_mult(1.0)
+    }
+
+    /// Growth with a Magic Egg plus an account-wide growth multiplier such as
+    /// PGC. The multipliers stack before rounding, matching the chamber model.
+    pub fn growth_with_magic_egg_and_global_mult(&self, global_mult: f64) -> u64 {
+        displayed_growth(self.growth, MAGIC_EGG_GROWTH_MULT * global_mult)
     }
 
     /// Growth value the game uses *now* — includes the Magic Egg bonus only if
     /// one is actually equipped.
     pub fn effective_growth(&self) -> u64 {
+        self.effective_growth_with_global_mult(1.0)
+    }
+
+    /// Current effective growth including equipped Magic Egg and an
+    /// account-wide multiplier such as PGC.
+    pub fn effective_growth_with_global_mult(&self, global_mult: f64) -> u64 {
         if self.has_magic_egg() {
-            self.growth_with_magic_egg()
+            self.growth_with_magic_egg_and_global_mult(global_mult)
         } else {
-            self.growth
+            displayed_growth(self.growth, global_mult)
         }
     }
 
@@ -141,6 +187,36 @@ mod tests {
         assert!(close(pgc_growth_mult(25, 25), 1.50));
         // No challenges known at all → no bonus (and no spurious doubling).
         assert!(close(pgc_growth_mult(0, 0), 1.0));
+        assert!(close(pgc_growth_mult(30, 25), 1.50));
+        assert!(close(pgc_growth_mult(30, 0), 1.0));
+    }
+
+    #[test]
+    fn displayed_target_inverse_matches_rounding_boundaries() {
+        assert_eq!(displayed_growth(909, 1.1), 1000);
+        assert_eq!(base_growth_for_displayed_target(1000, 1.1), 909);
+        assert_eq!(displayed_growth(699, 1.1 * 1.3), 1000);
+        assert_eq!(base_growth_for_displayed_target(1000, 1.1 * 1.3), 699);
+        assert_eq!(base_growth_for_displayed_target(0, 1.5), 0);
+    }
+
+    #[test]
+    fn effective_growth_stacks_egg_and_global_multiplier_before_rounding() {
+        let mut pet: ExportPet = serde_yaml::from_str(
+            "export_name: Test\nelement: Earth\ngrowth: 101\ndungeon_level: 0\nclass: null\nclass_level: 0\ncombat_stats: { hp: 0, attack: 0, defense: 0, speed: 0 }\nelemental_affinities: { water: 0, fire: 0, wind: 0, earth: 0, dark: 0, light: 0 }\nloadout: { weapon: null, armor: null, accessory: null }\naction: Idle\nunlocked: true\nimproved: false\nother: null\nhas_partner: false\n",
+        )
+        .unwrap();
+        assert_eq!(pet.effective_growth_with_global_mult(1.1), 111);
+
+        pet.loadout.weapon = Some(crate::Equipment {
+            name: "Magic Egg".to_string(),
+            upgrade_level: None,
+            quality: crate::Quality::SSS,
+            enchant_level: None,
+            gem: None,
+            gem_level: None,
+        });
+        assert_eq!(pet.effective_growth_with_global_mult(1.1), 144);
     }
 
     /// A persisted pet from before `class_exp` existed (e.g. an older

@@ -98,7 +98,8 @@ feeding. He's best fed **chocolate**, and he has his **own food selector**.
   all are complete**: 24/25 → ×1.24, 25/25 → ×1.50. With the Magic Egg at full
   completion that's `1.5 · 1.3 = 1.95×` total. Affects **evolve thresholds**
   (the egg discount becomes `/(1.3 · pgc mult)` instead of `/1.3`). The player
-  has none yet — slot into the evo-readiness logic later.
+  has none yet; the analyzer logic is implemented, while whether the pet export
+  already includes this multiplier still needs an in-game before/after capture.
 - **SpaceDim** — affects food growth (above) and possibly more; TBD.
 
 ## Implementation status
@@ -118,5 +119,6 @@ feeding. He's best fed **chocolate**, and he has his **own food selector**.
 - [ ] **Per-pet food** override (vs the global food type).
 - [x] **PGC** growth multiplier in the **chamber** (+1%/completion, doubled at
   full completion; done/max auto-filled from Main stats, folded into each pet's
-  `growth_multiplier`). Still open: the evo-threshold / analyzer side, and the
-  **SpaceDim** factor — see the tracker.
+  `growth_multiplier`) and the **analyzer** (displayed growth, total-growth evo
+  thresholds, custom targets, and time sorts). Still open: pet-export behavior
+  and the **SpaceDim** factor — see the tracker.
