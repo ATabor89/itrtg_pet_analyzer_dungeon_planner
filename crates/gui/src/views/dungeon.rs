@@ -1391,8 +1391,9 @@ fn show_dungeon_teams_import_dialog(
                 RichText::new(
                     "Paste your in-game \"Dungeon Teams\" export and Parse it, then assign each \
                      team to a dungeon. Each team's pets are forced into that dungeon at their \
-                     exact slots. Existing forced pets for the assigned dungeons are replaced; \
-                     other constraints are left untouched.",
+                     exact slots. Existing forced pets for the assigned dungeons and conflicting \
+                     constraints for imported pets are replaced; unrelated constraints are left \
+                     untouched.",
                 )
                 .color(style::TEXT_MUTED)
                 .size(11.0),
@@ -1485,7 +1486,7 @@ fn show_dungeon_teams_import_dialog(
                 let any_mapped = state.team_choices.iter().any(|c| c.is_some());
                 if ui
                     .add_enabled(any_mapped, egui::Button::new("Apply"))
-                    .on_hover_text("Replace forced pets for the assigned dungeons")
+                    .on_hover_text("Replace conflicting constraints with the imported teams")
                     .clicked()
                 {
                     apply_dungeon_teams_import(state, data);
@@ -1525,17 +1526,36 @@ fn parse_teams_into_state(state: &mut DungeonState) {
     }
 }
 
-/// Replace the forced entries for the given dungeons with `new_entries`,
-/// leaving entries for every other dungeon — and the "Any" (no-dungeon)
-/// entries — untouched. Factored out so the scoped-overwrite semantics are
-/// unit-testable without the GUI state.
-fn replace_forced_for_dungeons(
+/// Reconcile existing constraints with imported team assignments.
+///
+/// Imported pets get exactly one pinned force entry, so any older force,
+/// forbid, or whitelist entry for those pets is removed. Existing forces for
+/// mapped dungeons are also replaced because the imported team is the new
+/// source of truth for all of that dungeon's slots. Constraints for other pets
+/// in other dungeons are preserved.
+fn replace_constraints_for_imported_teams(
     forced_pets: &mut Vec<(Option<Dungeon>, Option<u8>, String)>,
+    forbidden_pets: &mut HashSet<String>,
+    whitelisted_pets: &mut HashSet<String>,
     mapped_dungeons: &HashSet<Dungeon>,
     new_entries: Vec<(Option<Dungeon>, Option<u8>, String)>,
-) {
-    forced_pets.retain(|(d, _, _)| !d.is_some_and(|dd| mapped_dungeons.contains(&dd)));
+) -> usize {
+    let imported_pets: HashSet<String> =
+        new_entries.iter().map(|(_, _, name)| name.clone()).collect();
+    let before =
+        forced_pets.len() + forbidden_pets.len() + whitelisted_pets.len();
+
+    forced_pets.retain(|(d, _, name)| {
+        !d.is_some_and(|dd| mapped_dungeons.contains(&dd))
+            && !imported_pets.contains(name)
+    });
+    forbidden_pets.retain(|name| !imported_pets.contains(name));
+    whitelisted_pets.retain(|name| !imported_pets.contains(name));
+
+    let removed =
+        before - forced_pets.len() - forbidden_pets.len() - whitelisted_pets.len();
     forced_pets.extend(new_entries);
+    removed
 }
 
 /// Apply the mapped teams: resolve names, then scoped-overwrite the forced
@@ -1584,10 +1604,16 @@ fn apply_dungeon_teams_import(state: &mut DungeonState, data: &DataStore) {
         return;
     }
 
-    // Scoped overwrite: drop existing forced entries for the imported dungeons
-    // (so a re-import replaces rather than duplicates) while keeping forced_any,
-    // other dungeons, and the forbid/whitelist lists intact.
-    replace_forced_for_dungeons(&mut state.forced_pets, &mapped_dungeons, new_entries);
+    // Scoped overwrite: imported teams supersede prior forces for their
+    // dungeons and any constraint category already containing an imported pet.
+    // Unrelated constraints survive.
+    let removed = replace_constraints_for_imported_teams(
+        &mut state.forced_pets,
+        &mut state.forbidden_pets,
+        &mut state.whitelisted_pets,
+        &mapped_dungeons,
+        new_entries,
+    );
 
     // Remember the mapping (persisted via AppState) for the next re-import.
     state.team_dungeons.extend(new_mapping);
@@ -1595,8 +1621,13 @@ fn apply_dungeon_teams_import(state: &mut DungeonState, data: &DataStore) {
     // constraints aren't silently paused.
     state.constraints_enabled = true;
 
+    let cleanup = if removed == 0 {
+        String::new()
+    } else {
+        format!("; replaced {removed} prior conflicting constraint(s)")
+    };
     state.constraints_status = Some((
-        format!("Imported {team_count} team(s); {pet_count} pets pinned to slots"),
+        format!("Imported {team_count} team(s); {pet_count} pets pinned to slots{cleanup}"),
         false,
     ));
     state.show_teams_import = false;
@@ -3101,8 +3132,16 @@ mod tests {
         let new_entries = vec![
             forced(Some(Dungeon::Scrapyard), Some(6), "NewScrap"),
         ];
+        let mut forbidden = HashSet::new();
+        let mut whitelisted = HashSet::new();
 
-        replace_forced_for_dungeons(&mut forced_pets, &mapped, new_entries);
+        replace_constraints_for_imported_teams(
+            &mut forced_pets,
+            &mut forbidden,
+            &mut whitelisted,
+            &mapped,
+            new_entries,
+        );
 
         // Old Scrapyard entry gone; its replacement present.
         assert!(!forced_pets.iter().any(|(_, _, n)| n == "OldScrap"));
@@ -3112,6 +3151,70 @@ mod tests {
         assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepWater"));
         assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepAny"));
         assert_eq!(forced_pets.len(), 3);
+    }
+
+    #[test]
+    fn scoped_overwrite_removes_general_force_for_imported_pet() {
+        let mut forced_pets = vec![
+            forced(None, None, "Succubus"),
+            forced(None, None, "KeepAny"),
+        ];
+        let mapped: HashSet<Dungeon> = [Dungeon::Scrapyard].into_iter().collect();
+        let new_entries = vec![
+            forced(Some(Dungeon::Scrapyard), Some(1), "Succubus"),
+        ];
+        let mut forbidden = HashSet::new();
+        let mut whitelisted = HashSet::new();
+
+        replace_constraints_for_imported_teams(
+            &mut forced_pets,
+            &mut forbidden,
+            &mut whitelisted,
+            &mapped,
+            new_entries,
+        );
+
+        assert_eq!(
+            forced_pets.iter().filter(|(_, _, n)| n == "Succubus").count(),
+            1
+        );
+        assert!(forced_pets.iter().any(|(d, s, n)|
+            *d == Some(Dungeon::Scrapyard) && *s == Some(1) && n == "Succubus"));
+        assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepAny"));
+    }
+
+    #[test]
+    fn team_import_removes_only_constraints_conflicting_with_imported_pets() {
+        let mut forced_pets = vec![
+            forced(None, None, "Succubus"),
+            forced(Some(Dungeon::Forest), None, "Succubus"),
+            forced(Some(Dungeon::WaterTemple), None, "KeepForced"),
+        ];
+        let mut forbidden: HashSet<String> =
+            ["Succubus", "KeepForbidden"].into_iter().map(String::from).collect();
+        let mut whitelisted: HashSet<String> =
+            ["Succubus", "KeepWhitelisted"].into_iter().map(String::from).collect();
+        let mapped: HashSet<Dungeon> = [Dungeon::Scrapyard].into_iter().collect();
+        let new_entries = vec![
+            forced(Some(Dungeon::Scrapyard), Some(1), "Succubus"),
+        ];
+
+        let removed = replace_constraints_for_imported_teams(
+            &mut forced_pets,
+            &mut forbidden,
+            &mut whitelisted,
+            &mapped,
+            new_entries,
+        );
+
+        assert_eq!(removed, 4);
+        assert_eq!(
+            forced_pets.iter().filter(|(_, _, n)| n == "Succubus").count(),
+            1
+        );
+        assert!(forced_pets.iter().any(|(_, _, n)| n == "KeepForced"));
+        assert_eq!(forbidden, HashSet::from(["KeepForbidden".to_string()]));
+        assert_eq!(whitelisted, HashSet::from(["KeepWhitelisted".to_string()]));
     }
 
     #[test]
@@ -3222,8 +3325,16 @@ mod tests {
             forced(Some(Dungeon::Volcano), Some(1), "Stay"),
         ];
         let mapped: HashSet<Dungeon> = [Dungeon::Forest].into_iter().collect();
+        let mut forbidden = HashSet::new();
+        let mut whitelisted = HashSet::new();
 
-        replace_forced_for_dungeons(&mut forced_pets, &mapped, Vec::new());
+        replace_constraints_for_imported_teams(
+            &mut forced_pets,
+            &mut forbidden,
+            &mut whitelisted,
+            &mapped,
+            Vec::new(),
+        );
 
         assert_eq!(forced_pets.len(), 1);
         assert_eq!(forced_pets[0].2, "Stay");
