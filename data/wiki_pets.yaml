@@ -2546,7 +2546,7 @@
     material: 1250 Fire Stone
     other: Give it 5000 Honey.
   campaign_bonus:
-    raw: It will increase all campaign bonuses by (Honey Given/500)%, up to a maximum bonus of 100% at 50,000 Honey.
+    raw: It will increase all campaign bonuses by 11% + (Honey Given/500)%, up to a maximum bonus of 111% at 50,000 Honey.
 - name: Dark Gift
   wiki_url: https://itrtg.wiki.gg/wiki/Dark_Gift
   element: Neutral
