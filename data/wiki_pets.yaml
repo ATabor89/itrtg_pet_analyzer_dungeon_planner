@@ -2014,7 +2014,7 @@
   evo_requirements:
     growth: !Total 150000
     material: 1500 Magic Ore
-    other: Defeat any Depth 4 Difficulty 5 boss.
+    other: Defeat any Depth 4 Difficulty 5 boss.(You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: Increases all her campaign gains by 150%
 - name: Mist Sphere
