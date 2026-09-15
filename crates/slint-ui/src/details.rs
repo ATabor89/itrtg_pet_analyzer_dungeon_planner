@@ -39,7 +39,7 @@ pub fn sections(app: &AppModel, pet: &MergedPet) -> Vec<(String, String)> {
         let mut text = format!("{basis}: {}", growth_threshold_text(&req.growth, mult));
         if let Some(m) = &req.material { text.push_str(&format!("\nMaterial: {m}")); }
         if let Some(o) = &req.other { text.push_str(&format!("\nOther: {o}")); }
-        if let Some(e) = pet.export.as_ref().filter(|e| e.unlocked && e.class.is_none()) {
+        if let Some(e) = pet.export.as_ref().filter(|e| e.class.is_none()) {
             text.push_str(&format!("\n\n{}\nNo egg: {}\nWith egg: {}", growth_needed_text(&req.growth, e.growth, mult),
                 eta(pet.hours_to_evolve_with_growth_mult(&rates, false, mult)), eta(pet.hours_to_evolve_with_growth_mult(&rates, true, mult))));
             let target = if req.growth.requires_base_growth() { req.growth.value().max(0) as u64 } else { base_growth_for_displayed_target(req.growth.value().max(0) as u64, mult) };
@@ -108,4 +108,19 @@ pub fn ranking_value(app: &AppModel, pet: &MergedPet) -> String {
         SortColumn::TimeToTarget => eta(pet.hours_to_growth_with_mult(settings.global_growth_target, &app.rates(), app.multiplier())),
         _ => settings.filter_campaign.and_then(|c| pet.campaign_bonus_for(c, &app.campaign_context(&settings))).map(|v| format!("{v:+.2}%")).unwrap_or_else(|| "—".into()),
     }
+}
+
+pub fn row_status(app: &AppModel, pet: &MergedPet) -> String {
+    let ownership = match &pet.export { Some(e) if e.unlocked => "Owned", Some(_) => "Locked", None => "No export" };
+    let improved = if pet.export.as_ref().is_some_and(|e| e.improved) { " · Improved" }
+        else if pet.wiki.as_ref().is_some_and(|w| w.token_improvable) { " · Token improvable" } else { "" };
+    format!("{ownership} · {}{improved}", app.readiness(pet))
+}
+
+pub fn earth_eater_hint(app: &AppModel) -> String {
+    let settings = app.settings();
+    earth_eater_lock_hours(settings.campaign_inputs.earth_eater_total_planets as f64,
+        settings.campaign_inputs.earth_eater_show_lifetime)
+        .map(|hours| format!("Earth Eater: ~{} to permanent +82% lock at 1 planet/sec", format_duration(hours)))
+        .unwrap_or_default()
 }

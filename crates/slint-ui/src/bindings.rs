@@ -31,7 +31,30 @@ fn element_color(element: Option<Element>) -> slint::Color {
 
 fn unknown() -> SharedString { "—".into() }
 
+fn log_sections(items: Vec<(String,String)>) -> slint::ModelRc<crate::LogSection> {
+    Rc::new(VecModel::from(items.into_iter().map(|(title,body)|crate::LogSection { title:title.into(),body:body.into() }).collect::<Vec<_>>())).into()
+}
+fn strings(items: Vec<String>) -> slint::ModelRc<SharedString> {
+    Rc::new(VecModel::from(items.into_iter().map(SharedString::from).collect::<Vec<_>>())).into()
+}
 impl Controller {
+    fn render_log(&self, ui: &MainWindow) {
+        let state = &self.app.log;
+        ui.set_log_loaded(state.log.is_some());
+        ui.set_log_heading(state.log.as_ref().map(|l|format!("{} · Depth {} · {} · {} rooms",l.dungeon_name,l.dungeon_level,l.rating,l.room_count)).unwrap_or_default().into());
+        ui.set_log_party(Rc::new(VecModel::from(state.party().chunks(3).map(|cards|crate::LogPartyRow { cards:log_sections(cards.to_vec()) }).collect::<Vec<_>>())).into());
+        ui.set_log_overview(log_sections(state.overview()));
+        ui.set_log_combat(log_sections(state.combat()));
+        let choices=state.pet_choices();
+        ui.set_log_pet_names(strings(choices.iter().map(|(_,label)|label.clone()).collect()));
+        ui.set_log_room_names(strings(state.log.as_ref().map(|l|l.rooms.iter().map(crate::logs::room_label).collect()).unwrap_or_default()));
+        ui.set_log_pet(choices.iter().position(|(i,_)|*i==state.pet).unwrap_or(0) as i32);
+        ui.set_log_all_rooms(state.all_rooms); ui.set_log_metric(state.metric as i32); ui.set_log_room(state.room as i32);
+        ui.set_log_supporter(state.supporter());
+        ui.set_log_bars(Rc::new(VecModel::from(state.room_rows().into_iter().map(|r|crate::LogBar {
+            room:r.room.into(),done:r.done.into(),taken:r.taken.into(),healed:r.healed.into(),net:r.net.into(),value:r.value,party:r.party,healing:r.healing,
+        }).collect::<Vec<_>>())).into());
+    }
     fn render(&self, ui: &MainWindow, rows_changed: bool) {
         let app = &self.app;
         let visible = app.visible();
@@ -41,6 +64,8 @@ impl Controller {
                 difficulty: pet.wiki.as_ref().map(|w| format!("{} ({})", w.evo_difficulty.base, w.evo_difficulty.with_conditions).into()).unwrap_or_else(unknown),
                 action: app.action_text(pet).into(),
                 ranking: details::ranking_value(app, pet).into(),
+                status: details::row_status(app, pet).into(),
+                base_growth: pet.export.as_ref().filter(|e| e.growth != e.effective_growth_with_global_mult(app.multiplier())).map(|e| format!("Base {}", app::number(e.growth)).into()).unwrap_or_default(),
                 name: pet.name.as_str().into(),
                 element: pet.element().map(|e| format!("{e:?}").into()).unwrap_or_else(unknown),
                 element_color: element_color(pet.element()),
@@ -84,7 +109,7 @@ impl Controller {
         ui.set_stone_upgrade(settings.campaign_inputs.stone_campaign_upgrade);
         ui.set_earth_lock(!settings.campaign_inputs.earth_eater_show_lifetime);
         ui.set_tiebreak(i32::from(settings.time_sort_tiebreak == TimeSortTiebreak::EvoDifficulty));
-        ui.set_rates_summary(details::rates_summary(app).into());
+        ui.set_rates_summary(format!("{}\n{}", details::rates_summary(app), details::earth_eater_hint(app)).into());
         ui.set_custom_target(settings.custom_target.as_str().into());
         ui.set_show_ranking(matches!(app.session.sort, Sort::TimeToEvolve | Sort::TimeToTarget) || settings.filter_campaign.is_some());
         ui.set_ranking_title(match app.session.sort {
@@ -166,6 +191,7 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
     let controller = Rc::new(RefCell::new(Controller { app: AppModel::new(session)?, rows: Rc::new(VecModel::default()), can_save, save_failed: false }));
     ui.set_pets(controller.borrow().rows.clone().into());
     controller.borrow().render(ui, true);
+    controller.borrow().render_log(ui);
     status(ui, &message, !can_save);
 
     let (weak, state) = (ui.as_weak(), controller.clone());
@@ -178,6 +204,20 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
             let new_sort = SORTS.get(sort as usize).copied().unwrap_or_default();
             if state.app.session.sort != new_sort { state.app.session.ascending = None; }
             state.app.session.sort = new_sort;
+            controls::normalize_sort(&mut state.app);
+            state.app.reconcile_selection();
+            state.render(&ui, true);
+            state.save(&ui);
+        }
+    });
+    let (weak, state) = (ui.as_weak(), controller.clone());
+    ui.on_sort_header(move |index| {
+        if let Some(ui) = weak.upgrade() {
+            let mut state = state.borrow_mut();
+            let sort = SORTS.get(index as usize).copied().unwrap_or_default();
+            let ascending = if sort == state.app.session.sort { !state.app.settings().sort_ascending } else { sort.default_ascending() };
+            state.app.session.sort = sort;
+            state.app.session.ascending = Some(ascending);
             controls::normalize_sort(&mut state.app);
             state.app.reconcile_selection();
             state.render(&ui, true);
@@ -257,10 +297,48 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
             && let Err(error) = platform::open_wiki(&wiki.wiki_url)
             && let Some(ui) = weak.upgrade() { status(&ui, &error, true); }
     });
+    let (weak, state) = (ui.as_weak(), controller.clone());
+    ui.on_log_choice(move |key,index| {
+        if let Some(ui) = weak.upgrade() {
+            let mut state=state.borrow_mut();
+            let index=index.max(0) as usize;
+            match key.as_str() {
+                "pet" => { let selected=state.app.log.pet_choices().get(index).map(|(i,_)|*i).unwrap_or(0); state.app.log.select_pet(selected); },
+                "all" => state.app.log.all_rooms=index!=0,
+                "metric" => state.app.log.metric=index.min(2),
+                "room" => state.app.log.room=state.app.log.log.as_ref().map(|l|index.min(l.rooms.len().saturating_sub(1))).unwrap_or(0),
+                _ => {},
+            }
+            state.render_log(&ui);
+        }
+    });
+    let (weak, state) = (ui.as_weak(), controller.clone());
+    ui.on_clear_log(move || {
+        if let Some(ui)=weak.upgrade() { let mut state=state.borrow_mut(); state.app.log=Default::default(); state.render_log(&ui); status(&ui,"Dungeon log cleared. Pet roster kept.",false); }
+    });
     let weak = ui.as_weak();
     ui.on_import_paste(move |text| {
         if let Some(ui) = weak.upgrade() {
             if ui.get_import_busy() { return; }
+            if ui.get_import_kind() == 3 {
+                ui.set_import_busy(true);
+                status(&ui,"Reading dungeon log…",false);
+                let weak=ui.as_weak(); let state=controller.clone(); let text=text.to_string();
+                platform::run_background(move || itrtg_planner::log_parser::parse_dungeon_log(&text), move |result| {
+                    if let Some(ui)=weak.upgrade() {
+                        ui.set_import_busy(false);
+                        match result {
+                            Ok(log) => {
+                                let mut state=state.borrow_mut(); state.app.log.replace(log); state.render_log(&ui);
+                                ui.set_log_tab(0); ui.set_active_view(1); ui.set_import_open(false); ui.set_import_text("".into());
+                                status(&ui,"Dungeon log loaded. Pet roster kept. Logs stay in memory for this session.",false);
+                            }
+                            Err(error) => status(&ui,&format!("Could not load dungeon log: {error}. Previous log kept."),true),
+                        }
+                    }
+                });
+                return;
+            }
             if ui.get_import_kind() == 2 {
                 ui.set_import_busy(true);
                 status(&ui, "Decoding full save…", false);
@@ -305,5 +383,18 @@ pub fn finish_file_pick(ui: &MainWindow, result: Option<Result<String, String>>)
         Some(Ok(text)) => ui.invoke_import_paste(text.into()),
         Some(Err(error)) => status(ui, &format!("Could not open export: {error}"), true),
         None => {},
+    }
+}
+
+/// Dropping stages content for review in the import dialog; no roster mutation.
+pub fn finish_drop(ui: &MainWindow, result: Result<String,String>) {
+    ui.set_import_busy(false);
+    match result {
+        Ok(text) => {
+            ui.set_import_kind(crate::app::detect_import_kind(&text));
+            ui.set_import_text(text.into()); ui.set_import_open(true);
+            status(ui,"File ready. Review the import type, then import or cancel.",false);
+        }
+        Err(error) => status(ui,&format!("Could not read dropped file: {error}"),true),
     }
 }

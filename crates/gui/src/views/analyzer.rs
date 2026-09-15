@@ -1106,9 +1106,8 @@ fn show_campaign_inputs(ui: &mut Ui, state: &mut AnalyzerState) {
             ui.checkbox(&mut ee_lock, RichText::new("Lock at +82%").color(style::TEXT_MUTED).size(12.0));
             if ee_invalid {
                 ui.label(RichText::new("✗ can't parse").color(style::WARNING).size(10.0));
-            } else if !ee_lock && ee_total > 0.0 && ee_total < 32_400_000.0 {
+            } else if let Some(hours) = earth_eater_lock_hours(ee_total, !ee_lock) {
                 // At 1 planet/sec, time left to reach the 32.4M permanent-lock cap.
-                let hours = (32_400_000.0 - ee_total) / 3600.0;
                 ui.label(
                     RichText::new(format!("~{} to lock @1/s", format_duration(hours)))
                         .color(style::TEXT_MUTED)

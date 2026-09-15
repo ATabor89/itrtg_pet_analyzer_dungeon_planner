@@ -7,6 +7,7 @@ mod bindings;
 mod platform;
 mod controls;
 mod details;
+mod logs;
 
 fn main() -> Result<(), slint::PlatformError> {
     let ui = MainWindow::new()?;
@@ -16,5 +17,6 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.show()?;
         platform::fit_browser(&ui);
     }
+    platform::install_drop(&ui);
     ui.run()
 }

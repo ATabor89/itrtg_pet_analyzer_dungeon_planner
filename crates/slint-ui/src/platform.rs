@@ -61,7 +61,7 @@ pub fn save(session: &Session) -> Result<(), String> {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn pick_file(ui: slint::Weak<crate::MainWindow>) {
     std::thread::spawn(move || {
-        let result = rfd::FileDialog::new().add_filter("Game export or full save", &["txt", "csv"])
+        let result = rfd::FileDialog::new().add_filter("Game export or full save", &["txt", "csv", "html", "htm"])
             .pick_file().map(|path| std::fs::read_to_string(path).map_err(|e| e.to_string()));
         let _ = ui.upgrade_in_event_loop(move |ui| super::bindings::finish_file_pick(&ui, result));
     });
@@ -70,7 +70,7 @@ pub fn pick_file(ui: slint::Weak<crate::MainWindow>) {
 #[cfg(target_arch = "wasm32")]
 pub fn pick_file(ui: slint::Weak<crate::MainWindow>) {
     wasm_bindgen_futures::spawn_local(async move {
-        let result = match rfd::AsyncFileDialog::new().add_filter("Game export or full save", &["txt", "csv"]).pick_file().await {
+        let result = match rfd::AsyncFileDialog::new().add_filter("Game export or full save", &["txt", "csv", "html", "htm"]).pick_file().await {
             Some(file) => Some(String::from_utf8(file.read().await).map_err(|_| "Please choose a UTF-8 text export".into())),
             None => None,
         };
@@ -100,30 +100,75 @@ pub fn fit_browser(ui: &crate::MainWindow) {
     }
 }
 
-/// Native decoding stays off the UI thread. The timer delivers the result on
-/// the UI thread, so callbacks may safely capture the controller's Rc.
-#[cfg(not(target_arch = "wasm32"))]
-pub fn decode_save(text: String, done: impl FnOnce(Result<crate::app::PreparedSave, String>) + 'static) {
-    let (send, receive) = std::sync::mpsc::channel();
-    std::thread::spawn(move || { let _ = send.send(crate::app::prepare_save(&text)); });
-    poll_save(receive, done);
-}
 
+/// Native work runs on a worker; result callbacks stay on the UI thread.
 #[cfg(not(target_arch = "wasm32"))]
-fn poll_save(receive: std::sync::mpsc::Receiver<Result<crate::app::PreparedSave, String>>,
-    done: impl FnOnce(Result<crate::app::PreparedSave, String>) + 'static) {
+pub fn run_background<T: Send + 'static>(work: impl FnOnce() -> Result<T,String> + Send + 'static,
+    done: impl FnOnce(Result<T,String>) + 'static) {
+    let (send, receive) = std::sync::mpsc::channel();
+    std::thread::spawn(move || { let _ = send.send(work()); });
+    poll_result(receive, done);
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn poll_result<T: Send + 'static>(receive: std::sync::mpsc::Receiver<Result<T,String>>,
+    done: impl FnOnce(Result<T,String>) + 'static) {
     slint::Timer::single_shot(std::time::Duration::from_millis(16), move || {
         match receive.try_recv() {
             Ok(result) => done(result),
-            Err(std::sync::mpsc::TryRecvError::Empty) => poll_save(receive, done),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => done(Err("Save decoding stopped. Existing data kept.".into())),
+            Err(std::sync::mpsc::TryRecvError::Empty) => poll_result(receive, done),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => done(Err("Import stopped. Existing data kept.".into())),
         }
     });
 }
-
-/// Yield to the browser before decoding so the busy state can render. A web
-/// worker is a later performance improvement; no native threads on WASM.
+/// Browser work is deferred for busy-state rendering; web workers remain future work.
 #[cfg(target_arch = "wasm32")]
-pub fn decode_save(text: String, done: impl FnOnce(Result<crate::app::PreparedSave, String>) + 'static) {
-    slint::Timer::single_shot(std::time::Duration::from_millis(16), move || done(crate::app::prepare_save(&text)));
+pub fn run_background<T: 'static>(work: impl FnOnce() -> Result<T,String> + 'static,
+    done: impl FnOnce(Result<T,String>) + 'static) {
+    slint::Timer::single_shot(std::time::Duration::from_millis(16), move || done(work()));
+}
+pub fn decode_save(text: String, done: impl FnOnce(Result<crate::app::PreparedSave,String>) + 'static) {
+    run_background(move || crate::app::prepare_save(&text), done);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn install_drop(ui: &crate::MainWindow) {
+    use slint::{ComponentHandle, winit_030::{WinitWindowAccessor, EventResult, winit}};
+    let weak=ui.as_weak();
+    ui.window().on_winit_window_event(move |_,event| {
+        if let winit::event::WindowEvent::DroppedFile(path)=event {
+            if let Some(ui)=weak.upgrade() && !ui.get_import_busy() && !ui.get_modal_open() {
+                ui.set_import_busy(true);
+                let path=path.clone(); let weak=ui.as_weak();
+                run_background(move || std::fs::read_to_string(path).map_err(|e|e.to_string()), move |result| {
+                    if let Some(ui)=weak.upgrade() { super::bindings::finish_drop(&ui,result); }
+                });
+            }
+            EventResult::PreventDefault
+        } else { EventResult::Propagate }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn install_drop(ui: &crate::MainWindow) {
+    use slint::ComponentHandle;
+    use wasm_bindgen::{JsCast,closure::Closure};
+    let Some(window)=web_sys::window() else { return; };
+    let over=Closure::<dyn FnMut(web_sys::DragEvent)>::new(|event:web_sys::DragEvent|event.prevent_default());
+    if window.add_event_listener_with_callback("dragover",over.as_ref().unchecked_ref()).is_ok() { over.forget(); }
+    let weak=ui.as_weak();
+    let drop=Closure::<dyn FnMut(web_sys::DragEvent)>::new(move |event:web_sys::DragEvent| {
+        event.prevent_default();
+        let Some(ui)=weak.upgrade() else { return; };
+        if ui.get_import_busy() || ui.get_modal_open() { return; }
+        let Some(file)=event.data_transfer().and_then(|d|d.files()).and_then(|files|files.get(0)) else { return; };
+        ui.set_import_busy(true);
+        let weak=ui.as_weak();
+        wasm_bindgen_futures::spawn_local(async move {
+            let result=wasm_bindgen_futures::JsFuture::from(file.text()).await
+                .map_err(|_|"Could not read dropped text file".to_string())
+                .and_then(|v|v.as_string().ok_or_else(||"Please drop a text export or HTML log".into()));
+            if let Some(ui)=weak.upgrade() { super::bindings::finish_drop(&ui,result); }
+        });
+    });
+    if window.add_event_listener_with_callback("drop",drop.as_ref().unchecked_ref()).is_ok() { drop.forget(); }
 }

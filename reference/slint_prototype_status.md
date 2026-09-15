@@ -1,4 +1,4 @@
-# Slint prototype: analyzer and full-save import checkpoint
+# Slint prototype: analyzer parity and Dungeon Logs checkpoint
 
 This experimental frontend stays on `feat/slint-prototype`. Do not merge or
 replace egui until the migration is complete and the user chooses to adopt it.
@@ -33,8 +33,15 @@ empty, incomplete or duplicate-name pet imports are rejected atomically.
 An export-missing pet remains unknown rather than automatically locked.
 Readiness means growth readiness only; other evolution conditions appear separately.
 
-**Full feature parity is still pending.** Save editing, dungeon
-planning, Growth Chamber, logs, data-refresh/export workflows and remaining
+The analyzer has passed a fresh-eyes source parity audit. Dungeon Logs now has
+overview/party cards, rewards/events/depth stats, room charts, supporter party
+damage/healing comparisons and room/all-room combat views. Both frontends use
+the same extracted log parser and party ordering. Drag/drop stages supported
+files for explicit import on native and WASM. See `slint_feature_parity.md` for
+the detailed checklist.
+
+**Full application feature parity is still pending.** Save editing, dungeon
+planning, Growth Chamber, data-refresh/export workflows and remaining
 integration details need subsequent milestones. Browser interaction and layout
 coverage also remain incomplete; see validation below.
 
@@ -98,7 +105,7 @@ Run commands there. Original local changes were archived and hashed before work.
 
 ## Validation (2026-09-15)
 
-- Workspace tests: **579 passed, one ignored, zero failures**, including sixteen
+- Workspace tests: **585 passed, one ignored, zero failures**, including twenty-two
   Slint model tests. Added coverage includes old sessions, atomic partial Main
   Stats updates, advanced filters, campaign ranking, invalid numeric settings,
   target sorting, ability/alias search and detail projections. Full-save tests
@@ -107,6 +114,14 @@ Run commands there. Original local changes were archived and hashed before work.
 - Workspace/all-target clippy passed with only three existing warnings in
   save-parser/planner. No new warnings.
 - Native debug and Trunk WASM development builds succeeded.
+- The analyzer parity regression tests cover locked-pet estimates, row markers,
+  reference abilities and Earth Eater limits. Log tests exercise all four HTML
+  fixtures, supporter net/overlay calculations, all-room combat, unknown monster
+  headers and file-drop routing.
+- Native log file import, overview/wipe summary, supporter room statistics and
+  all-room combat were checked visually. Chart bars were explicitly anchored at
+  the left edge after a visual alignment issue was found.
+- Fresh-eyes analyzer and logs reviews passed after their findings were fixed.
 - Windows app opened at 1920 x 1080 content size and restored the user's current
   roster and PGC settings. Class filtering/reset, settings dialog, equipment and
   evolution details, scrolling, and base/effective growth were checked visually.
@@ -127,7 +142,7 @@ Run commands there. Original local changes were archived and hashed before work.
 Browser automation sometimes times out clicking Import while the text editor
 has focus. Moving focus with Tab before clicking worked; the underlying focus
 issue is not resolved. Automation's multiline typing also required explicit
-Return keys. Browser Main Stats PGC interaction, real clipboard and browser file selection,
+Return keys. Browser Main Stats PGC interaction, real clipboard, native/browser drag-drop and browser file selection,
 full keyboard navigation, narrow layouts and other browser engines remain
 unverified. Wrapped detail text was corrected and visually checked.
 
@@ -137,7 +152,8 @@ on each settings change; debounce before extending it to larger saved state.
 
 ## Next milestones
 
-Continue on Medium for established analyzer presentation and integration work.
+The next main view is the dungeon planner. Continue on Medium for established
+presentation and integration patterns; preserve solver/equipment behavior.
 Reassess effort for save-editor staging/validation, shared persisted-state
 migration or difficult browser issues. Before touching Growth Chamber, read
 `growth_chamber_status.md`. Preserve domain formulas and all save privacy rules.

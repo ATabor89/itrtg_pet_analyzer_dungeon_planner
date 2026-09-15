@@ -1,0 +1,103 @@
+import { Button, CheckBox, ComboBox, ScrollView, ListView, VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { Theme, Caption } from "common.slint";
+export struct LogSection { title: string, body: string }
+export struct LogPartyRow { cards: [LogSection] }
+export struct LogBar { room: string, done: string, taken: string, healed: string, net: string, value: float, party: float, healing: float }
+component SectionCard inherits Rectangle {
+    in property <string> title;
+    in property <string> body;
+    background: Theme.panel; border-radius: 8px;
+    VerticalBox { padding: 16px; spacing: 8px;
+        Text { text: root.title; color: Theme.accent; font-size: 16px; wrap: word-wrap; min-height: self.preferred-height; vertical-stretch: 0; }
+        Text { text: root.body; color: Theme.text; wrap: word-wrap; min-height: self.preferred-height; vertical-stretch: 0; }
+    }
+}
+export component LogView inherits Rectangle {
+    in property <bool> enabled: true;
+    in property <bool> loaded;
+    in property <string> heading;
+    in property <[LogPartyRow]> party;
+    in property <[LogSection]> overview;
+    in property <[LogSection]> combat;
+    in property <[LogBar]> bars;
+    in property <[string]> pet-names;
+    in property <[string]> room-names;
+    in property <int> pet;
+    in property <int> metric;
+    in property <int> room;
+    in property <bool> supporter;
+    in property <bool> all-rooms;
+    in-out property <int> section;
+    callback choose(string,int);
+    callback clear();
+    callback import-log();
+    if !root.loaded: VerticalBox {
+        padding: 80px; spacing: 20px;
+        Text { text: "Explore a dungeon run"; color: Theme.text; font-size: 28px; horizontal-alignment: center; }
+        Text { text: "Import a dungeon log HTML file to inspect the party, rewards, events, room statistics and combat turns."; color: Theme.muted; wrap: word-wrap; horizontal-alignment: center; }
+        Button { enabled: root.enabled; text: "Open dungeon log…"; clicked => { root.import-log(); } }
+        Rectangle { vertical-stretch: 1; }
+    }
+    if root.loaded: VerticalBox {
+        padding: 0px; spacing: 14px;
+        HorizontalBox { padding: 0px; height: 40px;
+            Text { text: root.heading; color: Theme.accent; font-size: 20px; vertical-alignment: center; horizontal-stretch: 1; }
+            Button { enabled: root.enabled; text: "Clear log"; clicked => { root.clear(); } }
+        }
+        HorizontalBox { padding: 0px; height: 36px; spacing: 10px;
+            Button { enabled: root.enabled; text: "Overview"; primary: root.section == 0; clicked => { root.section = 0; } }
+            Button { enabled: root.enabled; text: "Room stats"; primary: root.section == 1; clicked => { root.section = 1; } }
+            Button { enabled: root.enabled; text: "Combat log"; primary: root.section == 2; clicked => { root.section = 2; } }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        if root.section == 0: ScrollView { VerticalBox { padding: 0px; spacing: 12px;
+            for row in root.party: HorizontalBox { padding: 0px; spacing: 12px;
+                for card in row.cards: SectionCard { title: card.title; body: card.body; }
+            }
+            for item in root.overview: SectionCard { title: item.title; body: item.body; }
+            Rectangle { vertical-stretch: 1; }
+        } }
+        if root.section == 1: VerticalBox { padding: 0px; spacing: 12px;
+            HorizontalBox { padding: 0px; height: 36px; spacing: 12px;
+                ComboBox { enabled: root.enabled; model: root.pet-names; current-index: root.pet; accessible-label: "Log pet"; selected(_) => { root.choose("pet",self.current-index); } }
+                ComboBox { enabled: root.enabled; model: ["Damage dealt", "Damage taken", "Healing"]; current-index: root.metric; accessible-label: "Room chart metric"; selected(_) => { root.choose("metric",self.current-index); } }
+            }
+            Caption { text: root.supporter ? "Supporter: Taken and Net use party-wide damage. Amber bars show party damage; green overlays show healing on the same scale." : "Bars use the selected metric, scaled to its largest room. Net = dealt − taken + healed."; wrap: word-wrap; }
+            HorizontalBox { padding: 0px; height: 25px; spacing: 12px;
+                Caption { text: "ROOM"; width: 60px; }
+                Caption { text: "SELECTED METRIC"; horizontal-stretch: 1; }
+                Caption { text: "DEALT"; width: 140px; }
+                Caption { text: root.supporter ? "PARTY TAKEN" : "TAKEN"; width: 140px; }
+                Caption { text: "HEALED"; width: 140px; }
+                Caption { text: "NET"; width: 140px; }
+            }
+            if root.bars.length == 0: Caption { text: "No room statistics recorded in this log."; }
+            ListView { for bar in root.bars: Rectangle {
+                height: root.supporter ? 58px : 40px; background: Theme.panel; border-radius: 5px;
+                HorizontalBox { padding: 8px; spacing: 12px;
+                    Caption { text: bar.room; width: 52px; vertical-alignment: center; }
+                    VerticalBox { padding: 0px; spacing: 4px; horizontal-stretch: 1;
+                        Rectangle { height: 14px; background: Theme.line; Rectangle { x: 0px; y: 0px; width: parent.width * bar.value; background: Theme.accent; } }
+                        if root.supporter: Rectangle { height: 14px; background: Theme.line;
+                            Rectangle { x: 0px; y: 0px; width: parent.width * bar.party; background: #bd904f; }
+                            Rectangle { x: 0px; y: 0px; width: parent.width * bar.healing; background: #79d7bb; }
+                        }
+                    }
+                    Text { text: bar.done; color: Theme.text; width: 140px; vertical-alignment: center; }
+                    Text { text: bar.taken; color: #e2c47c; width: 140px; vertical-alignment: center; }
+                    Text { text: bar.healed; color: Theme.accent; width: 140px; vertical-alignment: center; }
+                    Text { text: bar.net; color: Theme.text; width: 140px; vertical-alignment: center; }
+                }
+            } }
+        }
+        if root.section == 2: VerticalBox { padding: 0px; spacing: 12px;
+            CheckBox { enabled: root.enabled; text: "Show all rooms"; checked: root.all-rooms; toggled => { root.choose("all", self.checked ? 1 : 0); } }
+            ComboBox { enabled: root.enabled && !root.all-rooms; model: root.room-names; current-index: root.room; accessible-label: "Combat room"; selected(_) => { root.choose("room",self.current-index); } }
+            if root.combat.length == 0: Caption { text: "No combat rooms recorded in this log."; }
+            ScrollView { VerticalBox { padding: 0px; spacing: 12px;
+                for item in root.combat: SectionCard { title: item.title; body: item.body; }
+                Rectangle { vertical-stretch: 1; }
+            } }
+        }
+    }
+}

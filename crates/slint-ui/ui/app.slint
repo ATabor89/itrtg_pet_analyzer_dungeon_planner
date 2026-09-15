@@ -1,8 +1,10 @@
+import { Theme, Caption, Badge, Stat } from "common.slint";
+import { LogView, LogBar, LogPartyRow, LogSection } from "logs.slint";
 import { Button, CheckBox, LineEdit, TextEdit, ComboBox, SpinBox, ScrollView, ListView, VerticalBox, HorizontalBox, Palette, AboutSlint } from "std-widgets.slint";
 
 export struct PetRow {
     name: string, element: string, element-color: color, class-name: string,
-    growth: string, dungeon-level: string, class-level: string,
+    status: string, base-growth: string, growth: string, dungeon-level: string, class-level: string,
     recommended: string, difficulty: string, action: string, ranking: string,
 }
 export struct PetDetails {
@@ -14,35 +16,6 @@ export struct DetailSection { title: string, body: string }
 export struct ChoiceSetting { key: string, label: string, options: [string], current: int }
 export struct NumberSetting { key: string, label: string, value: string, hint: string }
 
-global Theme {
-    out property <color> background: #10161e;
-    out property <color> panel: #19232f;
-    out property <color> line: #2b3949;
-    out property <color> muted: #a0b0c2;
-    out property <color> text: #edf3fa;
-    out property <color> accent: #79d7bb;
-}
-component Caption inherits Text {
-    color: Theme.muted; font-size: 12px; vertical-stretch: 0;
-}
-component Badge inherits Rectangle {
-    in property <string> label;
-    in property <color> tint: Theme.accent;
-    height: 25px; width: 72px; border-radius: 5px;
-    background: tint.with-alpha(0.12);
-    border-width: 1px; border-color: tint.with-alpha(0.28);
-    Text { text: root.label; color: root.tint; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
-}
-component Stat inherits Rectangle {
-    in property <string> value;
-    in property <string> label;
-    background: Theme.panel; border-radius: 8px; height: 76px;
-    VerticalBox {
-        padding: 14px; spacing: 4px;
-        Text { text: root.value; font-size: 24px; font-weight: 600; color: Theme.text; }
-        Caption { text: root.label; }
-    }
-}
 export component MainWindow inherits Window {
     title: "ITRTG Pet Planner · Slint Prototype";
     preferred-width: 1920px; preferred-height: 1080px;
@@ -50,6 +23,23 @@ export component MainWindow inherits Window {
     background: Theme.background; default-font-size: 13px;
     init => { Palette.color-scheme = ColorScheme.dark; }
 
+    in-out property <int> active-view;
+    in-out property <int> log-tab;
+    in property <string> log-heading;
+    in property <[LogPartyRow]> log-party;
+    in property <[LogSection]> log-overview;
+    in property <[LogSection]> log-combat;
+    in property <[LogBar]> log-bars;
+    in property <[string]> log-pet-names;
+    in property <[string]> log-room-names;
+    in property <int> log-pet;
+    in property <int> log-metric;
+    in property <int> log-room;
+    in property <bool> log-supporter;
+    in property <bool> log-loaded;
+    in property <bool> log-all-rooms;
+    callback log-choice(string, int);
+    callback clear-log();
     in property <[PetRow]> pets;
     in property <[DetailSection]> detail-sections;
     in property <[ChoiceSetting]> advanced-filters;
@@ -96,10 +86,11 @@ export component MainWindow inherits Window {
     in-out property <bool> import-open;
     in-out property <string> import-text;
     private property <bool> about-open;
-    private property <bool> modal-open: root.import-open || root.about-open || root.settings-open;
+    out property <bool> modal-open: root.import-open || root.about-open || root.settings-open || root.import-busy;
 
     callback filters-changed(string, int, int, int);
     callback select-pet(string);
+    callback sort-header(int);
     callback pgc-changed(int, int);
     callback reset-filters();
     callback load-example();
@@ -113,14 +104,17 @@ export component MainWindow inherits Window {
             VerticalBox {
                 padding: 0px; spacing: 5px;
                 Caption { text: "ITRTG  /  SLINT PROTOTYPE"; color: Theme.accent; }
-                Text { text: "Pet analyzer"; color: Theme.text; font-size: 28px; font-weight: 600; }
+                Text { text: root.active-view == 0 ? "Pet analyzer" : "Dungeon logs"; color: Theme.text; font-size: 28px; font-weight: 600; }
             }
             Rectangle { horizontal-stretch: 1; }
-            Button { text: "Growth & campaigns"; enabled: !root.modal-open; clicked => { root.settings-open = true; } }
-            Button { text: "Load example"; enabled: !root.import-busy && !root.modal-open; clicked => { root.load-example(); } }
-            Button { text: "Import data…"; enabled: !root.import-busy && !root.modal-open; primary: true; clicked => { root.import-open = true; } }
+            Button { text: "Analyzer"; enabled: !root.modal-open; primary: root.active-view == 0; clicked => { root.active-view = 0; } }
+            Button { text: "Dungeon logs"; enabled: !root.modal-open; primary: root.active-view == 1; clicked => { root.active-view = 1; } }
+            if root.active-view == 0: Button { text: "Growth & campaigns"; enabled: !root.modal-open; clicked => { root.settings-open = true; } }
+            if root.active-view == 0: Button { text: "Load example"; enabled: !root.import-busy && !root.modal-open; clicked => { root.load-example(); } }
+            Button { text: "Import data…"; enabled: !root.import-busy && !root.modal-open; primary: true; clicked => { if root.active-view == 1 { root.import-kind = 3; } root.import-open = true; } }
             Button { text: "About"; enabled: !root.modal-open; clicked => { root.about-open = true; } }
         }
+        if root.active-view == 0: VerticalBox { padding: 0px; spacing: 16px;
         HorizontalBox { padding: 0px;
             spacing: 12px; height: 76px;
             Stat { value: root.owned-count; label: "OWNED PETS"; }
@@ -176,32 +170,38 @@ export component MainWindow inherits Window {
                     Caption { text: root.roster-summary; wrap: word-wrap; }
                     HorizontalBox { padding: 0px;
                         height: 25px; spacing: 10px;
-                        Caption { text: "PET"; horizontal-stretch: 1; min-width: 150px; }
-                        Caption { text: "ELEMENT"; width: 72px; }
-                        Caption { text: "CLASS"; width: 93px; }
-                        if root.wide: Caption { text: "RECOMMENDED"; width: 140px; }
-                        if root.wide: Caption { text: "EVO"; width: 55px; }
-                        if root.wide: Caption { text: "ACTION"; width: 100px; }
+                        Button { text: "PET";  horizontal-stretch: 1; min-width: 150px;  enabled: !root.modal-open; clicked => { root.sort-header(0); } }
+                        Button { text: "ELEMENT";  width: 72px;  enabled: !root.modal-open; clicked => { root.sort-header(4); } }
+                        Button { text: "CLASS";  width: 93px;  enabled: !root.modal-open; clicked => { root.sort-header(7); } }
+                        if root.wide: Button { text: "RECOMMENDED";  width: 140px;  enabled: !root.modal-open; clicked => { root.sort-header(5); } }
+                        if root.wide: Button { text: "EVO";  width: 55px;  enabled: !root.modal-open; clicked => { root.sort-header(6); } }
+                        if root.wide: Button { text: "ACTION";  width: 100px;  enabled: !root.modal-open; clicked => { root.sort-header(8); } }
                         if root.show-ranking: Caption { text: root.ranking-title; width: 130px; }
-                        Caption { text: "GROWTH"; width: 94px; horizontal-alignment: right; }
-                        Caption { text: "DL"; width: 36px; horizontal-alignment: right; }
-                        Caption { text: "CL"; width: 36px; horizontal-alignment: right; }
+                        Button { text: "GROWTH";  width: 94px;   enabled: !root.modal-open; clicked => { root.sort-header(1); } }
+                        Button { text: "DL";  width: 36px;   enabled: !root.modal-open; clicked => { root.sort-header(2); } }
+                        Button { text: "CL";  width: 36px;   enabled: !root.modal-open; clicked => { root.sort-header(3); } }
                     }
                     Rectangle { height: 1px; background: Theme.line; }
                     if root.pets.length == 0: Caption { text: "No matching pets. Try another search or reset the filters."; height: 50px; horizontal-alignment: center; }
                     ListView {
                         for pet in root.pets: Rectangle {
-                            height: 46px; background: pet.name == root.selected-name ? #253e48 : transparent; border-radius: 5px;
+                            height: 62px; background: pet.name == root.selected-name ? #253e48 : transparent; border-radius: 5px;
                             HorizontalBox {
                                 padding: 3px; spacing: 10px;
-                                Button { enabled: !root.modal-open; text: pet.name; horizontal-stretch: 1; min-width: 144px; clicked => { root.select-pet(pet.name); } }
+                                VerticalBox { padding: 0px; spacing: 2px; horizontal-stretch: 1; min-width: 144px;
+                                    Button { enabled: !root.modal-open; text: pet.name; clicked => { root.select-pet(pet.name); } }
+                                    Caption { text: pet.status; overflow: elide; font-size: 10px; }
+                                }
                                 Badge { label: pet.element; tint: pet.element-color; }
                                 Text { text: pet.class-name; color: Theme.muted; width: 93px; overflow: elide; vertical-alignment: center; }
                                 if root.wide: Text { text: pet.recommended; color: Theme.muted; width: 140px; overflow: elide; vertical-alignment: center; }
                                 if root.wide: Text { text: pet.difficulty; color: Theme.muted; width: 55px; vertical-alignment: center; }
                                 if root.wide: Text { text: pet.action; color: Theme.muted; width: 100px; overflow: elide; vertical-alignment: center; }
                                 if root.show-ranking: Text { text: pet.ranking; color: Theme.accent; width: 130px; overflow: elide; vertical-alignment: center; }
-                                Text { text: pet.growth; color: Theme.text; width: 94px; horizontal-alignment: right; vertical-alignment: center; }
+                                VerticalBox { padding: 0px; spacing: 2px; width: 94px;
+                                    Text { text: pet.growth; color: Theme.text; horizontal-alignment: right; vertical-alignment: center; }
+                                    Caption { text: pet.base-growth; horizontal-alignment: right; font-size: 10px; }
+                                }
                                 Text { text: pet.dungeon-level; color: Theme.muted; width: 36px; horizontal-alignment: right; vertical-alignment: center; }
                                 Text { text: pet.class-level; color: Theme.muted; width: 36px; horizontal-alignment: right; vertical-alignment: center; }
                             }
@@ -250,6 +250,18 @@ export component MainWindow inherits Window {
                 }
             }
         }
+        }
+        if root.active-view == 1: LogView {
+            enabled: !root.modal-open;
+            loaded: root.log-loaded; heading: root.log-heading; party: root.log-party;
+            overview: root.log-overview; combat: root.log-combat; bars: root.log-bars;
+            pet-names: root.log-pet-names; room-names: root.log-room-names;
+            pet: root.log-pet; room: root.log-room; metric: root.log-metric; supporter: root.log-supporter;
+            section <=> root.log-tab; all-rooms: root.log-all-rooms;
+            choose(key,index) => { root.log-choice(key,index); }
+            clear => { root.clear-log(); }
+            import-log => { root.import-kind = 3; root.import-open = true; }
+        }
         Text { text: root.status; color: root.status-error ? #ff9898 : Theme.muted; font-size: 12px; wrap: word-wrap; vertical-stretch: 0; }
     }
     if root.import-open: Rectangle {
@@ -261,8 +273,8 @@ export component MainWindow inherits Window {
             VerticalBox {
                 padding: 24px; spacing: 14px;
                 Text { text: "Import game data"; color: Theme.text; font-size: 23px; vertical-stretch: 0; }
-                ComboBox { model: ["Pet Stats — replace roster", "Main Stats — update account settings", "Full save — replace roster and account settings"]; current-index <=> root.import-kind; enabled: !root.import-busy; accessible-label: "Export type"; }
-                Caption { text: root.import-kind == 0 ? "Pet Stats begins with Name;. Importing replaces the prototype roster." : root.import-kind == 2 ? "Import a full game save to replace the roster and fill account settings and Moai levels. Live actions and combat stats are unavailable." : "Main Stats begins with Idling to Rule the Gods. Only supported account settings are updated; the roster is kept."; wrap: word-wrap; }
+                ComboBox { model: ["Pet Stats — replace roster", "Main Stats — update account settings", "Full save — replace roster and account settings", "Dungeon log — HTML run report"]; current-index <=> root.import-kind; enabled: !root.import-busy; accessible-label: "Export type"; }
+                Caption { text: root.import-kind == 3 ? "Open a dungeon log HTML file or paste its HTML source. The log stays in memory; your pet roster is kept." : root.import-kind == 0 ? "Pet Stats begins with Name;. Importing replaces the prototype roster." : root.import-kind == 2 ? "Import a full game save to replace the roster and fill account settings and Moai levels. Live actions and combat stats are unavailable." : "Main Stats begins with Idling to Rule the Gods. Only supported account settings are updated; the roster is kept."; wrap: word-wrap; }
                 TextEdit { init => { self.focus(); } text <=> root.import-text; accessible-label: "Game data text"; enabled: !root.import-busy; wrap: no-wrap; }
                 Text { text: root.status-error || root.import-busy ? root.status : "Imports stay on this device. Only planner data is saved; the raw full save is discarded after import."; color: root.status-error ? #ff9898 : Theme.muted; wrap: word-wrap; vertical-stretch: 0; }
                 HorizontalBox { padding: 0px;

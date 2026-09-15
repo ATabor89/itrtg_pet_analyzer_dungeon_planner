@@ -65,13 +65,14 @@ pub struct AppModel {
     pub pets: Vec<MergedPet>,
     wiki: Vec<WikiPet>,
     pub bonuses: CampaignBonusRules,
+    pub log: crate::logs::LogModel,
 }
 
 impl AppModel {
     pub fn new(session: Session) -> Result<Self, String> {
         let wiki = serde_yaml::from_str(WIKI).map_err(|e| e.to_string())?;
         let bonuses = serde_yaml::from_str(include_str!("../../../data/campaign_bonuses.yaml")).map_err(|e| e.to_string())?;
-        let mut app = Self { session, pets: Vec::new(), wiki, bonuses };
+        let mut app = Self { session, pets: Vec::new(), wiki, bonuses, log: Default::default() };
         app.rebuild();
         Ok(app)
     }
@@ -130,7 +131,7 @@ impl AppModel {
 
     pub fn action_text(&self, pet: &MergedPet) -> String {
         if self.session.roster_from_save { return "Unavailable in save".into(); }
-        pet.export.as_ref().map(|e| analyzer::format_action(&e.action)).unwrap_or_else(|| "—".into())
+        pet.export.as_ref().map(|e| analyzer::format_action(&e.action)).unwrap_or_else(|| pet.wiki.as_ref().and_then(|w| w.special_ability.clone()).unwrap_or_else(|| "—".into()))
     }
 
     pub fn multiplier(&self) -> f64 {
@@ -276,6 +277,16 @@ pub fn number(n: u64) -> String {
         result.push(ch);
     }
     result
+}
+
+
+/// Route supported dropped files through the same explicit import dialog.
+pub fn detect_import_kind(text: &str) -> i32 {
+    let text=text.trim_start_matches('\u{feff}').trim_start();
+    if text.starts_with("Name;") { 0 }
+    else if text.starts_with("Idling to Rule the Gods") { 1 }
+    else if text.to_ascii_lowercase().contains("<br") || text.to_ascii_lowercase().contains("<html") { 3 }
+    else { 2 }
 }
 
 #[cfg(test)]
@@ -517,6 +528,31 @@ mod tests {
         assert!(restored.roster_from_save);
         assert!(restored.analysis.moai[0].owned);
         assert_eq!(restored.analysis.moai[0].level, 0);
+    }
+
+    #[test]
+    fn analyzer_parity_includes_locked_estimates_row_markers_and_reference_abilities() {
+        let mut app=example();
+        let index=app.pets.iter().position(|p|p.wiki.as_ref().is_some_and(|w|w.evo_requirements.is_some()) && p.export.as_ref().is_some_and(|e|!e.unlocked && e.class.is_none())).unwrap();
+        let pet=&app.pets[index];
+        assert!(crate::details::sections(&app,pet).iter().any(|(title,body)|title=="EVOLUTION REQUIREMENTS" && body.contains("No egg:")));
+        assert!(crate::details::row_status(&app,pet).starts_with("Locked"));
+        app.session.analysis.earth_eater_planets_text="32400000".into();
+        app.session.analysis.campaign_inputs.earth_eater_show_lifetime=true;
+        assert!(crate::details::earth_eater_hint(&app).is_empty());
+        assert_eq!(analyzer::earth_eater_lock_hours(32_396_400.0,true),Some(1.0));
+        assert_eq!(analyzer::earth_eater_lock_hours(100.0,false),None);
+        let reference=AppModel::new(Session::default()).unwrap();
+        let pet=reference.pets.iter().find(|p|p.wiki.as_ref().is_some_and(|w|w.special_ability.is_some())).unwrap();
+        assert_eq!(reference.action_text(pet),pet.wiki.as_ref().unwrap().special_ability.as_ref().unwrap().as_str());
+    }
+
+    #[test]
+    fn dropped_files_route_to_explicit_import_modes() {
+        assert_eq!(detect_import_kind("\u{feff} Name;Element"),0);
+        assert_eq!(detect_import_kind("Idling to Rule the Gods\nPet Stones: 123"),1);
+        assert_eq!(detect_import_kind("<html><b>Dungeon Log</b><br>"),3);
+        assert_eq!(detect_import_kind("V2encoded-save"),2);
     }
 
 }

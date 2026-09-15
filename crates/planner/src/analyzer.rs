@@ -941,3 +941,8 @@ pub fn format_number(n: u64) -> String {
     result.chars().rev().collect()
 }
 
+
+/// Remaining hours to Earth Eater's permanent lock at one planet per second.
+pub fn earth_eater_lock_hours(total: f64, lifetime: bool) -> Option<f64> {
+    (lifetime && total > 0.0 && total < 32_400_000.0).then(|| (32_400_000.0 - total) / 3600.0)
+}

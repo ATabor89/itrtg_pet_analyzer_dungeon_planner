@@ -5,3 +5,4 @@ pub mod merge;
 pub mod solver;
 
 pub mod analyzer;
+pub mod log_parser;
