@@ -5,6 +5,8 @@ slint::include_modules!();
 mod app;
 mod bindings;
 mod platform;
+mod controls;
+mod details;
 
 fn main() -> Result<(), slint::PlatformError> {
     let ui = MainWindow::new()?;

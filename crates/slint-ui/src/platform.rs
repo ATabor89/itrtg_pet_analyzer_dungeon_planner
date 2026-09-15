@@ -1,6 +1,15 @@
 //! Prototype-only storage and file picking. Never reads or writes egui state.
 use crate::app::Session;
 
+pub fn open_wiki(url: &str) -> Result<(), String> {
+    if !url.starts_with("https://itrtg.wiki.gg/wiki/") { return Err("This is not a supported ITRTG wiki link.".into()); }
+    #[cfg(not(target_arch = "wasm32"))]
+    { webbrowser::open(url).map_err(|e| e.to_string()) }
+    #[cfg(target_arch = "wasm32")]
+    { web_sys::window().ok_or("Browser window unavailable")?.open_with_url_and_target(url, "_blank")
+        .map_err(|_| "Could not open wiki page".to_string())?.ok_or("Browser blocked the wiki window")?; Ok(()) }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn state_path() -> Result<std::path::PathBuf, String> {
     let executable = std::env::current_exe().map_err(|e| e.to_string())?;

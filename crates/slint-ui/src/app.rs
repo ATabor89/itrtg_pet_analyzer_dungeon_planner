@@ -2,7 +2,9 @@
 //! Commands use canonical pet names, never a transient sorted row index.
 use std::collections::HashSet;
 
-use itrtg_models::{Element, ExportPet, RecommendedClass, WikiPet, pgc_growth_mult};
+use itrtg_models::{Element, ExportPet, RecommendedClass, WikiPet, CampaignBonusRules, parse_flexible_number, pgc_growth_mult};
+use itrtg_planner::{analyzer::{self, AnalyzerState}, growth::GrowthRates};
+pub use itrtg_planner::analyzer::SortColumn as Sort;
 use itrtg_planner::merge::{self, EvoReadiness, MergedPet};
 use serde::{Deserialize, Serialize};
 
@@ -13,8 +15,6 @@ const STATE_VERSION: u32 = 1;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Ownership { #[default] All, Owned, Locked }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Sort { #[default] Name, Growth, DungeonLevel, ClassLevel }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -29,6 +29,8 @@ pub struct Session {
     pub pgc_done: u32,
     pub pgc_max: u32,
     pub source: String,
+    pub analysis: AnalyzerState,
+    pub ascending: Option<bool>,
 }
 
 impl Default for Session {
@@ -37,6 +39,7 @@ impl Default for Session {
             version: STATE_VERSION, pets: Vec::new(), query: String::new(),
             ownership: Ownership::All, element: None, sort: Sort::Name,
             selected: None, pgc_done: 0, pgc_max: 25, source: "Wiki reference".into(),
+            analysis: AnalyzerState::default(), ascending: None,
         }
     }
 }
@@ -49,6 +52,7 @@ impl Session {
         }
         session.pgc_max = session.pgc_max.min(1000);
         session.pgc_done = session.pgc_done.min(session.pgc_max);
+        for moai in &mut session.analysis.moai { moai.level = moai.level.clamp(1, 20); }
         validate_names(&session.pets)?;
         Ok(session)
     }
@@ -58,12 +62,14 @@ pub struct AppModel {
     pub session: Session,
     pub pets: Vec<MergedPet>,
     wiki: Vec<WikiPet>,
+    pub bonuses: CampaignBonusRules,
 }
 
 impl AppModel {
     pub fn new(session: Session) -> Result<Self, String> {
         let wiki = serde_yaml::from_str(WIKI).map_err(|e| e.to_string())?;
-        let mut app = Self { session, pets: Vec::new(), wiki };
+        let bonuses = serde_yaml::from_str(include_str!("../../../data/campaign_bonuses.yaml")).map_err(|e| e.to_string())?;
+        let mut app = Self { session, pets: Vec::new(), wiki, bonuses };
         app.rebuild();
         Ok(app)
     }
@@ -99,35 +105,51 @@ impl AppModel {
         pgc_growth_mult(self.session.pgc_done, self.session.pgc_max)
     }
 
+    /// Use the same filter/sort implementation as egui. Keep v1 session keys
+    /// readable while advanced settings are added without losing existing imports.
+    pub fn settings(&self) -> AnalyzerState {
+        let mut settings = self.session.analysis.clone();
+        settings.search = self.session.query.trim().into();
+        settings.filter_unlocked = match self.session.ownership { Ownership::All => None, Ownership::Owned => Some(true), Ownership::Locked => Some(false) };
+        settings.filter_element = self.session.element;
+        settings.sort_column = self.session.sort;
+        settings.sort_ascending = self.session.ascending.unwrap_or(settings.sort_column.default_ascending());
+        settings.pgc_done = self.session.pgc_done;
+        settings.pgc_max = self.session.pgc_max;
+        settings.campaign_inputs.earth_eater_total_planets = parse_flexible_number(&settings.earth_eater_planets_text).unwrap_or(0.0).max(0.0) as u64;
+        settings
+    }
+
+    pub fn rates(&self) -> GrowthRates {
+        let levels: Vec<_> = self.session.analysis.moai.iter().filter(|m| m.owned).map(|m| m.level).collect();
+        GrowthRates::compute(&self.pets, &levels)
+    }
+
+    pub fn campaign_context<'a>(&'a self, settings: &'a AnalyzerState) -> merge::CampaignContext<'a> {
+        merge::CampaignContext { bonuses: &self.bonuses, roster: &self.pets,
+            inputs: &settings.campaign_inputs, include_equipment: settings.include_equipment_bonus,
+            include_class: settings.include_class_bonus }
+    }
+
     pub fn visible(&self) -> Vec<&MergedPet> {
-        let query = self.session.query.trim().to_lowercase();
-        let mut pets: Vec<_> = self.pets.iter().filter(|pet| {
-            let name_matches = pet.name.to_lowercase().contains(&query)
-                || pet.export.as_ref().is_some_and(|e| e.export_name.to_lowercase().contains(&query));
-            let ownership_matches = match self.session.ownership {
-                Ownership::All => true,
-                Ownership::Owned => pet.is_unlocked(),
-                // Missing export data is unknown, not evidence that a pet is locked.
-                Ownership::Locked => pet.export.as_ref().is_some_and(|e| !e.unlocked),
-            };
-            name_matches && ownership_matches
-                && self.session.element.is_none_or(|el| pet.element() == Some(el))
-        }).collect();
-        pets.sort_by(|a, b| {
-            let numeric = |pet: &MergedPet| pet.export.as_ref().map(|e| match self.session.sort {
-                Sort::Growth => e.growth,
-                Sort::DungeonLevel => u64::from(e.dungeon_level),
-                Sort::ClassLevel => u64::from(e.class_level),
-                Sort::Name => 0,
-            });
-            let order = if self.session.sort == Sort::Name {
-                std::cmp::Ordering::Equal
-            } else {
-                numeric(b).cmp(&numeric(a)) // Descending, unknowns last.
-            };
-            order.then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-        });
+        let settings = self.settings();
+        let context = self.campaign_context(&settings);
+        let mut pets = analyzer::filter_and_sort(&self.pets, &settings, &self.rates(), &context);
+        // Preserve the prototype's distinction between unknown and explicitly locked.
+        pets.retain(|p| self.session.ownership != Ownership::Locked || p.export.is_some());
         pets
+    }
+
+    pub fn import_main_stats(&mut self, source: &str) -> Result<String, String> {
+        let stats = itrtg_models::parse_main_stats(source.trim_start_matches('\u{feff}'))?;
+        let mut settings = self.settings();
+        let applied = settings.apply_main_stats(&stats);
+        if applied.is_empty() { return Err("No supported Main Stats values found. Existing settings kept.".into()); }
+        self.session.pgc_max = settings.pgc_max.min(1000);
+        self.session.pgc_done = settings.pgc_done.min(self.session.pgc_max);
+        self.session.analysis = settings;
+        self.reconcile_selection();
+        Ok(format!("Updated {}. Pet roster kept.", applied.join(", ")))
     }
 
     pub fn reconcile_selection(&mut self) {
@@ -151,6 +173,14 @@ impl AppModel {
         self.session.query.clear();
         self.session.ownership = Ownership::All;
         self.session.element = None;
+        let a = &mut self.session.analysis;
+        a.filter_evolved = None;
+        a.filter_unlock_type = Default::default();
+        a.filter_rec_class = Default::default();
+        a.filter_my_class = Default::default();
+        a.filter_improvable = Default::default();
+        a.filter_campaign = None;
+        if self.session.sort == Sort::CampaignBonus { self.session.sort = Sort::Name; self.session.ascending = None; }
         self.reconcile_selection();
     }
 
@@ -247,7 +277,7 @@ mod tests {
         app.session.sort = Sort::Growth;
         app.reconcile_selection();
         assert_eq!(app.selected().unwrap().name, selected);
-        let growths: Vec<_> = app.visible().iter().filter_map(|p| p.export.as_ref().map(|e| e.growth)).collect();
+        let growths: Vec<_> = app.visible().iter().filter_map(|p| p.export.as_ref().map(|e| e.effective_growth_with_global_mult(app.multiplier()))).collect();
         assert!(growths.windows(2).all(|pair| pair[0] >= pair[1]));
         app.session.query = "no such pet qqq".into();
         app.reconcile_selection();
@@ -288,5 +318,91 @@ mod tests {
         assert_eq!(restored.multiplier(), 1.5);
         assert_eq!(restored.session.pets.len(), app.session.pets.len());
         assert!(Session::from_yaml("version: 999").is_err());
+    }
+
+    #[test]
+    fn original_prototype_sessions_load_with_new_settings_defaults() {
+        let session = Session::from_yaml("version: 1\nquery: mouse\nsort: Growth\npgc_done: 25\npgc_max: 25\n").unwrap();
+        let app = AppModel::new(session).unwrap();
+        assert_eq!(app.session.query, "mouse");
+        assert_eq!(app.multiplier(), 1.5);
+        assert!(!app.settings().sort_ascending);
+        assert!(!app.settings().include_equipment_bonus);
+    }
+
+    #[test]
+    fn main_stats_updates_present_settings_without_replacing_roster() {
+        let mut app = example();
+        app.session.analysis.campaign_inputs.ants = 42;
+        let pets = serde_yaml::to_string(&app.session.pets).unwrap();
+        app.import_main_stats("Idling to Rule the Gods\nPet Stones: 250,882\nPatreon Gods Challenges: 25 / 25").unwrap();
+        assert_eq!(app.session.analysis.campaign_inputs.pet_stones, 250_882);
+        assert_eq!(app.session.analysis.campaign_inputs.ants, 42);
+        assert_eq!(app.multiplier(), 1.5);
+        assert_eq!(serde_yaml::to_string(&app.session.pets).unwrap(), pets);
+        let before = serde_yaml::to_string(&app.session).unwrap();
+        assert!(app.import_main_stats("Idling to Rule the Gods\nUnrelated: 1").is_err());
+        assert_eq!(serde_yaml::to_string(&app.session).unwrap(), before);
+    }
+
+    #[test]
+    fn advanced_filter_combinations_use_domain_rules_and_reset_keeps_settings() {
+        use crate::controls;
+        let mut app = example();
+        controls::change_choice(&mut app, "class", 3); // Blacksmith
+        assert!(!app.visible().is_empty());
+        assert!(app.visible().iter().all(|p| p.evolved_class() == Some(itrtg_models::Class::Blacksmith)));
+        controls::change_choice(&mut app, "evolved", 2); // Unevolved cannot be Blacksmith
+        assert!(app.visible().is_empty());
+        controls::change_number(&mut app, "moai1", "20").unwrap();
+        app.reset_filters();
+        assert_eq!(app.visible().len(), app.pets.len());
+        assert_eq!(app.rates().moai_per_hour, 1.0);
+    }
+
+    #[test]
+    fn campaign_filters_and_sort_use_curated_bonuses() {
+        let mut app = example();
+        crate::controls::change_choice(&mut app, "campaign", 1); // Growth
+        app.session.sort = Sort::CampaignBonus;
+        let settings = app.settings();
+        let context = app.campaign_context(&settings);
+        let bonuses: Vec<_> = app.visible().into_iter().map(|p| p.campaign_bonus_for(itrtg_models::CampaignType::Growth, &context).unwrap()).collect();
+        assert!(!bonuses.is_empty());
+        assert!(bonuses.iter().all(|b| *b > 0.0));
+        assert!(bonuses.windows(2).all(|pair| pair[0] >= pair[1]));
+    }
+
+    #[test]
+    fn settings_reject_invalid_numbers_and_preserve_previous_values() {
+        let mut app = example();
+        crate::controls::change_number(&mut app, "planets", "32.4e6").unwrap();
+        assert_eq!(app.settings().campaign_inputs.earth_eater_total_planets, 32_400_000);
+        let before = serde_yaml::to_string(&app.session).unwrap();
+        for (key, text) in [("planets", "oops"), ("target", "-3"), ("moai1", "21"), ("moai2", "1.5"), ("ucc", "5e10"), ("target", "NaN")] {
+            assert!(crate::controls::change_number(&mut app, key, text).is_err());
+            assert_eq!(serde_yaml::to_string(&app.session).unwrap(), before);
+        }
+        crate::controls::change_number(&mut app, "target", "55,555").unwrap();
+        app.session.sort = Sort::TimeToTarget;
+        let times: Vec<_> = app.visible().iter().map(|p| p.hours_to_growth_with_mult(55_555, &app.rates(), app.multiplier()).unwrap_or(f64::INFINITY)).collect();
+        assert!(times.windows(2).all(|pair| pair[0] <= pair[1]));
+    }
+
+    #[test]
+    fn shared_search_finds_abilities_and_detail_projection_covers_special_pets() {
+        let mut app = example();
+        let named = app.pets.iter().find(|p| p.wiki.as_ref().and_then(|w| w.special_ability.as_ref()).is_some_and(|s| !s.is_empty())).unwrap();
+        let name = named.name.clone();
+        app.session.query = named.wiki.as_ref().unwrap().special_ability.clone().unwrap();
+        assert!(app.visible().iter().any(|p| p.name == name));
+        app.session.query = "  Mouse  ".into();
+        assert!(app.visible().iter().any(|p| p.name == "Mouse"));
+        app.reset_filters();
+        for pet in &app.pets {
+            let sections = crate::details::sections(&app, pet);
+            if pet.export.is_some() { assert!(sections.iter().any(|(t,_)| t == "EQUIPMENT")); }
+            if pet.elemental_evo_plan().is_some() { assert!(sections.iter().any(|(t,_)| t == "ELEMENTAL FORM PROGRESS")); }
+        }
     }
 }

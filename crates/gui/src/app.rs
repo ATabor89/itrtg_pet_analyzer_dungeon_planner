@@ -1,3 +1,4 @@
+use crate::views::analyzer::AnalyzerPersistence;
 use eframe::egui::{self, RichText};
 
 use crate::data::DataStore;
