@@ -1,0 +1,233 @@
+import { Button, LineEdit, TextEdit, ComboBox, SpinBox, ScrollView, ListView, VerticalBox, HorizontalBox, Palette, AboutSlint } from "std-widgets.slint";
+
+export struct PetRow {
+    name: string, element: string, element-color: color, class-name: string,
+    growth: string, dungeon-level: string, class-level: string,
+}
+export struct PetDetails {
+    name: string, element: string, element-color: color, ownership: string,
+    base-growth: string, effective-growth: string, recommended-class: string,
+    readiness: string, requirements: string, notes: string,
+}
+global Theme {
+    out property <color> background: #10161e;
+    out property <color> panel: #19232f;
+    out property <color> line: #2b3949;
+    out property <color> muted: #a0b0c2;
+    out property <color> text: #edf3fa;
+    out property <color> accent: #79d7bb;
+}
+component Caption inherits Text {
+    color: Theme.muted; font-size: 12px; vertical-stretch: 0;
+}
+component Badge inherits Rectangle {
+    in property <string> label;
+    in property <color> tint: Theme.accent;
+    height: 25px; width: 72px; border-radius: 5px;
+    background: tint.with-alpha(0.12);
+    border-width: 1px; border-color: tint.with-alpha(0.28);
+    Text { text: root.label; color: root.tint; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+}
+component Stat inherits Rectangle {
+    in property <string> value;
+    in property <string> label;
+    background: Theme.panel; border-radius: 8px; height: 76px;
+    VerticalBox {
+        padding: 14px; spacing: 4px;
+        Text { text: root.value; font-size: 24px; font-weight: 600; color: Theme.text; }
+        Caption { text: root.label; }
+    }
+}
+export component MainWindow inherits Window {
+    title: "ITRTG Pet Planner · Slint Prototype";
+    preferred-width: 1380px; preferred-height: 850px;
+    min-width: 1000px; min-height: 660px;
+    background: Theme.background; default-font-size: 13px;
+    init => { Palette.color-scheme = ColorScheme.dark; }
+
+    in property <[PetRow]> pets;
+    in property <PetDetails> details;
+    in property <string> selected-name;
+    in property <string> owned-count: "0";
+    in property <string> evolved-count: "0";
+    in property <string> ready-count: "0";
+    in property <string> visible-summary;
+    in property <string> source-label: "Wiki reference";
+    in property <string> status;
+    in property <bool> status-error;
+    in property <bool> import-busy;
+    in property <string> multiplier-label;
+    in-out property <string> query;
+    in-out property <int> ownership-index;
+    in-out property <int> element-index;
+    in-out property <int> sort-index;
+    in-out property <int> pgc-done;
+    in-out property <int> pgc-max: 25;
+    in-out property <bool> import-open;
+    in-out property <string> import-text;
+    private property <bool> about-open;
+    private property <bool> modal-open: root.import-open || root.about-open;
+
+    callback filters-changed(string, int, int, int);
+    callback select-pet(string);
+    callback pgc-changed(int, int);
+    callback reset-filters();
+    callback load-example();
+    callback import-paste(string);
+    callback open-file();
+
+    VerticalBox {
+        padding: 24px; spacing: 16px;
+        HorizontalBox { padding: 0px;
+            height: 58px; spacing: 16px;
+            VerticalBox {
+                padding: 0px; spacing: 5px;
+                Caption { text: "ITRTG  /  SLINT PROTOTYPE"; color: Theme.accent; }
+                Text { text: "Pet analyzer"; color: Theme.text; font-size: 28px; font-weight: 600; }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button { text: "Load example"; enabled: !root.import-busy && !root.modal-open; clicked => { root.load-example(); } }
+            Button { text: "Import pets…"; enabled: !root.import-busy && !root.modal-open; primary: true; clicked => { root.import-open = true; } }
+            Button { text: "About"; enabled: !root.modal-open; clicked => { root.about-open = true; } }
+        }
+        HorizontalBox { padding: 0px;
+            spacing: 12px; height: 76px;
+            Stat { value: root.owned-count; label: "OWNED PETS"; }
+            Stat { value: root.evolved-count; label: "EVOLVED · OWNED"; }
+            Stat { value: root.ready-count; label: "GROWTH READY · OWNED"; }
+            Rectangle {
+                background: Theme.panel; border-radius: 8px; min-width: 285px;
+                VerticalBox {
+                    padding: 12px; spacing: 5px;
+                    Caption { text: "PATREON GOD CHALLENGES · " + root.multiplier-label; }
+                    HorizontalBox { padding: 0px;
+                        spacing: 6px;
+                        SpinBox { enabled: !root.modal-open; value <=> root.pgc-done; minimum: 0; maximum: root.pgc-max; accessible-label: "PGC completed"; edited(v) => { root.pgc-changed(v, root.pgc-max); } }
+                        Caption { text: "/"; vertical-alignment: center; }
+                        SpinBox { enabled: !root.modal-open; value <=> root.pgc-max; minimum: 0; maximum: 1000; accessible-label: "PGC maximum"; edited(v) => { root.pgc-changed(root.pgc-done, v); } }
+                    }
+                }
+            }
+        }
+        HorizontalBox { padding: 0px;
+            height: 36px; spacing: 10px;
+            LineEdit { enabled: !root.modal-open; text <=> root.query; placeholder-text: "Search pets…"; accessible-label: "Search pets"; horizontal-stretch: 1;
+                edited => { root.filters-changed(root.query, root.ownership-index, root.element-index, root.sort-index); }
+            }
+            ComboBox { enabled: !root.modal-open; model: ["All pets", "Owned", "Locked"]; current-index <=> root.ownership-index; width: 130px;
+                selected(_) => { root.filters-changed(root.query, root.ownership-index, root.element-index, root.sort-index); }
+            }
+            ComboBox { enabled: !root.modal-open; model: ["All elements", "Fire", "Water", "Wind", "Earth", "Neutral", "All"]; current-index <=> root.element-index; width: 140px;
+                selected(_) => { root.filters-changed(root.query, root.ownership-index, root.element-index, root.sort-index); }
+            }
+            ComboBox { enabled: !root.modal-open; model: ["Name A–Z", "Base growth ↓", "Dungeon level ↓", "Class level ↓"]; current-index <=> root.sort-index; width: 165px;
+                selected(_) => { root.filters-changed(root.query, root.ownership-index, root.element-index, root.sort-index); }
+            }
+            Button { text: "Reset filters"; enabled: !root.modal-open; clicked => { root.reset-filters(); } }
+        }
+        HorizontalBox { padding: 0px;
+            spacing: 16px;
+            Rectangle {
+                background: Theme.panel; border-radius: 8px; horizontal-stretch: 1; min-width: 610px;
+                VerticalBox {
+                    padding: 12px; spacing: 8px;
+                    Caption { text: root.visible-summary + "  ·  " + root.source-label; height: 24px; }
+                    HorizontalBox { padding: 0px;
+                        height: 25px; spacing: 10px;
+                        Caption { text: "PET"; horizontal-stretch: 1; min-width: 150px; }
+                        Caption { text: "ELEMENT"; width: 72px; }
+                        Caption { text: "CLASS"; width: 93px; }
+                        Caption { text: "BASE GROWTH"; width: 94px; horizontal-alignment: right; }
+                        Caption { text: "DL"; width: 36px; horizontal-alignment: right; }
+                        Caption { text: "CL"; width: 36px; horizontal-alignment: right; }
+                    }
+                    Rectangle { height: 1px; background: Theme.line; }
+                    if root.pets.length == 0: Caption { text: "No matching pets. Try another search or reset the filters."; height: 50px; horizontal-alignment: center; }
+                    ListView {
+                        for pet in root.pets: Rectangle {
+                            height: 46px; background: pet.name == root.selected-name ? #253e48 : transparent; border-radius: 5px;
+                            HorizontalBox {
+                                padding: 3px; spacing: 10px;
+                                Button { enabled: !root.modal-open; text: pet.name; horizontal-stretch: 1; min-width: 144px; clicked => { root.select-pet(pet.name); } }
+                                Badge { label: pet.element; tint: pet.element-color; }
+                                Text { text: pet.class-name; color: Theme.muted; width: 93px; overflow: elide; vertical-alignment: center; }
+                                Text { text: pet.growth; color: Theme.text; width: 94px; horizontal-alignment: right; vertical-alignment: center; }
+                                Text { text: pet.dungeon-level; color: Theme.muted; width: 36px; horizontal-alignment: right; vertical-alignment: center; }
+                                Text { text: pet.class-level; color: Theme.muted; width: 36px; horizontal-alignment: right; vertical-alignment: center; }
+                            }
+                        }
+                    }
+                }
+            }
+            Rectangle {
+                width: 310px; background: Theme.panel; border-radius: 8px;
+                ScrollView {
+                    VerticalBox {
+                        padding: 20px; spacing: 14px;
+                        Caption { text: "PET DETAILS"; }
+                        Text { text: root.details.name; color: Theme.text; font-size: 23px; font-weight: 600; wrap: word-wrap; }
+                        HorizontalBox { padding: 0px;
+                            height: 25px;
+                            Badge { label: root.details.element; tint: root.details.element-color; }
+                            Caption { text: root.details.ownership; vertical-alignment: center; }
+                        }
+                        Rectangle { height: 1px; background: Theme.line; }
+                        Caption { text: "RECOMMENDED CLASS"; }
+                        Text { text: root.details.recommended-class; color: Theme.text; wrap: word-wrap; }
+                        HorizontalBox { padding: 0px;
+                            VerticalBox { padding: 0px; spacing: 5px; Caption { text: "BASE GROWTH"; } Text { text: root.details.base-growth; color: Theme.text; font-size: 20px; } }
+                            VerticalBox { padding: 0px; spacing: 5px; Caption { text: "EFFECTIVE"; } Text { text: root.details.effective-growth; color: Theme.accent; font-size: 20px; } }
+                        }
+                        Caption { text: "Effective includes PGC and an equipped Magic Egg."; wrap: word-wrap; }
+                        Rectangle { height: 1px; background: Theme.line; }
+                        Text { text: root.details.readiness; color: Theme.accent; font-weight: 600; }
+                        Caption { text: "Readiness checks growth only. Materials and special conditions still apply."; wrap: word-wrap; }
+                        Text { text: root.details.requirements; color: Theme.text; wrap: word-wrap; }
+                        Rectangle { height: 1px; background: Theme.line; }
+                        Caption { text: "WIKI NOTES"; }
+                        Text { text: root.details.notes; color: Theme.muted; wrap: word-wrap; }
+                        Rectangle { vertical-stretch: 1; }
+                    }
+                }
+            }
+        }
+        Text { text: root.status; color: root.status-error ? #ff9898 : Theme.muted; font-size: 12px; wrap: word-wrap; vertical-stretch: 0; }
+    }
+    if root.import-open: Rectangle {
+        background: #0009;
+        TouchArea { }
+        Rectangle {
+            x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+            width: 760px; height: 530px; background: Theme.panel; border-radius: 10px; border-width: 1px; border-color: Theme.line;
+            VerticalBox {
+                padding: 24px; spacing: 14px;
+                Text { text: "Import Pet Stats"; color: Theme.text; font-size: 23px; vertical-stretch: 0; }
+                Caption { text: "Paste the game's Pet Stats export below, or choose a text file.\nThe first line begins with Name;. Importing replaces the prototype roster."; wrap: word-wrap; }
+                TextEdit { init => { self.focus(); } text <=> root.import-text; accessible-label: "Pet export text"; wrap: no-wrap; }
+                Text { text: root.status-error ? root.status : "Imports stay on this device. Full save import is not part of this first preview."; color: root.status-error ? #ff9898 : Theme.muted; wrap: word-wrap; vertical-stretch: 0; }
+                HorizontalBox { padding: 0px;
+                    height: 36px;
+                    Button { text: root.import-busy ? "Reading…" : "Open file…"; enabled: !root.import-busy; clicked => { root.open-file(); } }
+                    Rectangle { horizontal-stretch: 1; }
+                    Button { text: "Cancel"; enabled: !root.import-busy; clicked => { root.import-open = false; } }
+                    Button { text: "Import pasted text"; primary: true; enabled: !root.import-busy; clicked => { root.import-paste(root.import-text); } }
+                }
+            }
+        }
+    }
+    if root.about-open: Rectangle {
+        background: #0009;
+        TouchArea { }
+        Rectangle {
+            x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+            width: 460px; height: 300px; background: Theme.panel; border-radius: 10px;
+            VerticalBox {
+                padding: 24px; spacing: 16px;
+                Text { text: "ITRTG Pet Planner"; color: Theme.text; font-size: 22px; }
+                Caption { text: "Experimental Slint frontend. This preview covers the pet analyzer; other screens remain in the existing app."; wrap: word-wrap; }
+                AboutSlint { }
+                Button { text: "Close"; clicked => { root.about-open = false; } }
+            }
+        }
+    }
+}
