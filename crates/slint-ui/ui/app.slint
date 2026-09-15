@@ -118,7 +118,7 @@ export component MainWindow inherits Window {
             Rectangle { horizontal-stretch: 1; }
             Button { text: "Growth & campaigns"; enabled: !root.modal-open; clicked => { root.settings-open = true; } }
             Button { text: "Load example"; enabled: !root.import-busy && !root.modal-open; clicked => { root.load-example(); } }
-            Button { text: "Import pets…"; enabled: !root.import-busy && !root.modal-open; primary: true; clicked => { root.import-open = true; } }
+            Button { text: "Import data…"; enabled: !root.import-busy && !root.modal-open; primary: true; clicked => { root.import-open = true; } }
             Button { text: "About"; enabled: !root.modal-open; clicked => { root.about-open = true; } }
         }
         HorizontalBox { padding: 0px;
@@ -260,11 +260,11 @@ export component MainWindow inherits Window {
             width: 760px; height: 530px; background: Theme.panel; border-radius: 10px; border-width: 1px; border-color: Theme.line;
             VerticalBox {
                 padding: 24px; spacing: 14px;
-                Text { text: "Import game export"; color: Theme.text; font-size: 23px; vertical-stretch: 0; }
-                ComboBox { model: ["Pet Stats — replace roster", "Main Stats — update account settings"]; current-index <=> root.import-kind; enabled: !root.import-busy; accessible-label: "Export type"; }
-                Caption { text: root.import-kind == 0 ? "Pet Stats begins with Name;. Importing replaces the prototype roster." : "Main Stats begins with Idling to Rule the Gods. Only supported account settings are updated; the roster is kept."; wrap: word-wrap; }
-                TextEdit { init => { self.focus(); } text <=> root.import-text; accessible-label: "Pet export text"; wrap: no-wrap; }
-                Text { text: root.status-error ? root.status : "Imports stay on this device. Full save import is not part of this first preview."; color: root.status-error ? #ff9898 : Theme.muted; wrap: word-wrap; vertical-stretch: 0; }
+                Text { text: "Import game data"; color: Theme.text; font-size: 23px; vertical-stretch: 0; }
+                ComboBox { model: ["Pet Stats — replace roster", "Main Stats — update account settings", "Full save — replace roster and account settings"]; current-index <=> root.import-kind; enabled: !root.import-busy; accessible-label: "Export type"; }
+                Caption { text: root.import-kind == 0 ? "Pet Stats begins with Name;. Importing replaces the prototype roster." : root.import-kind == 2 ? "Import a full game save to replace the roster and fill account settings and Moai levels. Live actions and combat stats are unavailable." : "Main Stats begins with Idling to Rule the Gods. Only supported account settings are updated; the roster is kept."; wrap: word-wrap; }
+                TextEdit { init => { self.focus(); } text <=> root.import-text; accessible-label: "Game data text"; enabled: !root.import-busy; wrap: no-wrap; }
+                Text { text: root.status-error || root.import-busy ? root.status : "Imports stay on this device. Only planner data is saved; the raw full save is discarded after import."; color: root.status-error ? #ff9898 : Theme.muted; wrap: word-wrap; vertical-stretch: 0; }
                 HorizontalBox { padding: 0px;
                     height: 36px;
                     Button { text: root.import-busy ? "Reading…" : "Open file…"; enabled: !root.import-busy; clicked => { root.open-file(); } }

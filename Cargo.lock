@@ -3356,6 +3356,7 @@ dependencies = [
  "itrtg-planner",
  "pet-importer",
  "rfd",
+ "save-parser",
  "serde",
  "serde_yaml",
  "slint",

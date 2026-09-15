@@ -84,6 +84,12 @@ pub fn numbers(app: &AppModel) -> Vec<NumberInput> {
         ("oc", "Overflow Challenges", ci.goblin_oc as u64, "Goblin; evolution bonus capped at 470"),
     ];
     let mut values: Vec<_> = rows.into_iter().map(|(key,label,value,hint)| NumberInput { key, label, value: value.to_string(), hint }).collect();
+    for (index, key) in ["moai1", "moai2"].into_iter().enumerate() {
+        if a.moai[index].owned && a.moai[index].level == 0
+            && let Some(input) = values.iter_mut().find(|n| n.key == key) {
+            input.hint = "Imported owned level 0; applying 0 marks it unowned";
+        }
+    }
     values.push(NumberInput { key: "planets", label: "Earth Eater total planets", value: a.earth_eater_planets_text.clone(), hint: "Accepts 32.4e6; used when the +82% lock is off" });
     values
 }

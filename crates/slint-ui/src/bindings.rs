@@ -8,7 +8,7 @@ use crate::{controls, details, ChoiceSetting, NumberSetting, DetailSection, Main
 
 const ELEMENTS: [Option<Element>; 7] = [None, Some(Element::Fire), Some(Element::Water), Some(Element::Wind), Some(Element::Earth), Some(Element::Neutral), Some(Element::All)];
 use crate::controls::SORTS;
-use itrtg_planner::analyzer::{format_action, campaign_label, TimeSortTiebreak};
+use itrtg_planner::analyzer::{campaign_label, TimeSortTiebreak};
 const OWNERSHIP: [Ownership; 3] = [Ownership::All, Ownership::Owned, Ownership::Locked];
 
 struct Controller {
@@ -39,7 +39,7 @@ impl Controller {
             self.rows.set_vec(visible.iter().map(|pet| PetRow {
                 recommended: app::recommended_class(pet).into(),
                 difficulty: pet.wiki.as_ref().map(|w| format!("{} ({})", w.evo_difficulty.base, w.evo_difficulty.with_conditions).into()).unwrap_or_else(unknown),
-                action: pet.export.as_ref().map(|e| format_action(&e.action).into()).unwrap_or_else(unknown),
+                action: app.action_text(pet).into(),
                 ranking: details::ranking_value(app, pet).into(),
                 name: pet.name.as_str().into(),
                 element: pet.element().map(|e| format!("{e:?}").into()).unwrap_or_else(unknown),
@@ -260,6 +260,30 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
     let weak = ui.as_weak();
     ui.on_import_paste(move |text| {
         if let Some(ui) = weak.upgrade() {
+            if ui.get_import_busy() { return; }
+            if ui.get_import_kind() == 2 {
+                ui.set_import_busy(true);
+                status(&ui, "Decoding full save…", false);
+                let state = controller.clone();
+                let weak = ui.as_weak();
+                platform::decode_save(text.to_string(), move |result| {
+                    if let Some(ui) = weak.upgrade() {
+                        ui.set_import_busy(false);
+                        let mut state = state.borrow_mut();
+                        match result.and_then(|data| state.app.apply_save(data)) {
+                            Ok(count) => {
+                                state.render(&ui, true);
+                                ui.set_import_open(false);
+                                ui.set_import_text("".into());
+                                status(&ui, &format!("Imported {count} pets, account stats and exact Moai levels. Live actions and combat stats are unavailable in saves."), false);
+                                state.save(&ui);
+                            }
+                            Err(error) => status(&ui, &error, true),
+                        }
+                    }
+                });
+                return;
+            }
             let label = if text.as_str() == app::EXAMPLE_EXPORT { "Example · June 2026" } else { "Imported Pet Stats" };
             controller.borrow_mut().import(&ui, &text, label);
         }

@@ -1,4 +1,4 @@
-# Slint prototype: expanded analyzer checkpoint
+# Slint prototype: analyzer and full-save import checkpoint
 
 This experimental frontend stays on `feat/slint-prototype`. Do not merge or
 replace egui until the migration is complete and the user chooses to adopt it.
@@ -13,6 +13,10 @@ is **1920 x 1080**, with a 1000 x 660 minimum; browser sizing follows its viewpo
 
 - Bundled wiki reference, Pet Stats paste/file import, and historical example.
 - Main Stats import updates supported account settings without replacing pets.
+- Full-save import replaces the roster and fills supported account settings and
+  exact Moai levels through the existing save-parser converters. Combat stats and
+  live actions are labeled unavailable because the save cannot supply them.
+  Native decoding runs on a worker; only the planner projection is persisted.
 - Name, export-alias and ability search; ownership, element, evolution, unlock,
   recommended/current class, token improvement and campaign filters.
 - Twelve sort modes, ascending/descending order, and time-estimate tiebreaks.
@@ -29,7 +33,7 @@ empty, incomplete or duplicate-name pet imports are rejected atomically.
 An export-missing pet remains unknown rather than automatically locked.
 Readiness means growth readiness only; other evolution conditions appear separately.
 
-**Full feature parity is still pending.** Full-save import/editing, dungeon
+**Full feature parity is still pending.** Save editing, dungeon
 planning, Growth Chamber, logs, data-refresh/export workflows and remaining
 integration details need subsequent milestones. Browser interaction and layout
 coverage also remain incomplete; see validation below.
@@ -53,6 +57,9 @@ coverage also remain incomplete; see validation below.
   Game formulas stay in the existing domain crates.
 
 ## Persistence and fixtures
+
+Successful full-save imports discard the decoded tree and raw input. No save
+editing or game-save write path is exposed in this checkpoint.
 
 Native settings are `slint-prototype-state.yaml` beside the executable, written
 via temporary file and rename. Browser storage uses `itrtg_slint_prototype_v1`.
@@ -91,10 +98,12 @@ Run commands there. Original local changes were archived and hashed before work.
 
 ## Validation (2026-09-15)
 
-- Workspace tests: **576 passed, one ignored, zero failures**, including thirteen
+- Workspace tests: **579 passed, one ignored, zero failures**, including sixteen
   Slint model tests. Added coverage includes old sessions, atomic partial Main
   Stats updates, advanced filters, campaign ranking, invalid numeric settings,
-  target sorting, ability/alias search and detail projections.
+  target sorting, ability/alias search and detail projections. Full-save tests
+  cover converter parity, atomic failure, preserved manual inputs, provenance
+  persistence and absence of account identity fields in stored session data.
 - Workspace/all-target clippy passed with only three existing warnings in
   save-parser/planner. No new warnings.
 - Native debug and Trunk WASM development builds succeeded.
@@ -104,13 +113,21 @@ Run commands there. Original local changes were archived and hashed before work.
 - Edge on a separate test origin imported the historical example and a Main
   Stats pet-stone value while retaining the roster; reload restored the session.
   Earlier native checks covered rejected pet imports and PGC persistence.
+- Native full-save file selection completed against the committed redacted June 9
+  fixture in a separate session: 158 records, 104 owned, 80 evolved. The user
+  session was kept separate and restored afterward.
+- The updated WASM build rendered in Edge. Full-save import completion in the
+  browser remains unverified; decoding currently yields once then runs on the
+  browser thread, so large saves may briefly pause the UI.
 - Fresh-eyes review found no blocking or should-fix issues. Its search-trimming
   nit was fixed with test coverage. Existing egui tests pass after extraction.
+  Full-save integration review also passed; its owned-level-zero Moai display
+  nit was clarified in the settings hint.
 
 Browser automation sometimes times out clicking Import while the text editor
 has focus. Moving focus with Tab before clicking worked; the underlying focus
 issue is not resolved. Automation's multiline typing also required explicit
-Return keys. Browser Main Stats PGC interaction, real clipboard/file selection,
+Return keys. Browser Main Stats PGC interaction, real clipboard and browser file selection,
 full keyboard navigation, narrow layouts and other browser engines remain
 unverified. Wrapped detail text was corrected and visually checked.
 

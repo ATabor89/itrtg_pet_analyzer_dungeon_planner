@@ -61,7 +61,7 @@ pub fn save(session: &Session) -> Result<(), String> {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn pick_file(ui: slint::Weak<crate::MainWindow>) {
     std::thread::spawn(move || {
-        let result = rfd::FileDialog::new().add_filter("Pet Stats export", &["txt", "csv"])
+        let result = rfd::FileDialog::new().add_filter("Game export or full save", &["txt", "csv"])
             .pick_file().map(|path| std::fs::read_to_string(path).map_err(|e| e.to_string()));
         let _ = ui.upgrade_in_event_loop(move |ui| super::bindings::finish_file_pick(&ui, result));
     });
@@ -70,7 +70,7 @@ pub fn pick_file(ui: slint::Weak<crate::MainWindow>) {
 #[cfg(target_arch = "wasm32")]
 pub fn pick_file(ui: slint::Weak<crate::MainWindow>) {
     wasm_bindgen_futures::spawn_local(async move {
-        let result = match rfd::AsyncFileDialog::new().add_filter("Pet Stats export", &["txt", "csv"]).pick_file().await {
+        let result = match rfd::AsyncFileDialog::new().add_filter("Game export or full save", &["txt", "csv"]).pick_file().await {
             Some(file) => Some(String::from_utf8(file.read().await).map_err(|_| "Please choose a UTF-8 text export".into())),
             None => None,
         };
@@ -98,4 +98,32 @@ pub fn fit_browser(ui: &crate::MainWindow) {
         && window.add_event_listener_with_callback("resize", callback.as_ref().unchecked_ref()).is_ok() {
         callback.forget(); // The one browser window owns this listener for its lifetime.
     }
+}
+
+/// Native decoding stays off the UI thread. The timer delivers the result on
+/// the UI thread, so callbacks may safely capture the controller's Rc.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn decode_save(text: String, done: impl FnOnce(Result<crate::app::PreparedSave, String>) + 'static) {
+    let (send, receive) = std::sync::mpsc::channel();
+    std::thread::spawn(move || { let _ = send.send(crate::app::prepare_save(&text)); });
+    poll_save(receive, done);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn poll_save(receive: std::sync::mpsc::Receiver<Result<crate::app::PreparedSave, String>>,
+    done: impl FnOnce(Result<crate::app::PreparedSave, String>) + 'static) {
+    slint::Timer::single_shot(std::time::Duration::from_millis(16), move || {
+        match receive.try_recv() {
+            Ok(result) => done(result),
+            Err(std::sync::mpsc::TryRecvError::Empty) => poll_save(receive, done),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => done(Err("Save decoding stopped. Existing data kept.".into())),
+        }
+    });
+}
+
+/// Yield to the browser before decoding so the busy state can render. A web
+/// worker is a later performance improvement; no native threads on WASM.
+#[cfg(target_arch = "wasm32")]
+pub fn decode_save(text: String, done: impl FnOnce(Result<crate::app::PreparedSave, String>) + 'static) {
+    slint::Timer::single_shot(std::time::Duration::from_millis(16), move || done(crate::app::prepare_save(&text)));
 }

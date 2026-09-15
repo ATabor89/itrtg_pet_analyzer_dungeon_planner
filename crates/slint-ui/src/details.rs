@@ -24,10 +24,10 @@ pub fn sections(app: &AppModel, pet: &MergedPet) -> Vec<(String, String)> {
         if let Some(ability) = &w.special_ability { sections.push(("SPECIAL ABILITY".into(), ability.clone())); }
     }
     if let Some(e) = &pet.export {
-        sections.push(("YOUR PET".into(), format!("{} · CL {} · DL {}\n{}\nToken improved: {}\nHP {} / ATK {} / DEF {} / SPD {}\nWith PGC: {}\nWith PGC + Magic Egg: {}{}",
+        sections.push(("YOUR PET".into(), format!("{} · CL {} · DL {}\n{}\nToken improved: {}\n{}\nWith PGC: {}\nWith PGC + Magic Egg: {}{}",
             e.class.map(|c| format!("{c:?}")).unwrap_or_else(|| "Unevolved".into()), e.class_level, e.dungeon_level,
-            format_action(&e.action), if e.improved { "Yes" } else { "No" },
-            e.combat_stats.hp, e.combat_stats.attack, e.combat_stats.defense, e.combat_stats.speed,
+            app.action_text(pet), if e.improved { "Yes" } else { "No" },
+            if app.session.roster_from_save { "Combat stats: unavailable in save".into() } else { format!("HP {} / ATK {} / DEF {} / SPD {}", e.combat_stats.hp, e.combat_stats.attack, e.combat_stats.defense, e.combat_stats.speed) },
             format_number(displayed_growth(e.growth, mult)), format_number(e.growth_with_magic_egg_and_global_mult(mult)),
             pet.elemental_form().map(|f| format!("\nForm: {}V{}", f.name, f.version)).unwrap_or_default())));
         let equipment: Vec<_> = [("Weapon", &e.loadout.weapon), ("Armor", &e.loadout.armor), ("Accessory", &e.loadout.accessory)].into_iter()

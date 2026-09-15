@@ -31,6 +31,8 @@ pub struct Session {
     pub source: String,
     pub analysis: AnalyzerState,
     pub ascending: Option<bool>,
+    /// Full saves cannot supply live action or derived combat stats.
+    pub roster_from_save: bool,
 }
 
 impl Default for Session {
@@ -39,7 +41,7 @@ impl Default for Session {
             version: STATE_VERSION, pets: Vec::new(), query: String::new(),
             ownership: Ownership::All, element: None, sort: Sort::Name,
             selected: None, pgc_done: 0, pgc_max: 25, source: "Wiki reference".into(),
-            analysis: AnalyzerState::default(), ascending: None,
+            analysis: AnalyzerState::default(), ascending: None, roster_from_save: false,
         }
     }
 }
@@ -52,7 +54,7 @@ impl Session {
         }
         session.pgc_max = session.pgc_max.min(1000);
         session.pgc_done = session.pgc_done.min(session.pgc_max);
-        for moai in &mut session.analysis.moai { moai.level = moai.level.clamp(1, 20); }
+        for moai in &mut session.analysis.moai { moai.level = moai.level.min(20); }
         validate_names(&session.pets)?;
         Ok(session)
     }
@@ -84,7 +86,7 @@ impl AppModel {
     pub fn import(&mut self, source: &str, label: &str) -> Result<usize, String> {
         let source = source.trim_start_matches('\u{feff}').trim_start();
         if !source.starts_with("Name;") {
-            return Err("Paste a Pet Stats export beginning with Name;. Full saves and other exports are not supported here yet.".into());
+            return Err("Paste a Pet Stats export beginning with Name;. Choose the matching import type for Main Stats or a full save.".into());
         }
         for (index, line) in source.lines().enumerate().skip(1) {
             if !line.trim().is_empty() && line.split(';').count() < 24 {
@@ -97,8 +99,38 @@ impl AppModel {
         let count = pets.len();
         self.session.pets = pets;
         self.session.source = label.into();
+        self.session.roster_from_save = false;
         self.rebuild();
         Ok(count)
+    }
+
+    /// Apply a completely decoded projection atomically. Raw save/account identity
+    /// fields never enter the persisted prototype session.
+    pub fn apply_save(&mut self, imported: PreparedSave) -> Result<usize, String> {
+        if imported.pets.is_empty() { return Err("No pet rows found in save. Previous roster kept.".into()); }
+        validate_names(&imported.pets)?;
+        let mut settings = self.settings();
+        settings.apply_main_stats(&imported.stats);
+        for (index, statue) in settings.moai.iter_mut().enumerate() {
+            match imported.moai.get(index) {
+                Some(&level) => { statue.owned = true; statue.level = level.min(20) as u8; },
+                None => statue.owned = false,
+            }
+        }
+        let count = imported.pets.len();
+        self.session.pgc_max = settings.pgc_max.min(1000);
+        self.session.pgc_done = settings.pgc_done.min(self.session.pgc_max);
+        self.session.analysis = settings;
+        self.session.pets = imported.pets;
+        self.session.source = "Imported full save".into();
+        self.session.roster_from_save = true;
+        self.rebuild();
+        Ok(count)
+    }
+
+    pub fn action_text(&self, pet: &MergedPet) -> String {
+        if self.session.roster_from_save { return "Unavailable in save".into(); }
+        pet.export.as_ref().map(|e| analyzer::format_action(&e.action)).unwrap_or_else(|| "—".into())
     }
 
     pub fn multiplier(&self) -> f64 {
@@ -193,6 +225,22 @@ impl AppModel {
             None => "Unknown",
         }
     }
+}
+
+/// Only planner data crosses the worker boundary; never the decoded raw tree.
+pub struct PreparedSave {
+    pub pets: Vec<ExportPet>,
+    pub stats: itrtg_models::MainStats,
+    pub moai: Vec<u32>,
+}
+
+pub fn prepare_save(raw: &str) -> Result<PreparedSave, String> {
+    // Do not echo parser errors: malformed decoded fields may include account data.
+    let save = save_parser::parse_save(raw).map_err(|_| "Could not decode this full save. Existing roster and settings kept.".to_string())?;
+    let pets = save_parser::save_to_export_pets(&save);
+    if pets.is_empty() { return Err("No pet rows found in save. Previous roster kept.".into()); }
+    validate_names(&pets)?;
+    Ok(PreparedSave { pets, stats: save_parser::save_to_main_stats(&save), moai: save_parser::moai_levels(&save) })
 }
 
 fn validate_names(pets: &[ExportPet]) -> Result<(), String> {
@@ -405,4 +453,70 @@ mod tests {
             if pet.elemental_evo_plan().is_some() { assert!(sections.iter().any(|(t,_)| t == "ELEMENTAL FORM PROGRESS")); }
         }
     }
+    fn reference_save() -> String {
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"),
+            "/../../reference/save_file_deserialization/ManualSave_2026-06-09.txt")).unwrap()
+    }
+
+    #[test]
+    fn full_save_import_matches_shared_converters_and_preserves_manual_inputs() {
+        let raw = reference_save();
+        let expected = save_parser::parse_save(&raw).unwrap();
+        let expected_pets = save_parser::save_to_export_pets(&expected);
+        let expected_stats = save_parser::save_to_main_stats(&expected);
+        let mut app = example();
+        app.session.analysis.campaign_inputs.beachball_given_stones = 12345;
+        let count = app.apply_save(prepare_save(&raw).unwrap()).unwrap();
+        assert_eq!(count, expected_pets.len());
+        assert_eq!(serde_yaml::to_string(&app.session.pets).unwrap(), serde_yaml::to_string(&expected_pets).unwrap());
+        assert_eq!(app.session.analysis.campaign_inputs.pet_stones, expected_stats.pet_stones.unwrap());
+        assert_eq!(app.session.analysis.campaign_inputs.beachball_given_stones, 12345);
+        assert_eq!((app.session.pgc_done, app.session.pgc_max), expected_stats.patreon_god_challenges.unwrap());
+        let levels = save_parser::moai_levels(&expected);
+        for (index, statue) in app.session.analysis.moai.iter().enumerate() {
+            assert_eq!(statue.owned, index < levels.len());
+            if statue.owned { assert_eq!(u32::from(statue.level), levels[index].min(20)); }
+        }
+        assert!(app.session.roster_from_save);
+        let serialized = serde_yaml::to_string(&app.session).unwrap();
+        assert!(!serialized.contains("RedactedAccount"));
+        assert!(!serialized.contains("RedactedGod"));
+        let restored = AppModel::new(Session::from_yaml(&serialized).unwrap()).unwrap();
+        let pet = restored.pets.iter().find(|p| p.export.is_some()).unwrap();
+        assert_eq!(restored.action_text(pet), "Unavailable in save");
+        let detail = crate::details::sections(&restored, pet).into_iter().map(|(_,body)| body).collect::<Vec<_>>().join("\n");
+        assert!(detail.contains("Combat stats: unavailable in save"));
+        app.import(EXAMPLE_EXPORT, "Pet Stats").unwrap();
+        assert!(!app.session.roster_from_save);
+    }
+
+    #[test]
+    fn failed_full_save_imports_keep_roster_and_settings_atomically() {
+        let mut app = example();
+        let before = serde_yaml::to_string(&app.session).unwrap();
+        for raw in ["", "not a save", EXAMPLE_EXPORT] {
+            assert!(prepare_save(raw).and_then(|data| app.apply_save(data)).is_err());
+            assert_eq!(serde_yaml::to_string(&app.session).unwrap(), before);
+        }
+        let mut duplicate = prepare_save(&reference_save()).unwrap();
+        duplicate.pets.push(duplicate.pets[0].clone());
+        assert!(app.apply_save(duplicate).is_err());
+        let mut empty = prepare_save(&reference_save()).unwrap();
+        empty.pets.clear();
+        assert!(app.apply_save(empty).is_err());
+        assert_eq!(serde_yaml::to_string(&app.session).unwrap(), before);
+    }
+
+    #[test]
+    fn main_stats_keeps_save_provenance_and_zero_level_moai_survives_reload() {
+        let mut app = example();
+        app.apply_save(prepare_save(&reference_save()).unwrap()).unwrap();
+        app.session.analysis.moai[0] = analyzer::MoaiStatue { owned: true, level: 0 };
+        app.import_main_stats("Idling to Rule the Gods\nPet Stones: 123").unwrap();
+        let restored = Session::from_yaml(&serde_yaml::to_string(&app.session).unwrap()).unwrap();
+        assert!(restored.roster_from_save);
+        assert!(restored.analysis.moai[0].owned);
+        assert_eq!(restored.analysis.moai[0].level, 0);
+    }
+
 }
