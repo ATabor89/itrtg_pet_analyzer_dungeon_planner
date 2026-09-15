@@ -14,6 +14,7 @@ struct Controller {
     app: AppModel,
     rows: Rc<VecModel<PetRow>>,
     can_save: bool,
+    save_failed: bool,
 }
 
 fn element_color(element: Option<Element>) -> slint::Color {
@@ -87,10 +88,14 @@ impl Controller {
         ui.set_details(details);
     }
 
-    fn save(&self, ui: &MainWindow) {
+    fn save(&mut self, ui: &MainWindow) {
         if self.can_save {
             if let Err(error) = platform::save(&self.app.session) {
+                self.save_failed = true;
                 status(ui, &format!("Changes are in memory; could not save prototype settings: {error}"), true);
+            } else if self.save_failed {
+                self.save_failed = false;
+                status(ui, "Prototype settings saved. Storage is working again.", false);
             }
         } else {
             status(ui, "Settings could not be restored. Saving is disabled this run to preserve the existing file.", true);
@@ -122,7 +127,7 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
         Ok(None) => (Session::default(), true, "Browse the wiki reference, load an example, or import your Pet Stats export.".to_string()),
         Err(error) => (Session::default(), false, format!("Could not restore prototype settings: {error}. Saving disabled to preserve them.")),
     };
-    let controller = Rc::new(RefCell::new(Controller { app: AppModel::new(session)?, rows: Rc::new(VecModel::default()), can_save }));
+    let controller = Rc::new(RefCell::new(Controller { app: AppModel::new(session)?, rows: Rc::new(VecModel::default()), can_save, save_failed: false }));
     ui.set_pets(controller.borrow().rows.clone().into());
     controller.borrow().render(ui, true);
     status(ui, &message, !can_save);
@@ -168,13 +173,20 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
             state.save(&ui);
         }
     });
-    let (weak, state) = (ui.as_weak(), controller.clone());
+    let weak = ui.as_weak();
     ui.on_load_example(move || {
-        if let Some(ui) = weak.upgrade() { state.borrow_mut().import(&ui, app::EXAMPLE_EXPORT, "Example · June 2026"); }
+        if let Some(ui) = weak.upgrade() {
+            ui.set_import_text(app::EXAMPLE_EXPORT.into());
+            ui.set_import_open(true);
+            status(&ui, "Example ready to review. Importing replaces the prototype roster; Cancel keeps it.", false);
+        }
     });
     let weak = ui.as_weak();
     ui.on_import_paste(move |text| {
-        if let Some(ui) = weak.upgrade() { controller.borrow_mut().import(&ui, &text, "Imported Pet Stats"); }
+        if let Some(ui) = weak.upgrade() {
+            let label = if text.as_str() == app::EXAMPLE_EXPORT { "Example · June 2026" } else { "Imported Pet Stats" };
+            controller.borrow_mut().import(&ui, &text, label);
+        }
     });
     let weak = ui.as_weak();
     ui.on_open_file(move || {

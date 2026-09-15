@@ -21,6 +21,9 @@ The first screen has:
 - Separate prototype session persistence on native and WASM.
 - An About dialog with the Slint attribution widget.
 
+Load example opens the import dialog with a historical roster prefilled. It
+does not change the session until Import is pressed; Cancel keeps the roster.
+
 This is **not feature parity** with the existing analyzer. Dungeon planning,
 Growth Chamber, logs, save editing, campaign calculations, additional analyzer
 filters, equipment details, export, and full-save/main-stats import still belong
@@ -90,6 +93,33 @@ loopback-only. Do not run the production Pages deployment for this prototype.
 The current local worktree is nested under the original checkout's ignored
 `target/slint-prototype`. Run commands there, not in the original main checkout.
 The original checkout's dirty files were archived and hashed before work began.
+
+## Validation at the first checkpoint (2026-09-15)
+
+- `cargo test --workspace --offline`: 570 passed, one ignored, zero failed;
+  includes seven prototype model tests for import atomicity, duplicate rejection,
+  filtering/selection, shared growth calculations, and versioned persistence.
+- `cargo clippy --workspace --all-targets --offline`: passed with three existing
+  warnings in save-parser/planner and no warnings in the new crate.
+- Native debug build and Trunk WASM dev build succeeded. The actual Windows
+  executable and Edge browser canvas both rendered and loaded the 158-pet example
+  into the 159-pet merged reference (104 owned, 80 evolved).
+- Native UI checks: search/selection, PGC 25/25 producing a 1.50 multiplier,
+  persistence across restart, and rejection of an incomplete pasted export while
+  retaining the previous roster. The file dialog opened; completing a file
+  selection remains unverified.
+- Browser UI checks: full-viewport rendering, example loading, search and
+  restoration after reload. The revised example action opened a prefilled dialog
+  without replacing the current roster. Final browser button input timed out in
+  automation, so the revised confirmation click and file chooser remain unverified.
+- Fresh-eyes source review completed; both findings (immediate example replacement
+  and stale recovered-storage errors) were fixed and re-reviewed.
+- Original checkout's uncommitted files were backed up and their hashes checked.
+
+Release bundle size/load time, browser accessibility, and other browser engines
+have not been validated. Browser accessibility is currently limited by the canvas
+surface. Persistence currently serializes the roster on each settings change;
+debounce this before extending it to larger saved state.
 
 ## Next checkpoint / effort handoff
 
