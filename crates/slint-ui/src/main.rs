@@ -8,6 +8,7 @@ mod platform;
 mod controls;
 mod details;
 mod logs;
+mod dungeon;
 
 fn main() -> Result<(), slint::PlatformError> {
     let ui = MainWindow::new()?;

@@ -1,4 +1,4 @@
-# Slint prototype: analyzer parity and Dungeon Logs checkpoint
+# Slint prototype: analyzer, logs and dungeon planner checkpoint
 
 This experimental frontend stays on `feat/slint-prototype`. Do not merge or
 replace egui until the migration is complete and the user chooses to adopt it.
@@ -40,10 +40,16 @@ the same extracted log parser and party ordering. Drag/drop stages supported
 files for explicit import on native and WASM. See `slint_feature_parity.md` for
 the detailed checklist.
 
-**Full application feature parity is still pending.** Save editing, dungeon
-planning, Growth Chamber, data-refresh/export workflows and remaining
+**Full application feature parity is still pending.** Save editing, Growth Chamber, data-refresh/export workflows and remaining
 integration details need subsequent milestones. Browser interaction and layout
 coverage also remain incomplete; see validation below.
+
+Dungeon planning now includes selection/depth previews, constraints and slot pins,
+event overrides, equipment standards, shared multi-dungeon solving, formation
+cards, coverage/hazards, difficulty and shopping lists. Constraint YAML and mapped
+Dungeon Teams imports validate before applying. Clipboard and game-format exports
+are exposed. Settings persist separately; changed inputs mark plans stale until
+Solve. Native solving uses a worker. The browser yields once before computing.
 
 ## Shared architecture
 
@@ -92,7 +98,7 @@ From `crates/slint-ui`, for the current local browser preview:
 
 ```powershell
 $env:NO_COLOR = 'true' # Trunk rejects the host's NO_COLOR=1 value.
-trunk serve --address 127.0.0.1 --port 8087 --dist ../../target/slint-parity-web
+trunk serve --address 127.0.0.1 --port 8087 --dist ../../target/slint-dungeon-web
 ```
 
 Open `http://127.0.0.1:8087`. The local dist override avoids a locked old staging
@@ -105,7 +111,13 @@ Run commands there. Original local changes were archived and hashed before work.
 
 ## Validation (2026-09-15)
 
-- Workspace tests: **585 passed, one ignored, zero failures**, including twenty-two
+- Dungeon planner source review passed; preview gems and extracted documentation
+  were corrected. Native isolated-session checks covered depth selection, solving,
+  equipment/shopping cards, event stale-state handling, team mapping/import,
+  pinned slot after restart, and persistence. User session hash stayed unchanged.
+- Five dungeon tests cover solver/equipment result equivalence, no reused pets,
+  exact pins, atomic imports, scoped replacement and old/new session handling.
+- Workspace tests: **590 passed, one ignored, zero failures**, including twenty-seven
   Slint model tests. Added coverage includes old sessions, atomic partial Main
   Stats updates, advanced filters, campaign ranking, invalid numeric settings,
   target sorting, ability/alias search and detail projections. Full-save tests
@@ -152,9 +164,8 @@ on each settings change; debounce before extending it to larger saved state.
 
 ## Next milestones
 
-The next main view is the dungeon planner. Continue on Medium for established
-presentation and integration patterns; preserve solver/equipment behavior.
-Reassess effort for save-editor staging/validation, shared persisted-state
-migration or difficult browser issues. Before touching Growth Chamber, read
-`growth_chamber_status.md`. Preserve domain formulas and all save privacy rules.
-Keep this PR draft and the existing egui application available until adoption.
+The next main view is Growth Chamber. Read `growth_chamber_status.md` before
+editing it. Continue on Medium for established presentation/integration patterns;
+preserve domain formulas. Reassess effort for save-editor staging/validation,
+shared persisted-state migration or difficult browser issues. Keep this PR draft
+and the existing egui application available until adoption.

@@ -16,11 +16,12 @@ rfd = "0.15"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 webbrowser = "1.2"
+arboard = "3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Window", "Storage", "Event", "EventTarget", "DragEvent", "DataTransfer", "FileList", "File", "Blob"] }
+web-sys = { version = "0.3", features = ["Window", "Storage", "Event", "EventTarget", "DragEvent", "DataTransfer", "FileList", "File", "Blob", "Navigator", "Clipboard"] }
 
 [build-dependencies]
 slint-build = "=1.17.1"

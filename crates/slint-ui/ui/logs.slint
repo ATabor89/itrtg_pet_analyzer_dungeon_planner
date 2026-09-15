@@ -3,11 +3,12 @@ import { Theme, Caption } from "common.slint";
 export struct LogSection { title: string, body: string }
 export struct LogPartyRow { cards: [LogSection] }
 export struct LogBar { room: string, done: string, taken: string, healed: string, net: string, value: float, party: float, healing: float }
-component SectionCard inherits Rectangle {
+export component SectionCard inherits Rectangle {
     in property <string> title;
     in property <string> body;
     background: Theme.panel; border-radius: 8px;
     VerticalBox { padding: 16px; spacing: 8px;
+        alignment: start;
         Text { text: root.title; color: Theme.accent; font-size: 16px; wrap: word-wrap; min-height: self.preferred-height; vertical-stretch: 0; }
         Text { text: root.body; color: Theme.text; wrap: word-wrap; min-height: self.preferred-height; vertical-stretch: 0; }
     }

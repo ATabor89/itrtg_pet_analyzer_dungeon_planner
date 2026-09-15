@@ -1,3 +1,4 @@
+import { DungeonView, DungeonChoice, DungeonEvent, DungeonResult, PetConstraint, TeamMapping } from "dungeon.slint";
 import { Theme, Caption, Badge, Stat } from "common.slint";
 import { LogView, LogBar, LogPartyRow, LogSection } from "logs.slint";
 import { Button, CheckBox, LineEdit, TextEdit, ComboBox, SpinBox, ScrollView, ListView, VerticalBox, HorizontalBox, Palette, AboutSlint } from "std-widgets.slint";
@@ -24,6 +25,21 @@ export component MainWindow inherits Window {
     init => { Palette.color-scheme = ColorScheme.dark; }
 
     in-out property <int> active-view;
+    in property <[DungeonChoice]> dungeon-choices;
+    in property <[DungeonEvent]> dungeon-events;
+    in property <[DungeonResult]> dungeon-results;
+    in property <[LogSection]> dungeon-shopping;
+    in property <[TeamMapping]> dungeon-teams;
+    in property <[LogSection]> dungeon-preview;
+    in property <[PetConstraint]> dungeon-constraints;
+    in property <[string]> dungeon-pets;
+    in property <bool> dungeon-dirty;
+    in property <bool> dungeon-constraints-enabled;
+    in-out property <string> dungeon-transfer;
+    callback dungeon-change(string,int,int);
+    callback dungeon-constrain(string,string,int,int);
+    callback dungeon-event(int,int,string,bool);
+    callback dungeon-action(string,string);
     in-out property <int> log-tab;
     in property <string> log-heading;
     in property <[LogPartyRow]> log-party;
@@ -104,15 +120,26 @@ export component MainWindow inherits Window {
             VerticalBox {
                 padding: 0px; spacing: 5px;
                 Caption { text: "ITRTG  /  SLINT PROTOTYPE"; color: Theme.accent; }
-                Text { text: root.active-view == 0 ? "Pet analyzer" : "Dungeon logs"; color: Theme.text; font-size: 28px; font-weight: 600; }
+                Text { text: root.active-view == 0 ? "Pet analyzer" : root.active-view == 1 ? "Dungeon logs" : "Dungeon planner"; color: Theme.text; font-size: 28px; font-weight: 600; }
             }
             Rectangle { horizontal-stretch: 1; }
             Button { text: "Analyzer"; enabled: !root.modal-open; primary: root.active-view == 0; clicked => { root.active-view = 0; } }
             Button { text: "Dungeon logs"; enabled: !root.modal-open; primary: root.active-view == 1; clicked => { root.active-view = 1; } }
+            Button { text: "Dungeon planner"; enabled: !root.modal-open; primary: root.active-view == 2; clicked => { root.active-view = 2; } }
             if root.active-view == 0: Button { text: "Growth & campaigns"; enabled: !root.modal-open; clicked => { root.settings-open = true; } }
             if root.active-view == 0: Button { text: "Load example"; enabled: !root.import-busy && !root.modal-open; clicked => { root.load-example(); } }
             Button { text: "Import data…"; enabled: !root.import-busy && !root.modal-open; primary: true; clicked => { if root.active-view == 1 { root.import-kind = 3; } root.import-open = true; } }
             Button { text: "About"; enabled: !root.modal-open; clicked => { root.about-open = true; } }
+        }
+        if root.active-view == 2: DungeonView {
+            enabled: !root.modal-open; choices: root.dungeon-choices; events: root.dungeon-events;
+            results: root.dungeon-results; shopping: root.dungeon-shopping; teams: root.dungeon-teams; preview: root.dungeon-preview; constraints: root.dungeon-constraints;
+            pet-names: root.dungeon-pets; dirty: root.dungeon-dirty; constraints-enabled: root.dungeon-constraints-enabled;
+            transfer <=> root.dungeon-transfer;
+            change(k,i,v) => { root.dungeon-change(k,i,v); }
+            constrain(k,n,d,s) => { root.dungeon-constrain(k,n,d,s); }
+            event-change(d,depth,n,v) => { root.dungeon-event(d,depth,n,v); }
+            action(k,t) => { root.dungeon-action(k,t); }
         }
         if root.active-view == 0: VerticalBox { padding: 0px; spacing: 16px;
         HorizontalBox { padding: 0px;

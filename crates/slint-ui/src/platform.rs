@@ -1,6 +1,17 @@
 //! Prototype-only storage and file picking. Never reads or writes egui state.
 use crate::app::Session;
 
+pub fn copy_text(text:String,done:impl FnOnce(Result<(),String>)+'static) {
+    #[cfg(not(target_arch="wasm32"))]
+    { done(arboard::Clipboard::new().and_then(|mut c|c.set_text(text)).map_err(|e|e.to_string())); }
+    #[cfg(target_arch="wasm32")]
+    {
+        let Some(window)=web_sys::window() else {done(Err("Browser window unavailable".into()));return;};
+        let promise=window.navigator().clipboard().write_text(&text);
+        wasm_bindgen_futures::spawn_local(async move {done(wasm_bindgen_futures::JsFuture::from(promise).await.map(|_|()).map_err(|_|"Clipboard permission denied".into()));});
+    }
+}
+
 pub fn open_wiki(url: &str) -> Result<(), String> {
     if !url.starts_with("https://itrtg.wiki.gg/wiki/") { return Err("This is not a supported ITRTG wiki link.".into()); }
     #[cfg(not(target_arch = "wasm32"))]

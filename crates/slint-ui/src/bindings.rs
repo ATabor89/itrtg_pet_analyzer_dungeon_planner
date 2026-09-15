@@ -11,6 +11,8 @@ use crate::controls::SORTS;
 use itrtg_planner::analyzer::{campaign_label, TimeSortTiebreak};
 const OWNERSHIP: [Ownership; 3] = [Ownership::All, Ownership::Owned, Ownership::Locked];
 
+mod dungeon;
+
 struct Controller {
     app: AppModel,
     rows: Rc<VecModel<PetRow>>,
@@ -56,6 +58,7 @@ impl Controller {
         }).collect::<Vec<_>>())).into());
     }
     fn render(&self, ui: &MainWindow, rows_changed: bool) {
+        self.render_dungeon(ui);
         let app = &self.app;
         let visible = app.visible();
         if rows_changed {
@@ -189,6 +192,7 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
         Err(error) => (Session::default(), false, format!("Could not restore prototype settings: {error}. Saving disabled to preserve them.")),
     };
     let controller = Rc::new(RefCell::new(Controller { app: AppModel::new(session)?, rows: Rc::new(VecModel::default()), can_save, save_failed: false }));
+    dungeon::wire(ui, &controller);
     ui.set_pets(controller.borrow().rows.clone().into());
     controller.borrow().render(ui, true);
     controller.borrow().render_log(ui);

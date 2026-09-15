@@ -3352,6 +3352,7 @@ dependencies = [
 name = "itrtg-slint"
 version = "0.1.0"
 dependencies = [
+ "arboard",
  "itrtg-models",
  "itrtg-planner",
  "pet-importer",

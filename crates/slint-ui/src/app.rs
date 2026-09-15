@@ -19,6 +19,7 @@ pub enum Ownership { #[default] All, Owned, Locked }
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Session {
+    pub dungeon: crate::dungeon::Settings,
     pub version: u32,
     pub pets: Vec<ExportPet>,
     pub query: String,
@@ -38,7 +39,7 @@ pub struct Session {
 impl Default for Session {
     fn default() -> Self {
         Self {
-            version: STATE_VERSION, pets: Vec::new(), query: String::new(),
+            dungeon: Default::default(), version: STATE_VERSION, pets: Vec::new(), query: String::new(),
             ownership: Ownership::All, element: None, sort: Sort::Name,
             selected: None, pgc_done: 0, pgc_max: 25, source: "Wiki reference".into(),
             analysis: AnalyzerState::default(), ascending: None, roster_from_save: false,
@@ -56,11 +57,13 @@ impl Session {
         session.pgc_done = session.pgc_done.min(session.pgc_max);
         for moai in &mut session.analysis.moai { moai.level = moai.level.min(20); }
         validate_names(&session.pets)?;
+        session.dungeon.validate()?;
         Ok(session)
     }
 }
 
 pub struct AppModel {
+    pub dungeon: crate::dungeon::Model,
     pub session: Session,
     pub pets: Vec<MergedPet>,
     wiki: Vec<WikiPet>,
@@ -72,12 +75,13 @@ impl AppModel {
     pub fn new(session: Session) -> Result<Self, String> {
         let wiki = serde_yaml::from_str(WIKI).map_err(|e| e.to_string())?;
         let bonuses = serde_yaml::from_str(include_str!("../../../data/campaign_bonuses.yaml")).map_err(|e| e.to_string())?;
-        let mut app = Self { session, pets: Vec::new(), wiki, bonuses, log: Default::default() };
+        let mut app = Self { dungeon: crate::dungeon::Model::new()?, session, pets: Vec::new(), wiki, bonuses, log: Default::default() };
         app.rebuild();
         Ok(app)
     }
 
     fn rebuild(&mut self) {
+        self.dungeon.dirty = !self.dungeon.plans.is_empty();
         self.pets = merge::merge_pets(&self.wiki, &self.session.pets);
         self.reconcile_selection();
     }
