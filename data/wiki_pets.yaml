@@ -1017,7 +1017,7 @@
   - Adventurer
   - Wildcard
   class_bonus: Mighty food
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 2
     with_conditions: 2
@@ -1034,7 +1034,7 @@
   element: Wind
   recommended_class: !Single Adventurer
   class_bonus: 0.52% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 1
     with_conditions: 2
@@ -1085,7 +1085,7 @@
   element: Fire
   recommended_class: !Single Adventurer
   class_bonus: 0.58% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 2
     with_conditions: 2
@@ -1102,7 +1102,7 @@
   element: Fire
   recommended_class: !Single Alchemist
   class_bonus: 0.6% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 3
     with_conditions: 5
@@ -1138,7 +1138,7 @@
   element: Wind
   recommended_class: !Single Blacksmith
   class_bonus: 0.7% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 3
     with_conditions: 4
@@ -1155,7 +1155,7 @@
   element: Earth
   recommended_class: !Single Supporter
   class_bonus: 0.67% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 3
     with_conditions: 3
@@ -1172,7 +1172,7 @@
   element: Neutral
   recommended_class: !Single Adventurer
   class_bonus: 0.7% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 3
     with_conditions: 4
@@ -1191,7 +1191,7 @@
   - Blacksmith
   - Adventurer
   class_bonus: 0.75% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 4
     with_conditions: 6
@@ -1208,7 +1208,7 @@
   element: Water
   recommended_class: !Single Adventurer
   class_bonus: 0.8% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 4
     with_conditions: 5
@@ -1225,7 +1225,7 @@
   element: Wind
   recommended_class: !Single Adventurer
   class_bonus: 0.85% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 4
     with_conditions: 4
@@ -1308,7 +1308,7 @@
   element: Water
   recommended_class: !Single Adventurer
   class_bonus: 0.67% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 3
     with_conditions: 6
@@ -1325,7 +1325,7 @@
   element: Neutral
   recommended_class: !Single Supporter
   class_bonus: 0.68% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 3
     with_conditions: 3
@@ -1342,7 +1342,7 @@
   element: Water
   recommended_class: !Single Alchemist
   class_bonus: 0.64% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 3
     with_conditions: 3
@@ -1359,7 +1359,7 @@
   element: Wind
   recommended_class: !Single Rogue
   class_bonus: 0.67% x CL
-  unlock_condition: PetToken
+  unlock_condition: SpecialTask
   evo_difficulty:
     base: 3
     with_conditions: 4
