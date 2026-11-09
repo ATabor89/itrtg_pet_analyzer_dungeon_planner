@@ -1284,6 +1284,9 @@ fn compute_slot_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
             // E.g. Mountain D3's wildcard is a Mage per D4, so it must not
             // pick up D2's Defender gear just because the D2 pass happened to
             // pair it with a Defender slot.
+            // Only class is gated: element hints still merge across passes
+            // independently, and gear's element is mostly expressed through
+            // gems, which the solver doesn't treat as binding.
             let eq_class_ok = match (acc.class, candidate.equipment_class) {
                 (Some(hc), Some(ec)) => hc == ec,
                 _ => true,
@@ -3546,8 +3549,8 @@ mod tests {
         let wildcard = &hints[5];
         assert_eq!(wildcard.class, Some(Class::Mage), "D4 pins the wildcard to Mage");
         assert!(
-            wildcard.equipment.is_none() || wildcard.equipment_class == Some(Class::Mage),
-            "the Mage-hinted wildcard must not inherit non-Mage gear: {:?} (class {:?}) from D{:?}",
+            wildcard.equipment.is_none(),
+            "the Mage-hinted wildcard must not inherit D2's Defender gear: {:?} (class {:?}) from D{:?}",
             wildcard.equipment, wildcard.equipment_class, wildcard.equipment_from_depth,
         );
 
@@ -3579,8 +3582,33 @@ mod tests {
         crate::equipment::enrich_equipment(&mut plan, &cat, Some(&cfg));
         let sugg = plan.assignments[5].equipment_suggestion.as_ref().expect("gear for Vesuvius");
         assert_eq!(sugg.source, crate::equipment::EquipmentSource::Computed);
-        assert_ne!(sugg.equipment.weapon.as_deref(), Some("titanium_sword"),
-            "got {:?}", sugg.equipment);
+        assert_eq!(sugg.equipment.weapon.as_deref(), Some("inferno_sword"),
+            "a Fire mage should get Fire mage gear, got {:?}", sugg.equipment);
+    }
+
+    #[test]
+    fn test_hint_equipment_must_match_hinted_class() {
+        // The nearer depth pins the wildcard to Mage but offers no usable
+        // gear; a farther depth pairs it with a slot of another class that
+        // does carry gear. That gear is for the wrong class and must be
+        // rejected — but same-class gear from the farther depth is fine.
+        let gear = |w: &str| Some(PartyEquipment {
+            weapon: Some(w.into()), armor: None, accessory: None, gems: None,
+        });
+        let with_far = |class: Class| dungeon_with_depths(vec![
+            vec![make_slot(None, None)],                     // D1 (planned)
+            vec![make_slot(Some(Class::Mage), None)],        // D2: class, no gear
+            vec![PartySlot { class: Some(class), element: None, equipment: gear("far_gear") }], // D3
+        ]);
+
+        let hints = compute_slot_hints(&with_far(Class::Defender), 1);
+        assert_eq!(hints[0].class, Some(Class::Mage));
+        assert!(hints[0].equipment.is_none(), "Defender gear must not reach a Mage-hinted slot");
+
+        let hints = compute_slot_hints(&with_far(Class::Mage), 1);
+        assert_eq!(hints[0].class, Some(Class::Mage));
+        assert_eq!(hints[0].equipment_from_depth, Some(3));
+        assert!(hints[0].equipment.is_some(), "same-class gear should still propagate");
     }
 
     #[test]
