@@ -1211,6 +1211,11 @@ struct SlotHint {
     equipment: Option<PartyEquipment>,
     /// Which depth `equipment` was borrowed from (for provenance display).
     equipment_from_depth: Option<u8>,
+    /// The class of the neighboring slot `equipment` was taken from. Gear is
+    /// class-specific, so equipment is only accepted from a pass whose
+    /// matched slot agrees with the class hint the slot ends up with —
+    /// otherwise a Mage-hinted wildcard could inherit a Defender's gear.
+    equipment_class: Option<Class>,
 }
 
 impl SlotHint {
@@ -1274,11 +1279,25 @@ fn compute_slot_hints(data: &DungeonData, depth: u8) -> Vec<SlotHint> {
             if acc.element.is_none() {
                 acc.element = candidate.element;
             }
+            // Equipment is class-specific: take it only from a pass whose
+            // matched slot agrees with the class this slot is hinted toward.
+            // E.g. Mountain D3's wildcard is a Mage per D4, so it must not
+            // pick up D2's Defender gear just because the D2 pass happened to
+            // pair it with a Defender slot.
+            // Only class is gated: element hints still merge across passes
+            // independently, and gear's element is mostly expressed through
+            // gems, which the solver doesn't treat as binding.
+            let eq_class_ok = match (acc.class, candidate.equipment_class) {
+                (Some(hc), Some(ec)) => hc == ec,
+                _ => true,
+            };
             if acc.equipment.is_none()
+                && eq_class_ok
                 && let Some(eq) = candidate.equipment
             {
                 acc.equipment = Some(eq);
                 acc.equipment_from_depth = Some(src);
+                acc.equipment_class = candidate.equipment_class;
             }
         }
     }
@@ -1319,12 +1338,16 @@ fn match_against(current: &[PartySlot], target: &[PartySlot]) -> Vec<SlotHint> {
             .filter(|(_, t)| slots_compatible(cur, t))
             .max_by_key(|(tj, t)| {
                 // Prefer the target that adds the most specificity to the
-                // fields this slot leaves open, then an exact class match for
-                // stability, then the lowest index (deterministic).
+                // fields this slot leaves open, then the one that agrees on
+                // the most fields this slot pins (so a "Wind Defender" pairs
+                // with the neighbor's Wind Defender, not an "any Defender"
+                // that a less specific slot needs), then the lowest index
+                // (deterministic).
                 let gain = (cur.class.is_none() && t.class.is_some()) as u8
                     + (cur.element.is_none() && t.element.is_some()) as u8;
-                let exact_class = (cur.class.is_some() && cur.class == t.class) as u8;
-                (gain, exact_class, std::cmp::Reverse(*tj))
+                let exact = (cur.class.is_some() && cur.class == t.class) as u8
+                    + (cur.element.is_some() && cur.element == t.element) as u8;
+                (gain, exact, std::cmp::Reverse(*tj))
             });
 
         if let Some((tj, t)) = best {
@@ -1342,6 +1365,7 @@ fn match_against(current: &[PartySlot], target: &[PartySlot]) -> Vec<SlotHint> {
                 .is_some_and(|e| !crate::equipment::has_generic_keys(e))
             {
                 hints[ci].equipment = t.equipment.clone();
+                hints[ci].equipment_class = t.class;
             }
         }
     }
@@ -3507,6 +3531,107 @@ mod tests {
             Some(Element::Fire),
             "look-ahead (D3 Fire) should win over look-behind (D1 Earth)",
         );
+    }
+
+    #[test]
+    fn test_mountain_d3_wildcard_does_not_borrow_defender_gear() {
+        // Reported bug: Mountain D3's slot 6 is a full wildcard. D4 pins it
+        // to Mage, but the D2 look-behind pass paired it with D2's Wind
+        // Defender (because D3's Wind Defender had grabbed D2's "any
+        // Defender" first), so a Mage-bound pet like Vesuvius was offered
+        // retiered Steel → Titanium Defender gear "from D2".
+        let recs_yaml = include_str!("../../../data/dungeon_recommendations.yaml");
+        let file: itrtg_models::dungeon::DungeonRecommendationsFile =
+            serde_yaml::from_str(recs_yaml).unwrap();
+        let mountain = &file.dungeons[&Dungeon::Mountain];
+
+        let hints = compute_slot_hints(mountain, 3);
+        let wildcard = &hints[5];
+        assert_eq!(wildcard.class, Some(Class::Mage), "D4 pins the wildcard to Mage");
+        assert!(
+            wildcard.equipment.is_none(),
+            "the Mage-hinted wildcard must not inherit D2's Defender gear: {:?} (class {:?}) from D{:?}",
+            wildcard.equipment, wildcard.equipment_class, wildcard.equipment_from_depth,
+        );
+
+        // A pet bound for Mage (Vesuvius: unevolved, recommended Mage) must
+        // not end up with Defender gear on that slot.
+        let vesuvius = mock_pet_with_evo("Vesuvius", Element::Fire, None,
+            RecommendedClass::Single(Class::Mage), true, 30, 0, 47_800);
+        let constraints = SolverConstraints {
+            forced: HashMap::from([(Dungeon::Mountain, vec!["Vesuvius".to_string()])]),
+            forced_slots: HashMap::from([((Dungeon::Mountain, "Vesuvius".to_string()), 5)]),
+            ..Default::default()
+        };
+        let requests = [DungeonRequest { dungeon: Dungeon::Mountain, depth: 3, data: mountain }];
+        let plans = solve_multi(&requests, &[vesuvius], &constraints, None);
+        assert!(
+            plans[0].assignments[5].equipment_hint.is_none(),
+            "no D2 Defender gear should be propagated onto Vesuvius",
+        );
+
+        // End to end: with the real catalog + config, the computed path picks
+        // gear for his target class (Mage) rather than the Titanium set.
+        let cat: itrtg_models::dungeon::EquipmentCatalog = serde_yaml::from_str(
+            include_str!("../../../data/equipment_catalog.yaml")).unwrap();
+        let cfg_file: itrtg_models::planner_config::PlannerConfigFile = serde_yaml::from_str(
+            include_str!("../../../data/planner_config.yaml")).unwrap();
+        let cfg = itrtg_models::planner_config::PlannerConfig::new(
+            cfg_file, std::collections::BTreeMap::new());
+        let mut plan = plans.into_iter().next().unwrap();
+        crate::equipment::enrich_equipment(&mut plan, &cat, Some(&cfg));
+        let sugg = plan.assignments[5].equipment_suggestion.as_ref().expect("gear for Vesuvius");
+        assert_eq!(sugg.source, crate::equipment::EquipmentSource::Computed);
+        assert_eq!(sugg.equipment.weapon.as_deref(), Some("inferno_sword"),
+            "a Fire mage should get Fire mage gear, got {:?}", sugg.equipment);
+    }
+
+    #[test]
+    fn test_hint_equipment_must_match_hinted_class() {
+        // The nearer depth pins the wildcard to Mage but offers no usable
+        // gear; a farther depth pairs it with a slot of another class that
+        // does carry gear. That gear is for the wrong class and must be
+        // rejected — but same-class gear from the farther depth is fine.
+        let gear = |w: &str| Some(PartyEquipment {
+            weapon: Some(w.into()), armor: None, accessory: None, gems: None,
+        });
+        let with_far = |class: Class| dungeon_with_depths(vec![
+            vec![make_slot(None, None)],                     // D1 (planned)
+            vec![make_slot(Some(Class::Mage), None)],        // D2: class, no gear
+            vec![PartySlot { class: Some(class), element: None, equipment: gear("far_gear") }], // D3
+        ]);
+
+        let hints = compute_slot_hints(&with_far(Class::Defender), 1);
+        assert_eq!(hints[0].class, Some(Class::Mage));
+        assert!(hints[0].equipment.is_none(), "Defender gear must not reach a Mage-hinted slot");
+
+        let hints = compute_slot_hints(&with_far(Class::Mage), 1);
+        assert_eq!(hints[0].class, Some(Class::Mage));
+        assert_eq!(hints[0].equipment_from_depth, Some(3));
+        assert!(hints[0].equipment.is_some(), "same-class gear should still propagate");
+    }
+
+    #[test]
+    fn test_hint_pairs_concrete_slots_on_exact_element() {
+        // A "Wind Defender" should pair with the neighbor's Wind Defender,
+        // not an "any Defender" listed earlier — otherwise the equally
+        // concrete-but-different "Neutral Defender" loses its only partner
+        // and the leftovers get cross-wired (the Mountain D2/D3 shape).
+        let gear = |w: &str| PartyEquipment {
+            weapon: Some(w.into()), armor: None, accessory: None, gems: None,
+        };
+        let neighbor = vec![
+            PartySlot { class: Some(Class::Defender), element: None, equipment: Some(gear("any_def_gear")) },
+            PartySlot { class: Some(Class::Defender), element: Some(Element::Wind), equipment: Some(gear("wind_def_gear")) },
+        ];
+        let planned = vec![
+            make_slot(Some(Class::Defender), Some(Element::Wind)),
+            make_slot(Some(Class::Defender), Some(Element::Neutral)),
+        ];
+        let pass = match_against(&planned, &neighbor);
+        let weapon = |i: usize| pass[i].equipment.as_ref().and_then(|e| e.weapon.clone());
+        assert_eq!(weapon(0).as_deref(), Some("wind_def_gear"));
+        assert_eq!(weapon(1).as_deref(), Some("any_def_gear"));
     }
 
     #[test]
