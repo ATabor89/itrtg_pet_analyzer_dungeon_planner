@@ -1,0 +1,74 @@
+import { ListView, VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { Theme, Caption } from "common.slint";
+import { FormRow, FormStack, FormView } from "form.slint";
+
+export component SaveEditorView inherits Rectangle {
+    in property <bool> enabled: true;
+    in property <int> revision;
+    in property <bool> loaded;
+    // Load/save buttons, summary and status.
+    in property <[FormRow]> header;
+    // Staged changes with their undo buttons.
+    in property <[FormRow]> pending;
+    in property <[string]> sections;
+    in property <int> section;
+    // The active section: `top` stays pinned (filters, bulk edits), `rows` scroll.
+    in property <[FormRow]> top;
+    in property <[FormRow]> rows;
+    in property <int> jump-row;
+    in property <int> jump-token;
+    callback action(string, string);
+    callback select-section(int);
+    private property <string> hint;
+    VerticalBox { padding: 0px; spacing: 8px;
+        FormStack {
+            rows: root.header; enabled: root.enabled; revision: root.revision;
+            action(id, value) => { root.action(id, value); }
+            hint(text) => { root.hint = text; }
+        }
+        if root.pending.length > 0: Rectangle {
+            background: Theme.panel; border-radius: 8px;
+            height: min(196px, root.pending.length * 34px + 12px);
+            FormView {
+                x: 6px; y: 6px; width: parent.width - 12px; height: parent.height - 12px;
+                rows: root.pending; enabled: root.enabled; revision: root.revision;
+                action(id, value) => { root.action(id, value); }
+                hint(text) => { root.hint = text; }
+            }
+        }
+        if root.loaded: HorizontalBox { padding: 0px; spacing: 10px;
+            Rectangle {
+                width: 148px; background: Theme.panel; border-radius: 8px;
+                ListView {
+                    x: 4px; y: 4px; width: parent.width - 8px; height: parent.height - 8px;
+                    for name[i] in root.sections: Rectangle {
+                        height: 27px; border-radius: 4px;
+                        background: i == root.section ? #253e48 : touch.has-hover ? #ffffff0c : transparent;
+                        Text { x: 8px; width: parent.width - 12px; height: parent.height; text: name; vertical-alignment: center;
+                            color: i == root.section ? Theme.accent : Theme.text; font-size: 12px; overflow: elide; }
+                        touch := TouchArea { enabled: root.enabled; clicked => { root.select-section(i); } }
+                    }
+                }
+            }
+            Rectangle {
+                background: Theme.panel; border-radius: 8px; horizontal-stretch: 1;
+                VerticalLayout { padding: 8px; spacing: 4px;
+                    FormStack {
+                        rows: root.top; enabled: root.enabled; revision: root.revision;
+                        action(id, value) => { root.action(id, value); }
+                        hint(text) => { root.hint = text; }
+                    }
+                    FormView {
+                        vertical-stretch: 1;
+                        rows: root.rows; enabled: root.enabled; revision: root.revision;
+                        jump-row: root.jump-row; jump-token: root.jump-token;
+                        action(id, value) => { root.action(id, value); }
+                        hint(text) => { root.hint = text; }
+                    }
+                }
+            }
+        }
+        if !root.loaded: Rectangle { vertical-stretch: 1; }
+        Caption { text: root.hint; height: 16px; overflow: elide; }
+    }
+}

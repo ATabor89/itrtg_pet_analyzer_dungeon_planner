@@ -12,16 +12,19 @@ pet-importer = { path = "../pet-importer", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 save-parser = { path = "../save-parser" }
+wiki-extractor = { path = "../wiki-extractor", default-features = false }
 rfd = "0.15"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 webbrowser = "1.2"
 arboard = "3"
+reqwest = { version = "0.12", features = ["blocking"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Window", "Storage", "Event", "EventTarget", "DragEvent", "DataTransfer", "FileList", "File", "Blob", "Navigator", "Clipboard"] }
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Storage", "Event", "EventTarget", "DragEvent", "DataTransfer", "FileList", "File", "Blob", "Navigator", "Clipboard", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "Url"] }
 
 [build-dependencies]
 slint-build = "=1.17.1"

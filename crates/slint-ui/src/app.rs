@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use itrtg_models::{Element, ExportPet, RecommendedClass, WikiPet, CampaignBonusRules, parse_flexible_number, pgc_growth_mult};
-use itrtg_planner::{analyzer::{self, AnalyzerState}, growth::GrowthRates};
+use itrtg_planner::{analyzer::{self, AnalyzerState}, chamber::ChamberState, growth::GrowthRates};
 pub use itrtg_planner::analyzer::SortColumn as Sort;
 use itrtg_planner::merge::{self, EvoReadiness, MergedPet};
 use serde::{Deserialize, Serialize};
@@ -34,6 +34,10 @@ pub struct Session {
     pub ascending: Option<bool>,
     /// Full saves cannot supply live action or derived combat stats.
     pub roster_from_save: bool,
+    /// Growth Chamber configuration (its run results are not persisted).
+    pub chamber: ChamberState,
+    /// Loading a save in the Save Editor also fills the planner from it.
+    pub populate_on_load: bool,
 }
 
 impl Default for Session {
@@ -43,6 +47,7 @@ impl Default for Session {
             ownership: Ownership::All, element: None, sort: Sort::Name,
             selected: None, pgc_done: 0, pgc_max: 25, source: "Wiki reference".into(),
             analysis: AnalyzerState::default(), ascending: None, roster_from_save: false,
+            chamber: ChamberState::default(), populate_on_load: false,
         }
     }
 }
@@ -51,7 +56,7 @@ impl Session {
     pub fn from_yaml(yaml: &str) -> Result<Self, String> {
         let mut session: Self = serde_yaml::from_str(yaml).map_err(|e| e.to_string())?;
         if session.version != STATE_VERSION {
-            return Err(format!("Unsupported prototype settings version {}", session.version));
+            return Err(format!("Unsupported settings version {}", session.version));
         }
         session.pgc_max = session.pgc_max.min(1000);
         session.pgc_done = session.pgc_done.min(session.pgc_max);
@@ -91,7 +96,7 @@ impl AppModel {
     pub fn import(&mut self, source: &str, label: &str) -> Result<usize, String> {
         let source = source.trim_start_matches('\u{feff}').trim_start();
         if !source.starts_with("Name;") {
-            return Err("Paste a Pet Stats export beginning with Name;. Choose the matching import type for Main Stats or a full save.".into());
+            return Err("A Pet Stats export begins with Name;. Choose Auto-detect or the matching import type for other data.".into());
         }
         for (index, line) in source.lines().enumerate().skip(1) {
             if !line.trim().is_empty() && line.split(';').count() < 24 {
@@ -109,13 +114,25 @@ impl AppModel {
         Ok(count)
     }
 
+    /// Replace the wiki reference data (a dropped/pasted wiki table or a refresh).
+    pub fn replace_wiki(&mut self, wiki: Vec<WikiPet>) -> Result<usize, String> {
+        if wiki.is_empty() { return Err("No pets found in the wiki source. Existing wiki data kept.".into()); }
+        let count = wiki.len();
+        self.wiki = wiki;
+        self.rebuild();
+        Ok(count)
+    }
+
+    pub fn wiki_len(&self) -> usize { self.wiki.len() }
+
     /// Apply a completely decoded projection atomically. Raw save/account identity
-    /// fields never enter the persisted prototype session.
+    /// fields never enter the persisted session.
     pub fn apply_save(&mut self, imported: PreparedSave) -> Result<usize, String> {
         if imported.pets.is_empty() { return Err("No pet rows found in save. Previous roster kept.".into()); }
         validate_names(&imported.pets)?;
         let mut settings = self.settings();
         settings.apply_main_stats(&imported.stats);
+        self.session.chamber.apply_main_stats(&imported.stats);
         for (index, statue) in settings.moai.iter_mut().enumerate() {
             match imported.moai.get(index) {
                 Some(&level) => { statue.owned = true; statue.level = level.min(20) as u8; },
@@ -180,8 +197,12 @@ impl AppModel {
     pub fn import_main_stats(&mut self, source: &str) -> Result<String, String> {
         let stats = itrtg_models::parse_main_stats(source.trim_start_matches('\u{feff}'))?;
         let mut settings = self.settings();
-        let applied = settings.apply_main_stats(&stats);
+        let mut applied = settings.apply_main_stats(&stats);
+        // The chamber keeps its own copies (UPC, PGC, DPC, fishing) — fill them too.
+        let mut chamber = self.session.chamber.clone();
+        applied.extend(chamber.apply_main_stats(&stats));
         if applied.is_empty() { return Err("No supported Main Stats values found. Existing settings kept.".into()); }
+        self.session.chamber = chamber;
         self.session.pgc_max = settings.pgc_max.min(1000);
         self.session.pgc_done = settings.pgc_done.min(self.session.pgc_max);
         self.session.analysis = settings;
@@ -284,13 +305,29 @@ pub fn number(n: u64) -> String {
 }
 
 
-/// Route supported dropped files through the same explicit import dialog.
-pub fn detect_import_kind(text: &str) -> i32 {
+/// What a pasted, dropped or picked text is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ImportKind { Pets, MainStats, Save, Log, Wiki }
+
+/// The import dialog's type picker, in order; `None` is "Auto-detect".
+pub const IMPORT_KINDS: [Option<ImportKind>; 6] = [None, Some(ImportKind::Pets), Some(ImportKind::MainStats),
+    Some(ImportKind::Save), Some(ImportKind::Log), Some(ImportKind::Wiki)];
+
+pub fn import_kind_index(kind: Option<ImportKind>) -> i32 {
+    IMPORT_KINDS.iter().position(|k| *k == kind).unwrap_or(0) as i32
+}
+
+/// Recognize an export by its content. Anything without a known marker is
+/// treated as a full save (the caller reports it as unrecognized if it will
+/// not decode).
+pub fn detect_import_kind(text: &str) -> ImportKind {
     let text=text.trim_start_matches('\u{feff}').trim_start();
-    if text.starts_with("Name;") { 0 }
-    else if text.starts_with("Idling to Rule the Gods") { 1 }
-    else if text.to_ascii_lowercase().contains("<br") || text.to_ascii_lowercase().contains("<html") { 3 }
-    else { 2 }
+    if text.starts_with("Name;") { return ImportKind::Pets; }
+    if text.starts_with("Idling to Rule the Gods") { return ImportKind::MainStats; }
+    if text.contains("{| class=\"wikitable") || text.contains("[[Mouse]]") { return ImportKind::Wiki; }
+    // Only the head needs checking for markup; a save is one long base64 line.
+    let head: String = text.chars().take(4096).collect::<String>().to_ascii_lowercase();
+    if head.contains("<br") || head.contains("<html") || head.contains("<b>") { ImportKind::Log } else { ImportKind::Save }
 }
 
 #[cfg(test)]
@@ -553,10 +590,12 @@ mod tests {
 
     #[test]
     fn dropped_files_route_to_explicit_import_modes() {
-        assert_eq!(detect_import_kind("\u{feff} Name;Element"),0);
-        assert_eq!(detect_import_kind("Idling to Rule the Gods\nPet Stones: 123"),1);
-        assert_eq!(detect_import_kind("<html><b>Dungeon Log</b><br>"),3);
-        assert_eq!(detect_import_kind("V2encoded-save"),2);
+        assert_eq!(detect_import_kind("\u{feff} Name;Element"),ImportKind::Pets);
+        assert_eq!(detect_import_kind("Idling to Rule the Gods\nPet Stones: 123"),ImportKind::MainStats);
+        assert_eq!(detect_import_kind("<html><b>Dungeon Log</b><br>"),ImportKind::Log);
+        assert_eq!(detect_import_kind("V2encoded-save"),ImportKind::Save);
+        assert_eq!(detect_import_kind("intro\n{| class=\"wikitable sortable\"\n|[[Mouse]]"),ImportKind::Wiki);
+        for (index, kind) in IMPORT_KINDS.iter().enumerate() { assert_eq!(import_kind_index(*kind), index as i32); }
     }
 
 }

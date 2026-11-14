@@ -12,12 +12,25 @@ use itrtg_planner::analyzer::{campaign_label, TimeSortTiebreak};
 const OWNERSHIP: [Ownership; 3] = [Ownership::All, Ownership::Owned, Ownership::Locked];
 
 mod dungeon;
+mod forms;
+mod import;
 
 struct Controller {
     app: AppModel,
     rows: Rc<VecModel<PetRow>>,
     can_save: bool,
     save_failed: bool,
+    chamber: forms::ChamberUi,
+}
+
+thread_local! {
+    /// The one controller, for platform callbacks that only have the window (file drops).
+    static CONTROLLER: RefCell<Option<Rc<RefCell<Controller>>>> = const { RefCell::new(None) };
+}
+
+/// A file dropped on the window is imported straight away, by content.
+pub fn finish_drop(ui: &MainWindow, result: Result<platform::PickedFile, String>) {
+    if let Some(controller) = CONTROLLER.with(|c| c.borrow().clone()) { import::finish_drop(&controller, ui, result); }
 }
 
 fn element_color(element: Option<Element>) -> slint::Color {
@@ -143,39 +156,13 @@ impl Controller {
         if self.can_save {
             if let Err(error) = platform::save(&self.app.session) {
                 self.save_failed = true;
-                status(ui, &format!("Changes are in memory; could not save prototype settings: {error}"), true);
+                status(ui, &format!("Changes are in memory; could not save settings: {error}"), true);
             } else if self.save_failed {
                 self.save_failed = false;
-                status(ui, "Prototype settings saved. Storage is working again.", false);
+                status(ui, "Settings saved. Storage is working again.", false);
             }
         } else {
             status(ui, "Settings could not be restored. Saving is disabled this run to preserve the existing file.", true);
-        }
-    }
-
-    fn import(&mut self, ui: &MainWindow, text: &str, label: &str) {
-        if ui.get_import_kind() == 1 {
-            match self.app.import_main_stats(text) {
-                Ok(message) => {
-                    self.render(ui, true);
-                    ui.set_import_open(false);
-                    ui.set_import_text("".into());
-                    status(ui, &message, false);
-                    self.save(ui);
-                }
-                Err(error) => status(ui, &error, true),
-            }
-            return;
-        }
-        match self.app.import(text, label) {
-            Ok(count) => {
-                self.render(ui, true);
-                ui.set_import_open(false);
-                ui.set_import_text("".into());
-                status(ui, &format!("Imported {count} pets. Prototype settings are saved separately from the existing planner."), false);
-                self.save(ui);
-            }
-            Err(error) => status(ui, &error, true),
         }
     }
 }
@@ -187,12 +174,16 @@ fn status(ui: &MainWindow, message: &str, error: bool) {
 
 pub fn wire(ui: &MainWindow) -> Result<(), String> {
     let (session, can_save, message) = match platform::load() {
-        Ok(Some(session)) => (session, true, "Restored prototype session. Other planner screens remain in the existing app.".to_string()),
-        Ok(None) => (Session::default(), true, "Browse the wiki reference, load an example, or import your Pet Stats export.".to_string()),
-        Err(error) => (Session::default(), false, format!("Could not restore prototype settings: {error}. Saving disabled to preserve them.")),
+        Ok(Some(session)) => (session, true, "Restored your last session.".to_string()),
+        Ok(None) => (Session::default(), true, "Copy your Pet Stats export in the game and press Import clipboard — or load the example.".to_string()),
+        Err(error) => (Session::default(), false, format!("Could not restore saved settings: {error}. Saving disabled to preserve them.")),
     };
-    let controller = Rc::new(RefCell::new(Controller { app: AppModel::new(session)?, rows: Rc::new(VecModel::default()), can_save, save_failed: false }));
+    let controller = Rc::new(RefCell::new(Controller { app: AppModel::new(session)?, rows: Rc::new(VecModel::default()), can_save, save_failed: false, chamber: Default::default() }));
+    CONTROLLER.with(|c| *c.borrow_mut() = Some(controller.clone()));
+    ui.set_native(platform::NATIVE);
     dungeon::wire(ui, &controller);
+    forms::wire(ui, &controller);
+    import::wire(ui, &controller);
     ui.set_pets(controller.borrow().rows.clone().into());
     controller.borrow().render(ui, true);
     controller.borrow().render_log(ui);
@@ -257,15 +248,6 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
             state.save(&ui);
         }
     });
-    let weak = ui.as_weak();
-    ui.on_load_example(move || {
-        if let Some(ui) = weak.upgrade() {
-            ui.set_import_kind(0);
-            ui.set_import_text(app::EXAMPLE_EXPORT.into());
-            ui.set_import_open(true);
-            status(&ui, "Example ready to review. Importing replaces the prototype roster; Cancel keeps it.", false);
-        }
-    });
     let (weak, state) = (ui.as_weak(), controller.clone());
     ui.on_choice_changed(move |key, index| {
         if let Some(ui) = weak.upgrade() {
@@ -320,85 +302,5 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
     ui.on_clear_log(move || {
         if let Some(ui)=weak.upgrade() { let mut state=state.borrow_mut(); state.app.log=Default::default(); state.render_log(&ui); status(&ui,"Dungeon log cleared. Pet roster kept.",false); }
     });
-    let weak = ui.as_weak();
-    ui.on_import_paste(move |text| {
-        if let Some(ui) = weak.upgrade() {
-            if ui.get_import_busy() { return; }
-            if ui.get_import_kind() == 3 {
-                ui.set_import_busy(true);
-                status(&ui,"Reading dungeon log…",false);
-                let weak=ui.as_weak(); let state=controller.clone(); let text=text.to_string();
-                platform::run_background(move || itrtg_planner::log_parser::parse_dungeon_log(&text), move |result| {
-                    if let Some(ui)=weak.upgrade() {
-                        ui.set_import_busy(false);
-                        match result {
-                            Ok(log) => {
-                                let mut state=state.borrow_mut(); state.app.log.replace(log); state.render_log(&ui);
-                                ui.set_log_tab(0); ui.set_active_view(1); ui.set_import_open(false); ui.set_import_text("".into());
-                                status(&ui,"Dungeon log loaded. Pet roster kept. Logs stay in memory for this session.",false);
-                            }
-                            Err(error) => status(&ui,&format!("Could not load dungeon log: {error}. Previous log kept."),true),
-                        }
-                    }
-                });
-                return;
-            }
-            if ui.get_import_kind() == 2 {
-                ui.set_import_busy(true);
-                status(&ui, "Decoding full save…", false);
-                let state = controller.clone();
-                let weak = ui.as_weak();
-                platform::decode_save(text.to_string(), move |result| {
-                    if let Some(ui) = weak.upgrade() {
-                        ui.set_import_busy(false);
-                        let mut state = state.borrow_mut();
-                        match result.and_then(|data| state.app.apply_save(data)) {
-                            Ok(count) => {
-                                state.render(&ui, true);
-                                ui.set_import_open(false);
-                                ui.set_import_text("".into());
-                                status(&ui, &format!("Imported {count} pets, account stats and exact Moai levels. Live actions and combat stats are unavailable in saves."), false);
-                                state.save(&ui);
-                            }
-                            Err(error) => status(&ui, &error, true),
-                        }
-                    }
-                });
-                return;
-            }
-            let label = if text.as_str() == app::EXAMPLE_EXPORT { "Example · June 2026" } else { "Imported Pet Stats" };
-            controller.borrow_mut().import(&ui, &text, label);
-        }
-    });
-    let weak = ui.as_weak();
-    ui.on_open_file(move || {
-        if let Some(ui) = weak.upgrade() {
-            if ui.get_import_busy() { return; }
-            ui.set_import_busy(true);
-            platform::pick_file(ui.as_weak());
-        }
-    });
     Ok(())
-}
-
-pub fn finish_file_pick(ui: &MainWindow, result: Option<Result<String, String>>) {
-    ui.set_import_busy(false);
-    match result {
-        Some(Ok(text)) => ui.invoke_import_paste(text.into()),
-        Some(Err(error)) => status(ui, &format!("Could not open export: {error}"), true),
-        None => {},
-    }
-}
-
-/// Dropping stages content for review in the import dialog; no roster mutation.
-pub fn finish_drop(ui: &MainWindow, result: Result<String,String>) {
-    ui.set_import_busy(false);
-    match result {
-        Ok(text) => {
-            ui.set_import_kind(crate::app::detect_import_kind(&text));
-            ui.set_import_text(text.into()); ui.set_import_open(true);
-            status(ui,"File ready. Review the import type, then import or cancel.",false);
-        }
-        Err(error) => status(ui,&format!("Could not read dropped file: {error}"),true),
-    }
 }

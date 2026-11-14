@@ -1,0 +1,175 @@
+// Data-driven form rows. Rust describes every row as a list of cells (text,
+// input, checkbox, picker, button…) and receives one `action(id, value)`
+// callback; the Growth Chamber and Save Editor are built from these so their
+// many tables need no per-screen Slint code.
+//
+// Inputs commit on Enter or when they lose focus (cells marked `live` report
+// every keystroke instead — search boxes). While typing, an input reports its
+// text as `action("draft:" + id, text)`; Rust commits that draft before any
+// other action, so "type a value, click a button" works without a focus change.
+// After each action Rust re-renders and bumps `revision`, which re-seeds the
+// controls from the model: a rejected value snaps back, and a value changed
+// elsewhere shows up.
+import { Button, CheckBox, ComboBox, LineEdit, TextEdit, ListView } from "std-widgets.slint";
+import { Theme } from "common.slint";
+
+export struct FormCell {
+    // 0 text · 1 input · 2 checkbox · 3 picker · 4 button · 5 spacer · 6 link · 7 multi-line editor
+    kind: int,
+    id: string,
+    text: string,
+    options: [string],
+    index: int,
+    checked: bool,
+    // Fixed width; 0 stretches to share the leftover space.
+    width: length,
+    // 0 normal · 1 muted · 2 accent · 3 warning · 4 error · 5 success · 6 bright
+    tone: int,
+    enabled: bool,
+    hint: string,
+    live: bool,
+    primary: bool,
+    mono: bool,
+    size: length,
+}
+
+export struct FormRow {
+    cells: [FormCell],
+    // 0 normal · 1 column header · 2 section title · 3 separator · 4 wrapped note · 5 tall editor
+    kind: int,
+    indent: length,
+    // 0 none · 1 selected · 2 search match · 3 warning
+    mark: int,
+}
+
+component CellView inherits Rectangle {
+    in property <FormCell> cell;
+    in property <bool> enabled: true;
+    in property <int> revision;
+    in property <bool> wrap;
+    callback action(string, string);
+    callback hint(string);
+    private property <color> ink: cell.tone == 1 ? Theme.muted : cell.tone == 2 ? Theme.accent : cell.tone == 3 ? #e2c47c
+        : cell.tone == 4 ? #ff9898 : cell.tone == 5 ? #8fdc9a : Theme.text;
+    horizontal-stretch: cell.width > 0px ? 0 : 1;
+    min-width: cell.width;
+    max-width: cell.width > 0px ? cell.width : 100000px;
+    preferred-width: cell.width > 0px ? cell.width : 80px;
+
+    if cell.kind == 0 || cell.kind == 6: Rectangle {
+        label := Text {
+            x: 0px; y: 0px; width: parent.width; height: parent.height;
+            text: cell.text; color: cell.kind == 6 ? Theme.accent : root.ink;
+            font-size: cell.size > 0px ? cell.size : 12px;
+            font-weight: cell.tone == 6 ? 700 : 400;
+            font-family: cell.mono ? "monospace" : "";
+            wrap: root.wrap ? word-wrap : no-wrap; overflow: root.wrap ? clip : elide;
+            vertical-alignment: center;
+        }
+        if cell.hint != "" || cell.kind == 6: TouchArea {
+            mouse-cursor: cell.kind == 6 ? pointer : default;
+            enabled: root.enabled;
+            changed has-hover => { root.hint(self.has-hover ? cell.hint : ""); }
+            clicked => { if cell.kind == 6 { root.action(cell.id, ""); } }
+        }
+    }
+    if cell.kind == 1: LineEdit {
+        x: 0px; y: (parent.height - self.height) / 2; width: parent.width; height: 28px;
+        text: cell.text; enabled: cell.enabled && root.enabled; placeholder-text: cell.hint;
+        font-size: 12px;
+        private property <int> rev: root.revision;
+        changed rev => { if !(cell.live && self.has-focus) { self.text = cell.text; } }
+        edited(t) => { root.action(cell.live ? cell.id : "draft:" + cell.id, t); }
+        accepted(t) => { root.action(cell.id, t); }
+        changed has-focus => {
+            if !self.has-focus && !cell.live && self.text != cell.text { root.action(cell.id, self.text); }
+        }
+    }
+    if cell.kind == 2: CheckBox {
+        x: 0px; y: (parent.height - self.height) / 2; width: parent.width;
+        text: cell.text; checked: cell.checked; enabled: cell.enabled && root.enabled;
+        private property <int> rev: root.revision;
+        changed rev => { self.checked = cell.checked; }
+        toggled => { root.action(cell.id, self.checked ? "1" : "0"); }
+    }
+    if cell.kind == 3: ComboBox {
+        x: 0px; y: (parent.height - self.height) / 2; width: parent.width; height: 28px;
+        model: cell.options; current-index: cell.index; enabled: cell.enabled && root.enabled;
+        private property <int> rev: root.revision;
+        changed rev => { self.current-index = cell.index; }
+        selected(_) => { root.action(cell.id, self.current-index); }
+    }
+    if cell.kind == 4: Button {
+        x: 0px; y: (parent.height - self.height) / 2; width: parent.width; height: 28px;
+        text: cell.text; primary: cell.primary; enabled: cell.enabled && root.enabled;
+        clicked => { root.action(cell.id, ""); }
+    }
+    if cell.kind == 7: TextEdit {
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+        text: cell.text; enabled: cell.enabled && root.enabled; wrap: no-wrap; font-size: 12px;
+        private property <int> rev: root.revision;
+        changed rev => { if !self.has-focus { self.text = cell.text; } }
+        edited(t) => { root.action("draft:" + cell.id, t); }
+    }
+}
+
+export component FormRowView inherits Rectangle {
+    in property <FormRow> data;
+    in property <bool> enabled: true;
+    in property <int> revision;
+    in property <bool> striped;
+    callback action(string, string);
+    callback hint(string);
+    height: data.kind == 3 ? 9px : data.kind == 2 ? 38px : data.kind == 1 ? 24px : data.kind == 5 ? 190px
+        : data.kind == 4 ? max(22px, cells.preferred-height + 6px) : 34px;
+    background: data.mark == 1 ? #253e48 : data.mark == 2 ? #3a3420 : data.mark == 3 ? #3b2b2b
+        : root.striped && data.kind == 0 ? #ffffff06 : transparent;
+    border-radius: 4px;
+    if data.kind == 3: Rectangle { y: 4px; height: 1px; background: Theme.line; }
+    cells := HorizontalLayout {
+        padding-left: 6px + data.indent; padding-right: 6px; spacing: 8px;
+        for cell in data.cells: CellView {
+            cell: cell; enabled: root.enabled; revision: root.revision; wrap: data.kind == 4;
+            action(id, value) => { root.action(id, value); }
+            hint(text) => { root.hint(text); }
+        }
+    }
+}
+
+// A virtualized, scrollable list of form rows (tables with thousands of rows).
+export component FormView inherits Rectangle {
+    in property <[FormRow]> rows;
+    in property <bool> enabled: true;
+    in property <int> revision;
+    // Scroll so this row is near the top whenever `jump-token` changes
+    // (rows before it are assumed to be normal height).
+    in property <int> jump-row;
+    in property <int> jump-token;
+    callback action(string, string);
+    callback hint(string);
+    changed jump-token => {
+        list.viewport-y = -max(0px, min(root.jump-row * 34px - 68px, list.viewport-height - list.visible-height));
+    }
+    list := ListView {
+        for row[i] in root.rows: FormRowView {
+            data: row; enabled: root.enabled; revision: root.revision; striped: mod(i, 2) == 1;
+            action(id, value) => { root.action(id, value); }
+            hint(text) => { root.hint(text); }
+        }
+    }
+}
+
+// A plain stack of form rows, sized to its content (settings panels, cards).
+export component FormStack inherits VerticalLayout {
+    in property <[FormRow]> rows;
+    in property <bool> enabled: true;
+    in property <int> revision;
+    callback action(string, string);
+    callback hint(string);
+    spacing: 0px;
+    for row in root.rows: FormRowView {
+        data: row; enabled: root.enabled; revision: root.revision;
+        action(id, value) => { root.action(id, value); }
+        hint(text) => { root.hint(text); }
+    }
+}

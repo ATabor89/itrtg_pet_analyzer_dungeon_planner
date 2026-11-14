@@ -3355,7 +3355,9 @@ dependencies = [
  "arboard",
  "itrtg-models",
  "itrtg-planner",
+ "js-sys",
  "pet-importer",
+ "reqwest",
  "rfd",
  "save-parser",
  "serde",
@@ -3366,6 +3368,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "webbrowser",
+ "wiki-extractor",
 ]
 
 [[package]]
