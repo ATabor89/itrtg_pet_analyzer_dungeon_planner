@@ -24,6 +24,8 @@ pub mod lzf;
 pub mod model;
 pub mod raw;
 pub mod redact;
+pub mod registry;
+pub mod session;
 pub mod to_export;
 pub mod to_main_stats;
 pub mod tree;

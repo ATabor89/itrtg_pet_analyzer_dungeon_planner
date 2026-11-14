@@ -1,7 +1,7 @@
 //! The field registry: a map from raw-tree paths to human names, value kinds,
 //! and the section each belongs to.
 //!
-//! Most labels are *derived from the model's schema* ([`save_parser::labels`]):
+//! Most labels are *derived from the model's schema* ([`crate::labels`]):
 //! each block there (pets, equipment, creations, …) expands into wildcard path
 //! patterns here, so one schema entry labels every element of a list. A `"*"`
 //! segment in a pattern matches any single path segment (a list index). Adding a
@@ -9,11 +9,11 @@
 //!
 //! A handful of flat scalars (currencies, identity/meta, scattered `p.*` fields)
 //! are still listed explicitly below — they don't belong to a repeated block.
-//! Path semantics match [`save_parser::raw::Raw::get_path`].
+//! Path semantics match [`crate::raw::Raw::get_path`].
 
 use std::collections::HashMap;
 
-use save_parser::labels::{BLOCKS, BlockSchema, FieldKind as ValueKind, Resolve};
+use crate::labels::{BLOCKS, BlockSchema, FieldKind as ValueKind, Resolve};
 
 /// Which editor section a field is surfaced in (also the left-nav identity).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -384,8 +384,8 @@ fn seed() -> Vec<FieldDef> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::views::save_editor::session::EditSession;
-    use save_parser::raw::Raw;
+    use crate::session::EditSession;
+    use crate::raw::Raw;
 
     /// Registry paths introduced by game versions newer than the committed
     /// reference save. Keep this list narrow: entries must exist in the

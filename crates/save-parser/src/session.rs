@@ -1,7 +1,7 @@
 //! The editing spine for a loaded save.
 //!
 //! [`EditSession`] owns the single source of truth — the lossless
-//! [`save_parser::raw::Raw`] tree — and is the only thing that mutates it.
+//! [`crate::raw::Raw`] tree — and is the only thing that mutates it.
 //! Every edit, whether it comes from a structured section or the raw tree
 //! navigator, routes through [`EditSession::set_scalar`], so the two views can
 //! never drift: they both read and write the same tree.
@@ -10,12 +10,12 @@
 //! the raw tree after an edit. It is never mutated independently.
 
 use anyhow::{Context, Result, bail};
-use save_parser::container::{self, ContainerFormat};
-use save_parser::edit;
-use save_parser::model::{self, SaveFile};
-use save_parser::raw::{self, Raw};
-use save_parser::redact;
-use save_parser::tree;
+use crate::container::{self, ContainerFormat};
+use crate::edit;
+use crate::model::{self, SaveFile};
+use crate::raw::{self, Raw};
+use crate::redact;
+use crate::tree;
 
 /// One field change relative to the save as it was loaded. The `pending` list is
 /// always the *net* set of changes from the loaded state (repeat edits to the
@@ -1347,8 +1347,8 @@ fn derive(root: &Raw) -> Result<SaveFile> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use save_parser::container::encode_container;
-    use save_parser::raw::{Field, Raw};
+    use crate::container::encode_container;
+    use crate::raw::{Field, Raw};
 
     /// A root with a base64-wrapped `p` block holding `j` (available god power),
     /// the way a real save nests structs. `serialize()` base64-encodes the block.

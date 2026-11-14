@@ -1,4 +1,5 @@
 pub mod campaign;
+pub mod chamber;
 pub mod equipment;
 pub mod growth;
 pub mod merge;
