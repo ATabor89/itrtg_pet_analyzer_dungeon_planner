@@ -1,11 +1,12 @@
 //! UI-independent prototype state. Domain calculations stay in models/planner.
 //! Commands use canonical pet names, never a transient sorted row index.
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
-use itrtg_models::{Element, ExportPet, RecommendedClass, WikiPet, CampaignBonusRules, parse_flexible_number, pgc_growth_mult};
+use itrtg_models::{Dungeon, Element, ExportPet, RecommendedClass, WikiPet, CampaignBonusRules, parse_flexible_number, pgc_growth_mult};
 use itrtg_planner::{analyzer::{self, AnalyzerState}, chamber::ChamberState, growth::GrowthRates};
 pub use itrtg_planner::analyzer::SortColumn as Sort;
 use itrtg_planner::merge::{self, EvoReadiness, MergedPet};
+use itrtg_planner::dungeon_state::{ConstraintsState, DungeonSelection, EquipmentStandardOverride, EventOverride};
 use serde::{Deserialize, Serialize};
 
 pub const EXAMPLE_EXPORT: &str = include_str!("../fixtures/example_pet_stats.txt");
@@ -64,6 +65,58 @@ impl Session {
         validate_names(&session.pets)?;
         session.dungeon.validate()?;
         Ok(session)
+    }
+}
+
+/// The settings the egui app persists (its `AppState`), read once to seed the
+/// first Slint session. Unknown or missing keys fall back to defaults.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct LegacyState {
+    default_dungeons: Vec<DungeonSelection>,
+    inventory: BTreeMap<String, u8>,
+    equipment_standards: BTreeMap<Dungeon, EquipmentStandardOverride>,
+    constraints: ConstraintsState,
+    team_dungeons: BTreeMap<u8, Dungeon>,
+    event_overrides: Vec<EventOverride>,
+    populate_planner_from_save: bool,
+    analyzer: AnalyzerState,
+    chamber: ChamberState,
+}
+
+impl Session {
+    /// A first session seeded from the egui app's saved settings, so dungeon
+    /// choices, gear inventory, constraints, analyzer filters and the Growth
+    /// Chamber setup carry over. The egui app never stored a roster, so the pets
+    /// still come from the next import. `None` when the settings cannot be used.
+    pub fn from_legacy(yaml: &str) -> Option<Self> {
+        let legacy: LegacyState = serde_yaml::from_str(yaml).ok()?;
+        let mut session = Session::default();
+        for choice in &legacy.default_dungeons {
+            if let Some(index) = crate::dungeon::DUNGEONS.iter().position(|(dungeon, _)| *dungeon == choice.dungeon) {
+                session.dungeon.selected[index] = true;
+                session.dungeon.depths[index] = choice.depth;
+            }
+        }
+        session.dungeon.inventory = legacy.inventory;
+        session.dungeon.standards = legacy.equipment_standards;
+        session.dungeon.constraints = legacy.constraints;
+        session.dungeon.team_dungeons = legacy.team_dungeons;
+        session.dungeon.events = legacy.event_overrides;
+        session.dungeon.validate().ok()?;
+
+        session.populate_on_load = legacy.populate_planner_from_save;
+        session.chamber.load_persisted(&legacy.chamber);
+        let mut analysis = legacy.analyzer;
+        for moai in &mut analysis.moai { moai.level = moai.level.min(20); }
+        session.ownership = match analysis.filter_unlocked { None => Ownership::All, Some(true) => Ownership::Owned, Some(false) => Ownership::Locked };
+        session.element = analysis.filter_element;
+        session.sort = analysis.sort_column;
+        session.ascending = Some(analysis.sort_ascending);
+        session.pgc_max = analysis.pgc_max.min(1000);
+        session.pgc_done = analysis.pgc_done.min(session.pgc_max);
+        session.analysis = analysis;
+        Some(session)
     }
 }
 
@@ -428,6 +481,43 @@ mod tests {
         assert_eq!(app.multiplier(), 1.5);
         assert!(!app.settings().sort_ascending);
         assert!(!app.settings().include_equipment_bonus);
+    }
+
+    #[test]
+    fn legacy_settings_seed_a_first_session() {
+        let legacy = "# Pet Planner App State (auto-maintained)\nversion: 1\n\
+            default_dungeons:\n- dungeon: Volcano\n  depth: 3\n- dungeon: Forest\n  depth: 9\n\
+            inventory:\n  Tree Axe: 2\n\
+            equipment_standards:\n  Volcano:\n    min_tier: 2\n\
+            constraints:\n  enabled: false\n  forbidden:\n  - Mouse\n  forced:\n  - pet: Frog\n    dungeon: Volcano\n    slot: 2\n\
+            team_dungeons:\n  0: Scrapyard\n\
+            event_overrides:\n- dungeon: Volcano\n  depth: 3\n  event: Lava Flood\n  enabled: false\n\
+            populate_planner_from_save: true\n\
+            analyzer:\n  filter_unlocked: true\n  sort_column: Growth\n  sort_ascending: false\n  pgc_done: 30\n  pgc_max: 25\n\
+            chamber:\n  hours: 6\n  upc_done: 9\n  upc_max: 5\n";
+        let session = Session::from_legacy(legacy).unwrap();
+        // Dungeons land on their fixed rows; an out-of-range depth is clamped.
+        assert_eq!(session.dungeon.selected, [false, false, true, false, true]);
+        assert_eq!((session.dungeon.depths[2], session.dungeon.depths[4]), (3, 4));
+        assert_eq!(session.dungeon.inventory.get("Tree Axe"), Some(&2));
+        assert_eq!(session.dungeon.standards[&Dungeon::Volcano].min_tier, Some(2));
+        assert!(!session.dungeon.constraints.enabled);
+        assert_eq!(session.dungeon.constraints.forced[0].slot, Some(2));
+        assert_eq!(session.dungeon.team_dungeons.get(&0), Some(&Dungeon::Scrapyard));
+        assert_eq!(session.dungeon.events.len(), 1);
+        assert!(session.populate_on_load);
+        // Analyzer filters map onto the session's own keys; PGC is sanitized.
+        assert_eq!((session.ownership, session.sort, session.ascending), (Ownership::Owned, Sort::Growth, Some(false)));
+        assert_eq!((session.pgc_done, session.pgc_max), (25, 25));
+        assert_eq!((session.chamber.hours, session.chamber.upc_done), (6, 5));
+        // The seeded session is one the app can save and restore.
+        let restored = Session::from_yaml(&serde_yaml::to_string(&session).unwrap()).unwrap();
+        assert_eq!(restored.dungeon.selected, session.dungeon.selected);
+        assert!(session.pets.is_empty());
+
+        // Settings from before any of these keys existed, or a damaged file, are not fatal.
+        assert!(Session::from_legacy("version: 1\n").is_some());
+        assert!(Session::from_legacy("default_dungeons: 7\n").is_none());
     }
 
     #[test]

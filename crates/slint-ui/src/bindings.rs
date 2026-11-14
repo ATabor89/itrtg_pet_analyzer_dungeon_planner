@@ -176,7 +176,11 @@ fn status(ui: &MainWindow, message: &str, error: bool) {
 pub fn wire(ui: &MainWindow) -> Result<(), String> {
     let (session, can_save, message) = match platform::load() {
         Ok(Some(session)) => (session, true, "Restored your last session.".to_string()),
-        Ok(None) => (Session::default(), true, "Copy your Pet Stats export in the game and press Import clipboard — or load the example.".to_string()),
+        // First run: carry the settings over from the egui app, when it left any here.
+        Ok(None) => match platform::load_legacy_state().as_deref().and_then(Session::from_legacy) {
+            Some(session) => (session, true, "Carried over your planner settings. Copy your Pet Stats export in the game and press Import clipboard to load your pets.".to_string()),
+            None => (Session::default(), true, "Copy your Pet Stats export in the game and press Import clipboard — or load the example.".to_string()),
+        },
         Err(error) => (Session::default(), false, format!("Could not restore saved settings: {error}. Saving disabled to preserve them.")),
     };
     let controller = Rc::new(RefCell::new(Controller { app: AppModel::new(session)?, rows: Rc::new(VecModel::default()), can_save, save_failed: false, chamber: Default::default(), editor: Default::default() }));
