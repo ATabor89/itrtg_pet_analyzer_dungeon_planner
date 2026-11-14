@@ -1,8 +1,10 @@
-# Slint prototype: analyzer, logs and dungeon planner checkpoint
+# Slint port: status
 
-This experimental frontend stays on `feat/slint-prototype`. Do not merge or
-replace egui until the migration is complete and the user chooses to adopt it.
-The existing Pages deployment still builds `crates/gui` from `main`.
+`crates/slint-ui` is a second front end for the same planner. Every view of the
+egui app (`crates/gui`) has a Slint counterpart; see `slint_feature_parity.md`
+for the checklist. egui stays the default until the user chooses to adopt Slint:
+the Pages deployment serves the egui app at the site root and the Slint build
+beside it under `/slint/`.
 
 ## Implemented
 
@@ -40,9 +42,8 @@ the same extracted log parser and party ordering. Drag/drop stages supported
 files for explicit import on native and WASM. See `slint_feature_parity.md` for
 the detailed checklist.
 
-**Full application feature parity is still pending.** Save editing, Growth Chamber, data-refresh/export workflows and remaining
-integration details need subsequent milestones. Browser interaction and layout
-coverage also remain incomplete; see validation below.
+The Growth Chamber and the Save Editor are ported too (below). Browser layout
+and accessibility coverage remain incomplete; see validation.
 
 Dungeon planning now includes selection/depth previews, constraints and slot pins,
 event overrides, equipment standards, shared multi-dungeon solving, formation
@@ -50,6 +51,38 @@ cards, coverage/hazards, difficulty and shopping lists. Constraint YAML and mapp
 Dungeon Teams imports validate before applying. Clipboard and game-format exports
 are exposed. Settings persist separately; changed inputs mark plans stale until
 Solve. Native solving uses a worker. The browser yields once before computing.
+
+## Growth Chamber, Save Editor and the app shell
+
+- **Import.** "Import clipboard" reads the clipboard and imports it in one
+  click; the kind (Pet Stats, Main Stats, full save, dungeon log, wiki page
+  source) is detected from the text. "Import data…" keeps the paste
+  dialog, file picker and an explicit kind. Dropped files import directly. A
+  full save opens in the Save Editor.
+- **Growth Chamber.** State, recommendation, simulation and the run report are
+  shared with egui through `itrtg_planner::chamber`; the Slint view only lays
+  them out.
+- **Save Editor.** All 25 sections, the pending-changes panel, save / redacted
+  save, and "Populate planner". Edits go through `save_parser::EditSession`.
+  egui's modal dialogs are inline rows here.
+- **Wiki refresh.** Native fetches the wiki. The browser cannot (no CORS
+  headers), so it accepts the wiki page source by paste or drop.
+- **First run.** With no Slint session yet, the egui app's saved settings are
+  read once (`data/app_state.yaml` natively, the `app_state` localStorage key in
+  the browser) and seed the session. The egui state is never written.
+
+### The form renderer
+
+The chamber and the editor are built from data-driven rows instead of
+per-screen Slint code. `src/form.rs` has the builders (`Form`, `Row`, `Cell`)
+and `ui/form.slint` renders them; `FormModel` diffs rows in place so controls
+keep focus while the model re-renders. Rust builds the rows from the current
+state after every action and registers one closure per interactive cell.
+Non-live inputs report a draft while typing, which is committed before any
+other action, so "type a value, click Apply" works without leaving the field.
+
+The bundled Inter font is the only font in the browser build. Glyphs outside it
+(for example U+2B62, U+25B8, U+22EF) render as boxes there; stay within Inter.
 
 ## Shared architecture
 
@@ -71,13 +104,15 @@ Solve. Native solving uses a worker. The browser yields once before computing.
 
 ## Persistence and fixtures
 
-Successful full-save imports discard the decoded tree and raw input. No save
-editing or game-save write path is exposed in this checkpoint.
+A save loaded in the Save Editor (the decoded tree, with its account
+identifiers) lives in memory only and is never written to the session. "Save
+As" writes the full save; "Save redacted copy" strips the identifiers. The
+planner's own full-save import keeps only the planner projection.
 
 Native settings are `slint-prototype-state.yaml` beside the executable, written
 via temporary file and rename. Browser storage uses `itrtg_slint_prototype_v1`.
-These are separate from egui state. Older version-1 prototype sessions remain
-readable with defaults for new settings. Unknown/malformed settings disable
+These are separate from egui state, which is only read (first-run seeding).
+Older version-1 sessions remain readable with defaults for new settings. Unknown/malformed settings disable
 persistence for that run to preserve the original file.
 
 `fixtures/example_pet_stats.txt` copies the previously committed June 2026 Pet
@@ -86,28 +121,35 @@ over the network. The prototype does not scrape live wiki pages.
 
 ## Run
 
-From the prototype worktree root:
-
-```powershell
+```
 cargo run -p itrtg-slint
 cargo test --workspace
 cargo clippy --workspace --all-targets
 ```
 
-From `crates/slint-ui`, for the current local browser preview:
+Browser build, from `crates/slint-ui` (Trunk and the wasm32-unknown-unknown
+target are required):
 
-```powershell
-$env:NO_COLOR = 'true' # Trunk rejects the host's NO_COLOR=1 value.
-trunk serve --address 127.0.0.1 --port 8087 --dist ../../target/slint-dungeon-web
+```
+trunk serve            # http://127.0.0.1:8087
+trunk build --release
 ```
 
-Open `http://127.0.0.1:8087`. The local dist override avoids a locked old staging
-directory; it is not a deployment change. Trunk and the wasm32-unknown-unknown
-target are required. A release build can use `trunk build --release`.
-Do not run the production Pages deployment for this prototype.
+On Windows, Trunk rejects the host's `NO_COLOR=1`; set `$env:NO_COLOR = 'true'`.
 
-The worktree is under the original checkout's ignored `target/slint-prototype`.
-Run commands there. Original local changes were archived and hashed before work.
+## Validation (2026-11-14)
+
+- Workspace tests: **641 passed, one ignored**, 71 of them in the Slint crate
+  (form renderer, chamber rows, every Save Editor section against the redacted
+  reference save, import routing, first-run seeding).
+- Clippy: no warnings in the Slint crate; the remaining workspace warnings
+  predate this work.
+- Native and WASM builds succeed.
+- Headless Chromium against the WASM build: the flows listed under "Verified in
+  a browser" in `slint_feature_parity.md`. Both downloaded saves were re-read
+  with `save-dump`; the redacted one passes `--check`.
+- Not run on a real desktop session this round (the work was done in a headless
+  container): native window behavior, file dialogs and the native clipboard.
 
 ## Validation (2026-09-15)
 
@@ -162,10 +204,9 @@ Release bundle size/load time and browser accessibility have not been validated;
 the browser currently exposes a canvas surface. Persistence serializes the roster
 on each settings change; debounce before extending it to larger saved state.
 
-## Next milestones
+## Next steps
 
-The next main view is Growth Chamber. Read `growth_chamber_status.md` before
-editing it. Continue on Medium for established presentation/integration patterns;
-preserve domain formulas. Reassess effort for save-editor staging/validation,
-shared persisted-state migration or difficult browser issues. Keep this PR draft
-and the existing egui application available until adoption.
+- Try the Slint build in daily use (`/slint/` on Pages) and decide on adoption.
+- If adopted: make it the Pages root, retire `crates/gui`, and move the shared
+  session to a debounced save (the roster is serialized on each settings change).
+- Narrow layouts, keyboard navigation and browser accessibility.

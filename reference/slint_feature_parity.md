@@ -1,7 +1,19 @@
 # Slint feature parity checklist
 
-This checklist compares behavior with the existing egui frontend. It is not an
-adoption or merge approval. The prototype remains isolated on feat/slint-prototype.
+This checklist compares behavior with the existing egui frontend. Every view of
+the egui app now has a Slint counterpart. It is not an adoption approval: egui
+stays the default until the user chooses to switch.
+
+## App shell and import
+
+| Feature | Slint status |
+| --- | --- |
+| Tabs: Analyzer, Dungeon planner, Dungeon logs, Growth chamber, Save editor | Implemented |
+| One-click "Import clipboard" (no dialog) | Implemented on native and browser; the kind is auto-detected |
+| Auto-detected import: Pet Stats, Main Stats, full save, dungeon log HTML, wiki page source | Implemented for clipboard, paste dialog, file pick and file drop (egui's clipboard button takes Pet Stats only) |
+| Dropped files import directly | Implemented (egui behavior); a save opens in the Save editor |
+| Wiki refresh | Native: fetches and re-parses the wiki. Browser: paste or drop the wiki page source (the wiki sends no CORS headers) |
+| Settings carried over from the egui app | First run seeds the session from egui's `app_state` (dungeons, inventory, standards, constraints, team mapping, event overrides, analyzer filters, chamber setup) |
 
 ## Analyzer
 
@@ -23,7 +35,7 @@ adoption or merge approval. The prototype remains isolated on feat/slint-prototy
 | Campaign totals and innate/class/equipment breakdown | Implemented |
 | Earth Eater time to permanent lock | Shared helper restored |
 | Wiki links | Implemented |
-| Session restore | Separate prototype store; old sessions supported |
+| Session restore | Separate Slint store; old sessions supported; first run seeded from egui settings |
 | Drag/drop import | Implemented on native and browser; stages for explicit import |
 
 Fresh-eyes source re-review found no remaining blocker or should-fix analyzer
@@ -84,17 +96,67 @@ covered setup/depth changes, solve, shopping/party cards, event changes and stal
 export gating, mapped team import, and restart persistence. A copied session in
 an isolated executable directory was used; the user's original session hash was
 unchanged. Browser planner interactions, real clipboard transfer, very narrow
-layouts, and exhaustive combinations remain unverified. Inventory/data refresh
-and cross-view save-state import remain part of application integration work.
+layouts, and exhaustive combinations remain unverified.
 
-## Remaining application views and integration
+## Growth Chamber
 
-- Dungeon planner: implemented; broader platform and integration validation pending.
-- Growth Chamber: not migrated; read growth_chamber_status.md before touching it.
-- Save editor: not migrated; preserve staged edits, validation, round-trip and privacy rules.
-- Data refresh/export, full cross-view state migration and release/deployment checks: pending.
-- Browser work currently uses deferred callbacks on its main thread; large imports
-  may pause the UI. Desktop parsing/file reads use worker threads.
+The simulation, recommendation and report text live in `crates/planner`
+(`chamber.rs`, `campaign.rs`) and are shared with egui, so both apps produce the
+same numbers.
 
-Keep the original egui frontend available until all application features and
-platform checks pass and the user chooses adoption.
+| Feature | Slint status |
+| --- | --- |
+| Chamber roster picker with search, growth and campaign-bonus columns | Implemented |
+| Recommend chamber, add/remove pets, per-pet targets | Implemented |
+| Cycle hours, max cycles, run until targets, exported-after-campaign | Implemented |
+| UPC / PGC / DPC, fishing, food, Gold Dragon, Pandora feedings, adventurer XP | Implemented; filled from Main Stats or a save |
+| Rebirth schedule | Implemented |
+| Per-pet bonus overrides | Implemented |
+| Run report: headline, averages, reward trend, by source, specials, per-pet blocks, class progress | Shared `chamber::report`; hints kept |
+| Settings persistence | In the Slint session; results are not persisted (as in egui) |
+
+## Save Editor
+
+Editing goes through the shared `save_parser::EditSession`; the Slint side only
+describes rows. All 25 sections are ported:
+
+| Section | Slint status |
+| --- | --- |
+| Load (pick, drop, clipboard), Save As (full), Save redacted copy | Implemented; browser saves are downloads |
+| Pending changes panel: scalar edits, created/added/deleted/pasted groups, undo, jump to tree | Implemented |
+| Populate planner, and "on load" | Implemented; remembered |
+| Resources, Crystal Factory, Fishing, Daily, Afky God, Campaigns, Dungeons, Planet / UBs, Challenges, Partners | Implemented |
+| Pets: filters, selection, bulk ops, per-row overrides, class picker, give equipment | Implemented |
+| Equipment: filters, bulk ops, create, equip/unequip, delete | Implemented |
+| Inventory, Gems: bulk edits, add, delete | Implemented |
+| Physical, Skills, Monsters: sortable tables, bulk ops | Implemented |
+| Creations, Monuments, Might, SpaceDim, Divinity Generator | Implemented |
+| Pet Village: buildings, quests, statues | Implemented |
+| Adventure: inventory, cores, adventurer, professions, class unlocks, research, battle skills | Implemented |
+| Raw Save Tree: expand/collapse, filter or reveal-in-place search, cross-reference links, copy path/value/node, paste over node | Implemented |
+
+Presentation differs from egui in two places: its modal dialogs (create
+equipment, add item, paste over node, …) are inline rows above the table, and a
+row's context menu is a "…" button that opens a row of actions.
+
+The account identifiers in a loaded save stay in memory only. They are never
+written to the session; "Save As" keeps them and "Save redacted copy" strips them.
+
+## Verified in a browser (headless Chromium, WASM build)
+
+Clipboard import of a Pet Stats export and of a full save, Growth Chamber
+recommend/run/report, Save Editor load, scalar edit, bulk pet edit, undo,
+pending-change jump to the tree, tree search (filter and reveal), copy node and
+paste over node from the clipboard, create equipment, both save downloads
+(re-read with `save-dump`), Populate planner, and the first-run carry-over of
+egui settings.
+
+## Not yet verified
+
+- Narrow layouts, keyboard-only navigation, browser accessibility (the browser
+  build is a canvas), and browsers other than Chromium.
+- Release bundle size and load time.
+- Browser work runs on the main thread; a large import may pause the UI briefly.
+  Desktop parsing and file reads use worker threads.
+
+Keep the egui frontend available until the user chooses adoption.
