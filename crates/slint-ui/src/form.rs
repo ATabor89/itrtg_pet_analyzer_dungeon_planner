@@ -76,11 +76,6 @@ pub struct Row {
     pub mark: Mark,
 }
 
-impl Row {
-    pub fn mark(mut self, mark: Mark) -> Self { self.mark = mark; self }
-    pub fn indent(mut self, indent: f32) -> Self { self.indent = indent; self }
-}
-
 /// What an interactive cell does: receives the context and the committed value
 /// (text for inputs, `"1"`/`"0"` for checkboxes, the index for pickers).
 pub type Act<C> = Rc<dyn Fn(&mut C, &str)>;

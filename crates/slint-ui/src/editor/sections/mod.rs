@@ -1,5 +1,6 @@
 //! One module per editor section. Each `build` appends the section's rows to
 //! the form and registers its actions; nothing here touches Slint.
+pub mod adventure;
 pub mod afky_god;
 pub mod campaigns;
 pub mod challenges;

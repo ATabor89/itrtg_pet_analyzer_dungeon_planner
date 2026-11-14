@@ -59,6 +59,7 @@ pub struct Editor {
     pub(crate) gems: gems::State,
     pub(crate) inventory: inventory::State,
     pub(crate) pets: pets::State,
+    pub(crate) adventure: adventure::State,
     pub(crate) raw_tree: raw_tree::State,
     pub(crate) equipment: equipment::State,
     pub(crate) village: village::State,
@@ -186,7 +187,7 @@ pub fn build(editor: &Editor) -> EditorForms {
         SectionId::Might => progression::build(&mut form, session, progression::Track::Might),
         SectionId::SpaceDim => progression::build(&mut form, session, progression::Track::SpaceDim),
         SectionId::Divinity => progression::build(&mut form, session, progression::Track::Divinity),
-        other => { form.title(other.title()); form.note("This section is not available yet."); },
+        SectionId::Adventure => adventure::build(&mut form, session, &editor.adventure),
     }
     // The section's edit outcome sits at the bottom of its pinned rows.
     let mut rows = form.take_rows();
