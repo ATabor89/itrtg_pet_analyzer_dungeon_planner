@@ -42,7 +42,7 @@ export component SaveEditorView inherits Rectangle {
                 ListView {
                     x: 4px; y: 4px; width: parent.width - 8px; height: parent.height - 8px;
                     for name[i] in root.sections: Rectangle {
-                        height: 27px; border-radius: 4px;
+                        height: 26px; border-radius: 4px;
                         background: i == root.section ? #253e48 : touch.has-hover ? #ffffff0c : transparent;
                         Text { x: 8px; width: parent.width - 12px; height: parent.height; text: name; vertical-alignment: center;
                             color: i == root.section ? Theme.accent : Theme.text; font-size: 12px; overflow: elide; }

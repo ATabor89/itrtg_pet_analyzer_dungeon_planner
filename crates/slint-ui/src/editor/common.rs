@@ -18,8 +18,6 @@ pub enum Check {
     Uint,
     /// A non-negative whole number no larger than the bound.
     UintMax(u64),
-    /// A whole number, possibly negative.
-    Int,
     /// A finite decimal number.
     Finite,
     /// Any non-empty text.
@@ -32,7 +30,6 @@ impl Check {
             Check::Number => itrtg_models::parse_flexible_number(value).is_some(),
             Check::Uint => value.parse::<u64>().is_ok(),
             Check::UintMax(max) => value.parse::<u64>().is_ok_and(|n| n <= max),
-            Check::Int => value.parse::<i64>().is_ok(),
             Check::Finite => value.parse::<f64>().is_ok_and(f64::is_finite),
             Check::Text => !value.is_empty(),
         }
@@ -147,7 +144,6 @@ mod tests {
         assert!(Check::Number.ok("7.3E+185") && Check::Number.ok("1,234") && !Check::Number.ok("abc"));
         assert!(Check::Uint.ok("42") && !Check::Uint.ok("-1") && !Check::Uint.ok("1.5"));
         assert!(Check::UintMax(800).ok("800") && !Check::UintMax(800).ok("801"));
-        assert!(Check::Int.ok("-1") && !Check::Int.ok("x"));
         assert!(Check::Finite.ok("1.5e3") && !Check::Finite.ok("inf") && !Check::Finite.ok(""));
         assert!(Check::Text.ok("a") && !Check::Text.ok(""));
     }

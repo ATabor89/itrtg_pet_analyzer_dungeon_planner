@@ -111,7 +111,7 @@ pub fn build(form: &mut F, session: &EditSession, registry: &FieldRegistry, stat
         }), "Collapse all").w(110.0).hint("Collapse the entire tree"),
         muted("Reveal in place jumps to matches and expands the path to them, without hiding the rest of the tree.").size(11.0),
     ]);
-    form.note("Known fields show their name. Editing a scalar stages a change in the pending list; values are written verbatim. “⋯” on a row copies its path or value, or pastes over a node.");
+    form.note("Known fields show their name. Editing a scalar stages a change in the pending list; values are written verbatim. “…” on a row copies its path or value, or pastes over a node.");
 
     let query = state.search.trim().to_lowercase();
     let jump = state.jump.as_deref().filter(|_| query.is_empty());
@@ -302,7 +302,7 @@ impl Walk<'_> {
             let set = if browsing { &mut state.open } else { &mut state.transient };
             if !set.remove(&key) { set.insert(key.clone()); }
         });
-        let cells = vec![link(toggle, format!("{} {title}", if open { "▾" } else { "▸" })).tone(tone), self.menu_button(dotted)];
+        let cells = vec![link(toggle, format!("{} {title}", if open { "▼" } else { "▶" })).tone(tone), self.menu_button(dotted)];
         let row = self.form.row(cells);
         row.indent = Self::indent(path);
         if self.jump == Some(dotted) { row.mark = Mark::Match; }
@@ -315,7 +315,7 @@ impl Walk<'_> {
         button(self.form.on(format!("tree/menu/{dotted}"), move |editor, _| {
             let menu = &mut editor.raw_tree.menu;
             *menu = if menu.as_deref() == Some(key.as_str()) { None } else { Some(key.clone()) };
-        }), "⋯").w(34.0).hint("Copy path / value, or paste over this node")
+        }), "…").w(34.0).hint("Copy path / value, or paste over this node")
     }
 
     /// The copy / paste actions of one node, as a row under it.

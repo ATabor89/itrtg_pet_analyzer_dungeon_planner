@@ -60,6 +60,7 @@ pub fn select_box<K: Clone + Eq + Hash + 'static>(form: &F, id: impl Into<String
 /// Shows `default` (the bulk-op result) until something else is typed, which
 /// becomes a per-row override; typing `default` again clears it. The ● marks a
 /// value that differs from `current` (the stored one).
+#[allow(clippy::too_many_arguments)] // one call per table cell; a parameter struct would only restate these
 pub fn override_cells<K: Clone + Eq + Hash + 'static>(form: &F, id: impl Into<String>, key: K, default: &str, current: &str,
     overrides: &HashMap<K, String>, map: impl Fn(&mut Editor) -> &mut HashMap<K, String> + 'static, width: f32) -> [Cell; 2] {
     let shown = overrides.get(&key).cloned().unwrap_or_else(|| default.to_string());

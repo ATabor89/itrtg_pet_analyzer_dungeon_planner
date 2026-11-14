@@ -14,8 +14,11 @@ use crate::form::{button, input, muted, spacer, text, Mark, Tone};
 
 const DONE: &str = "Staged Pet Village edit";
 
-/// A building group: a heading plus its editable `(label, path)` scalars.
-const BUILDINGS: &[(&str, &[(&str, &[&str])])] = &[
+/// An editable scalar: its label and its path in the save.
+type Scalar = (&'static str, &'static [&'static str]);
+
+/// A building group: a heading plus its editable scalars.
+const BUILDINGS: &[(&str, &[Scalar])] = &[
     ("Tavern", &[
         ("Tavern Level", &["024", "b", "v"]),
         ("Active Level (difficulty)", &["024", "b", "m"]),

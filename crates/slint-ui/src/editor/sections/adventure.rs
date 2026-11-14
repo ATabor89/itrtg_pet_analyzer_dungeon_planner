@@ -267,7 +267,7 @@ pub fn build(form: &mut F, session: &EditSession, state: &State) {
     form.sep();
     let skills = named(session, SKILLS, "a", |id| items::adventure_skill_name(id).map_or_else(|| format!("Skill {id}"), str::to_string));
     form.row(vec![link(form.on("adventure/skills", |editor, _| editor.adventure.skills_open = !editor.adventure.skills_open),
-        format!("{} Battle Skills ({}) — read-only", if state.skills_open { "▾" } else { "▸" }, skills.len())).tone(Tone::Bright)]);
+        format!("{} Battle Skills ({}) — read-only", if state.skills_open { "▼" } else { "▶" }, skills.len())).tone(Tone::Bright)]);
     if state.skills_open {
         form.note("Equipped battle skills. Only the skill id and level are identified; edit the rest in the Raw Save Tree (032.b.g).");
         if skills.is_empty() {

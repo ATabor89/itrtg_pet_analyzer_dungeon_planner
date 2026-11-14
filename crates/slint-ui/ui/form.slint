@@ -38,7 +38,7 @@ export struct FormRow {
     // 0 normal · 1 column header · 2 section title · 3 separator · 4 wrapped note · 5 tall editor
     kind: int,
     indent: length,
-    // 0 none · 1 selected · 2 search match · 3 warning
+    // 0 none · 1 selected · 2 search match
     mark: int,
 }
 
@@ -122,7 +122,7 @@ export component FormRowView inherits Rectangle {
     callback hint(string);
     height: data.kind == 3 ? 9px : data.kind == 2 ? 38px : data.kind == 1 ? 24px : data.kind == 5 ? 190px
         : data.kind == 4 ? max(22px, cells.preferred-height + 6px) : 34px;
-    background: data.mark == 1 ? #253e48 : data.mark == 2 ? #3a3420 : data.mark == 3 ? #3b2b2b
+    background: data.mark == 1 ? #253e48 : data.mark == 2 ? #3a3420
         : root.striped && data.kind == 0 ? #ffffff06 : transparent;
     border-radius: 4px;
     if data.kind == 3: Rectangle { y: 4px; height: 1px; background: Theme.line; }

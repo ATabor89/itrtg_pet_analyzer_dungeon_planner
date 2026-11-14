@@ -16,7 +16,7 @@ use itrtg_models::{ExportPet, MainStats};
 use save_parser::registry::{FieldRegistry, SectionId};
 use save_parser::session::EditSession;
 
-use crate::form::{button, check, muted, spacer, text, Act, Form, Row, Tone};
+use crate::form::{button, check, muted, spacer, text, Act, Form, Row, RowKind, Tone};
 
 pub mod bulk;
 pub mod common;
@@ -189,7 +189,8 @@ pub fn build(editor: &Editor) -> EditorForms {
         SectionId::Divinity => progression::build(&mut form, session, progression::Track::Divinity),
         SectionId::Adventure => adventure::build(&mut form, session, &editor.adventure),
     }
-    // The section's edit outcome sits at the bottom of its pinned rows.
+    // The section's edit outcome sits at the bottom of its pinned rows — above
+    // a table's column header, which has to stay next to its rows.
     let mut rows = form.take_rows();
     let pinned = form.pinned.min(rows.len());
     out.rows = rows.split_off(pinned);
@@ -197,7 +198,8 @@ pub fn build(editor: &Editor) -> EditorForms {
     if let Some((message, error)) = &editor.note {
         let mut note: Form<Editor> = Form::default();
         note.note_tone(message.clone(), if *error { Tone::Error } else { Tone::Success });
-        out.top.extend(note.take_rows());
+        let at = out.top.len() - usize::from(out.top.last().is_some_and(|row| row.kind == RowKind::Header));
+        out.top.splice(at..at, note.take_rows());
     }
     out.jump = form.jump;
     out.acts = form.into_acts();
@@ -284,7 +286,7 @@ fn pending(form: &mut Form<Editor>, editor: &Editor, session: &EditSession) {
         ("Added statues", Tone::Success, "+ ", session.added_statues().iter().map(|s| s.label.clone()).collect(), |s, i| s.undo_added_statue(i)),
         ("Unlocked classes", Tone::Success, "+ ", session.added_class_progression().iter().map(|c| c.label.clone()).collect(), |s, i| s.undo_added_class_progression(i)),
         ("Deleted", Tone::Error, "− ", session.removed().iter().map(|r| r.label.clone()).collect(), |s, i| s.undo_removed(i)),
-        ("Pasted subtrees", Tone::Accent, "⎘ ", session.tree_edits().iter().map(|t| t.path.join(".")).collect(), |s, i| s.undo_tree_edit(i)),
+        ("Pasted subtrees", Tone::Accent, "↔ ", session.tree_edits().iter().map(|t| t.path.join(".")).collect(), |s, i| s.undo_tree_edit(i)),
     ];
     for (group, (heading, tone, mark, labels, undo)) in groups.into_iter().enumerate() {
         if labels.is_empty() { continue; }

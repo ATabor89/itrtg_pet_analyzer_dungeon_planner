@@ -326,7 +326,7 @@ pub fn build(form: &mut F, session: &EditSession, state: &State) {
     let mut class_choices: Vec<(Option<u32>, String)> = vec![(None, "Any".into())];
     class_choices.extend(CLASSES.iter().map(|(label, id)| (Some(*id), label.to_string())));
     form.row(vec![
-        muted("Filter:").w(44.0),
+        muted("Filter:").w(50.0),
         label("Element", 46.0),
         pick(form, "pets/filter/element", elements, &filters.element, |_| String::new(), |editor, e| editor.pets.filters.element = *e).w(100.0),
         label("Class", 30.0),
@@ -342,8 +342,8 @@ pub fn build(form: &mut F, session: &EditSession, state: &State) {
         spacer(),
     ]);
     form.row(vec![
-        muted("Ranges:").w(44.0),
-        label("Dungeon min", 68.0), typed(form, "dungeon-min", &filters.dungeon_min, |f, v| f.dungeon_min = v).w(56.0),
+        muted("Ranges:").w(50.0),
+        label("Dungeon min", 76.0), typed(form, "dungeon-min", &filters.dungeon_min, |f, v| f.dungeon_min = v).w(56.0),
         label("max", 24.0), typed(form, "dungeon-max", &filters.dungeon_max, |f, v| f.dungeon_max = v).w(56.0),
         label("Class min", 54.0), typed(form, "class-min", &filters.class_min, |f, v| f.class_min = v).w(56.0),
         label("max", 24.0), typed(form, "class-max", &filters.class_max, |f, v| f.class_max = v).w(56.0),

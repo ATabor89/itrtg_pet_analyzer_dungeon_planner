@@ -20,7 +20,7 @@ pub enum Kind { #[default] Text, Input, Check, Combo, Button, Spacer, Link, Edit
 pub enum RowKind { #[default] Normal, Header, Title, Separator, Note, Editor }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Mark { #[default] None, Selected, Match, Warning }
+pub enum Mark { #[default] None, Selected, Match }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Cell {
@@ -203,13 +203,16 @@ fn slint_cell(cell: &Cell, cache: &mut OptionCache) -> FormCell {
     }
 }
 
-/// Same control in the same place: its instance can be updated instead of rebuilt.
+/// Same control in the same place: its instance can be updated instead of
+/// rebuilt. A picker whose options changed still counts — rebuilding the row
+/// would take the focus from a search box beside it mid-typing.
 fn same_shape(a: &Cell, b: &Cell) -> bool {
-    a.kind == b.kind && a.width == b.width && (Rc::ptr_eq(&a.options, &b.options) || a.options == b.options)
+    a.kind == b.kind && a.width == b.width
 }
 
 impl FormModel {
     pub fn model(&self) -> ModelRc<FormRow> { self.rows.clone().into() }
+    #[cfg(test)]
     pub fn len(&self) -> usize { self.shadow.len() }
 
     pub fn set(&mut self, rows: Vec<Row>) {
