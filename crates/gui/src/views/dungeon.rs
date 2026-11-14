@@ -1,3 +1,6 @@
+use itrtg_planner::dungeon_support::{build_dungeon_teams_export, equip_matches_rec, resolve_equip_name};
+#[cfg(test)]
+use itrtg_planner::dungeon_support::format_dungeon_teams;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui, Vec2};
@@ -1108,62 +1111,6 @@ fn export_dungeon_teams_to_clipboard(state: &mut DungeonState) {
     }
     let text = build_dungeon_teams_export(&state.plans);
     copy_to_clipboard(&text, &mut state.constraints_status);
-}
-
-/// The name the game uses for a pet in its exports (space-stripped, e.g.
-/// "MistSphere"). Falls back to the canonical name with spaces removed for the
-/// (practically impossible) case of an assigned pet without export data.
-fn team_export_name(pet: &itrtg_planner::merge::MergedPet) -> String {
-    pet.export
-        .as_ref()
-        .map(|e| e.export_name.clone())
-        .unwrap_or_else(|| pet.name.replace(' ', ""))
-}
-
-/// Build the in-game "Dungeon Teams" import string from the solved plans. One
-/// team per plan, in planner order; the per-plan member lists are extracted
-/// here (filtering empty slots) and handed to `format_dungeon_teams`.
-fn build_dungeon_teams_export(plans: &[DungeonPlan]) -> String {
-    let teams: Vec<Vec<(String, u8)>> = plans
-        .iter()
-        .map(|plan| {
-            plan.assignments
-                .iter()
-                .filter_map(|a| match &a.assignment {
-                    Assignment::Filled { pet, .. } => {
-                        Some((team_export_name(pet), (a.position + 1) as u8))
-                    }
-                    Assignment::Empty { .. } => None,
-                })
-                .collect()
-        })
-        .collect();
-    format_dungeon_teams(&teams)
-}
-
-/// Format already-collected teams into the game's import string. Teams with no
-/// members (a planned dungeon the solver couldn't fill) are skipped, and the
-/// rest are numbered contiguously from 0 in order — the number is the team's
-/// position among the teams in use, NOT tied to any dungeon. Members are
-/// emitted in slot order as `<name>=<slot>,` with the game's trailing comma.
-fn format_dungeon_teams(teams: &[Vec<(String, u8)>]) -> String {
-    let mut out = String::from("---DungeonTeamsStart---\n");
-    let mut team_index = 0u8;
-    for team in teams {
-        if team.is_empty() {
-            continue;
-        }
-        let mut members = team.clone();
-        members.sort_by_key(|(_, slot)| *slot);
-        out.push_str(&format!("{team_index}:"));
-        for (name, slot) in &members {
-            out.push_str(&format!("{name}={slot},"));
-        }
-        out.push(';');
-        team_index += 1;
-    }
-    out.push_str("---DungeonTeamsEnd---");
-    out
 }
 
 /// Import dialog window for pasting constraints YAML.
@@ -2910,34 +2857,6 @@ fn show_equipment_comparison(
     }
 }
 
-/// Check if a pet's current equipment matches a recommendation (by catalog key),
-/// including higher-tier upgrades in the same crafting chain.
-fn equip_matches_rec(
-    current_name: &str,
-    rec_key: &str,
-    catalog: Option<&EquipmentCatalog>,
-) -> bool {
-    let Some(cat) = catalog else {
-        // No catalog: fall back to name substring match
-        let cur_lower = current_name.to_lowercase();
-        let rec_name = rec_key.replace('_', " ").to_lowercase();
-        return cur_lower.contains(&rec_name) || rec_name.contains(&cur_lower);
-    };
-
-    // Find the current equipment's catalog key by name
-    if let Some(cur_key) = cat.find_key_by_name_exact(current_name) {
-        // Check if it's the same item or an upgrade of the recommendation
-        if cat.is_same_line(cur_key, rec_key) {
-            return true;
-        }
-    }
-
-    // Fallback: name substring match (handles items not in catalog)
-    let rec_name = resolve_equip_name(rec_key, catalog).to_lowercase();
-    let cur_lower = current_name.to_lowercase();
-    cur_lower.contains(&rec_name) || rec_name.contains(&cur_lower)
-}
-
 // =============================================================================
 // Per-pet special info display
 // =============================================================================
@@ -3078,23 +2997,6 @@ fn humanize_mechanic_name(name: &str) -> String {
     result = result.replace(" hp ", " HP ");
     result = result.replace(" xp ", " XP ");
     result
-}
-
-/// Resolve a catalog key to a display name.
-fn resolve_equip_name(key: &str, catalog: Option<&EquipmentCatalog>) -> String {
-    if let Some(cat) = catalog
-        && let Some(entry) = cat.lookup(key) {
-            return entry.name.clone();
-        }
-    // Humanize generic keys: "generic_t2_s10" → "Generic T2"
-    if let Some(rest) = key.strip_prefix("generic_t") {
-        let tier: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-        if !tier.is_empty() {
-            return format!("Generic T{tier}");
-        }
-    }
-    // Fallback: humanize the key
-    key.replace('_', " ")
 }
 
 /// Format a number compactly for card display (e.g. 1500 → "1.5k", 2300000 → "2.3M").

@@ -1,0 +1,115 @@
+import { Button, CheckBox, ComboBox, SpinBox, LineEdit, TextEdit, ScrollView, VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { Theme, Caption } from "common.slint";
+import { LogSection, LogPartyRow, SectionCard } from "logs.slint";
+export struct DungeonChoice { name: string, selected: bool, depth: int, tier: int, upgrade: int, quality: int }
+export struct DungeonEvent { dungeon: int, depth: int, name: string, label: string, enabled: bool }
+export struct DungeonResult { title: string, rows: [LogPartyRow], sections: [LogSection] }
+export struct TeamMapping { label: string, choice: int }
+export struct PetConstraint { name: string, label: string }
+export component DungeonView inherits Rectangle {
+    in property <bool> enabled;
+    in property <bool> constraints-enabled;
+    in property <bool> dirty;
+    in property <[DungeonChoice]> choices;
+    in property <[DungeonEvent]> events;
+    in property <[DungeonResult]> results;
+    in property <[LogSection]> shopping;
+    in property <[TeamMapping]> teams;
+    in property <[LogSection]> preview;
+    in property <[PetConstraint]> constraints;
+    in property <[string]> pet-names;
+    in-out property <string> transfer;
+    private property <int> tab;
+    private property <int> pet;
+    private property <string> search;
+    private property <int> force-dungeon;
+    private property <int> force-slot;
+    callback change(string,int,int);
+    callback constrain(string,string,int,int);
+    callback event-change(int,int,string,bool);
+    callback action(string,string);
+    VerticalBox { padding: 0px; spacing: 12px;
+        HorizontalBox { padding: 0px; height: 38px; spacing: 10px;
+            Button { text: "Setup"; primary: root.tab == 0; clicked => { root.tab = 0; } }
+            Button { text: "Pet constraints"; primary: root.tab == 1; clicked => { root.tab = 1; } }
+            Button { text: "Events"; primary: root.tab == 2; clicked => { root.tab = 2; } }
+            Button { text: "Plans"; primary: root.tab == 3; clicked => { root.tab = 3; } }
+            Button { text: "Import / export"; primary: root.tab == 4; clicked => { root.tab = 4; } }
+            Rectangle { horizontal-stretch: 1; }
+            Caption { text: root.dirty ? "Settings or roster changed · Solve to update plans" : "Solve selected dungeons together"; vertical-alignment: center; }
+            Button { enabled: root.enabled; text: "Clear plans"; clicked => { root.action("clear-plans",""); } }
+            Button { enabled: root.enabled; text: "Solve"; primary: true; clicked => { root.action("solve", ""); root.tab = 3; } }
+        }
+        if root.tab == 0: ScrollView { VerticalBox { padding: 0px; spacing: 12px;
+            Caption { text: "Select dungeons and depths. Equipment standards have a floor of the chosen depth, quality S and +10."; wrap: word-wrap; }
+            for choice[i] in root.choices: Rectangle { background: Theme.panel; border-radius: 8px; height: 60px;
+                HorizontalBox { padding: 12px; spacing: 12px;
+                    CheckBox { text: choice.name; width: 200px; checked: choice.selected; enabled: root.enabled; toggled => { root.change("selected",i,self.checked ? 1 : 0); } }
+                    Caption { text: "Depth"; vertical-alignment: center; }
+                    SpinBox { value: choice.depth; minimum: 1; maximum: 4; enabled: root.enabled; edited(v) => { root.change("depth",i,v); } }
+                    Caption { text: "Minimum tier"; vertical-alignment: center; }
+                    SpinBox { value: choice.tier; minimum: choice.depth; maximum: 4; enabled: root.enabled; edited(v) => { root.change("tier",i,v); } }
+                    ComboBox { model: ["S", "SS", "SSS"]; current-index: choice.quality; enabled: root.enabled; accessible-label: "Equipment quality"; selected(v) => { root.change("quality",i,self.current-index); } }
+                    Caption { text: "Upgrade"; vertical-alignment: center; }
+                    SpinBox { value: choice.upgrade; minimum: 10; maximum: 20; enabled: root.enabled; edited(v) => { root.change("upgrade",i,v); } }
+                }
+            }
+            for section in root.preview: SectionCard { title: section.title; body: section.body; }
+            Rectangle { vertical-stretch: 1; }
+        } }
+        if root.tab == 1: VerticalBox { padding: 0px; spacing: 12px;
+            CheckBox { text: "Use pet constraints (event choices always apply)"; enabled: root.enabled; checked: root.constraints-enabled; toggled => { root.change("constraints",0,self.checked ? 1 : 0); } }
+            HorizontalBox { padding: 0px; height: 36px; spacing: 10px;
+                LineEdit { text <=> root.search; placeholder-text: "Search pets"; enabled: root.enabled; edited => { root.action("search",self.text); root.pet = 0; } }
+                ComboBox { model: root.pet-names; current-index <=> root.pet; enabled: root.enabled; accessible-label: "Constraint pet"; }
+                ComboBox { model: ["Any team","Scrapyard","Water Temple","Volcano","Mountain","Forest"]; current-index <=> root.force-dungeon; enabled: root.enabled; accessible-label: "Force dungeon"; }
+                ComboBox { model: ["Best slot","1 · Front","2 · Front","3 · Front","4 · Back","5 · Back","6 · Back"]; current-index <=> root.force-slot; enabled: root.enabled && root.force-dungeon > 0; accessible-label: "Force slot"; }
+                Button { text: "Force"; enabled: root.enabled; clicked => { root.constrain("force",root.pet-names[root.pet],root.force-dungeon,root.force-slot); } }
+                Button { text: "Forbid"; enabled: root.enabled; clicked => { root.constrain("forbid",root.pet-names[root.pet],0,0); } }
+                Button { text: "Whitelist"; enabled: root.enabled; clicked => { root.constrain("allow",root.pet-names[root.pet],0,0); } }
+            }
+            Caption { text: "Whitelist allows non-dungeon classes without forcing them into a team. Slots 1–3 are front row; 4–6 are back row."; wrap: word-wrap; }
+            ScrollView { VerticalBox { padding: 0px; spacing: 8px;
+                for constraint in root.constraints: HorizontalBox { padding: 8px; height: 44px;
+                    Text { text: constraint.label; color: Theme.text; vertical-alignment: center; horizontal-stretch: 1; }
+                    Button { text: "Remove"; enabled: root.enabled; clicked => { root.constrain("remove",constraint.name,0,0); } }
+                }
+                Rectangle { vertical-stretch: 1; }
+            } }
+            Button { text: "Clear pet constraints"; enabled: root.enabled; clicked => { root.action("clear",""); } }
+        }
+        if root.tab == 2: ScrollView { VerticalBox { padding: 0px; spacing: 12px;
+            Caption { text: "Events through the selected depth. Optional events start disabled. Changing coverage choices takes effect on the next solve."; wrap: word-wrap; }
+            for event in root.events: CheckBox { text: event.label; checked: event.enabled; enabled: root.enabled; toggled => { root.event-change(event.dungeon,event.depth,event.name,self.checked); } }
+            Rectangle { vertical-stretch: 1; }
+        } }
+        if root.tab == 3: ScrollView { VerticalBox { padding: 0px; spacing: 14px;
+            if root.results.length == 0: Caption { text: "Select one or more dungeons in Setup, then Solve."; }
+            for section in root.shopping: SectionCard { title: section.title; body: section.body; }
+            for result in root.results: VerticalBox { padding: 0px; spacing: 12px;
+                Text { text: result.title + " · Front row 1–3 / Back row 4–6"; font-size: 20px; color: Theme.accent; }
+                for row in result.rows: HorizontalBox { padding: 0px; spacing: 12px;
+                    for card in row.cards: SectionCard { title: card.title; body: card.body; min-width: 0px; preferred-width: 0px; horizontal-stretch: 1; }
+                }
+                for section in result.sections: SectionCard { title: section.title; body: section.body; }
+            }
+            Rectangle { vertical-stretch: 1; }
+        } }
+        if root.tab == 4: VerticalBox { padding: 0px; spacing: 12px;
+            Caption { text: "Constraint YAML uses the same format as the existing planner. Import validates every name and slot before replacing constraints. Team exports use the in-game Dungeon Teams format."; wrap: word-wrap; }
+            TextEdit { text <=> root.transfer; enabled: root.enabled; accessible-label: "Dungeon transfer text"; }
+            HorizontalBox { padding: 0px; height: 36px; spacing: 10px;
+                Button { text: "Parse teams"; enabled: root.enabled; clicked => { root.action("parse-teams",root.transfer); } }
+                Button { text: "Copy text"; enabled: root.enabled; clicked => { root.action("copy",root.transfer); } }
+                Button { text: "Import constraints"; enabled: root.enabled; clicked => { root.action("import",root.transfer); } }
+                Button { text: "Export constraints"; enabled: root.enabled; clicked => { root.action("export",""); } }
+                Button { text: "Export solved teams"; enabled: root.enabled && root.results.length > 0 && !root.dirty; clicked => { root.action("teams",""); } }
+            }
+            for team[i] in root.teams: HorizontalBox { padding: 0px; height: 36px;
+                Text { text: team.label; color: Theme.text; vertical-alignment: center; horizontal-stretch: 1; }
+                ComboBox { model: ["Skip", "Scrapyard", "Water Temple", "Volcano", "Mountain", "Forest"]; current-index: team.choice; enabled: root.enabled; selected(_) => { root.change("team",i,self.current-index); } }
+            }
+            if root.teams.length > 0: Button { text: "Apply mapped teams"; enabled: root.enabled; clicked => { root.action("apply-teams",""); } }
+        }
+    }
+}

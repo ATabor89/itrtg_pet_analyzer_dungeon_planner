@@ -1,9 +1,11 @@
+use crate::views::analyzer::AnalyzerPersistence;
 use eframe::egui::{self, RichText};
 
 use crate::data::DataStore;
 use crate::platform;
 use crate::state::{self, AppState};
 use crate::style;
+use crate::views::chamber::ChamberStateExt as _;
 use crate::views::{analyzer, chamber, dungeon, log_viewer, save_editor};
 use itrtg_planner::growth::GrowthRates;
 use itrtg_planner::merge::CampaignContext;

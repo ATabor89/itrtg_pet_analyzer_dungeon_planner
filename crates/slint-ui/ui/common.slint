@@ -1,0 +1,30 @@
+import { VerticalBox } from "std-widgets.slint";
+export global Theme {
+    out property <color> background: #10161e;
+    out property <color> panel: #19232f;
+    out property <color> line: #2b3949;
+    out property <color> muted: #a0b0c2;
+    out property <color> text: #edf3fa;
+    out property <color> accent: #79d7bb;
+}
+export component Caption inherits Text {
+    color: Theme.muted; font-size: 12px; vertical-stretch: 0;
+}
+export component Badge inherits Rectangle {
+    in property <string> label;
+    in property <color> tint: Theme.accent;
+    height: 25px; width: 72px; border-radius: 5px;
+    background: tint.with-alpha(0.12);
+    border-width: 1px; border-color: tint.with-alpha(0.28);
+    Text { text: root.label; color: root.tint; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+}
+export component Stat inherits Rectangle {
+    in property <string> value;
+    in property <string> label;
+    background: Theme.panel; border-radius: 8px; height: 76px;
+    VerticalBox {
+        padding: 14px; spacing: 4px;
+        Text { text: root.value; font-size: 24px; font-weight: 600; color: Theme.text; }
+        Caption { text: root.label; }
+    }
+}
