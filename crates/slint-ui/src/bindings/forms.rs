@@ -194,6 +194,20 @@ fn run_effect(controller: &Rc<RefCell<Controller>>, ui: &MainWindow, effect: Eff
                 if let (Some(ui), Err(error)) = (weak.upgrade(), result) { status(&ui, &format!("Could not copy: {error}"), true); }
             });
         }
+        Effect::PasteClipboard => {
+            let (weak, controller) = (ui.as_weak(), controller.clone());
+            platform::read_clipboard(move |result| {
+                let Some(ui) = weak.upgrade() else { return };
+                match result {
+                    Ok(text) => {
+                        let mut state = controller.borrow_mut();
+                        state.editor.editor.pasted(text);
+                        state.render_editor(&ui);
+                    }
+                    Err(error) => status(&ui, &error, true),
+                }
+            });
+        }
         Effect::Populate => populate(controller, ui),
     }
 }

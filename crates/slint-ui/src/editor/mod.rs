@@ -32,6 +32,8 @@ pub enum Effect {
     SaveFile { name: String, contents: String },
     /// Put text on the clipboard.
     Copy(String),
+    /// Read the clipboard into the tree's paste editor ([`Editor::pasted`]).
+    PasteClipboard,
     /// Fill the planner (roster + account stats) from the loaded save.
     Populate,
 }
@@ -57,6 +59,7 @@ pub struct Editor {
     pub(crate) gems: gems::State,
     pub(crate) inventory: inventory::State,
     pub(crate) pets: pets::State,
+    pub(crate) raw_tree: raw_tree::State,
     pub(crate) equipment: equipment::State,
     pub(crate) village: village::State,
     pub(crate) stats: [stats::State; 3],
@@ -169,6 +172,7 @@ pub fn build(editor: &Editor) -> EditorForms {
         SectionId::Gems => gems::build(&mut form, session, &editor.gems),
         SectionId::Inventory => inventory::build(&mut form, session, &editor.inventory),
         SectionId::Pets => pets::build(&mut form, session, &editor.pets),
+        SectionId::RawTree => raw_tree::build(&mut form, session, &editor.registry, &editor.raw_tree),
         SectionId::Equipment => equipment::build(&mut form, session, &editor.equipment),
         SectionId::Village => village::build(&mut form, session, &editor.village),
         SectionId::Crystal => crystal::build(&mut form, session),
@@ -261,11 +265,7 @@ fn pending(form: &mut Form<Editor>, editor: &Editor, session: &EditSession) {
             text(edit.label.as_str()).tone(Tone::Bright).w(220.0),
             muted(edit.path.join(".")).mono().size(11.0),
             text(format!("{} → {}", trunc(&edit.original), trunc(&edit.new))).mono().size(11.0).w(330.0),
-            button(form.on(format!("pending/tree/{index}"), move |editor, _| {
-                editor.section = SectionId::RawTree;
-                editor.note = None;
-                let _ = &target;
-            }), "↪ tree").w(70.0).enabled(resolved.is_some()).hint("Reveal this field in the Raw Save Tree"),
+            button(form.on(format!("pending/tree/{index}"), move |editor, _| editor.reveal_in_tree(target.clone())), "↪ tree").w(70.0).enabled(resolved.is_some()).hint("Reveal this field in the Raw Save Tree"),
             button(form.on(format!("pending/undo/{index}"), move |editor, _| {
                 if let Some(session) = editor.session.as_mut() { let _ = session.undo(index); }
             }), "undo").w(60.0),

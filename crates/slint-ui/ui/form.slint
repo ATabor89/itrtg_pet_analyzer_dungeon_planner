@@ -59,7 +59,7 @@ component CellView inherits Rectangle {
     if cell.kind == 0 || cell.kind == 6: Rectangle {
         label := Text {
             x: 0px; y: 0px; width: parent.width; height: parent.height;
-            text: cell.text; color: cell.kind == 6 ? Theme.accent : root.ink;
+            text: cell.text; color: cell.kind == 6 && cell.tone == 0 ? Theme.accent : root.ink;
             font-size: cell.size > 0px ? cell.size : 12px;
             font-weight: cell.tone == 6 ? 700 : 400;
             font-family: cell.mono ? "monospace" : "";
@@ -108,7 +108,7 @@ component CellView inherits Rectangle {
         x: 0px; y: 0px; width: parent.width; height: parent.height;
         text: cell.text; enabled: cell.enabled && root.enabled; wrap: no-wrap; font-size: 12px;
         private property <int> rev: root.revision;
-        changed rev => { if !self.has-focus { self.text = cell.text; } }
+        changed rev => { self.text = cell.text; }
         edited(t) => { root.action("draft:" + cell.id, t); }
     }
 }

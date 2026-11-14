@@ -22,6 +22,7 @@ pub mod items;
 pub mod labels;
 pub mod lzf;
 pub mod model;
+pub mod navigate;
 pub mod raw;
 pub mod redact;
 pub mod registry;

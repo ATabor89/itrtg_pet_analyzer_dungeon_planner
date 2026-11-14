@@ -12,6 +12,7 @@ pub mod gems;
 pub mod inventory;
 pub mod planet;
 pub mod progression;
+pub mod raw_tree;
 pub mod stats;
 pub mod village;
 pub mod daily;
