@@ -21,6 +21,7 @@ struct Controller {
     can_save: bool,
     save_failed: bool,
     chamber: forms::ChamberUi,
+    editor: forms::EditorUi,
 }
 
 thread_local! {
@@ -178,7 +179,7 @@ pub fn wire(ui: &MainWindow) -> Result<(), String> {
         Ok(None) => (Session::default(), true, "Copy your Pet Stats export in the game and press Import clipboard — or load the example.".to_string()),
         Err(error) => (Session::default(), false, format!("Could not restore saved settings: {error}. Saving disabled to preserve them.")),
     };
-    let controller = Rc::new(RefCell::new(Controller { app: AppModel::new(session)?, rows: Rc::new(VecModel::default()), can_save, save_failed: false, chamber: Default::default() }));
+    let controller = Rc::new(RefCell::new(Controller { app: AppModel::new(session)?, rows: Rc::new(VecModel::default()), can_save, save_failed: false, chamber: Default::default(), editor: Default::default() }));
     CONTROLLER.with(|c| *c.borrow_mut() = Some(controller.clone()));
     ui.set_native(platform::NATIVE);
     dungeon::wire(ui, &controller);

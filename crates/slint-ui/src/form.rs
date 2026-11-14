@@ -91,10 +91,14 @@ pub struct Form<C> {
     /// Interior-mutable so a cell can register its action inside the argument
     /// list of the row it belongs to (`form.row(vec![button(form.on(..), ..)])`).
     acts: RefCell<HashMap<String, Act<C>>>,
+    /// Rows before this index stay pinned above the scrolling list (see [`Form::pin`]).
+    pub pinned: usize,
+    /// Row (in the scrolling part) to bring into view, if any.
+    pub jump: Option<usize>,
 }
 
 impl<C> Default for Form<C> {
-    fn default() -> Self { Self { rows: Vec::new(), acts: RefCell::new(HashMap::new()) } }
+    fn default() -> Self { Self { rows: Vec::new(), acts: RefCell::new(HashMap::new()), pinned: 0, jump: None } }
 }
 
 impl<C> Form<C> {
@@ -104,6 +108,10 @@ impl<C> Form<C> {
         self.acts.borrow_mut().insert(id.clone(), Rc::new(act));
         id
     }
+    /// Everything added so far stays pinned; rows added from here on scroll.
+    pub fn pin(&mut self) { self.pinned = self.rows.len(); }
+    /// Bring the next row to be added into view.
+    pub fn jump_here(&mut self) { self.jump = Some(self.rows.len().saturating_sub(self.pinned)); }
     /// Take the rows built so far (to split one pass into several panels).
     pub fn take_rows(&mut self) -> Vec<Row> { std::mem::take(&mut self.rows) }
     pub fn into_acts(self) -> HashMap<String, Act<C>> { self.acts.into_inner() }

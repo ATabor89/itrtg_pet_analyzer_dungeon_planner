@@ -4,7 +4,7 @@
 use super::*;
 use crate::app::ImportKind;
 
-const UNRECOGNIZED: &str = "Unrecognized data. Expected a Pet Stats or Main Stats export, a dungeon log, the wiki pet table, or a full save.";
+pub(super) const UNRECOGNIZED: &str = "Unrecognized data. Expected a Pet Stats or Main Stats export, a dungeon log, the wiki pet table, or a full save.";
 
 fn close_dialog(ui: &MainWindow) {
     ui.set_import_open(false);
@@ -60,8 +60,10 @@ pub(super) fn import_text(controller: &Rc<RefCell<Controller>>, ui: &MainWindow,
                 }
             });
         }
+        // A save that was recognized (not explicitly chosen) opens in the Save
+        // Editor, which fills the planner too when its "on load" box is ticked.
+        ImportKind::Save if auto => forms::load_save(controller, ui, name, text, true),
         ImportKind::Save => {
-            let _ = name;
             ui.set_import_busy(true);
             status(ui, "Decoding full save…", false);
             let (weak, state) = (ui.as_weak(), controller.clone());
@@ -71,7 +73,6 @@ pub(super) fn import_text(controller: &Rc<RefCell<Controller>>, ui: &MainWindow,
                 let mut state = state.borrow_mut();
                 match result.and_then(|data| state.app.apply_save(data)) {
                     Ok(count) => finish(&mut state, &ui, &format!("Imported {count} pets, account stats and exact Moai levels. Live actions and combat stats are unavailable in saves.")),
-                    Err(_) if auto => status(&ui, UNRECOGNIZED, true),
                     Err(error) => status(&ui, &error, true),
                 }
             });
