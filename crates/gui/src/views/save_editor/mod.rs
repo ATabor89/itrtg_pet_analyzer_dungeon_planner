@@ -10,8 +10,7 @@
 //! deliberately **not** part of the persisted `AppState` — nothing about a
 //! loaded save reaches `app_state.yaml`.
 
-mod registry;
-mod session;
+use save_parser::{registry, session};
 mod sections;
 
 use std::collections::HashMap;

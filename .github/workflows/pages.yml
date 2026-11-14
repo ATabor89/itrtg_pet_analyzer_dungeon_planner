@@ -30,6 +30,11 @@ jobs:
         with:
           version: latest
 
+      # The Slint front end (crates/slint-ui) links fontconfig on Linux, which
+      # the runner image does not ship the headers for.
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
+
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:
@@ -41,6 +46,15 @@ jobs:
       - name: Build WASM
         run: trunk build --release --public-url /itrtg_pet_analyzer_dungeon_planner/
         working-directory: crates/gui
+
+      # The Slint port is published beside the egui app, under /slint/, so it
+      # can be tried in the browser while egui stays the default. Same origin,
+      # so it can read the egui app's saved settings on its first run. A failure
+      # here must not block the main deployment.
+      - name: Build Slint WASM (preview at /slint/)
+        continue-on-error: true
+        run: trunk build --release --public-url /itrtg_pet_analyzer_dungeon_planner/slint/ --dist ../gui/dist/slint
+        working-directory: crates/slint-ui
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

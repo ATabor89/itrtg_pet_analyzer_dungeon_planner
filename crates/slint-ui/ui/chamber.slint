@@ -1,0 +1,73 @@
+import { ScrollView, VerticalBox } from "std-widgets.slint";
+import { Theme, Caption } from "common.slint";
+import { FormRow, FormStack } from "form.slint";
+
+export struct ChamberCard { rows: [FormRow], warn: bool }
+
+component Panel inherits Rectangle {
+    background: Theme.panel; border-radius: 8px;
+    VerticalLayout { padding: 8px; @children }
+}
+
+export component ChamberView inherits Rectangle {
+    in property <bool> enabled: true;
+    in property <int> revision;
+    in property <[FormRow]> run;
+    in property <[FormRow]> settings;
+    in property <[FormRow]> report;
+    in property <[FormRow]> picker;
+    in property <[ChamberCard]> cards;
+    in property <length> card-height;
+    callback action(string, string);
+    private property <string> hint;
+    private property <length> card-width: 268px;
+    private property <length> gap: 10px;
+    VerticalBox { padding: 0px; spacing: 8px;
+        Caption { text: "Lock pets into the Growth campaign and project how many cycles a tracked pet needs to hit its target."; wrap: word-wrap; }
+        FormStack {
+            rows: root.run; enabled: root.enabled; revision: root.revision;
+            action(id, value) => { root.action(id, value); }
+            hint(text) => { root.hint = text; }
+        }
+        // The run controls above stay pinned; the inputs, results, pet cards and
+        // picker scroll as one region so the picker stays reachable at any size.
+        ScrollView {
+            VerticalBox { padding: 0px; padding-right: 14px; spacing: 10px; alignment: start;
+                Panel { FormStack {
+                    rows: root.settings; enabled: root.enabled; revision: root.revision;
+                    action(id, value) => { root.action(id, value); }
+                    hint(text) => { root.hint = text; }
+                } }
+                if root.report.length > 0: Panel { FormStack {
+                    rows: root.report; enabled: root.enabled; revision: root.revision;
+                    hint(text) => { root.hint = text; }
+                } }
+                if root.cards.length == 0: Caption { text: "No pets in the chamber yet — add some below."; }
+                if root.cards.length > 0: Rectangle {
+                    private property <int> columns: max(1, floor((self.width + root.gap) / (root.card-width + root.gap)));
+                    height: ceil(root.cards.length / self.columns) * (root.card-height + root.gap);
+                    for card[i] in root.cards: Rectangle {
+                        x: mod(i, parent.columns) * (root.card-width + root.gap);
+                        y: floor(i / parent.columns) * (root.card-height + root.gap);
+                        width: root.card-width; height: root.card-height;
+                        background: Theme.panel; border-radius: 8px; border-width: 1px;
+                        border-color: card.warn ? #e2c47c : Theme.line;
+                        VerticalLayout { padding: 8px; alignment: start;
+                            FormStack {
+                                rows: card.rows; enabled: root.enabled; revision: root.revision;
+                                action(id, value) => { root.action(id, value); }
+                                hint(text) => { root.hint = text; }
+                            }
+                        }
+                    }
+                }
+                Panel { FormStack {
+                    rows: root.picker; enabled: root.enabled; revision: root.revision;
+                    action(id, value) => { root.action(id, value); }
+                    hint(text) => { root.hint = text; }
+                } }
+            }
+        }
+        Caption { text: root.hint; height: 16px; overflow: elide; }
+    }
+}

@@ -17,6 +17,7 @@ use save_parser::labels::{
     ResearchField,
 };
 use save_parser::raw::Raw;
+use save_parser::items::{unlock_plan, unlockable_classes};
 use save_parser::{items, model};
 
 use crate::style;
@@ -109,54 +110,6 @@ pub struct AdventureEditState {
     add: AddState,
     add_class: AddClassState,
     status: Option<(String, bool)>,
-}
-
-/// A step in a class-unlock plan: set class `class_id` to `level` (tier `d`).
-struct UnlockStep {
-    class_id: u32,
-    level: u32,
-    tier: &'static str,
-}
-
-/// Compute the class-progression entries needed so `target` becomes selectable:
-/// the prerequisite closure (each prereq at its required level, recursively) plus
-/// the target itself at level 1. `existing` maps class id → current level. Returns
-/// only the classes that are missing or below the needed level, sorted by id.
-/// `None` if the target has no known unlock chain.
-fn unlock_plan(target: u32, existing: &HashMap<u32, u32>) -> Option<Vec<UnlockStep>> {
-    fn visit(class: u32, need: u32, required: &mut HashMap<u32, u32>) -> Option<()> {
-        let (_tier, prereqs) = items::adventure_class_unlock(class)?;
-        let slot = required.entry(class).or_insert(0);
-        // A class's prerequisites are constant (independent of how high *it* is
-        // needed), so each class only needs visiting once — we just keep the max
-        // required level. `*slot == 0` means not yet visited (needs are always
-        // ≥ 1). This dedups diamond chains and is safe against bad-data cycles.
-        let first_visit = *slot == 0;
-        *slot = need.max(*slot);
-        if first_visit {
-            for &(p, lvl) in prereqs {
-                visit(p, lvl, required)?;
-            }
-        }
-        Some(())
-    }
-    let mut required: HashMap<u32, u32> = HashMap::new();
-    visit(target, 1, &mut required)?;
-    let mut steps: Vec<UnlockStep> = required
-        .into_iter()
-        .filter_map(|(class, need)| {
-            let cur = existing.get(&class).copied();
-            // Skip classes already present at or above the needed level.
-            if cur.is_some_and(|c| c >= need) {
-                return None;
-            }
-            let level = need.max(cur.unwrap_or(0));
-            let (tier, _) = items::adventure_class_unlock(class)?;
-            Some(UnlockStep { class_id: class, level, tier })
-        })
-        .collect();
-    steps.sort_by_key(|s| s.class_id);
-    Some(steps)
 }
 
 /// Quality letter for an id (F…SSS), falling back to the number.
@@ -565,16 +518,6 @@ pub fn show(ui: &mut egui::Ui, session: &mut EditSession, st: &mut AdventureEdit
             }
         }
     }
-}
-
-/// The classes that have a known unlock chain (for the picker), `(id, name)`.
-fn unlockable_classes() -> Vec<(u32, &'static str)> {
-    (0..=110u32)
-        .filter_map(|id| {
-            items::adventure_class_unlock(id)?;
-            items::adventure_class_name(id).map(|n| (id, n))
-        })
-        .collect()
 }
 
 /// The "Unlock class" modal: pick a target class, preview the entries that will
@@ -1194,31 +1137,6 @@ mod tests {
         assert_eq!(rows[0].name, "Basic Attack");
         assert_eq!(rows[1].name, "Magic Arrow");
         assert_eq!(rows[1].level, "11");
-    }
-
-    #[test]
-    fn unlock_plan_builds_full_prereq_chain_from_empty() {
-        let existing = HashMap::new();
-        let steps = unlock_plan(20, &existing).expect("Rogue has a known chain");
-        // Rogue needs Newbie10 → Adventurer35 → Thief55 & Archer55 → Rogue1.
-        let got: Vec<(u32, u32)> = steps.iter().map(|s| (s.class_id, s.level)).collect();
-        assert_eq!(got, vec![(1, 10), (2, 35), (5, 55), (6, 55), (20, 1)]);
-    }
-
-    #[test]
-    fn unlock_plan_skips_satisfied_prereqs_and_raises_low_ones() {
-        let existing = HashMap::from([(1, 99), (2, 40), (5, 30)]);
-        let steps = unlock_plan(20, &existing).unwrap();
-        let got: Vec<(u32, u32)> = steps.iter().map(|s| (s.class_id, s.level)).collect();
-        // Newbie(99≥10) and Adventurer(40≥35) skipped; Thief raised 30→55;
-        // Archer created at 55; Rogue created at 1.
-        assert_eq!(got, vec![(5, 55), (6, 55), (20, 1)]);
-    }
-
-    #[test]
-    fn unlock_plan_unknown_class_is_none() {
-        // Samurai (41) has no confirmed unlock chain.
-        assert!(unlock_plan(41, &HashMap::new()).is_none());
     }
 
     #[test]

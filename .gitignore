@@ -1,5 +1,8 @@
 /target
 /crates/gui/dist
+/crates/slint-ui/dist
+**/slint-prototype-state.yaml
+**/slint-prototype-state.yaml.tmp
 
 # Per-user app state — auto-maintained by the tool, not source-controlled.
 /data/app_state.yaml

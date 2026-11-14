@@ -34,6 +34,11 @@ well-tested logic and concise UI code that follows existing patterns.
   **Before touching the chamber, read `reference/growth_chamber_status.md`** — its
   full status, the load-bearing design decisions (base-vs-total growth, the
   multiplicative food model, the Moai boundary), and the open-work list.
+- `crates/slint-ui` — a second front end (Slint, native + WASM) with the same
+  views, built on the shared `models`/`planner`/`save-parser` logic. egui is
+  still the default. **Before touching it, read
+  `reference/slint_prototype_status.md`** (architecture, the data-driven form
+  renderer, the glyphs the bundled font lacks) and `slint_feature_parity.md`.
 - `crates/wiki-extractor`, `crates/pet-importer` — data ingestion tools.
 
 ### Key data files (`data/`)
