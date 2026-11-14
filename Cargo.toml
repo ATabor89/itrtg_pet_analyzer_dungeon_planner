@@ -7,5 +7,6 @@ members = [
     "crates/save-parser",
     "crates/planner",
     "crates/gui",
+    "crates/slint-ui",
     "crates/enum-sync",
 ]
