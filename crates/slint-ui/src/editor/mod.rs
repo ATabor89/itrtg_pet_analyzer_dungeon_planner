@@ -55,6 +55,11 @@ pub struct Editor {
     pub(crate) partners: partners::State,
     pub(crate) challenges: challenges::State,
     pub(crate) gems: gems::State,
+    pub(crate) inventory: inventory::State,
+    pub(crate) pets: pets::State,
+    pub(crate) equipment: equipment::State,
+    pub(crate) village: village::State,
+    pub(crate) stats: [stats::State; 3],
 }
 
 /// The editor rendered as form rows.
@@ -162,9 +167,21 @@ pub fn build(editor: &Editor) -> EditorForms {
         SectionId::Dungeons => dungeons::build(&mut form, session),
         SectionId::Planet => planet::build(&mut form, session),
         SectionId::Gems => gems::build(&mut form, session, &editor.gems),
+        SectionId::Inventory => inventory::build(&mut form, session, &editor.inventory),
+        SectionId::Pets => pets::build(&mut form, session, &editor.pets),
+        SectionId::Equipment => equipment::build(&mut form, session, &editor.equipment),
+        SectionId::Village => village::build(&mut form, session, &editor.village),
         SectionId::Crystal => crystal::build(&mut form, session),
         SectionId::Fishing => fishing::build(&mut form, session),
         SectionId::Daily => daily::build(&mut form, session),
+        SectionId::Physical => stats::build(&mut form, session, &editor.stats[stats::Block::Physical as usize], stats::Block::Physical),
+        SectionId::Skills => stats::build(&mut form, session, &editor.stats[stats::Block::Skills as usize], stats::Block::Skills),
+        SectionId::Monsters => stats::build(&mut form, session, &editor.stats[stats::Block::Monsters as usize], stats::Block::Monsters),
+        SectionId::Creations => progression::build(&mut form, session, progression::Track::Creations),
+        SectionId::Monuments => progression::build(&mut form, session, progression::Track::Monuments),
+        SectionId::Might => progression::build(&mut form, session, progression::Track::Might),
+        SectionId::SpaceDim => progression::build(&mut form, session, progression::Track::SpaceDim),
+        SectionId::Divinity => progression::build(&mut form, session, progression::Track::Divinity),
         other => { form.title(other.title()); form.note("This section is not available yet."); },
     }
     // The section's edit outcome sits at the bottom of its pinned rows.

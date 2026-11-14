@@ -91,6 +91,18 @@ pub fn pick<T: Clone + PartialEq + 'static>(form: &F, id: impl Into<String>, mut
     crate::form::combo(id, labels, index)
 }
 
+/// A three-way filter picker: any / yes / no.
+pub fn tri(form: &F, id: impl Into<String>, labels: [&str; 3], current: Option<bool>, set: impl Fn(&mut Editor, Option<bool>) + 'static) -> Cell {
+    let choices = vec![(None, labels[0].to_string()), (Some(true), labels[1].to_string()), (Some(false), labels[2].to_string())];
+    pick(form, id, choices, &current, |_| String::new(), move |editor, choice| set(editor, *choice))
+}
+
+/// Whether `value` lies within the typed bounds (a blank or unparsable bound is open).
+pub fn in_range(value: u32, min: &str, max: &str) -> bool {
+    let bound = |text: &str| text.trim().parse::<u64>().ok();
+    bound(min).is_none_or(|low| u64::from(value) >= low) && bound(max).is_none_or(|high| u64::from(value) <= high)
+}
+
 /// Format a millisecond span as hours (e.g. "11.5h").
 pub fn fmt_hours(ms: f64) -> String { format!("{:.1}h", ms / 3_600_000.0) }
 

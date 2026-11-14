@@ -40,7 +40,7 @@ pub fn cycle_sort<C: PartialEq + Copy>(sort: &mut Option<(C, bool)>, column: C) 
 
 /// A clickable column title showing the current sort arrow.
 pub fn sort_header<C: PartialEq + Copy + 'static>(form: &F, id: impl Into<String>, title: &str, column: C, current: Option<(C, bool)>,
-    sort: fn(&mut Editor) -> &mut Option<(C, bool)>) -> Cell {
+    sort: impl Fn(&mut Editor) -> &mut Option<(C, bool)> + 'static) -> Cell {
     let arrow = match current {
         Some((c, true)) if c == column => " ▲",
         Some((c, false)) if c == column => " ▼",
@@ -50,25 +50,26 @@ pub fn sort_header<C: PartialEq + Copy + 'static>(form: &F, id: impl Into<String
 }
 
 /// A row's selection checkbox.
-pub fn select_box<K: Clone + Eq + Hash + 'static>(form: &F, id: impl Into<String>, key: K, selected: bool, set: fn(&mut Editor) -> &mut HashSet<K>) -> Cell {
+pub fn select_box<K: Clone + Eq + Hash + 'static>(form: &F, id: impl Into<String>, key: K, selected: bool, set: impl Fn(&mut Editor) -> &mut HashSet<K> + 'static) -> Cell {
     check(form.on(id, move |editor, value| {
         if value == "1" { set(editor).insert(key.clone()); } else { set(editor).remove(&key); }
     }), "", selected).w(30.0)
 }
 
-/// An editable override cell plus its change marker. Shows `default` (the bulk-op
-/// result) until something else is typed, which becomes a per-row override;
-/// typing `default` again clears it. The ● marks a value that differs from
-/// `current` (the stored one).
+/// An editable override cell plus its change marker, together `width` wide.
+/// Shows `default` (the bulk-op result) until something else is typed, which
+/// becomes a per-row override; typing `default` again clears it. The ● marks a
+/// value that differs from `current` (the stored one).
 pub fn override_cells<K: Clone + Eq + Hash + 'static>(form: &F, id: impl Into<String>, key: K, default: &str, current: &str,
-    overrides: &HashMap<K, String>, map: fn(&mut Editor) -> &mut HashMap<K, String>, width: f32) -> [Cell; 2] {
+    overrides: &HashMap<K, String>, map: impl Fn(&mut Editor) -> &mut HashMap<K, String> + 'static, width: f32) -> [Cell; 2] {
     let shown = overrides.get(&key).cloned().unwrap_or_else(|| default.to_string());
     let fallback = default.to_string();
     let id = form.on(id, move |editor, value| {
         if value.trim() == fallback.trim() { map(editor).remove(&key); } else { map(editor).insert(key.clone(), value.to_string()); }
     });
     let marker = if shown.trim() != current.trim() { text("●").tone(Tone::Success).w(14.0).hint(format!("{current} → {shown}")) } else { gap(14.0) };
-    [input(id, shown).mono().w(width), marker]
+    // The row's cell spacing (8px) sits between the input and the 14px marker.
+    [input(id, shown).mono().w(width - 22.0), marker]
 }
 
 /// A blank or unparsable filter bound matches everything.

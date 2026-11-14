@@ -166,7 +166,7 @@ pub fn build(form: &mut F, session: &EditSession, state: &State) {
         ];
         if selected {
             let default = bulk_target(state, gem).unwrap_or_else(|| gem.raw_count.clone());
-            cells.extend(bulk::override_cells(form, format!("gems/override/{}", gem.index), gem.index, &default, &gem.raw_count, &state.overrides, |e| &mut of(e).overrides, 160.0));
+            cells.extend(bulk::override_cells(form, format!("gems/override/{}", gem.index), gem.index, &default, &gem.raw_count, &state.overrides, |e| &mut of(e).overrides, 174.0));
         } else {
             cells.push(text(gem.raw_count.as_str()).mono().size(11.0).w(174.0));
         }
