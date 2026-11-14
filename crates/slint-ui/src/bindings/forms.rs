@@ -32,6 +32,15 @@ pub(super) struct EditorUi {
 fn bump_revision(ui: &MainWindow) { ui.set_form_revision(ui.get_form_revision().wrapping_add(1)); }
 
 impl Controller {
+    /// Commit a value still being typed in a form, ahead of a render that does
+    /// not come from that form's own actions (which would otherwise reseed the
+    /// field and lose it).
+    pub(super) fn flush_forms(&mut self, ui: &MainWindow) {
+        let Controller { app, chamber, editor, .. } = self;
+        if editor.dispatcher.flush(&mut editor.editor) { editor.editor.settle(); }
+        if chamber.dispatcher.flush(app) { self.save(ui); }
+    }
+
     /// Refresh whichever form screen is showing (they are built on demand).
     pub(super) fn render_forms(&mut self, ui: &MainWindow) {
         match ui.get_active_view() {
@@ -115,6 +124,7 @@ pub(super) fn wire(ui: &MainWindow, controller: &Rc<RefCell<Controller>>) {
     ui.on_editor_select_section(move |index| {
         let Some(ui) = weak.upgrade() else { return };
         let mut state = state.borrow_mut();
+        state.flush_forms(&ui);
         state.editor.editor.select_section(index.max(0) as usize);
         state.render_editor(&ui);
     });
@@ -140,7 +150,10 @@ pub(super) fn wire(ui: &MainWindow, controller: &Rc<RefCell<Controller>>) {
     });
     let (weak, state) = (ui.as_weak(), controller.clone());
     ui.on_view_changed(move |_| {
-        if let Some(ui) = weak.upgrade() { state.borrow_mut().render_forms(&ui); }
+        let Some(ui) = weak.upgrade() else { return };
+        let mut state = state.borrow_mut();
+        state.flush_forms(&ui);
+        state.render_forms(&ui);
     });
     let (weak, state) = (ui.as_weak(), controller.clone());
     ui.on_chamber_action(move |id, value| {
@@ -158,6 +171,7 @@ pub(super) fn wire(ui: &MainWindow, controller: &Rc<RefCell<Controller>>) {
 fn run_effect(controller: &Rc<RefCell<Controller>>, ui: &MainWindow, effect: Effect) {
     let report = |controller: &Rc<RefCell<Controller>>, ui: &MainWindow, message: String, error: bool| {
         let mut state = controller.borrow_mut();
+        state.flush_forms(ui);
         state.editor.editor.status = Some((message, error));
         state.render_editor(ui);
     };
@@ -201,6 +215,7 @@ fn run_effect(controller: &Rc<RefCell<Controller>>, ui: &MainWindow, effect: Eff
                 match result {
                     Ok(text) => {
                         let mut state = controller.borrow_mut();
+                        state.flush_forms(&ui);
                         state.editor.editor.pasted(text);
                         state.render_editor(&ui);
                     }
@@ -215,6 +230,7 @@ fn run_effect(controller: &Rc<RefCell<Controller>>, ui: &MainWindow, effect: Eff
 /// Fill the analyzer and Growth Chamber from the save loaded in the editor.
 pub(super) fn populate(controller: &Rc<RefCell<Controller>>, ui: &MainWindow) {
     let mut state = controller.borrow_mut();
+    state.flush_forms(ui);
     let outcome = match state.editor.editor.extract_for_planner() {
         None => Err("No fully-parsed save to import from — load a save first.".to_string()),
         Some((pets, stats, moai)) => state.app.apply_save(crate::app::PreparedSave { pets, stats, moai }),

@@ -66,7 +66,10 @@ Solve. Native solving uses a worker. The browser yields once before computing.
   save, and "Populate planner". Edits go through `save_parser::EditSession`.
   egui's modal dialogs are inline rows here.
 - **Wiki refresh.** Native fetches the wiki. The browser cannot (no CORS
-  headers), so it accepts the wiki page source by paste or drop.
+  headers), so it accepts the wiki page source by paste or drop. The pet table
+  has no evolution requirements (only the extractor's crawl does), so a refresh
+  keeps the ones already known, and `data/wiki_pets.yaml` is rewritten only
+  when a validated table actually differs.
 - **First run.** With no Slint session yet, the egui app's saved settings are
   read once (`data/app_state.yaml` natively, the `app_state` localStorage key in
   the browser) and seed the session. The egui state is never written.
@@ -80,6 +83,11 @@ keep focus while the model re-renders. Rust builds the rows from the current
 state after every action and registers one closure per interactive cell.
 Non-live inputs report a draft while typing, which is committed before any
 other action, so "type a value, click Apply" works without leaving the field.
+A draft belongs to the render it was typed against: renders that do not come
+from the form's own actions (tab or section switch, an import finishing) flush
+it first, and installing a new render's actions drops whatever is left. Buttons
+that act on "row N of a list" must capture the row's identity, not its
+position, because the draft commit that runs first can change the list.
 
 The bundled Inter font is the only font in the browser build. Glyphs outside it
 (for example U+2B62, U+25B8, U+22EF) render as boxes there; stay within Inter.
@@ -139,17 +147,23 @@ On Windows, Trunk rejects the host's `NO_COLOR=1`; set `$env:NO_COLOR = 'true'`.
 
 ## Validation (2026-11-14)
 
-- Workspace tests: **641 passed, one ignored**, 71 of them in the Slint crate
+- Workspace tests: **645 passed, one ignored**, 75 of them in the Slint crate
   (form renderer, chamber rows, every Save Editor section against the redacted
   reference save, import routing, first-run seeding).
 - Clippy: no warnings in the Slint crate; the remaining workspace warnings
   predate this work.
+- A no-context review of the whole branch found no blockers; its findings
+  (draft lifetime, undo by position, the wiki refresh write, CI missing
+  fontconfig) are fixed with regression tests.
 - Native and WASM builds succeed.
 - Headless Chromium against the WASM build: the flows listed under "Verified in
   a browser" in `slint_feature_parity.md`. Both downloaded saves were re-read
   with `save-dump`; the redacted one passes `--check`.
-- Not run on a real desktop session this round (the work was done in a headless
-  container): native window behavior, file dialogs and the native clipboard.
+- The release WASM build loads and imports a save in Chromium. It is about
+  23 MB before `wasm-opt` (7.7 MB gzipped); load time on Pages is unmeasured.
+- The native build starts and renders under a virtual display (Xvfb, software
+  GL). Not exercised on a real desktop this round: file dialogs, the native
+  clipboard and window behavior.
 
 ## Validation (2026-09-15)
 

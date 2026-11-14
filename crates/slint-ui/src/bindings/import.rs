@@ -35,7 +35,7 @@ pub(super) fn import_text(controller: &Rc<RefCell<Controller>>, ui: &MainWindow,
         ImportKind::Wiki => {
             let mut state = controller.borrow_mut();
             match wiki_extractor::parser::parse_pets(&text).map_err(|e| format!("Could not read the wiki source: {e}")).and_then(|pets| state.app.replace_wiki(pets)) {
-                Ok(count) => finish(&mut state, ui, &format!("Loaded {count} pets from the wiki source. Your roster is kept.")),
+                Ok((count, _)) => finish(&mut state, ui, &format!("Loaded {count} pets from the wiki source. Your roster is kept.")),
                 Err(error) => status(ui, &error, true),
             }
         }
@@ -150,11 +150,14 @@ pub(super) fn wire(ui: &MainWindow, controller: &Rc<RefCell<Controller>>) {
             ui.set_wiki_busy(false);
             let mut state = state.borrow_mut();
             let before = state.app.wiki_len();
-            match result.and_then(|pets| { platform::save_wiki(&pets); state.app.replace_wiki(pets) }) {
-                Ok(count) => {
+            match result.and_then(|pets| state.app.replace_wiki(pets)) {
+                Ok((count, changed)) => {
+                    // Only a validated table that differs is written back, with
+                    // the evolution requirements it kept.
+                    if changed { platform::save_wiki(state.app.wiki()); }
                     state.render(&ui, true);
                     state.render_forms(&ui);
-                    status(&ui, &format!("Wiki data refreshed: {count} pets ({before} before)."), false);
+                    status(&ui, &if changed { format!("Wiki data refreshed: {count} pets ({before} before).") } else { format!("Wiki data is up to date: {count} pets.") }, false);
                 }
                 Err(error) => status(&ui, &format!("Wiki refresh failed: {error}. Existing wiki data kept."), true),
             }

@@ -155,7 +155,7 @@ egui settings.
 
 - Narrow layouts, keyboard-only navigation, browser accessibility (the browser
   build is a canvas), and browsers other than Chromium.
-- Release bundle size and load time.
+- Load time of the release bundle on Pages (about 23 MB before `wasm-opt`).
 - Browser work runs on the main thread; a large import may pause the UI briefly.
   Desktop parsing and file reads use worker threads.
 

@@ -144,6 +144,12 @@ impl<C> Form<C> {
 /// Inputs report in-progress text as `draft:<id>`; the draft is committed before
 /// any *other* action runs, so a value typed into a field takes effect when a
 /// button is clicked even though the field never lost focus.
+///
+/// A draft belongs to the render it was typed against. A render that did not
+/// come from [`Dispatcher::dispatch`] (a tab switch, an import finishing) reseeds
+/// every field from the model, so the caller either [`Dispatcher::flush`]es the
+/// draft first or lets [`Dispatcher::set`] drop it — it is never applied to a
+/// later render, where the same id may mean a field of a different save.
 pub struct Dispatcher<C> {
     acts: HashMap<String, Act<C>>,
     draft: Option<(String, String)>,
@@ -154,8 +160,20 @@ impl<C> Default for Dispatcher<C> {
 }
 
 impl<C> Dispatcher<C> {
-    /// Install the actions of the latest render.
-    pub fn set(&mut self, acts: HashMap<String, Act<C>>) { self.acts = acts; }
+    /// Install the actions of the latest render, dropping any draft typed
+    /// against the previous one.
+    pub fn set(&mut self, acts: HashMap<String, Act<C>>) {
+        self.acts = acts;
+        self.draft = None;
+    }
+
+    /// Commit the value still being typed, if any. Returns true when it ran.
+    pub fn flush(&mut self, context: &mut C) -> bool {
+        let Some((draft, text)) = self.draft.take() else { return false };
+        let Some(act) = self.acts.get(&draft).cloned() else { return false };
+        act(context, &text);
+        true
+    }
 
     /// Returns true when an action ran (the caller should re-render).
     pub fn dispatch(&mut self, context: &mut C, id: &str, value: &str) -> bool {
@@ -296,6 +314,30 @@ mod tests {
         dispatcher.dispatch(&mut log, "apply", "");
         assert_eq!(log[2..], ["value=7", "apply"]);
         assert!(!dispatcher.dispatch(&mut log, "unknown", ""));
+    }
+
+    #[test]
+    fn a_draft_never_outlives_the_render_it_was_typed_against() {
+        let acts = || {
+            let form: Form<Vec<String>> = Form::default();
+            form.on("value", |log, v| log.push(format!("value={v}")));
+            form.on("apply", |log, _| log.push("apply".into()));
+            form.into_acts()
+        };
+        let mut dispatcher = Dispatcher::default();
+        dispatcher.set(acts());
+        let mut log = Vec::new();
+        // A render from elsewhere (another save loaded, an import finishing)
+        // drops the draft: the same id may now be a field of a different save.
+        dispatcher.dispatch(&mut log, "draft:value", "999");
+        dispatcher.set(acts());
+        dispatcher.dispatch(&mut log, "apply", "");
+        assert_eq!(log, ["apply"]);
+        // A caller that wants the typed value kept flushes it first, once.
+        dispatcher.dispatch(&mut log, "draft:value", "5");
+        assert!(dispatcher.flush(&mut log));
+        assert!(!dispatcher.flush(&mut log));
+        assert_eq!(log[1..], ["value=5"]);
     }
 
     #[test]

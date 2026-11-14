@@ -269,9 +269,12 @@ fn pending(form: &mut Form<Editor>, editor: &Editor, session: &EditSession) {
             muted(edit.path.join(".")).mono().size(11.0),
             text(format!("{} → {}", trunc(&edit.original), trunc(&edit.new))).mono().size(11.0).w(330.0),
             button(form.on(format!("pending/tree/{index}"), move |editor, _| editor.reveal_in_tree(target.clone())), "↪ tree").w(70.0).enabled(resolved.is_some()).hint("Reveal this field in the Raw Save Tree"),
-            button(form.on(format!("pending/undo/{index}"), move |editor, _| {
-                if let Some(session) = editor.session.as_mut() { let _ = session.undo(index); }
-            }), "undo").w(60.0),
+            // Undo finds the edit by its path: committing a value typed elsewhere
+            // just before this click can remove an entry and shift the positions.
+            button(form.on(format!("pending/undo/{index}"), { let path = edit.path.clone(); move |editor, _| {
+                let Some(session) = editor.session.as_mut() else { return };
+                if let Some(at) = session.pending().iter().position(|edit| edit.path == path) { let _ = session.undo(at); }
+            }}), "undo").w(60.0),
         ]);
     }
     // The non-scalar changes: `(heading, tone, labels, undo)`.
@@ -366,6 +369,27 @@ pub(crate) mod tests {
         assert!(forms.header.iter().any(|r| r.cells.iter().any(|c| c.text == "Pending changes (1)")));
         fire(&mut editor, "pending/undo/0", "");
         assert_eq!(editor.session.as_ref().unwrap().value(&["X", "y"]).unwrap(), before);
+        assert_eq!(editor.session.as_ref().unwrap().change_count(), 0);
+    }
+
+    #[test]
+    fn undo_reverts_the_clicked_edit_even_when_the_list_shifted() {
+        let mut editor = loaded();
+        let stones = editor.session.as_ref().unwrap().value(&["X", "y"]).unwrap();
+        fire(&mut editor, "set/X.y", "111");
+        fire(&mut editor, "set/X.z", "222");
+        // The undo button of the second row, as rendered while both were staged…
+        let undo_second = build(&editor).acts["pending/undo/1"].clone();
+        // …clicked right after a typed value put the first field back to its
+        // original, which removes that entry and moves the second up.
+        fire(&mut editor, "set/X.y", &stones);
+        assert_eq!(editor.session.as_ref().unwrap().change_count(), 1);
+        undo_second(&mut editor, "");
+        assert_eq!(editor.session.as_ref().unwrap().change_count(), 0, "the clicked edit is the one undone");
+        // A click on an entry that is already gone does nothing.
+        fire(&mut editor, "set/X.z", "333");
+        undo_second(&mut editor, "");
+        undo_second(&mut editor, "");
         assert_eq!(editor.session.as_ref().unwrap().change_count(), 0);
     }
 

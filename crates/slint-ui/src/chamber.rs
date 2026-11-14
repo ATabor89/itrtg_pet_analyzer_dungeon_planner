@@ -165,7 +165,7 @@ pub fn build(app: &AppModel) -> ChamberForms {
     let boost = st.fishing_boost();
     form.row(vec![
         muted("Fish Power:").w(76.0).hint("Boosts all food growth by FishPower^0.25 × milestone, decaying to 0 over the first 30 h of each rebirth. 0 = off."),
-        input(form.on("fish-power", |app, v| if let Some(n) = parse(v) { state(app).fish_power = n.clamp(0.0, 1e15); }), num(st.fish_power)).w(130.0),
+        input(form.on("fish-power", |app, v| if let Some(n) = parse(v) { state(app).fish_power = n.clamp(0.0, 1e15); }), num(st.fish_power)).w(160.0),
         muted("Fishing level:").w(90.0).hint("Milestones: +10% at level 15, another +10% at 27."),
         input(form.on("fishing-level", |app, v| if let Some(n) = parse_u32(v, 0, 100) { state(app).fishing_level = n; }), st.fishing_level.to_string()).w(56.0),
         if boost <= 0.0 { spacer() } else if st.rebirth_enabled {

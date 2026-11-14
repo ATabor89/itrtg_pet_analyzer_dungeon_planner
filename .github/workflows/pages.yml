@@ -30,6 +30,11 @@ jobs:
         with:
           version: latest
 
+      # The Slint front end (crates/slint-ui) links fontconfig on Linux, which
+      # the runner image does not ship the headers for.
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
+
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:

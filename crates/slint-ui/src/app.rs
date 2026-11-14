@@ -62,6 +62,9 @@ impl Session {
         session.pgc_max = session.pgc_max.min(1000);
         session.pgc_done = session.pgc_done.min(session.pgc_max);
         for moai in &mut session.analysis.moai { moai.level = moai.level.min(20); }
+        // The same clamps the egui app applies to a hand-edited state file.
+        let stored = std::mem::take(&mut session.chamber);
+        session.chamber.load_persisted(&stored);
         validate_names(&session.pets)?;
         session.dungeon.validate()?;
         Ok(session)
@@ -168,14 +171,23 @@ impl AppModel {
     }
 
     /// Replace the wiki reference data (a dropped/pasted wiki table or a refresh).
-    pub fn replace_wiki(&mut self, wiki: Vec<WikiPet>) -> Result<usize, String> {
+    /// Returns the pet count and whether anything actually changed.
+    ///
+    /// The wiki's pet table carries no evolution requirements (the extractor
+    /// crawls each pet's own page for those), so the ones already known are kept.
+    pub fn replace_wiki(&mut self, mut wiki: Vec<WikiPet>) -> Result<(usize, bool), String> {
         if wiki.is_empty() { return Err("No pets found in the wiki source. Existing wiki data kept.".into()); }
+        for pet in wiki.iter_mut().filter(|pet| pet.evo_requirements.is_none()) {
+            pet.evo_requirements = self.wiki.iter().find(|known| known.name == pet.name).and_then(|known| known.evo_requirements.clone());
+        }
+        let changed = serde_yaml::to_string(&wiki).ok() != serde_yaml::to_string(&self.wiki).ok();
         let count = wiki.len();
         self.wiki = wiki;
         self.rebuild();
-        Ok(count)
+        Ok((count, changed))
     }
 
+    pub fn wiki(&self) -> &[WikiPet] { &self.wiki }
     pub fn wiki_len(&self) -> usize { self.wiki.len() }
 
     /// Apply a completely decoded projection atomically. Raw save/account identity
@@ -481,6 +493,31 @@ mod tests {
         assert_eq!(app.multiplier(), 1.5);
         assert!(!app.settings().sort_ascending);
         assert!(!app.settings().include_equipment_bonus);
+    }
+
+    #[test]
+    fn replacing_the_wiki_keeps_known_evolution_requirements() {
+        let mut app = example();
+        let known = app.wiki().iter().filter(|pet| pet.evo_requirements.is_some()).count();
+        assert!(known > 100, "the bundled table carries crawled evolution requirements");
+        // A refreshed pet table has none of them (only the extractor's crawl does).
+        let mut fresh = app.wiki().to_vec();
+        for pet in &mut fresh { pet.evo_requirements = None; }
+        assert_eq!(app.replace_wiki(fresh.clone()).unwrap(), (fresh.len(), false), "nothing changed, nothing to write back");
+        assert_eq!(app.wiki().iter().filter(|pet| pet.evo_requirements.is_some()).count(), known);
+        // A real difference is reported, and still keeps what is known.
+        fresh[0].class_bonus.push_str(" (changed)");
+        assert_eq!(app.replace_wiki(fresh.clone()).unwrap(), (fresh.len(), true));
+        assert_eq!(app.wiki().iter().filter(|pet| pet.evo_requirements.is_some()).count(), known);
+        // An empty table is rejected before anything is replaced.
+        assert!(app.replace_wiki(Vec::new()).is_err());
+        assert_eq!(app.wiki_len(), fresh.len());
+    }
+
+    #[test]
+    fn a_stored_session_gets_the_chamber_clamps() {
+        let session = Session::from_yaml("version: 1\nchamber:\n  pgc_done: 99\n  pgc_max: 25\n  hours: 6\n").unwrap();
+        assert_eq!((session.chamber.pgc_done, session.chamber.hours), (25, 6));
     }
 
     #[test]
