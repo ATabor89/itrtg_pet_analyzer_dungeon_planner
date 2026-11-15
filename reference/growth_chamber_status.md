@@ -10,7 +10,8 @@ The chamber lives in two files plus supporting data:
   `simulate_growth_chamber` (the per-cycle loop; takes a `ChamberRun` config),
   `growth_campaign_detailed` (per-pet contributions + recipient),
   `apply_growth_specials` (Pandora/Bag layer), `pandora_pct`,
-  `fishing_boost_pct` + `fishing_decay`, `nightmare_malus`, `rebirth_schedule`,
+  `fishing_boost_pct` + `fishing_decay`, `nightmare_malus`, `dullahan_multiplier`,
+  `rebirth_schedule`,
   and the types `ChamberRun`, `ChamberPet`, `ChamberCycle`, `ChamberResult`,
   `GrowthBreakdown`, `SpecialTotals`, `SpecialPet`.
 - **`crates/gui/src/views/chamber.rs`** — the view. `ChamberState` (persisted
@@ -36,7 +37,9 @@ The chamber lives in two files plus supporting data:
   (`reference/real_growth_campaign/`, test `pandora_egg_real_run_reconciles`).
 - **Special pets** — **Pandora** (boosts the recipient's deposit by its
   growth/feeding %), **Bag** (gifts the global-lowest pet; token-improved = free
-  5%, pre-token = steals 10%), **Nightmare** (subtractive team malus).
+  5%, pre-token = steals 10%), **Nightmare** (subtractive team malus),
+  **Dullahan** (×(1 + 0.005·CL) on its own reward while Nightmare is in the
+  chamber).
   **Bag's Growth bonus is dynamic:** his innate term (lowest unlocked pet's
   growth^0.4, cap 100% — `bag_lowest_pct`) is re-evaluated **each cycle** from
   the roster's end-of-run growth, because the run itself raises the lowest pet
@@ -119,6 +122,15 @@ The chamber lives in two files plus supporting data:
   chamber pet's bonus, floored at 1. Implemented from the wiki — see open items.
   Nightmare's *own* **+200%** comes from `campaign_bonuses.yaml` (`set_all: 200`),
   not a special.
+- **Dullahan pairing** (added 2026-11-15, from the wiki; unvalidated): while a
+  Nightmare is *in the chamber* (a benched one doesn't count), Dullahan's own
+  contribution is multiplied by `1 + 0.005·CL`, applied **after** Nightmare's
+  malus docks its bonus. Folded into its bonus as `(1 + b)·m − 1` so the trace and
+  breakdown stay consistent. Unlike Nightmare/Bag, it reads the **live** CL from
+  its `ChamberClass` when it has one, so mid-run Adventurer level-ups raise it.
+  Its static +77% comes from `campaign_bonuses.yaml`. The malus-then-multiply
+  ordering is the natural reading of "multiplicatively" but hasn't been checked
+  in-game.
 - **Rebirth assumption:** simulate **from the start of a rebirth** (fishing at
   full, Pandora at the entered count). Cycle 0 is a full cycle.
 - **Adventurer class XP / class levels.** In-chamber Adventurers earn campaign

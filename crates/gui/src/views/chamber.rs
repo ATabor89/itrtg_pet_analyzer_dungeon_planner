@@ -489,6 +489,14 @@ fn show_pet_card(
                             format!("−{:.2} to others", nightmare_malus.unwrap_or(0.0)),
                             style::WARNING,
                         )),
+                        // Its reward multiplier only applies alongside Nightmare.
+                        Some(SpecialPet::Dullahan { class_level }) => Some(match nightmare_malus {
+                            Some(_) => (
+                                format!("×{:.3} reward", itrtg_planner::campaign::dullahan_multiplier(class_level)),
+                                style::ACCENT,
+                            ),
+                            None => ("needs Nightmare".into(), style::TEXT_MUTED),
+                        }),
                         None => None,
                     };
                     if let Some((tag, color)) = tag {
