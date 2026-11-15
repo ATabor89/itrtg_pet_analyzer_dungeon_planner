@@ -295,6 +295,13 @@ Decorator Crab:
 Dorgegebelle:
   - when: Always
     set: { Growth: 108, Food: -108 }
+Dullahan:
+  # Infobox: "+77% to All Campaigns". Its special ability (rewards x(1 + 0.005
+  # per CL) when sharing a campaign with Nightmare) multiplies the campaign's
+  # rewards rather than adding to its own bonus — a simulator concern, like
+  # Pandora's Box — so it isn't modelled here.
+  - when: Always
+    set_all: 77
 Duragizer:
   - when: Always
     set_all: 22

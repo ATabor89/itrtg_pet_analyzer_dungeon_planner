@@ -230,10 +230,10 @@ fn show_pet_details(
                 ui.end_row();
 
                 ui.label(RichText::new("Evo Difficulty:").color(style::TEXT_MUTED).size(12.0));
-                let evo = &wiki.evo_difficulty;
+                let evo = wiki.evo_difficulty.as_ref();
                 ui.label(
-                    RichText::new(format!("{} ({})", evo.base, evo.with_conditions))
-                        .color(evo_difficulty_color(evo.base))
+                    RichText::new(itrtg_models::EvoDifficulty::display(evo))
+                        .color(evo.map_or(style::TEXT_MUTED, |e| evo_difficulty_color(e.base)))
                         .size(12.0),
                 );
                 ui.end_row();
@@ -1523,10 +1523,10 @@ fn show_table(ui: &mut Ui, pets: &[&MergedPet], state: &mut AnalyzerState) {
                 // Evo Difficulty (color-coded)
                 row.col(|ui| {
                     if let Some(wiki) = &pet.wiki {
-                        let evo = &wiki.evo_difficulty;
-                        let color = evo_difficulty_color(evo.base);
+                        let evo = wiki.evo_difficulty.as_ref();
+                        let color = evo.map_or(style::TEXT_MUTED, |e| evo_difficulty_color(e.base));
                         ui.label(
-                            RichText::new(format!("{}({})", evo.base, evo.with_conditions))
+                            RichText::new(itrtg_models::EvoDifficulty::display(evo).replace(' ', ""))
                                 .color(color)
                                 .size(12.0),
                         );

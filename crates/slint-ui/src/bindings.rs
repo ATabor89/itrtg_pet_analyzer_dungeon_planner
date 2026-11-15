@@ -78,7 +78,7 @@ impl Controller {
         if rows_changed {
             self.rows.set_vec(visible.iter().map(|pet| PetRow {
                 recommended: app::recommended_class(pet).into(),
-                difficulty: pet.wiki.as_ref().map(|w| format!("{} ({})", w.evo_difficulty.base, w.evo_difficulty.with_conditions).into()).unwrap_or_else(unknown),
+                difficulty: pet.wiki.as_ref().map(|w| itrtg_models::EvoDifficulty::display(w.evo_difficulty.as_ref()).into()).unwrap_or_else(unknown),
                 action: app.action_text(pet).into(),
                 ranking: details::ranking_value(app, pet).into(),
                 status: details::row_status(app, pet).into(),

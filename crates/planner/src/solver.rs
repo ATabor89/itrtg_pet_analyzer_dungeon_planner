@@ -815,12 +815,12 @@ pub fn solve_multi(
                         let evo_a = available[*pi_a]
                             .wiki
                             .as_ref()
-                            .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
+                            .map(|w| EvoDifficulty::sort_key(w.evo_difficulty.as_ref()))
                             .unwrap_or((99, 99));
                         let evo_b = available[*pi_b]
                             .wiki
                             .as_ref()
-                            .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
+                            .map(|w| EvoDifficulty::sort_key(w.evo_difficulty.as_ref()))
                             .unwrap_or((99, 99));
                         let evo_cmp = evo_a.cmp(&evo_b);
                         if evo_cmp != std::cmp::Ordering::Equal {
@@ -1587,8 +1587,8 @@ pub fn suggest_unlocks_for_slot(
     // Sort by unlock difficulty (easiest first), then by evo difficulty
     suggestions.sort_by(|a, b| {
         a.unlock_difficulty.cmp(&b.unlock_difficulty).then_with(|| {
-            let evo_a = a.pet.wiki.as_ref().map(|w| w.evo_difficulty.base).unwrap_or(99);
-            let evo_b = b.pet.wiki.as_ref().map(|w| w.evo_difficulty.base).unwrap_or(99);
+            let evo_a = a.pet.wiki.as_ref().map(|w| EvoDifficulty::sort_key(w.evo_difficulty.as_ref()).0).unwrap_or(99);
+            let evo_b = b.pet.wiki.as_ref().map(|w| EvoDifficulty::sort_key(w.evo_difficulty.as_ref()).0).unwrap_or(99);
             evo_a.cmp(&evo_b)
         })
     });
@@ -1798,7 +1798,7 @@ mod tests {
             recommended_class: rec,
             class_bonus: String::new(),
             unlock_condition: UnlockCondition::PetToken,
-            evo_difficulty: EvoDifficulty { base: evo_base, with_conditions: evo_cond },
+            evo_difficulty: Some(EvoDifficulty { base: evo_base, with_conditions: evo_cond }),
             token_improvable: false,
             special_ability: None,
             evo_requirements: None,

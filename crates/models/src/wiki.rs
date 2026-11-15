@@ -100,6 +100,19 @@ pub struct EvoDifficulty {
     pub with_conditions: u8,
 }
 
+impl EvoDifficulty {
+    /// Sort key for "easiest first": an unrated pet (`None`) sorts last, the
+    /// same as a pet with no wiki entry at all.
+    pub fn sort_key(d: Option<&EvoDifficulty>) -> (u8, u8) {
+        d.map_or((99, 99), |d| (d.base, d.with_conditions))
+    }
+
+    /// Display text, e.g. "3 (5)", or "? (?)" when unrated.
+    pub fn display(d: Option<&EvoDifficulty>) -> String {
+        d.map_or_else(|| "? (?)".to_string(), |d| format!("{} ({})", d.base, d.with_conditions))
+    }
+}
+
 /// A pet's growth threshold to evolve, tagged with *which* growth value the
 /// game checks it against.
 ///
@@ -188,7 +201,9 @@ pub struct WikiPet {
     pub recommended_class: RecommendedClass,
     pub class_bonus: String,
     pub unlock_condition: UnlockCondition,
-    pub evo_difficulty: EvoDifficulty,
+    /// `None` when the wiki doesn't rate it yet (a brand-new pet shows `?(?)`).
+    #[serde(default)]
+    pub evo_difficulty: Option<EvoDifficulty>,
     pub token_improvable: bool,
     pub special_ability: Option<String>,
 

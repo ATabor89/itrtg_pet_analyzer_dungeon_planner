@@ -790,12 +790,12 @@ pub fn filter_and_sort<'a>(
                 let da = a
                     .wiki
                     .as_ref()
-                    .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
+                    .map(|w| itrtg_models::EvoDifficulty::sort_key(w.evo_difficulty.as_ref()))
                     .unwrap_or((99, 99));
                 let db = b
                     .wiki
                     .as_ref()
-                    .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
+                    .map(|w| itrtg_models::EvoDifficulty::sort_key(w.evo_difficulty.as_ref()))
                     .unwrap_or((99, 99));
                 da.cmp(&db).then_with(|| gb.cmp(&ga))
             }
@@ -887,7 +887,7 @@ pub fn time_tiebreak(
             let key = |p: &MergedPet| {
                 p.wiki
                     .as_ref()
-                    .map(|w| (w.evo_difficulty.base, w.evo_difficulty.with_conditions))
+                    .map(|w| itrtg_models::EvoDifficulty::sort_key(w.evo_difficulty.as_ref()))
                     .unwrap_or((99, 99))
             };
             key(a)

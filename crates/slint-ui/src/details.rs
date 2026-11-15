@@ -18,8 +18,8 @@ pub fn sections(app: &AppModel, pet: &MergedPet) -> Vec<(String, String)> {
     let rates = app.rates();
     let mut sections = Vec::new();
     if let Some(w) = &pet.wiki {
-        sections.push(("REFERENCE".into(), format!("Unlock: {}\nEvolution difficulty: {} ({})\nToken improvable: {}\nClass bonus: {}",
-            format_unlock_condition(&w.unlock_condition), w.evo_difficulty.base, w.evo_difficulty.with_conditions,
+        sections.push(("REFERENCE".into(), format!("Unlock: {}\nEvolution difficulty: {}\nToken improvable: {}\nClass bonus: {}",
+            format_unlock_condition(&w.unlock_condition), itrtg_models::EvoDifficulty::display(w.evo_difficulty.as_ref()),
             if w.token_improvable { "Yes" } else { "No" }, w.class_bonus)));
         if let Some(ability) = &w.special_ability { sections.push(("SPECIAL ABILITY".into(), ability.clone())); }
     }

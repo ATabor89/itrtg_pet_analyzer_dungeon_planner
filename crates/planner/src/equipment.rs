@@ -1074,7 +1074,7 @@ accessories:
             recommended_class: RecommendedClass::Wildcard,
             class_bonus: String::new(),
             unlock_condition: UnlockCondition::PetToken,
-            evo_difficulty: EvoDifficulty { base: 1, with_conditions: 1 },
+            evo_difficulty: Some(EvoDifficulty { base: 1, with_conditions: 1 }),
             token_improvable: false,
             special_ability: None,
             evo_requirements: None,

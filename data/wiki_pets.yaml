@@ -2598,6 +2598,34 @@
     other: Have Boar find 300k Pet Stones in Item Camp
   campaign_bonus:
     raw: +111% (Item)
+- name: Dullahan
+  wiki_url: https://itrtg.wiki.gg/wiki/Dullahan
+  element: Neutral
+  recommended_class: !Single Adventurer
+  class_bonus: 1.28% x CL
+  unlock_condition: PetToken
+  evo_difficulty: null
+  token_improvable: false
+  special_ability: Bonus Campaign Rewards when paired with Nightmare
+  evo_requirements:
+    growth: !Total 77777
+    material: 3889 Iron Bars
+    other: Be in the same Campaign as Nightmare for 1000 Hours
+  campaign_bonus:
+    raw: +77% to All Campaigns
+- name: Die/Dice
+  wiki_url: https://itrtg.wiki.gg/wiki/Die/Dice
+  element: Neutral
+  recommended_class: !Single Alchemist
+  class_bonus: 0.64% x CL
+  unlock_condition: PetToken
+  evo_difficulty: null
+  token_improvable: false
+  special_ability: Random ± Production Bonus
+  evo_requirements:
+    growth: !Total 14000
+    material: 700 iron Bar
+    other: Roll 6 in continuous crafting (Material Factory or Alchemy Hut) 5000 times
 - name: Nothing (Other)
   wiki_url: https://itrtg.wiki.gg/wiki/Nothing_(Other)
   element: Neutral
