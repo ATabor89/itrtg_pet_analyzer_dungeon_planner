@@ -227,7 +227,12 @@ fn parse_unlock_condition(cell: &str) -> UnlockCondition {
     UnlockCondition::SpecialTask
 }
 
-fn parse_evo_difficulty(cell: &str) -> EvoDifficulty {
+/// Parse the "Evo Difficulty" cell, e.g. "3(5)" or "3(4-5)".
+///
+/// Returns `None` when the wiki hasn't rated the pet yet: brand-new pets are
+/// listed as `?(?)` until someone works out the difficulty. (This used to fall
+/// back to 1(1), which made unrated pets look like the easiest evolutions.)
+fn parse_evo_difficulty(cell: &str) -> Option<EvoDifficulty> {
     let trimmed = cell.trim();
     let re = Regex::new(r"(\d+)\((\d+)(?:-(\d+))?\)").unwrap();
     if let Some(cap) = re.captures(trimmed) {
@@ -237,16 +242,16 @@ fn parse_evo_difficulty(cell: &str) -> EvoDifficulty {
         } else {
             cap[2].parse().unwrap_or(1)
         };
-        return EvoDifficulty {
+        return Some(EvoDifficulty {
             base,
             with_conditions: cond,
-        };
+        });
     }
-    eprintln!("Warning: couldn't parse evo difficulty '{}', defaulting to 1(1)", trimmed);
-    EvoDifficulty {
-        base: 1,
-        with_conditions: 1,
+    if !trimmed.is_empty() && trimmed.chars().all(|c| matches!(c, '?' | '(' | ')' | ' ')) {
+        return None;
     }
+    eprintln!("Warning: couldn't parse evo difficulty '{}', leaving it unrated", trimmed);
+    None
 }
 
 fn parse_improve(cell: &str) -> bool {
@@ -560,14 +565,14 @@ mod tests {
 
     #[test]
     fn test_parse_evo_difficulty() {
-        let ed = parse_evo_difficulty("3(4-5)");
+        let ed = parse_evo_difficulty("3(4-5)").unwrap();
         assert_eq!(ed.base, 3);
         assert_eq!(ed.with_conditions, 5);
     }
 
     #[test]
     fn test_parse_evo_difficulty_simple() {
-        let ed = parse_evo_difficulty("1(1)");
+        let ed = parse_evo_difficulty("1(1)").unwrap();
         assert_eq!(ed.base, 1);
         assert_eq!(ed.with_conditions, 1);
     }
@@ -671,6 +676,150 @@ mod tests {
         // "None" → no bonus at all.
         let none_html = r#"<b>Campaign Bonus</b></i></td><td><i><b>Special Ability</b></i></td></tr><tr><td colspan="4">None</td></tr>"#;
         assert!(parse_campaign_bonus(none_html).is_none());
+    }
+
+    #[test]
+    fn test_parse_evo_difficulty_unrated() {
+        // New pets are listed as `?(?)` until the wiki rates them.
+        assert_eq!(parse_evo_difficulty("?(?)"), None);
+        assert_eq!(parse_evo_difficulty(" ? "), None);
+    }
+
+    /// Dullahan and Die/Dice (added 2026-10-30), verbatim from the wiki's Pets
+    /// table and pet pages: unrated `?(?)` difficulty and a slash name.
+    #[test]
+    fn test_parse_new_pets_dullahan_and_die() {
+        let source = r#"{| class="wikitable center sortable mw-collapsible"
+|+
+!Pet
+!Name
+!Element
+!Recommended Class
+!data-sort-type="number"|Class Bonus 
+!Unlock Condition
+!Evo Difficulty (Condition)
+!Improve Available
+!Release Date (Y/M/D)
+!Special Ability
+!Patreon / Creator
+|-
+|[[File:Dullahan.png|80px|link=Dullahan]]
+|[[Dullahan]]
+|[[File:neutral.png|30x30px]]
+|Adventurer
+|1.28% x CL
+|Pet Token
+|?(?)
+|
+|2026-10-30
+|Bonus Campaign Rewards when paired with Nightmare
+|
+|-
+|[[File:Die.png|80px|link=Die/Dice]]
+|[[Die/Dice]]
+|[[File:neutral.png|30x30px]]
+|Alchemist
+|0.64% x CL
+|Pet Token
+|?(?)
+|
+|2026-10-30
+|Random ± Production Bonus
+|blarke
+|}"#;
+        let pets = parse_pets(source).unwrap();
+        assert_eq!(pets.len(), 2);
+
+        let dullahan = &pets[0];
+        assert_eq!(dullahan.name, "Dullahan");
+        assert_eq!(dullahan.wiki_url, "https://itrtg.wiki.gg/wiki/Dullahan");
+        assert_eq!(dullahan.element, Element::Neutral);
+        assert_eq!(dullahan.recommended_class, RecommendedClass::Single(Class::Adventurer));
+        assert_eq!(dullahan.unlock_condition, UnlockCondition::PetToken);
+        assert_eq!(dullahan.evo_difficulty, None);
+
+        let die = &pets[1];
+        assert_eq!(die.name, "Die/Dice");
+        assert_eq!(die.wiki_url, "https://itrtg.wiki.gg/wiki/Die/Dice");
+        assert_eq!(die.recommended_class, RecommendedClass::Single(Class::Alchemist));
+        assert_eq!(die.evo_difficulty, None);
+
+        let dullahan_html = r#"<td colspan="4"><i><b>Campaign Bonus</b></i>
+</td>
+<td colspan="4"><i><b>Special Ability</b></i>
+</td></tr>
+<tr>
+<td colspan="4">+77% to All Campaigns
+</td>
+<td colspan="4">Increases the bonus for all campaigns by an extra 1.28% * class level if your class is an adventurer.
+</td></tr>
+<tr>
+<td colspan="4"><i><b>Unlock Criteria</b></i>
+</td>
+<td colspan="4"><i><b>Evolution Requirements</b></i>
+</td></tr>
+<tr>
+<td colspan="4" rowspan="3"><a href="/wiki/Premium_Shop/Items#Pet_Token" title="Premium Shop/Items">Pet Token</a>
+</td>
+<td colspan="2"><b>Total Growth</b>
+</td>
+<td colspan="2">77777
+</td></tr>
+<tr>
+<td colspan="2"><b>Material</b>
+</td>
+<td colspan="2">3889 Iron Bars
+</td></tr>
+<tr>
+<td colspan="2"><b>Other</b>
+</td>
+<td colspan="2">Be in the same Campaign as Nightmare for 1000 Hours
+</td></tr></tbody></table>"#;
+        let evo = parse_evo_requirements(dullahan_html).unwrap();
+        assert_eq!(evo.growth, GrowthRequirement::Total(77777));
+        assert_eq!(evo.material.as_deref(), Some("3889 Iron Bars"));
+        assert_eq!(evo.other.as_deref(), Some("Be in the same Campaign as Nightmare for 1000 Hours"));
+        assert_eq!(parse_campaign_bonus(dullahan_html).unwrap().raw, "+77% to All Campaigns");
+
+        let die_html = r#"<td colspan="4"><i><b>Campaign Bonus</b></i>
+</td>
+<td colspan="4"><i><b>Special Ability</b></i>
+</td></tr>
+<tr>
+<td colspan="4">None.
+</td>
+<td colspan="4">Increases the speed of creating items by an extra (0.64 * class level) if your class is an alchemist.
+</td></tr>
+<tr>
+<td colspan="4"><i><b>Unlock Criteria</b></i>
+</td>
+<td colspan="4"><i><b>Evolution Requirements</b></i>
+</td></tr>
+<tr>
+<td colspan="4" rowspan="3"><a href="/wiki/Premium_Shop/Items#Pet_Token" title="Premium Shop/Items">Pet Token</a>
+</td>
+<td colspan="2"><b>Total Growth</b>
+</td>
+<td colspan="2">14000
+</td></tr>
+<tr>
+<td colspan="2"><b>Material</b>
+</td>
+<td colspan="2">700 iron Bar
+</td></tr>
+<tr>
+<td colspan="2"><b>Other</b>
+</td>
+<td colspan="2">Roll 6 in continuous crafting (<a href="/wiki/Material_Factory" title="Material Factory">Material Factory</a> or <a href="/wiki/Alchemy_Hut" title="Alchemy Hut">Alchemy Hut</a>) 5000 times
+</td></tr></tbody></table>"#;
+        let evo = parse_evo_requirements(die_html).unwrap();
+        assert_eq!(evo.growth, GrowthRequirement::Total(14000));
+        assert_eq!(evo.material.as_deref(), Some("700 iron Bar"));
+        assert_eq!(
+            evo.other.as_deref(),
+            Some("Roll 6 in continuous crafting (Material Factory or Alchemy Hut) 5000 times")
+        );
+        assert!(parse_campaign_bonus(die_html).is_none());
     }
 
     /// One-shot helper: fetch wiki, parse pets, write to data/wiki_pets.yaml.

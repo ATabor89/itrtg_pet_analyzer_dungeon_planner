@@ -892,7 +892,7 @@ mod tests {
             recommended_class: rec_class,
             class_bonus: "0.5% x CL".to_string(),
             unlock_condition: UnlockCondition::PetToken,
-            evo_difficulty: EvoDifficulty { base: 1, with_conditions: 1 },
+            evo_difficulty: Some(EvoDifficulty { base: 1, with_conditions: 1 }),
             token_improvable: false,
             special_ability: None,
             evo_requirements: None,

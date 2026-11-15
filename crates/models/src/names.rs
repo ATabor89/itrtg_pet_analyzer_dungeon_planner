@@ -14,6 +14,9 @@ pub fn export_name_to_wiki_name(export_name: &str) -> Option<&'static str> {
         "Owl" => Some("Feather Pile/Owl"),
         "Raiju" => Some("Thunder Ball/Raiju"),
         "StaleTortilla" => Some("Stale Tortilla/Taco"),
+        // Added 2026-10-30. Which side the export uses isn't confirmed yet, so
+        // map both.
+        "Die" | "Dice" => Some("Die/Dice"),
         // Completely different names
         "Reindeer" => Some("Rudolph"),
         "Pandora" => Some("Pandora's Box"),
@@ -96,6 +99,8 @@ mod tests {
     #[test]
     fn test_resolve_explicit_mappings() {
         assert_eq!(resolve_wiki_name("Egg"), "Egg/Chicken");
+        assert_eq!(resolve_wiki_name("Die"), "Die/Dice");
+        assert_eq!(resolve_wiki_name("Dice"), "Die/Dice");
         assert_eq!(resolve_wiki_name("BHC"), "Black Hole Chan");
         assert_eq!(resolve_wiki_name("Spoon"), "Tödlicher Löffel");
         assert_eq!(resolve_wiki_name("GodPower"), "God Power (Pet)");
