@@ -441,6 +441,9 @@ pub fn chamber_pet(
         }),
         // Reduces every other chamber pet's campaign bonus by (20 − 0.25·CL) pts.
         "Nightmare" => Some(SpecialPet::Nightmare { class_level: export.class_level }),
+        // Multiplies its own reward by (1 + 0.005·CL) while Nightmare shares the
+        // chamber.
+        "Dullahan" => Some(SpecialPet::Dullahan { class_level: export.class_level }),
         _ => None,
     };
     // Class-XP state — only Adventurers earn campaign class XP. The per-level

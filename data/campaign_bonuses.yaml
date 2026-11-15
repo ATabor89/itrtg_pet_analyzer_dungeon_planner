@@ -298,8 +298,8 @@ Dorgegebelle:
 Dullahan:
   # Infobox: "+77% to All Campaigns". Its special ability (rewards x(1 + 0.005
   # per CL) when sharing a campaign with Nightmare) multiplies the campaign's
-  # rewards rather than adding to its own bonus — a simulator concern, like
-  # Pandora's Box — so it isn't modelled here.
+  # rewards rather than adding to its own bonus, so it lives in the Growth
+  # Chamber sim (`SpecialPet::Dullahan`), not here.
   - when: Always
     set_all: 77
 Duragizer:

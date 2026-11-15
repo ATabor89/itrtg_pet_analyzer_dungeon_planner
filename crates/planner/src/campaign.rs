@@ -15,7 +15,8 @@
 //! (Growth, the rebirth half of Multiplier) compute today.
 //!
 //! Not yet modelled (the documented next layers): the **special-pet** effects
-//! (Pandora's Box flat bonus, Bag's steal/gift, Nightmare/Ant Queen GP uncap),
+//! (Pandora's Box flat bonus, Bag's steal/gift, Nightmare/Ant Queen GP uncap,
+//! Dullahan's Nightmare-pairing multiplier),
 //! the per-pet **food tiers** Food needs, and the UI / data wiring. The
 //! growth-**chamber** loop ([`simulate_growth_chamber`]) is included as the first
 //! consumer of the abstraction.
@@ -311,6 +312,23 @@ pub enum SpecialPet {
     /// **other** chamber pet's campaign bonus. (Its own `+200%` self-boost is part
     /// of its campaign bonus already, via the curated rules.)
     Nightmare { class_level: u32 },
+    /// Dullahan — while a Nightmare shares the campaign, its **own** reward is
+    /// multiplied by `1 + 0.005·class_level` (wiki). Applied after Nightmare's
+    /// malus has docked its bonus. With no Nightmare in the chamber it's a
+    /// regular contributor. If it carries a [`ChamberClass`], the sim reads the
+    /// live (mid-run) level instead of this export-time one.
+    Dullahan { class_level: u32 },
+}
+
+/// Dullahan's reward multiplier when paired with Nightmare: `1 + 0.005·CL`.
+pub fn dullahan_multiplier(class_level: u32) -> f64 {
+    1.0 + 0.005 * class_level as f64
+}
+
+/// Fold a multiplier on a pet's whole reward into its bonus percentage, so the
+/// campaign formula's `(1 + bonus)` term carries it: `(1 + b)·m − 1`.
+fn bonus_with_reward_multiplier(bonus_pct: f32, mult: f64) -> f32 {
+    (((1.0 + bonus_pct as f64 / 100.0) * mult - 1.0) * 100.0) as f32
 }
 
 /// The campaign-bonus points Nightmare docks from each *other* pet at a given
@@ -864,8 +882,17 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                             }
                             _ => pets[i].campaign_bonus_pct,
                         };
-                        match nightmare {
+                        let bonus = match nightmare {
                             Some((nm, malus)) if i != nm => bonus - malus as f32,
+                            _ => bonus,
+                        };
+                        // Dullahan's Nightmare pairing multiplies its whole
+                        // reward, on top of the (already malus-docked) bonus.
+                        match pets[i].special {
+                            Some(SpecialPet::Dullahan { class_level }) if nightmare.is_some() => {
+                                let cl = pets[i].class.as_ref().map_or(class_level, |c| c.level);
+                                bonus_with_reward_multiplier(bonus, dullahan_multiplier(cl))
+                            }
                             _ => bonus,
                         }
                     },
@@ -931,8 +958,9 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
                         bag_fraction = if token_improved { 0.05 } else { 0.10 };
                         bag_steals = !token_improved;
                     }
-                    // Nightmare's malus is already folded into the team bonuses above.
-                    Some(SpecialPet::Nightmare { .. }) | None => {}
+                    // Nightmare's malus and Dullahan's pairing multiplier are
+                    // already folded into the team bonuses above.
+                    Some(SpecialPet::Nightmare { .. }) | Some(SpecialPet::Dullahan { .. }) | None => {}
                 }
             }
             let specials = apply_growth_specials(base, pandora, bag_fraction);
@@ -1848,6 +1876,75 @@ mod tests {
         // C's +100% is reduced to +84.25%; Nightmare's own +299% is untouched.
         assert!((contrib(1) - base(5_000.0) * 1.8425).abs() < 1e-4, "C {}", contrib(1));
         assert!((contrib(2) - base(6_000.0) * 3.99).abs() < 1e-4, "N {}", contrib(2));
+    }
+
+    #[test]
+    fn dullahan_multiplies_its_reward_only_when_paired_with_nightmare() {
+        let mk = |name: &str, growth: f64, bonus: f32, special: Option<SpecialPet>| ChamberPet { class: None,
+            name: name.into(),
+            growth,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: bonus,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special,
+        };
+        let base = |g: f64| (log_base(g, 15.0) - 1.75) * 12.0; // UPC 0
+        let dullahan = || mk("D", 5_000.0, 100.0, Some(SpecialPet::Dullahan { class_level: 40 }));
+
+        // Paired: the malus docks D's bonus first (CL 17 → 15.75 pts), then its
+        // whole reward is multiplied by 1 + 0.005·40 = 1.2.
+        let mut pets = vec![
+            mk("R", 1_000.0, 0.0, None),
+            dullahan(),
+            mk("N", 6_000.0, 299.0, Some(SpecialPet::Nightmare { class_level: 17 })),
+        ];
+        let r = simulate_growth_chamber(&mut pets, &ChamberRun::default());
+        let d = r.trace[0].contributions.iter().find(|(i, _)| *i == 1).unwrap().1;
+        assert!((d - base(5_000.0) * 1.8425 * 1.2).abs() < 1e-3, "paired D {d}");
+
+        // Without Nightmare, Dullahan is an ordinary contributor.
+        let mut pets = vec![mk("R", 1_000.0, 0.0, None), dullahan()];
+        let r = simulate_growth_chamber(&mut pets, &ChamberRun::default());
+        let d = r.trace[0].contributions.iter().find(|(i, _)| *i == 1).unwrap().1;
+        assert!((d - base(5_000.0) * 2.0).abs() < 1e-3, "solo D {d}");
+
+        // A benched Nightmare doesn't count: it must share the campaign.
+        let mut benched = mk("N", 6_000.0, 299.0, Some(SpecialPet::Nightmare { class_level: 17 }));
+        benched.in_chamber = false;
+        let mut pets = vec![mk("R", 1_000.0, 0.0, None), dullahan(), benched];
+        let r = simulate_growth_chamber(&mut pets, &ChamberRun::default());
+        let d = r.trace[0].contributions.iter().find(|(i, _)| *i == 1).unwrap().1;
+        assert!((d - base(5_000.0) * 2.0).abs() < 1e-3, "benched-N D {d}");
+    }
+
+    #[test]
+    fn dullahan_reads_its_live_class_level() {
+        // An Adventurer Dullahan carries a ChamberClass; the multiplier follows
+        // its current level (here 60 → ×1.3), not the export-time CL (0).
+        let mk = |name: &str, growth: f64, special: Option<SpecialPet>| ChamberPet { class: None,
+            name: name.into(),
+            growth,
+            growth_multiplier: 1.0,
+            campaign_bonus_pct: 0.0,
+            passive_per_hour: 0.0,
+            food_per_feeding: 0.0,
+            gold_dragon_per_feeding: 0.0,
+            target: None,
+            in_chamber: true,
+            special,
+        };
+        let mut d = mk("D", 5_000.0, Some(SpecialPet::Dullahan { class_level: 0 }));
+        d.class = Some(ChamberClass { level: 60, exp: 0.0, bonus_per_cl: 0.0 });
+        // Nightmare CL 80 → malus floors at 1 point.
+        let mut pets = vec![mk("R", 1_000.0, None), d, mk("N", 6_000.0, Some(SpecialPet::Nightmare { class_level: 80 }))];
+        let r = simulate_growth_chamber(&mut pets, &ChamberRun::default());
+        let got = r.trace[0].contributions.iter().find(|(i, _)| *i == 1).unwrap().1;
+        let base = (log_base(5_000.0, 15.0) - 1.75) * 12.0;
+        assert!((got - base * 0.99 * 1.3).abs() < 1e-3, "D {got}");
     }
 
     #[test]

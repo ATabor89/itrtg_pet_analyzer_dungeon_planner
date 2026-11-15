@@ -227,6 +227,11 @@ pub fn build(app: &AppModel) -> ChamberForms {
             Some(SpecialPet::Pandora { .. }) => text("amplifies deposit").tone(Tone::Accent),
             Some(SpecialPet::Bag { .. }) => text("gifts the lowest").tone(Tone::Accent),
             Some(SpecialPet::Nightmare { .. }) => text(format!("\u{2212}{:.2} to others", malus.unwrap_or(0.0))).tone(Tone::Warning),
+            // Its reward multiplier only applies alongside Nightmare.
+            Some(SpecialPet::Dullahan { class_level }) => match malus {
+                Some(_) => text(format!("\u{00D7}{:.3} reward", itrtg_planner::campaign::dullahan_multiplier(class_level))).tone(Tone::Accent),
+                None => text("needs Nightmare").tone(Tone::Muted),
+            },
             None => spacer(),
         };
         form.row(vec![text(name.as_str()).tone(Tone::Bright).size(13.0), tag.size(10.0).w(104.0)]);
