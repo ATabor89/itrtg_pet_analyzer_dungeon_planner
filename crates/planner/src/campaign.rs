@@ -14,12 +14,11 @@
 //! light up automatically once a stats source lands. Stat-independent campaigns
 //! (Growth, the rebirth half of Multiplier) compute today.
 //!
-//! Not yet modelled (the documented next layers): the **special-pet** effects
-//! (Pandora's Box flat bonus, Bag's steal/gift, Nightmare/Ant Queen GP uncap,
-//! Dullahan's Nightmare-pairing multiplier),
-//! the per-pet **food tiers** Food needs, and the UI / data wiring. The
-//! growth-**chamber** loop ([`simulate_growth_chamber`]) is included as the first
-//! consumer of the abstraction.
+//! The **special-pet** effects (Pandora, Bag, Nightmare's malus, Dullahan's
+//! Nightmare pairing) are modelled only inside the growth-**chamber** loop
+//! ([`simulate_growth_chamber`]), the first consumer of the abstraction. Not yet
+//! modelled: the Nightmare/Ant Queen GP uncap, the per-pet **food tiers** Food
+//! needs, and the remaining UI / data wiring.
 
 use itrtg_models::CampaignType;
 
@@ -918,7 +917,8 @@ pub fn simulate_growth_chamber(pets: &mut [ChamberPet], run: &ChamberRun) -> Cha
             // `flat_bonus_pct`) and Nightmare (reads its export CL) don't use for
             // their special term — so a special pet's mid-run level-up shows in the
             // report but doesn't raise its special bonus. Regular contributors are
-            // unaffected.
+            // unaffected, and so is Dullahan, which reads its live `ChamberClass`
+            // level for the pairing multiplier.
             if adv_xp_mult > 0.0 {
                 for &i in &chamber_idx {
                     let Some(per_cl) = pets[i].class.as_ref().map(|c| c.bonus_per_cl) else {
