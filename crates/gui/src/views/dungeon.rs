@@ -7,7 +7,7 @@ use eframe::egui::{self, Color32, RichText, CornerRadius, Stroke, StrokeKind, Ui
 use itrtg_models::dungeon::{DungeonRecommendations, EquipmentCatalog, EventEntry};
 use itrtg_models::Quality;
 use itrtg_models::{normalize_for_lookup, Dungeon, Element};
-use itrtg_planner::difficulty::{self, DepthDifficulty, MimicStatus, TeamLevels};
+use itrtg_planner::difficulty::{self, MimicKind, MimicOutlook, MimicStatus, TeamLevels};
 use itrtg_planner::equipment::{self, EquipmentSource};
 use itrtg_planner::solver::{
     self, Assignment, CoverageKind, DungeonPlan, DungeonRequest, MatchQuality, SolverConstraints,
@@ -34,7 +34,8 @@ struct DungeonEntry {
     label: &'static str,
     enabled: bool,
     depth: u8,
-    /// Whether this team farms D3 mimics (lowers its D3 difficulty).
+    /// Whether this team farms mimics at its depth: D3 mimics or D4 Ancient
+    /// Mimics (lowers that depth's difficulty).
     mimics: bool,
     /// Whether the requirements/party preview is expanded.
     show_preview: bool,
@@ -44,8 +45,10 @@ struct DungeonEntry {
 pub struct DungeonState {
     /// Selection and depth for each dungeon. Initialized on first frame.
     entries: Vec<DungeonEntry>,
-    /// Difficulty levels dropped for teams farming mimics.
+    /// Difficulty levels dropped for teams farming D3 mimics.
     mimic_offset: u8,
+    /// Difficulty levels dropped for teams farming D4 Ancient Mimics.
+    ancient_mimic_offset: u8,
     /// Solved plans, keyed by dungeon. Regenerated on Solve.
     plans: Vec<DungeonPlan>,
     initialized: bool,
@@ -143,6 +146,7 @@ impl DungeonState {
             })
             .collect();
         self.mimic_offset = difficulty::DEFAULT_MIMIC_OFFSET;
+        self.ancient_mimic_offset = difficulty::DEFAULT_MIMIC_OFFSET;
         self.force_dungeon = None; // Default: solver picks best team
         self.force_slot = None; // Default: solver picks best slot
         self.constraints_enabled = true; // Default: constraints active
@@ -242,6 +246,10 @@ impl DungeonState {
             .mimic_offset
             .unwrap_or(difficulty::DEFAULT_MIMIC_OFFSET)
             .min(difficulty::MAX_MIMIC_OFFSET);
+        self.ancient_mimic_offset = state
+            .ancient_mimic_offset
+            .unwrap_or(difficulty::DEFAULT_MIMIC_OFFSET)
+            .min(difficulty::MAX_MIMIC_OFFSET);
 
         // Inventory is copied wholesale — order is irrelevant to the solver.
         self.equipment_inventory = state.inventory.iter().map(|(k, v)| (k.clone(), *v)).collect();
@@ -299,6 +307,8 @@ impl DungeonState {
             .collect();
         state.mimic_offset = (self.mimic_offset != difficulty::DEFAULT_MIMIC_OFFSET)
             .then_some(self.mimic_offset);
+        state.ancient_mimic_offset = (self.ancient_mimic_offset != difficulty::DEFAULT_MIMIC_OFFSET)
+            .then_some(self.ancient_mimic_offset);
 
         // Inventory → BTreeMap for sorted iteration on serialize.
         state.inventory = self
@@ -476,17 +486,28 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                     }
                 }
 
-                // Mimics only spawn in D3 rooms, so the toggle needs D3+.
+                // Mimics spawn in D3 rooms, Ancient Mimics in D4 rooms; the
+                // toggle means whichever the chosen depth has.
+                let kind = MimicKind::for_depth(entry.depth);
+                let label = if kind == Some(MimicKind::Ancient) { "Ancient Mimics" } else { "Mimics" };
                 ui.add_space(4.0);
                 ui.add_enabled(
-                    entry.enabled && entry.depth >= difficulty::MIMIC_DEPTH,
-                    egui::Checkbox::new(&mut entry.mimics, RichText::new("Mimics").size(12.0)),
+                    entry.enabled && kind.is_some(),
+                    egui::Checkbox::new(&mut entry.mimics, RichText::new(label).size(12.0)),
                 )
-                .on_hover_text(
-                    "This team carries Nothing items to fight D3 mimics. Its D3 difficulty \
-                     is lowered by the mimic offset below.",
-                )
-                .on_disabled_hover_text("Mimics spawn in Depth 3 rooms; pick D3 or deeper.");
+                .on_hover_text(match kind {
+                    Some(k) => format!(
+                        "This team carries {} items to fight {} at D{}. That depth's difficulty is \
+                         lowered by the offset below.",
+                        k.lure(),
+                        k.name(),
+                        entry.depth
+                    ),
+                    None => String::new(),
+                })
+                .on_disabled_hover_text(
+                    "Mimics spawn in Depth 3 rooms and Ancient Mimics in Depth 4 rooms; pick D3 or D4.",
+                );
 
                 // Preview toggle
                 let preview_label = if entry.show_preview { "▼ Preview" } else { "▶ Preview" };
@@ -517,7 +538,15 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
                     .range(0..=difficulty::MAX_MIMIC_OFFSET)
                     .suffix(" levels"),
             )
-            .on_hover_text(difficulty::mimic_rule_text(state.mimic_offset));
+            .on_hover_text(difficulty::mimic_rule_text(MimicKind::Mimic, state.mimic_offset));
+            ui.add_space(8.0);
+            ui.label(RichText::new("Ancient Mimic offset:").color(style::TEXT_MUTED).size(12.0));
+            ui.add(
+                egui::DragValue::new(&mut state.ancient_mimic_offset)
+                    .range(0..=difficulty::MAX_MIMIC_OFFSET)
+                    .suffix(" levels"),
+            )
+            .on_hover_text(difficulty::mimic_rule_text(MimicKind::Ancient, state.ancient_mimic_offset));
         });
     });
 
@@ -2068,44 +2097,49 @@ fn show_unavoidable_hazards(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
 }
 
 impl DungeonState {
-    fn mimics_enabled(&self, dungeon: Dungeon) -> bool {
-        // A toggle left on after dropping below D3 is ignored.
-        self.entries
+    fn mimic_offset_for(&self, kind: MimicKind) -> u8 {
+        match kind {
+            MimicKind::Mimic => self.mimic_offset,
+            MimicKind::Ancient => self.ancient_mimic_offset,
+        }
+    }
+
+    /// The plan's mimic outlook at its own depth (D3 mimics, D4 Ancient
+    /// Mimics). The toggle counts only while the dungeon is still set to that
+    /// depth, so a stale plan doesn't pick up a toggle meant for another depth.
+    fn mimic_outlook(&self, plan: &DungeonPlan, data: &DataStore) -> Option<MimicOutlook> {
+        let kind = MimicKind::for_depth(plan.depth)?;
+        let reqs = &data
+            .dungeon_recs
+            .as_ref()?
+            .dungeons
+            .get(&plan.dungeon)?
+            .depths
+            .get(&plan.depth)?
+            .requirements;
+        let enabled = self
+            .entries
             .iter()
-            .any(|e| e.dungeon == dungeon && e.mimics && e.depth >= difficulty::MIMIC_DEPTH)
+            .any(|e| e.dungeon == plan.dungeon && e.mimics && e.depth == plan.depth);
+        difficulty::mimic_outlook(plan, reqs, enabled, self.mimic_offset_for(kind))
     }
 }
 
-/// The D3 difficulty estimate for a plan's team, when the plan reaches D3.
-fn d3_difficulty(plan: &DungeonPlan, data: &DataStore) -> Option<DepthDifficulty> {
-    if plan.depth < difficulty::MIMIC_DEPTH {
-        return None;
-    }
-    let reqs = &data
-        .dungeon_recs
-        .as_ref()?
-        .dungeons
-        .get(&plan.dungeon)?
-        .depths
-        .get(&difficulty::MIMIC_DEPTH)?
-        .requirements;
-    let team = TeamLevels::from_exports(&difficulty::team_exports(plan));
-    Some(difficulty::depth_difficulty(&team, difficulty::MIMIC_DEPTH, reqs))
-}
-
-/// Call out D3 teams that have mimics off but could farm them at
+/// Call out D3/D4 teams that have mimics off but could farm them at
 /// difficulty 1 or more.
 fn show_mimic_ready_summary(ui: &mut Ui, state: &DungeonState, data: &DataStore) {
     let ready: Vec<String> = state
         .plans
         .iter()
-        .filter(|plan| plan.depth == difficulty::MIMIC_DEPTH)
         .filter_map(|plan| {
-            let d3 = d3_difficulty(plan, data)?;
-            match MimicStatus::new(&d3, state.mimics_enabled(plan.dungeon), state.mimic_offset) {
-                MimicStatus::Ready { difficulty } => {
-                    Some(format!("{} (difficulty {difficulty})", dungeon_label(plan.dungeon)))
-                }
+            let outlook = state.mimic_outlook(plan, data)?;
+            match outlook.status {
+                MimicStatus::Ready { difficulty } => Some(format!(
+                    "{} D{} {} (difficulty {difficulty})",
+                    dungeon_label(plan.dungeon),
+                    plan.depth,
+                    outlook.kind.name()
+                )),
                 _ => None,
             }
         })
@@ -2114,14 +2148,15 @@ fn show_mimic_ready_summary(ui: &mut Ui, state: &DungeonState, data: &DataStore)
         return;
     }
     ui.label(
-        RichText::new(format!("Ready to farm mimics: {}", ready.join(", ")))
+        RichText::new(format!("Ready to farm: {}", ready.join(", ")))
             .color(style::SUCCESS)
             .size(13.0)
             .strong(),
     )
     .on_hover_text(format!(
-        "Turn on Mimics for these dungeons under Select Dungeons. {}",
-        difficulty::mimic_rule_text(state.mimic_offset)
+        "Turn on the mimic toggle for these dungeons under Select Dungeons.\n\n{}\n\n{}",
+        difficulty::mimic_rule_text(MimicKind::Mimic, state.mimic_offset),
+        difficulty::mimic_rule_text(MimicKind::Ancient, state.ancient_mimic_offset)
     ));
     ui.add_space(6.0);
 }
@@ -2161,8 +2196,7 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: 
     // Difficulty recommendations per sub-depth
     let Some(recs) = &data.dungeon_recs else { return };
     let Some(dungeon_data) = recs.dungeons.get(&plan.dungeon) else { return };
-    let mimics_on = state.mimics_enabled(plan.dungeon);
-    let mut mimic_status = None;
+    let outlook = state.mimic_outlook(plan, data);
 
     ui.horizontal(|ui| {
         ui.label(RichText::new("Difficulty:").color(style::TEXT_MUTED).size(12.0).strong());
@@ -2171,23 +2205,23 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: 
             let Some(dd) = dungeon_data.depths.get(&depth) else { continue };
             let est = difficulty::depth_difficulty(&team, depth, &dd.requirements);
 
-            // With mimics on, D3 shows the mimic difficulty instead.
+            // With mimics on, the plan's own depth shows the mimic difficulty.
             let mut max_diff = est.difficulty;
             let mut suffix = String::new();
-            if depth == difficulty::MIMIC_DEPTH {
-                let status = MimicStatus::new(&est, mimics_on, state.mimic_offset);
-                match status {
+            if depth == plan.depth
+                && let Some(o) = &outlook
+            {
+                match o.status {
                     MimicStatus::Enabled { difficulty } => {
                         max_diff = difficulty;
-                        suffix = format!(" w/ mimics ({} without)", est.difficulty);
+                        suffix = format!(" w/ {} ({} without)", o.kind.name(), est.difficulty);
                     }
                     MimicStatus::TooWeak => {
                         max_diff = 0;
-                        suffix = format!(" too weak for mimics ({} without)", est.difficulty);
+                        suffix = format!(" too weak for {} ({} without)", o.kind.name(), est.difficulty);
                     }
                     MimicStatus::Ready { .. } | MimicStatus::NotYet => {}
                 }
-                mimic_status = Some(status);
             }
 
             let diff_color = if max_diff >= 8 {
@@ -2227,34 +2261,45 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: 
         }
     });
 
-    // Mimic notes: readiness when off, neutral-element caution when relevant.
-    let ready_at = match mimic_status {
-        Some(MimicStatus::Ready { difficulty: d }) if plan.depth == difficulty::MIMIC_DEPTH => Some(d),
-        _ => None,
-    };
-    if let Some(d) = ready_at {
-        ui.label(
-            RichText::new(format!(
-                "Mimics ready: this team could farm D3 mimics at difficulty {d}. \
-                 Turn on Mimics and bring Nothing items."
-            ))
-            .color(style::SUCCESS)
-            .size(12.0),
-        )
-        .on_hover_text(difficulty::mimic_rule_text(state.mimic_offset));
-    }
-    if mimics_on || ready_at.is_some() {
-        let weak = difficulty::neutral_weak_pets(&exports);
-        if !weak.is_empty() {
+    // Mimic notes: readiness when off, aura limit and neutral-element
+    // caution when relevant.
+    if let Some(o) = &outlook {
+        let kind = o.kind;
+        let offset = state.mimic_offset_for(kind);
+        let ready = matches!(o.status, MimicStatus::Ready { .. });
+        if let MimicStatus::Ready { difficulty: d } = o.status {
             ui.label(
                 RichText::new(format!(
-                    "Mimics are Neutral: {} {} an element at 0 or below in current gear.",
-                    weak.join(", "),
-                    if weak.len() == 1 { "has" } else { "have" }
+                    "Ready: this team could farm {} at difficulty {d}. Turn on the toggle and bring {} items.",
+                    kind.name(),
+                    kind.lure()
                 ))
-                .color(style::WARNING)
-                .size(11.0),
-            );
+                .color(style::SUCCESS)
+                .size(12.0),
+            )
+            .on_hover_text(difficulty::mimic_rule_text(kind, offset));
+        }
+        let on = matches!(o.status, MimicStatus::Enabled { .. } | MimicStatus::TooWeak);
+        if (on || ready)
+            && let Some(note) = difficulty::aura_note(&o.estimate)
+        {
+            ui.label(RichText::new(note).color(style::TEXT_MUTED).size(11.0))
+                .on_hover_text(difficulty::mimic_rule_text(kind, offset));
+        }
+        if (on || ready) && kind.is_neutral_in(plan.dungeon) {
+            let weak = difficulty::neutral_weak_pets(&exports);
+            if !weak.is_empty() {
+                ui.label(
+                    RichText::new(format!(
+                        "{} here are Neutral: {} {} an element at 0 or below in current gear.",
+                        kind.name(),
+                        weak.join(", "),
+                        if weak.len() == 1 { "has" } else { "have" }
+                    ))
+                    .color(style::WARNING)
+                    .size(11.0),
+                );
+            }
         }
     }
 

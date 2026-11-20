@@ -11,6 +11,7 @@ export component DungeonView inherits Rectangle {
     in property <bool> constraints-enabled;
     in property <bool> dirty;
     in property <int> mimic-offset;
+    in property <int> ancient-mimic-offset;
     in property <[DungeonChoice]> choices;
     in property <[DungeonEvent]> events;
     in property <[DungeonResult]> results;
@@ -48,8 +49,8 @@ export component DungeonView inherits Rectangle {
                     CheckBox { text: choice.name; width: 200px; checked: choice.selected; enabled: root.enabled; toggled => { root.change("selected",i,self.checked ? 1 : 0); } }
                     Caption { text: "Depth"; vertical-alignment: center; }
                     SpinBox { value: choice.depth; minimum: 1; maximum: 4; enabled: root.enabled; edited(v) => { root.change("depth",i,v); } }
-                    // 3 = difficulty::MIMIC_DEPTH (mimics spawn only in D3 rooms).
-                    CheckBox { text: "Mimics"; checked: choice.mimics; enabled: root.enabled && choice.selected && choice.depth >= 3; toggled => { root.change("mimics",i,self.checked ? 1 : 0); } }
+                    // 3/4 = difficulty::MIMIC_DEPTH / ANCIENT_MIMIC_DEPTH (mimics spawn in D3 rooms, Ancient Mimics in D4).
+                    CheckBox { text: choice.depth >= 4 ? "Ancient Mimics" : "Mimics"; checked: choice.mimics; enabled: root.enabled && choice.selected && choice.depth >= 3; toggled => { root.change("mimics",i,self.checked ? 1 : 0); } }
                     Caption { text: "Minimum tier"; vertical-alignment: center; }
                     SpinBox { value: choice.tier; minimum: choice.depth; maximum: 4; enabled: root.enabled; edited(v) => { root.change("tier",i,v); } }
                     ComboBox { model: ["S", "SS", "SSS"]; current-index: choice.quality; enabled: root.enabled; accessible-label: "Equipment quality"; selected(v) => { root.change("quality",i,self.current-index); } }
@@ -58,9 +59,11 @@ export component DungeonView inherits Rectangle {
                 }
             }
             HorizontalBox { padding: 0px; height: 36px; spacing: 10px;
-                Caption { text: "Mimic offset (difficulty levels dropped for teams farming D3 mimics)"; vertical-alignment: center; }
+                Caption { text: "Difficulty levels dropped for D3 Mimics"; vertical-alignment: center; }
                 // 6 = difficulty::MAX_MIMIC_OFFSET; Rust clamps it too.
                 SpinBox { value: root.mimic-offset; minimum: 0; maximum: 6; enabled: root.enabled; edited(v) => { root.change("mimic-offset",0,v); } }
+                Caption { text: "D4 Ancient Mimics"; vertical-alignment: center; }
+                SpinBox { value: root.ancient-mimic-offset; minimum: 0; maximum: 6; enabled: root.enabled; edited(v) => { root.change("ancient-mimic-offset",0,v); } }
                 Rectangle { horizontal-stretch: 1; }
             }
             for section in root.preview: SectionCard { title: section.title; body: section.body; }

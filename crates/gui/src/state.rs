@@ -44,6 +44,9 @@ pub struct AppState {
     /// `None` = the default (`difficulty::DEFAULT_MIMIC_OFFSET`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mimic_offset: Option<u8>,
+    /// Same for D4 Ancient Mimics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ancient_mimic_offset: Option<u8>,
     pub analyzer: AnalyzerState,
     pub chamber: ChamberState,
 }

@@ -67,6 +67,7 @@ export component MainWindow inherits Window {
     in property <[string]> dungeon-pets;
     in property <bool> dungeon-dirty;
     in property <int> dungeon-mimic-offset;
+    in property <int> dungeon-ancient-mimic-offset;
     in property <bool> dungeon-constraints-enabled;
     in-out property <string> dungeon-transfer;
     callback dungeon-change(string,int,int);
@@ -186,7 +187,7 @@ export component MainWindow inherits Window {
         if root.active-view == 2: DungeonView {
             enabled: !root.modal-open; choices: root.dungeon-choices; events: root.dungeon-events;
             results: root.dungeon-results; shopping: root.dungeon-shopping; teams: root.dungeon-teams; preview: root.dungeon-preview; constraints: root.dungeon-constraints;
-            pet-names: root.dungeon-pets; dirty: root.dungeon-dirty; mimic-offset: root.dungeon-mimic-offset; constraints-enabled: root.dungeon-constraints-enabled;
+            pet-names: root.dungeon-pets; dirty: root.dungeon-dirty; mimic-offset: root.dungeon-mimic-offset; ancient-mimic-offset: root.dungeon-ancient-mimic-offset; constraints-enabled: root.dungeon-constraints-enabled;
             transfer <=> root.dungeon-transfer;
             change(k,i,v) => { root.dungeon-change(k,i,v); }
             constrain(k,n,d,s) => { root.dungeon-constrain(k,n,d,s); }
