@@ -59,10 +59,10 @@ export component DungeonView inherits Rectangle {
                 }
             }
             HorizontalBox { padding: 0px; height: 36px; spacing: 10px;
-                Caption { text: "Difficulty levels dropped for D3 Mimics"; vertical-alignment: center; }
+                Caption { text: "D3 Mimic offset"; vertical-alignment: center; }
                 // 6 = difficulty::MAX_MIMIC_OFFSET; Rust clamps it too.
                 SpinBox { value: root.mimic-offset; minimum: 0; maximum: 6; enabled: root.enabled; edited(v) => { root.change("mimic-offset",0,v); } }
-                Caption { text: "D4 Ancient Mimics"; vertical-alignment: center; }
+                Caption { text: "D4 Ancient Mimic offset"; vertical-alignment: center; }
                 SpinBox { value: root.ancient-mimic-offset; minimum: 0; maximum: 6; enabled: root.enabled; edited(v) => { root.change("ancient-mimic-offset",0,v); } }
                 Rectangle { horizontal-stretch: 1; }
             }

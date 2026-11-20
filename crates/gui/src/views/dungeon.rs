@@ -532,7 +532,7 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
 
         ui.add_space(2.0);
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Mimic offset:").color(style::TEXT_MUTED).size(12.0));
+            ui.label(RichText::new("D3 Mimic offset:").color(style::TEXT_MUTED).size(12.0));
             ui.add(
                 egui::DragValue::new(&mut state.mimic_offset)
                     .range(0..=difficulty::MAX_MIMIC_OFFSET)
@@ -540,7 +540,7 @@ pub fn show(ui: &mut Ui, state: &mut DungeonState, data: &DataStore) {
             )
             .on_hover_text(difficulty::mimic_rule_text(MimicKind::Mimic, state.mimic_offset));
             ui.add_space(8.0);
-            ui.label(RichText::new("Ancient Mimic offset:").color(style::TEXT_MUTED).size(12.0));
+            ui.label(RichText::new("D4 Ancient Mimic offset:").color(style::TEXT_MUTED).size(12.0));
             ui.add(
                 egui::DragValue::new(&mut state.ancient_mimic_offset)
                     .range(0..=difficulty::MAX_MIMIC_OFFSET)
