@@ -1,5 +1,5 @@
 //! Dungeon difficulty estimates shared by the front ends, including the
-//! Depth 3 mimic adjustment.
+//! Depth 3 mimic and Depth 4 Ancient Mimic adjustments.
 //!
 //! A depth's difficulty is the team's average dungeon level above the depth's
 //! requirement, divided by the depth's (conservative) levels-per-difficulty.
@@ -15,9 +15,14 @@
 //! the mimic difficulty is the headroom minus a user-tunable offset
 //! ([`DEFAULT_MIMIC_OFFSET`]). Because Neutral enemies punish negative element
 //! values, [`neutral_weak_pets`] lists the team members the wiki would flag.
+//!
+//! Ancient Mimics are the Depth 4 version (lured by a Not Nothing). The wiki
+//! does give their stats, so on top of the same offset rule the estimate is
+//! capped by their defense-ignoring frozen aura against the team's weakest
+//! pet ([`aura_check`]); a token-improved Cat negates the aura.
 
 use itrtg_models::dungeon::DepthRequirements;
-use itrtg_models::ExportPet;
+use itrtg_models::{Dungeon, ExportPet};
 
 use crate::solver::{Assignment, DungeonPlan};
 
@@ -104,11 +109,6 @@ pub fn mimic_difficulty(headroom: i64, offset: u8) -> Option<u8> {
     (v >= 0).then(|| clamp_difficulty(v))
 }
 
-/// Whether mimics would be worth turning on: viable at difficulty 1 or more.
-pub fn mimics_ready(headroom: i64, offset: u8) -> bool {
-    mimic_difficulty(headroom, offset).is_some_and(|d| d >= MIN_MIMIC_DIFFICULTY)
-}
-
 /// Names (export names) of team members with a Water/Fire/Wind/Earth value of
 /// 0 or below in their current gear. The wiki calls all elements above 0
 /// "almost necessary" against Neutral enemies like mimics.
@@ -123,7 +123,122 @@ pub fn neutral_weak_pets<'a>(exports: &[&'a ExportPet]) -> Vec<&'a str> {
         .collect()
 }
 
-/// The D3 mimic outlook for a team, for display.
+/// Which mimic a depth spawns: plain mimics in D3 (lured by a Nothing),
+/// Ancient Mimics in D4 (lured by a Not Nothing).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MimicKind {
+    Mimic,
+    Ancient,
+}
+
+impl MimicKind {
+    pub fn for_depth(depth: u8) -> Option<Self> {
+        match depth {
+            MIMIC_DEPTH => Some(Self::Mimic),
+            ANCIENT_MIMIC_DEPTH => Some(Self::Ancient),
+            _ => None,
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Mimic => "Mimics",
+            Self::Ancient => "Ancient Mimics",
+        }
+    }
+    pub fn lure(self) -> &'static str {
+        match self {
+            Self::Mimic => "Nothing",
+            Self::Ancient => "Not Nothing",
+        }
+    }
+    /// Whether the enemy is Neutral, so negative elements hurt. Plain mimics
+    /// always are; Ancient Mimics only in the Scrapyard (elsewhere they take a
+    /// dungeon element and, per the wiki, have no elemental weakness).
+    pub fn is_neutral_in(self, dungeon: Dungeon) -> bool {
+        match self {
+            Self::Mimic => true,
+            Self::Ancient => dungeon == Dungeon::Scrapyard,
+        }
+    }
+}
+
+/// The only depth where Ancient Mimics spawn.
+pub const ANCIENT_MIMIC_DEPTH: u8 = 4;
+/// Ancient Mimic Attack at difficulty 0 (wiki: Dungeons#Ancient_Mimics).
+pub const ANCIENT_MIMIC_BASE_ATTACK: f64 = 150_000.0;
+/// Ancient Mimic stats grow 40% per difficulty level, compounding.
+pub const ANCIENT_MIMIC_GROWTH: f64 = 1.4;
+/// The frozen aura hits every pet at the start of each turn for this share of
+/// the Ancient Mimic's Attack, ignoring defense.
+pub const ANCIENT_MIMIC_AURA_SHARE: f64 = 0.2;
+/// Planner heuristic, not a game rule: run Ancient Mimics no higher than the
+/// difficulty where one aura tick is at most this share of the weakest pet's
+/// max HP (about four turns of aura before healing is needed).
+pub const AURA_HP_SHARE_LIMIT: f64 = 0.25;
+
+/// Frozen-aura damage per turn at a difficulty, without event boosts (some D4
+/// events raise it by half). Matches the wiki's table: 30,000 at 0, 115,248
+/// at 4, 867,764 at 10.
+pub fn ancient_mimic_aura(difficulty: u8) -> u64 {
+    (ANCIENT_MIMIC_BASE_ATTACK * ANCIENT_MIMIC_AURA_SHARE * ANCIENT_MIMIC_GROWTH.powi(i32::from(difficulty)))
+        .round() as u64
+}
+
+/// How the Ancient Mimic frozen aura limits a team.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuraCheck {
+    /// Plain mimics have no aura.
+    NotApplicable,
+    /// A token-improved Cat in the team negates the aura.
+    NegatedByCat,
+    /// The highest difficulty whose aura stays within [`AURA_HP_SHARE_LIMIT`]
+    /// of the weakest pet's max HP (`None` when not even difficulty 0 does).
+    Limited { max_difficulty: Option<u8>, weakest: String, weakest_hp: i64 },
+}
+
+pub fn aura_check(kind: MimicKind, exports: &[&ExportPet]) -> AuraCheck {
+    if kind == MimicKind::Mimic {
+        return AuraCheck::NotApplicable;
+    }
+    if exports.iter().any(|e| e.improved && e.export_name.eq_ignore_ascii_case("Cat")) {
+        return AuraCheck::NegatedByCat;
+    }
+    // Pets with no HP in the export (missing stats) don't count.
+    let Some(weakest) = exports.iter().filter(|e| e.combat_stats.hp > 0).min_by_key(|e| e.combat_stats.hp) else {
+        return AuraCheck::Limited { max_difficulty: None, weakest: String::new(), weakest_hp: 0 };
+    };
+    let budget = weakest.combat_stats.hp as f64 * AURA_HP_SHARE_LIMIT;
+    let max_difficulty = (0..=MAX_DIFFICULTY).rev().find(|d| ancient_mimic_aura(*d) as f64 <= budget);
+    AuraCheck::Limited {
+        max_difficulty,
+        weakest: weakest.export_name.clone(),
+        weakest_hp: weakest.combat_stats.hp,
+    }
+}
+
+/// The difficulty a team should run its depth's mimics at.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MimicEstimate {
+    pub kind: MimicKind,
+    /// Headroom minus the offset, before the aura limit.
+    pub by_level: Option<u8>,
+    pub aura: AuraCheck,
+    /// The recommendation: `by_level`, lowered to the aura limit if any.
+    /// `None` when the team can't take them even at difficulty 0.
+    pub difficulty: Option<u8>,
+}
+
+pub fn mimic_estimate(kind: MimicKind, headroom: i64, offset: u8, exports: &[&ExportPet]) -> MimicEstimate {
+    let by_level = mimic_difficulty(headroom, offset);
+    let aura = aura_check(kind, exports);
+    let difficulty = match &aura {
+        AuraCheck::Limited { max_difficulty, .. } => by_level.zip(*max_difficulty).map(|(a, b)| a.min(b)),
+        _ => by_level,
+    };
+    MimicEstimate { kind, by_level, aura, difficulty }
+}
+
+/// A team's mimic outlook, for display.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MimicStatus {
     /// Mimics are on and the team can run them at this difficulty.
@@ -137,8 +252,8 @@ pub enum MimicStatus {
 }
 
 impl MimicStatus {
-    pub fn new(d3: &DepthDifficulty, enabled: bool, offset: u8) -> Self {
-        match (enabled, mimic_difficulty(d3.headroom, offset)) {
+    pub fn new(estimate: &MimicEstimate, enabled: bool) -> Self {
+        match (enabled, estimate.difficulty) {
             (true, Some(difficulty)) => Self::Enabled { difficulty },
             (true, None) => Self::TooWeak,
             (false, Some(difficulty)) if difficulty >= MIN_MIMIC_DIFFICULTY => Self::Ready { difficulty },
@@ -147,13 +262,80 @@ impl MimicStatus {
     }
 }
 
-/// One-line explanation of how the mimic difficulty is derived.
-pub fn mimic_rule_text(offset: u8) -> String {
-    format!(
-        "Mimics (D3 only, needs a Nothing item per encounter) are Neutral elites; the planner runs them {offset} \
-         difficulty level{} below what your team's dungeon level affords, counting levels beyond 10.",
-        if offset == 1 { "" } else { "s" }
-    )
+/// Everything the UIs show about a plan's mimics at its own depth.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MimicOutlook {
+    pub kind: MimicKind,
+    /// The depth's recommended difficulty without mimics.
+    pub without: u8,
+    pub estimate: MimicEstimate,
+    pub status: MimicStatus,
+}
+
+/// The mimic outlook for a D3 or D4 plan (`reqs` = that depth's
+/// requirements); `None` for shallower plans or an empty team. `enabled`
+/// is the dungeon's toggle and `offset` the kind's offset.
+pub fn mimic_outlook(plan: &DungeonPlan, reqs: &DepthRequirements, enabled: bool, offset: u8) -> Option<MimicOutlook> {
+    let kind = MimicKind::for_depth(plan.depth)?;
+    let exports = team_exports(plan);
+    if exports.is_empty() {
+        return None;
+    }
+    let depth = depth_difficulty(&TeamLevels::from_exports(&exports), plan.depth, reqs);
+    let estimate = mimic_estimate(kind, depth.headroom, offset, &exports);
+    let status = MimicStatus::new(&estimate, enabled);
+    Some(MimicOutlook { kind, without: depth.difficulty, estimate, status })
+}
+
+/// One-line explanation of how a kind's difficulty is derived.
+pub fn mimic_rule_text(kind: MimicKind, offset: u8) -> String {
+    let levels = format!("{offset} difficulty level{}", if offset == 1 { "" } else { "s" });
+    match kind {
+        MimicKind::Mimic => format!(
+            "Mimics (D3 only, one Nothing used per encounter) are Neutral elites; the planner runs them {levels} \
+             below what your team's dungeon level affords, counting levels beyond 10."
+        ),
+        MimicKind::Ancient => format!(
+            "Ancient Mimics (D4 only, one Not Nothing used per encounter) have huge HP and a frozen aura that hits \
+             every pet each turn for {}% of their Attack, ignoring defense: {} at difficulty 0, +{}% per level, \
+             and half again during some D4 events. The planner runs them {levels} below what your team's dungeon \
+             level affords (counting levels beyond 10), and no higher than where one aura tick is {}% of \
+             your weakest pet's max HP. A token-improved Cat negates the aura.",
+            pct(ANCIENT_MIMIC_AURA_SHARE),
+            ancient_mimic_aura(0),
+            pct(ANCIENT_MIMIC_GROWTH - 1.0),
+            pct(AURA_HP_SHARE_LIMIT),
+        ),
+    }
+}
+
+fn pct(share: f64) -> u32 {
+    (share * 100.0).round() as u32
+}
+
+/// Short note on the aura limit, for display next to an Ancient Mimic estimate.
+pub fn aura_note(estimate: &MimicEstimate) -> Option<String> {
+    match &estimate.aura {
+        AuraCheck::NotApplicable => None,
+        AuraCheck::NegatedByCat => Some("Frozen aura negated by improved Cat.".into()),
+        AuraCheck::Limited { max_difficulty, weakest, weakest_hp } => Some(match max_difficulty {
+            // Only say "limits" when the aura, not the level rule, sets the number.
+            Some(d) if estimate.by_level.is_some_and(|b| b > *d) => format!(
+                "Frozen aura limits this team to difficulty {d} ({} per turn vs. {weakest}'s {weakest_hp} max HP).",
+                ancient_mimic_aura(*d)
+            ),
+            Some(d) => format!(
+                "Frozen aura allows up to difficulty {d} ({} per turn vs. {weakest}'s {weakest_hp} max HP).",
+                ancient_mimic_aura(*d)
+            ),
+            None if weakest.is_empty() => "No pet HP in the export to check the frozen aura against.".into(),
+            None => format!(
+                "Frozen aura ({} per turn at difficulty 0) is over {}% of {weakest}'s {weakest_hp} max HP.",
+                ancient_mimic_aura(0),
+                pct(AURA_HP_SHARE_LIMIT)
+            ),
+        }),
+    }
 }
 
 #[cfg(test)]
@@ -230,21 +412,79 @@ mod tests {
         assert_eq!(mimic_difficulty(2, 2), Some(0));
     }
 
-    #[test]
-    fn ready_means_difficulty_one_or_more() {
-        assert!(!mimics_ready(2, 2));
-        assert!(mimics_ready(3, 2));
-        assert!(mimics_ready(1, 0));
-        assert!(!mimics_ready(-4, 0));
+    fn est(kind: MimicKind, headroom: i64, exports: &[&ExportPet]) -> MimicEstimate {
+        mimic_estimate(kind, headroom, 2, exports)
     }
 
     #[test]
     fn status_reflects_toggle_and_strength() {
-        let d3 = |headroom| DepthDifficulty { depth: 3, headroom, difficulty: clamp_difficulty(headroom), class_level_ok: true, growth_ok: true };
-        assert_eq!(MimicStatus::new(&d3(9), true, 2), MimicStatus::Enabled { difficulty: 7 });
-        assert_eq!(MimicStatus::new(&d3(1), true, 2), MimicStatus::TooWeak);
-        assert_eq!(MimicStatus::new(&d3(4), false, 2), MimicStatus::Ready { difficulty: 2 });
-        assert_eq!(MimicStatus::new(&d3(2), false, 2), MimicStatus::NotYet);
+        let p = pet("A", 1, 1);
+        let t = [&p];
+        assert_eq!(MimicStatus::new(&est(MimicKind::Mimic, 9, &t), true), MimicStatus::Enabled { difficulty: 7 });
+        assert_eq!(MimicStatus::new(&est(MimicKind::Mimic, 1, &t), true), MimicStatus::TooWeak);
+        assert_eq!(MimicStatus::new(&est(MimicKind::Mimic, 4, &t), false), MimicStatus::Ready { difficulty: 2 });
+        // Difficulty 0 gives no points, so it isn't "ready".
+        assert_eq!(MimicStatus::new(&est(MimicKind::Mimic, 2, &t), false), MimicStatus::NotYet);
+    }
+
+    #[test]
+    fn kinds_by_depth() {
+        assert_eq!(MimicKind::for_depth(2), None);
+        assert_eq!(MimicKind::for_depth(3), Some(MimicKind::Mimic));
+        assert_eq!(MimicKind::for_depth(4), Some(MimicKind::Ancient));
+        assert!(MimicKind::Ancient.is_neutral_in(Dungeon::Scrapyard));
+        assert!(!MimicKind::Ancient.is_neutral_in(Dungeon::Forest));
+    }
+
+    #[test]
+    fn aura_matches_the_wiki_table() {
+        assert_eq!(ancient_mimic_aura(0), 30_000);
+        assert_eq!(ancient_mimic_aura(1), 42_000);
+        assert_eq!(ancient_mimic_aura(4), 115_248);
+        assert_eq!(ancient_mimic_aura(7), 316_241);
+        assert_eq!(ancient_mimic_aura(10), 867_764);
+    }
+
+    fn with_hp(name: &str, hp: i64) -> ExportPet {
+        let mut p = pet(name, 1, 1);
+        p.combat_stats.hp = hp;
+        p
+    }
+
+    #[test]
+    fn aura_caps_ancient_mimics_by_the_weakest_pet() {
+        // Budget = 25% of 500K = 125K: difficulty 4 (115,248) fits, 5 doesn't.
+        let (tank, weak) = (with_hp("Tank", 5_000_000), with_hp("Glass", 500_000));
+        let e = est(MimicKind::Ancient, 12, &[&tank, &weak]);
+        assert_eq!(e.by_level, Some(10));
+        assert_eq!(e.difficulty, Some(4));
+        assert_eq!(
+            e.aura,
+            AuraCheck::Limited { max_difficulty: Some(4), weakest: "Glass".into(), weakest_hp: 500_000 }
+        );
+        assert!(aura_note(&e).unwrap().contains("limits this team to difficulty 4"));
+        // The level rule still wins when it's lower, and the note says so.
+        let lower = est(MimicKind::Ancient, 5, &[&tank, &weak]);
+        assert_eq!(lower.difficulty, Some(3));
+        assert!(aura_note(&lower).unwrap().contains("allows up to difficulty 4"));
+        // Pets with no HP in the export are ignored.
+        let blank = with_hp("Blank", 0);
+        assert_eq!(est(MimicKind::Ancient, 12, &[&blank, &weak]).difficulty, Some(4));
+        // Too fragile for even difficulty 0 (30K > 25% of 100K).
+        let paper = with_hp("Paper", 100_000);
+        assert_eq!(est(MimicKind::Ancient, 12, &[&paper]).difficulty, None);
+        // Plain mimics have no aura.
+        assert_eq!(est(MimicKind::Mimic, 12, &[&paper]).difficulty, Some(10));
+    }
+
+    #[test]
+    fn improved_cat_negates_the_aura() {
+        let mut cat = with_hp("Cat", 100_000);
+        let paper = with_hp("Paper", 100_000);
+        assert_eq!(est(MimicKind::Ancient, 12, &[&cat, &paper]).difficulty, None);
+        cat.improved = true;
+        let e = est(MimicKind::Ancient, 12, &[&cat, &paper]);
+        assert_eq!((e.aura, e.difficulty), (AuraCheck::NegatedByCat, Some(10)));
     }
 
     #[test]

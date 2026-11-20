@@ -16,8 +16,9 @@ pub struct EventOverride {
 pub struct DungeonSelection {
     pub dungeon: Dungeon,
     pub depth: u8,
-    /// Whether this team farms D3 mimics (carries Nothing items), which lowers
-    /// its recommended D3 difficulty. Older saved states load as `false`.
+    /// Whether this team farms mimics at its depth: D3 mimics (Nothing items)
+    /// or D4 Ancient Mimics (Not Nothing items), which lowers that depth's
+    /// recommended difficulty. Older saved states load as `false`.
     #[serde(default, skip_serializing_if = "is_false")]
     pub mimics: bool,
 }

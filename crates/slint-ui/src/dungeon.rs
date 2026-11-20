@@ -35,10 +35,13 @@ pub fn label(d: Dungeon) -> &'static str {
 pub struct Settings {
     pub selected: [bool; 5],
     pub depths: [u8; 5],
-    /// Per-dungeon D3 mimic farming (lowers the D3 difficulty).
+    /// Per-dungeon mimic farming at the chosen depth: D3 mimics or D4
+    /// Ancient Mimics (lowers that depth's difficulty).
     pub mimics: [bool; 5],
-    /// Difficulty levels dropped for teams farming mimics.
+    /// Difficulty levels dropped for teams farming D3 mimics.
     pub mimic_offset: u8,
+    /// Difficulty levels dropped for teams farming D4 Ancient Mimics.
+    pub ancient_mimic_offset: u8,
     pub constraints: ConstraintsState,
     pub events: Vec<EventOverride>,
     pub standards: BTreeMap<Dungeon, EquipmentStandardOverride>,
@@ -52,6 +55,7 @@ impl Default for Settings {
             depths: [1; 5],
             mimics: [false; 5],
             mimic_offset: difficulty::DEFAULT_MIMIC_OFFSET,
+            ancient_mimic_offset: difficulty::DEFAULT_MIMIC_OFFSET,
             constraints: Default::default(),
             events: Vec::new(),
             standards: BTreeMap::new(),
@@ -61,11 +65,18 @@ impl Default for Settings {
     }
 }
 impl Settings {
+    pub fn mimic_offset_for(&self, kind: difficulty::MimicKind) -> u8 {
+        match kind {
+            difficulty::MimicKind::Mimic => self.mimic_offset,
+            difficulty::MimicKind::Ancient => self.ancient_mimic_offset,
+        }
+    }
     pub fn validate(&mut self) -> Result<(), String> {
         for depth in &mut self.depths {
             *depth = (*depth).clamp(1, 4);
         }
         self.mimic_offset = self.mimic_offset.min(difficulty::MAX_MIMIC_OFFSET);
+        self.ancient_mimic_offset = self.ancient_mimic_offset.min(difficulty::MAX_MIMIC_OFFSET);
         for pin in &mut self.constraints.forced {
             if pin.dungeon.is_none() {
                 pin.slot = None;
@@ -365,35 +376,40 @@ impl Model {
             let exports=difficulty::team_exports(plan);
             let team=TeamLevels::from_exports(&exports);
             let mut stats=format!("{}/6 filled · Avg DL {} · Min CL {} · Min growth {}",team.filled,team.avg_dungeon_level,team.min_class_level,crate::app::number(team.min_growth));
-            // A toggle left on after dropping below D3 is ignored.
-            let mimics_on=DUNGEONS.iter().position(|(d,_)|*d==plan.dungeon).is_some_and(|i|settings.mimics[i]&&settings.depths[i]>=difficulty::MIMIC_DEPTH);
-            let offset=settings.mimic_offset;
-            let mut mimic_status=None;
+            // The toggle means the plan's own depth (D3 mimics, D4 Ancient
+            // Mimics) and counts only while the dungeon is still set to it.
+            let row=DUNGEONS.iter().position(|(d,_)|*d==plan.dungeon);
+            let enabled=row.is_some_and(|i|settings.mimics[i]&&settings.depths[i]==plan.depth);
+            let outlook=self.recs.dungeons[&plan.dungeon].depths.get(&plan.depth).and_then(|dd|{
+                let kind=difficulty::MimicKind::for_depth(plan.depth)?;
+                difficulty::mimic_outlook(plan,&dd.requirements,enabled,settings.mimic_offset_for(kind))
+            });
             for depth in 1..=plan.depth {
                 if let Some(dd)=self.recs.dungeons[&plan.dungeon].depths.get(&depth) {
                     let r=&dd.requirements; let est=difficulty::depth_difficulty(&team,depth,r);
                     let mut shown=format!("difficulty {}",est.difficulty);
-                    if depth==difficulty::MIMIC_DEPTH && !exports.is_empty() {
-                        let status=MimicStatus::new(&est,mimics_on,offset);
-                        match status {
-                            MimicStatus::Enabled{difficulty}=>shown=format!("difficulty {difficulty} with mimics ({} without)",est.difficulty),
-                            MimicStatus::TooWeak=>shown=format!("too weak for mimics ({} without)",est.difficulty),
+                    if depth==plan.depth && let Some(o)=&outlook {
+                        match o.status {
+                            MimicStatus::Enabled{difficulty}=>shown=format!("difficulty {difficulty} with {} ({} without)",o.kind.name(),est.difficulty),
+                            MimicStatus::TooWeak=>shown=format!("too weak for {} ({} without)",o.kind.name(),est.difficulty),
                             _=>{}
                         }
-                        mimic_status=Some(status);
                     }
                     stats+=&format!("\nD{depth}: {shown}{}{}",if est.class_level_ok {String::new()}else{format!(" · need CL {}",r.class_level)},if est.growth_ok {""}else{" · growth below requirement"});
                 }
             }
             sections.push(("Team & difficulty".into(),stats));
-            let ready=plan.depth==difficulty::MIMIC_DEPTH && matches!(mimic_status,Some(MimicStatus::Ready{..}));
-            if mimic_status.is_some() && (mimics_on || ready) {
-                let mut body=match mimic_status { Some(MimicStatus::Ready{difficulty})=>format!("Ready to farm: this team could run D3 mimics at difficulty {difficulty}. Turn on Mimics in Setup and bring Nothing items."), _=>String::new() };
+            let ready=outlook.as_ref().is_some_and(|o|matches!(o.status,MimicStatus::Ready{..}));
+            if let Some(o)=&outlook && (enabled || ready) {
+                let kind=o.kind;
+                let mut lines=Vec::new();
+                if let MimicStatus::Ready{difficulty}=o.status { lines.push(format!("Ready to farm: this team could run {} at difficulty {difficulty}. Turn on {} in Setup and bring {} items.",kind.name(),kind.name(),kind.lure())); }
+                if let Some(note)=difficulty::aura_note(&o.estimate) { lines.push(note); }
                 let weak=difficulty::neutral_weak_pets(&exports);
-                if !weak.is_empty() { if !body.is_empty() {body+="\n";} body+=&format!("Mimics are Neutral: {} {} an element at 0 or below in current gear.",weak.join(", "),if weak.len()==1 {"has"}else{"have"}); }
-                if !body.is_empty() { body+=&format!("\n{}",difficulty::mimic_rule_text(offset)); sections.insert(0,("Mimics".into(),body)); }
+                if kind.is_neutral_in(plan.dungeon) && !weak.is_empty() { lines.push(format!("{} here are Neutral: {} {} an element at 0 or below in current gear.",kind.name(),weak.join(", "),if weak.len()==1 {"has"}else{"have"})); }
+                if !lines.is_empty() { lines.push(difficulty::mimic_rule_text(kind,settings.mimic_offset_for(kind))); sections.insert(0,(kind.name().into(),lines.join("\n"))); }
             }
-            let title_note=if ready {" · mimics ready"} else {""};
+            let title_note=match &outlook { Some(o) if ready=>format!(" · {} ready",o.kind.name()), _=>String::new() };
             if !plan.warnings.is_empty() { sections.push(("Coverage warnings".into(),plan.warnings.iter().map(|w|format!("D{} {:?} · {}: {}",w.source_depth,w.kind,w.name,w.detail)).collect::<Vec<_>>().join("\n"))); }
             let hazards:Vec<_>=self.recs.dungeons[&plan.dungeon].depths.iter().filter(|(d,_)|**d<=plan.depth).flat_map(|(d,dd)|dd.traps.iter().filter(|t|!t.countered_by.is_actionable()).map(move|t|format!("D{d} · {} ({}%): {}",t.name,t.chance_pct,t.countered_by.notes.as_deref().unwrap_or("Uncounterable")))).collect();
             if !hazards.is_empty() { sections.push(("Unavoidable hazards".into(),hazards.join("\n"))); }

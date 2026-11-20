@@ -84,6 +84,7 @@ struct LegacyState {
     event_overrides: Vec<EventOverride>,
     populate_planner_from_save: bool,
     mimic_offset: Option<u8>,
+    ancient_mimic_offset: Option<u8>,
     analyzer: AnalyzerState,
     chamber: ChamberState,
 }
@@ -110,6 +111,9 @@ impl Session {
         session.dungeon.events = legacy.event_overrides;
         if let Some(offset) = legacy.mimic_offset {
             session.dungeon.mimic_offset = offset;
+        }
+        if let Some(offset) = legacy.ancient_mimic_offset {
+            session.dungeon.ancient_mimic_offset = offset;
         }
         session.dungeon.validate().ok()?;
 
@@ -530,6 +534,7 @@ mod tests {
         let legacy = "# Pet Planner App State (auto-maintained)\nversion: 1\n\
             default_dungeons:\n- dungeon: Volcano\n  depth: 3\n  mimics: true\n- dungeon: Forest\n  depth: 9\n\
             mimic_offset: 1\n\
+            ancient_mimic_offset: 3\n\
             inventory:\n  Tree Axe: 2\n\
             equipment_standards:\n  Volcano:\n    min_tier: 2\n\
             constraints:\n  enabled: false\n  forbidden:\n  - Mouse\n  forced:\n  - pet: Frog\n    dungeon: Volcano\n    slot: 2\n\
@@ -543,7 +548,7 @@ mod tests {
         assert_eq!(session.dungeon.selected, [false, false, true, false, true]);
         assert_eq!((session.dungeon.depths[2], session.dungeon.depths[4]), (3, 4));
         assert_eq!(session.dungeon.mimics, [false, false, true, false, false]);
-        assert_eq!(session.dungeon.mimic_offset, 1);
+        assert_eq!((session.dungeon.mimic_offset, session.dungeon.ancient_mimic_offset), (1, 3));
         assert_eq!(session.dungeon.inventory.get("Tree Axe"), Some(&2));
         assert_eq!(session.dungeon.standards[&Dungeon::Volcano].min_tier, Some(2));
         assert!(!session.dungeon.constraints.enabled);

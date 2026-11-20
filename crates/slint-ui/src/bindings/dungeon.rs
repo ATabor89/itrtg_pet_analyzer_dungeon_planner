@@ -107,6 +107,7 @@ impl Controller {
         );
         ui.set_dungeon_dirty(self.app.dungeon.dirty);
         ui.set_dungeon_mimic_offset(i32::from(settings.mimic_offset));
+        ui.set_dungeon_ancient_mimic_offset(i32::from(settings.ancient_mimic_offset));
         ui.set_dungeon_constraints_enabled(settings.constraints.enabled);
         let c = &settings.constraints;
         let mut constraints: Vec<_> = c
@@ -186,6 +187,10 @@ pub(super) fn wire(ui: &MainWindow, controller: &Rc<RefCell<Controller>>) {
                 settings.mimic_offset =
                     value.clamp(0, i32::from(itrtg_planner::difficulty::MAX_MIMIC_OFFSET)) as u8
             }
+            "ancient-mimic-offset" => {
+                settings.ancient_mimic_offset =
+                    value.clamp(0, i32::from(itrtg_planner::difficulty::MAX_MIMIC_OFFSET)) as u8
+            }
             "quality" => {
                 settings.standards.entry(*d).or_default().min_quality = Some(match value {
                     1 => itrtg_models::Quality::SS,
@@ -204,7 +209,7 @@ pub(super) fn wire(ui: &MainWindow, controller: &Rc<RefCell<Controller>>) {
             _ => return,
         }
         // Mimic settings only change the difficulty readout, not the teams.
-        if matches!(key.as_str(), "mimics" | "mimic-offset") {
+        if matches!(key.as_str(), "mimics" | "mimic-offset" | "ancient-mimic-offset") {
             c.render_dungeon(&ui);
             c.save(&ui);
         } else {
