@@ -2069,7 +2069,10 @@ fn show_unavoidable_hazards(ui: &mut Ui, plan: &DungeonPlan, data: &DataStore) {
 
 impl DungeonState {
     fn mimics_enabled(&self, dungeon: Dungeon) -> bool {
-        self.entries.iter().any(|e| e.dungeon == dungeon && e.mimics)
+        // A toggle left on after dropping below D3 is ignored.
+        self.entries
+            .iter()
+            .any(|e| e.dungeon == dungeon && e.mimics && e.depth >= difficulty::MIMIC_DEPTH)
     }
 }
 
@@ -2180,7 +2183,7 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: 
                     }
                     MimicStatus::TooWeak => {
                         max_diff = 0;
-                        suffix = format!(" w/ mimics: too weak ({} without)", est.difficulty);
+                        suffix = format!(" too weak for mimics ({} without)", est.difficulty);
                     }
                     MimicStatus::Ready { .. } | MimicStatus::NotYet => {}
                 }
@@ -2225,11 +2228,11 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: 
     });
 
     // Mimic notes: readiness when off, neutral-element caution when relevant.
-    let ready = matches!(mimic_status, Some(MimicStatus::Ready { .. }))
-        && plan.depth == difficulty::MIMIC_DEPTH;
-    if let Some(MimicStatus::Ready { difficulty: d }) = mimic_status
-        && ready
-    {
+    let ready_at = match mimic_status {
+        Some(MimicStatus::Ready { difficulty: d }) if plan.depth == difficulty::MIMIC_DEPTH => Some(d),
+        _ => None,
+    };
+    if let Some(d) = ready_at {
         ui.label(
             RichText::new(format!(
                 "Mimics ready: this team could farm D3 mimics at difficulty {d}. \
@@ -2240,12 +2243,12 @@ fn show_team_stats(ui: &mut Ui, plan: &DungeonPlan, state: &DungeonState, data: 
         )
         .on_hover_text(difficulty::mimic_rule_text(state.mimic_offset));
     }
-    if mimics_on || ready {
+    if mimics_on || ready_at.is_some() {
         let weak = difficulty::neutral_weak_pets(&exports);
         if !weak.is_empty() {
             ui.label(
                 RichText::new(format!(
-                    "Mimics are Neutral: {} {} a negative element in current gear.",
+                    "Mimics are Neutral: {} {} an element at 0 or below in current gear.",
                     weak.join(", "),
                     if weak.len() == 1 { "has" } else { "have" }
                 ))

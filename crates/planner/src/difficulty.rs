@@ -109,15 +109,15 @@ pub fn mimics_ready(headroom: i64, offset: u8) -> bool {
     mimic_difficulty(headroom, offset).is_some_and(|d| d >= MIN_MIMIC_DIFFICULTY)
 }
 
-/// Names (export names) of team members with a negative Water/Fire/Wind/Earth
-/// value in their current gear. The wiki calls all elements above 0 "almost
-/// necessary" against Neutral enemies like mimics.
+/// Names (export names) of team members with a Water/Fire/Wind/Earth value of
+/// 0 or below in their current gear. The wiki calls all elements above 0
+/// "almost necessary" against Neutral enemies like mimics.
 pub fn neutral_weak_pets<'a>(exports: &[&'a ExportPet]) -> Vec<&'a str> {
     exports
         .iter()
         .filter(|e| {
             let a = &e.elemental_affinities;
-            [a.water, a.fire, a.wind, a.earth].iter().any(|v| *v < 0)
+            [a.water, a.fire, a.wind, a.earth].iter().any(|v| *v <= 0)
         })
         .map(|e| e.export_name.as_str())
         .collect()
@@ -255,8 +255,17 @@ mod tests {
     }
 
     #[test]
-    fn neutral_weakness_ignores_dark_and_light() {
-        let (ok, weak) = (pet("Ok", 1, 0), pet("Weak", 1, -3));
-        assert_eq!(neutral_weak_pets(&[&ok, &weak]), vec!["Weak"]);
+    fn neutral_weakness_flags_zero_or_below_and_ignores_dark_and_light() {
+        let mut ok = pet("Ok", 1, 4);
+        ok.elemental_affinities.wind = 2;
+        ok.elemental_affinities.earth = 3;
+        let mut zero = ok.clone();
+        zero.export_name = "Zero".into();
+        zero.elemental_affinities.water = 0;
+        let mut weak = ok.clone();
+        weak.export_name = "Weak".into();
+        weak.elemental_affinities.water = -3;
+        // `ok` has dark -5, which doesn't count.
+        assert_eq!(neutral_weak_pets(&[&ok, &zero, &weak]), vec!["Zero", "Weak"]);
     }
 }

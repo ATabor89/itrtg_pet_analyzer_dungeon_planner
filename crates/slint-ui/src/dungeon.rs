@@ -365,8 +365,9 @@ impl Model {
             let exports=difficulty::team_exports(plan);
             let team=TeamLevels::from_exports(&exports);
             let mut stats=format!("{}/6 filled · Avg DL {} · Min CL {} · Min growth {}",team.filled,team.avg_dungeon_level,team.min_class_level,crate::app::number(team.min_growth));
-            let index=DUNGEONS.iter().position(|(d,_)|*d==plan.dungeon).unwrap_or(0);
-            let (mimics_on,offset)=(settings.mimics[index],settings.mimic_offset);
+            // A toggle left on after dropping below D3 is ignored.
+            let mimics_on=DUNGEONS.iter().position(|(d,_)|*d==plan.dungeon).is_some_and(|i|settings.mimics[i]&&settings.depths[i]>=difficulty::MIMIC_DEPTH);
+            let offset=settings.mimic_offset;
             let mut mimic_status=None;
             for depth in 1..=plan.depth {
                 if let Some(dd)=self.recs.dungeons[&plan.dungeon].depths.get(&depth) {
@@ -389,7 +390,7 @@ impl Model {
             if mimic_status.is_some() && (mimics_on || ready) {
                 let mut body=match mimic_status { Some(MimicStatus::Ready{difficulty})=>format!("Ready to farm: this team could run D3 mimics at difficulty {difficulty}. Turn on Mimics in Setup and bring Nothing items."), _=>String::new() };
                 let weak=difficulty::neutral_weak_pets(&exports);
-                if !weak.is_empty() { if !body.is_empty() {body+="\n";} body+=&format!("Mimics are Neutral: {} {} a negative element in current gear.",weak.join(", "),if weak.len()==1 {"has"}else{"have"}); }
+                if !weak.is_empty() { if !body.is_empty() {body+="\n";} body+=&format!("Mimics are Neutral: {} {} an element at 0 or below in current gear.",weak.join(", "),if weak.len()==1 {"has"}else{"have"}); }
                 if !body.is_empty() { body+=&format!("\n{}",difficulty::mimic_rule_text(offset)); sections.insert(0,("Mimics".into(),body)); }
             }
             let title_note=if ready {" · mimics ready"} else {""};

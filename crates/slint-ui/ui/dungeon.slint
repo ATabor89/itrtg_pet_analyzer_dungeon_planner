@@ -48,6 +48,7 @@ export component DungeonView inherits Rectangle {
                     CheckBox { text: choice.name; width: 200px; checked: choice.selected; enabled: root.enabled; toggled => { root.change("selected",i,self.checked ? 1 : 0); } }
                     Caption { text: "Depth"; vertical-alignment: center; }
                     SpinBox { value: choice.depth; minimum: 1; maximum: 4; enabled: root.enabled; edited(v) => { root.change("depth",i,v); } }
+                    // 3 = difficulty::MIMIC_DEPTH (mimics spawn only in D3 rooms).
                     CheckBox { text: "Mimics"; checked: choice.mimics; enabled: root.enabled && choice.selected && choice.depth >= 3; toggled => { root.change("mimics",i,self.checked ? 1 : 0); } }
                     Caption { text: "Minimum tier"; vertical-alignment: center; }
                     SpinBox { value: choice.tier; minimum: choice.depth; maximum: 4; enabled: root.enabled; edited(v) => { root.change("tier",i,v); } }
@@ -58,6 +59,7 @@ export component DungeonView inherits Rectangle {
             }
             HorizontalBox { padding: 0px; height: 36px; spacing: 10px;
                 Caption { text: "Mimic offset (difficulty levels dropped for teams farming D3 mimics)"; vertical-alignment: center; }
+                // 6 = difficulty::MAX_MIMIC_OFFSET; Rust clamps it too.
                 SpinBox { value: root.mimic-offset; minimum: 0; maximum: 6; enabled: root.enabled; edited(v) => { root.change("mimic-offset",0,v); } }
                 Rectangle { horizontal-stretch: 1; }
             }
