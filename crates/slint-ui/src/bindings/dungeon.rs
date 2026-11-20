@@ -15,6 +15,7 @@ impl Controller {
                             name: (*name).into(),
                             selected: settings.selected[i],
                             depth: i32::from(settings.depths[i]),
+                            mimics: settings.mimics[i],
                             tier: i32::from(
                                 standard
                                     .and_then(|s| s.min_tier)
@@ -105,6 +106,7 @@ impl Controller {
             .into(),
         );
         ui.set_dungeon_dirty(self.app.dungeon.dirty);
+        ui.set_dungeon_mimic_offset(i32::from(settings.mimic_offset));
         ui.set_dungeon_constraints_enabled(settings.constraints.enabled);
         let c = &settings.constraints;
         let mut constraints: Vec<_> = c
@@ -179,6 +181,11 @@ pub(super) fn wire(ui: &MainWindow, controller: &Rc<RefCell<Controller>>) {
         match key.as_str() {
             "selected" => settings.selected[index as usize] = value != 0,
             "depth" => settings.depths[index as usize] = value.clamp(1, 4) as u8,
+            "mimics" => settings.mimics[index as usize] = value != 0,
+            "mimic-offset" => {
+                settings.mimic_offset =
+                    value.clamp(0, i32::from(itrtg_planner::difficulty::MAX_MIMIC_OFFSET)) as u8
+            }
             "quality" => {
                 settings.standards.entry(*d).or_default().min_quality = Some(match value {
                     1 => itrtg_models::Quality::SS,
@@ -196,7 +203,13 @@ pub(super) fn wire(ui: &MainWindow, controller: &Rc<RefCell<Controller>>) {
             "constraints" => settings.constraints.enabled = value != 0,
             _ => return,
         }
-        c.dungeon_changed(&ui);
+        // Mimic settings only change the difficulty readout, not the teams.
+        if matches!(key.as_str(), "mimics" | "mimic-offset") {
+            c.render_dungeon(&ui);
+            c.save(&ui);
+        } else {
+            c.dungeon_changed(&ui);
+        }
     });
     let (weak, state) = (ui.as_weak(), controller.clone());
     ui.on_dungeon_constrain(move |key, name, d, slot| {

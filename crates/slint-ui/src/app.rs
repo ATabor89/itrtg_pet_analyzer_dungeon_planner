@@ -83,6 +83,7 @@ struct LegacyState {
     team_dungeons: BTreeMap<u8, Dungeon>,
     event_overrides: Vec<EventOverride>,
     populate_planner_from_save: bool,
+    mimic_offset: Option<u8>,
     analyzer: AnalyzerState,
     chamber: ChamberState,
 }
@@ -99,6 +100,7 @@ impl Session {
             if let Some(index) = crate::dungeon::DUNGEONS.iter().position(|(dungeon, _)| *dungeon == choice.dungeon) {
                 session.dungeon.selected[index] = true;
                 session.dungeon.depths[index] = choice.depth;
+                session.dungeon.mimics[index] = choice.mimics;
             }
         }
         session.dungeon.inventory = legacy.inventory;
@@ -106,6 +108,9 @@ impl Session {
         session.dungeon.constraints = legacy.constraints;
         session.dungeon.team_dungeons = legacy.team_dungeons;
         session.dungeon.events = legacy.event_overrides;
+        if let Some(offset) = legacy.mimic_offset {
+            session.dungeon.mimic_offset = offset;
+        }
         session.dungeon.validate().ok()?;
 
         session.populate_on_load = legacy.populate_planner_from_save;
@@ -523,7 +528,8 @@ mod tests {
     #[test]
     fn legacy_settings_seed_a_first_session() {
         let legacy = "# Pet Planner App State (auto-maintained)\nversion: 1\n\
-            default_dungeons:\n- dungeon: Volcano\n  depth: 3\n- dungeon: Forest\n  depth: 9\n\
+            default_dungeons:\n- dungeon: Volcano\n  depth: 3\n  mimics: true\n- dungeon: Forest\n  depth: 9\n\
+            mimic_offset: 1\n\
             inventory:\n  Tree Axe: 2\n\
             equipment_standards:\n  Volcano:\n    min_tier: 2\n\
             constraints:\n  enabled: false\n  forbidden:\n  - Mouse\n  forced:\n  - pet: Frog\n    dungeon: Volcano\n    slot: 2\n\
@@ -536,6 +542,8 @@ mod tests {
         // Dungeons land on their fixed rows; an out-of-range depth is clamped.
         assert_eq!(session.dungeon.selected, [false, false, true, false, true]);
         assert_eq!((session.dungeon.depths[2], session.dungeon.depths[4]), (3, 4));
+        assert_eq!(session.dungeon.mimics, [false, false, true, false, false]);
+        assert_eq!(session.dungeon.mimic_offset, 1);
         assert_eq!(session.dungeon.inventory.get("Tree Axe"), Some(&2));
         assert_eq!(session.dungeon.standards[&Dungeon::Volcano].min_tier, Some(2));
         assert!(!session.dungeon.constraints.enabled);

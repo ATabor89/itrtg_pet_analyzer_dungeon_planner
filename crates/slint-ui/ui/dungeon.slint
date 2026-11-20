@@ -1,7 +1,7 @@
 import { Button, CheckBox, ComboBox, SpinBox, LineEdit, TextEdit, ScrollView, VerticalBox, HorizontalBox } from "std-widgets.slint";
 import { Theme, Caption } from "common.slint";
 import { LogSection, LogPartyRow, SectionCard } from "logs.slint";
-export struct DungeonChoice { name: string, selected: bool, depth: int, tier: int, upgrade: int, quality: int }
+export struct DungeonChoice { name: string, selected: bool, depth: int, mimics: bool, tier: int, upgrade: int, quality: int }
 export struct DungeonEvent { dungeon: int, depth: int, name: string, label: string, enabled: bool }
 export struct DungeonResult { title: string, rows: [LogPartyRow], sections: [LogSection] }
 export struct TeamMapping { label: string, choice: int }
@@ -10,6 +10,7 @@ export component DungeonView inherits Rectangle {
     in property <bool> enabled;
     in property <bool> constraints-enabled;
     in property <bool> dirty;
+    in property <int> mimic-offset;
     in property <[DungeonChoice]> choices;
     in property <[DungeonEvent]> events;
     in property <[DungeonResult]> results;
@@ -47,12 +48,20 @@ export component DungeonView inherits Rectangle {
                     CheckBox { text: choice.name; width: 200px; checked: choice.selected; enabled: root.enabled; toggled => { root.change("selected",i,self.checked ? 1 : 0); } }
                     Caption { text: "Depth"; vertical-alignment: center; }
                     SpinBox { value: choice.depth; minimum: 1; maximum: 4; enabled: root.enabled; edited(v) => { root.change("depth",i,v); } }
+                    // 3 = difficulty::MIMIC_DEPTH (mimics spawn only in D3 rooms).
+                    CheckBox { text: "Mimics"; checked: choice.mimics; enabled: root.enabled && choice.selected && choice.depth >= 3; toggled => { root.change("mimics",i,self.checked ? 1 : 0); } }
                     Caption { text: "Minimum tier"; vertical-alignment: center; }
                     SpinBox { value: choice.tier; minimum: choice.depth; maximum: 4; enabled: root.enabled; edited(v) => { root.change("tier",i,v); } }
                     ComboBox { model: ["S", "SS", "SSS"]; current-index: choice.quality; enabled: root.enabled; accessible-label: "Equipment quality"; selected(v) => { root.change("quality",i,self.current-index); } }
                     Caption { text: "Upgrade"; vertical-alignment: center; }
                     SpinBox { value: choice.upgrade; minimum: 10; maximum: 20; enabled: root.enabled; edited(v) => { root.change("upgrade",i,v); } }
                 }
+            }
+            HorizontalBox { padding: 0px; height: 36px; spacing: 10px;
+                Caption { text: "Mimic offset (difficulty levels dropped for teams farming D3 mimics)"; vertical-alignment: center; }
+                // 6 = difficulty::MAX_MIMIC_OFFSET; Rust clamps it too.
+                SpinBox { value: root.mimic-offset; minimum: 0; maximum: 6; enabled: root.enabled; edited(v) => { root.change("mimic-offset",0,v); } }
+                Rectangle { horizontal-stretch: 1; }
             }
             for section in root.preview: SectionCard { title: section.title; body: section.body; }
             Rectangle { vertical-stretch: 1; }

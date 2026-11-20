@@ -40,6 +40,10 @@ pub struct AppState {
     /// default — a save is never required; the Save Editor's "Populate planner
     /// now" button does the same on demand. Remembered across sessions.
     pub populate_planner_from_save: bool,
+    /// Difficulty levels the dungeon planner drops for teams farming mimics.
+    /// `None` = the default (`difficulty::DEFAULT_MIMIC_OFFSET`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mimic_offset: Option<u8>,
     pub analyzer: AnalyzerState,
     pub chamber: ChamberState,
 }

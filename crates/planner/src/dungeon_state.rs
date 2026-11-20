@@ -16,6 +16,14 @@ pub struct EventOverride {
 pub struct DungeonSelection {
     pub dungeon: Dungeon,
     pub depth: u8,
+    /// Whether this team farms D3 mimics (carries Nothing items), which lowers
+    /// its recommended D3 difficulty. Older saved states load as `false`.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub mimics: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,4 +75,19 @@ pub struct EquipmentStandardOverride {
     pub min_quality: Option<Quality>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min_upgrade: Option<u8>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mimics_default_off_and_are_only_written_when_on() {
+        let old: DungeonSelection = serde_yaml::from_str("dungeon: Volcano\ndepth: 3\n").unwrap();
+        assert!(!old.mimics);
+        assert!(!serde_yaml::to_string(&old).unwrap().contains("mimics"));
+        let on = DungeonSelection { mimics: true, ..old };
+        let back: DungeonSelection = serde_yaml::from_str(&serde_yaml::to_string(&on).unwrap()).unwrap();
+        assert!(back.mimics);
+    }
 }

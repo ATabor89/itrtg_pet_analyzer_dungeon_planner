@@ -5,6 +5,7 @@ use itrtg_models::{Dungeon, Quality, normalize_for_lookup};
 use itrtg_planner::dungeon_state::{
     ConstraintsState, EquipmentStandardOverride, EventOverride, ForcedEntry,
 };
+use itrtg_planner::difficulty::{self, MimicStatus, TeamLevels};
 use itrtg_planner::dungeon_support::{equip_matches_rec, resolve_equip_name};
 use itrtg_planner::{
     equipment,
@@ -34,6 +35,10 @@ pub fn label(d: Dungeon) -> &'static str {
 pub struct Settings {
     pub selected: [bool; 5],
     pub depths: [u8; 5],
+    /// Per-dungeon D3 mimic farming (lowers the D3 difficulty).
+    pub mimics: [bool; 5],
+    /// Difficulty levels dropped for teams farming mimics.
+    pub mimic_offset: u8,
     pub constraints: ConstraintsState,
     pub events: Vec<EventOverride>,
     pub standards: BTreeMap<Dungeon, EquipmentStandardOverride>,
@@ -45,6 +50,8 @@ impl Default for Settings {
         Self {
             selected: [false; 5],
             depths: [1; 5],
+            mimics: [false; 5],
+            mimic_offset: difficulty::DEFAULT_MIMIC_OFFSET,
             constraints: Default::default(),
             events: Vec::new(),
             standards: BTreeMap::new(),
@@ -58,6 +65,7 @@ impl Settings {
         for depth in &mut self.depths {
             *depth = (*depth).clamp(1, 4);
         }
+        self.mimic_offset = self.mimic_offset.min(difficulty::MAX_MIMIC_OFFSET);
         for pin in &mut self.constraints.forced {
             if pin.dungeon.is_none() {
                 pin.slot = None;
@@ -354,22 +362,42 @@ impl Model {
                 (title,body)
             }).collect();
             let mut sections=Vec::new();
-            let exports:Vec<_>=plan.assignments.iter().filter_map(|a|match &a.assignment {Assignment::Filled{pet,..}=>pet.export.as_ref(),_=>None}).collect();
-            let avg=exports.iter().map(|e|u64::from(e.dungeon_level)).sum::<u64>()/6;
-            let min_cl=exports.iter().map(|e|e.class_level).min().unwrap_or(0);
-            let min_growth=exports.iter().map(|e|e.growth).min().unwrap_or(0);
-            let mut stats=format!("{}/6 filled · Avg DL {avg} · Min CL {min_cl} · Min growth {}",exports.len(),crate::app::number(min_growth));
+            let exports=difficulty::team_exports(plan);
+            let team=TeamLevels::from_exports(&exports);
+            let mut stats=format!("{}/6 filled · Avg DL {} · Min CL {} · Min growth {}",team.filled,team.avg_dungeon_level,team.min_class_level,crate::app::number(team.min_growth));
+            // A toggle left on after dropping below D3 is ignored.
+            let mimics_on=DUNGEONS.iter().position(|(d,_)|*d==plan.dungeon).is_some_and(|i|settings.mimics[i]&&settings.depths[i]>=difficulty::MIMIC_DEPTH);
+            let offset=settings.mimic_offset;
+            let mut mimic_status=None;
             for depth in 1..=plan.depth {
                 if let Some(dd)=self.recs.dungeons[&plan.dungeon].depths.get(&depth) {
-                    let r=&dd.requirements; let per=u64::from(r.levels_per_difficulty.last().copied().unwrap_or(5)).max(1);
-                    stats+=&format!("\nD{depth}: difficulty {}{}{}",(avg.saturating_sub(u64::from(r.dungeon_level_avg))/per).min(10),if min_cl<r.class_level {format!(" · need CL {}",r.class_level)}else{String::new()},if r.total_growth.is_some_and(|g|min_growth<g) {" · growth below requirement"}else{""});
+                    let r=&dd.requirements; let est=difficulty::depth_difficulty(&team,depth,r);
+                    let mut shown=format!("difficulty {}",est.difficulty);
+                    if depth==difficulty::MIMIC_DEPTH && !exports.is_empty() {
+                        let status=MimicStatus::new(&est,mimics_on,offset);
+                        match status {
+                            MimicStatus::Enabled{difficulty}=>shown=format!("difficulty {difficulty} with mimics ({} without)",est.difficulty),
+                            MimicStatus::TooWeak=>shown=format!("too weak for mimics ({} without)",est.difficulty),
+                            _=>{}
+                        }
+                        mimic_status=Some(status);
+                    }
+                    stats+=&format!("\nD{depth}: {shown}{}{}",if est.class_level_ok {String::new()}else{format!(" · need CL {}",r.class_level)},if est.growth_ok {""}else{" · growth below requirement"});
                 }
             }
             sections.push(("Team & difficulty".into(),stats));
+            let ready=plan.depth==difficulty::MIMIC_DEPTH && matches!(mimic_status,Some(MimicStatus::Ready{..}));
+            if mimic_status.is_some() && (mimics_on || ready) {
+                let mut body=match mimic_status { Some(MimicStatus::Ready{difficulty})=>format!("Ready to farm: this team could run D3 mimics at difficulty {difficulty}. Turn on Mimics in Setup and bring Nothing items."), _=>String::new() };
+                let weak=difficulty::neutral_weak_pets(&exports);
+                if !weak.is_empty() { if !body.is_empty() {body+="\n";} body+=&format!("Mimics are Neutral: {} {} an element at 0 or below in current gear.",weak.join(", "),if weak.len()==1 {"has"}else{"have"}); }
+                if !body.is_empty() { body+=&format!("\n{}",difficulty::mimic_rule_text(offset)); sections.insert(0,("Mimics".into(),body)); }
+            }
+            let title_note=if ready {" · mimics ready"} else {""};
             if !plan.warnings.is_empty() { sections.push(("Coverage warnings".into(),plan.warnings.iter().map(|w|format!("D{} {:?} · {}: {}",w.source_depth,w.kind,w.name,w.detail)).collect::<Vec<_>>().join("\n"))); }
             let hazards:Vec<_>=self.recs.dungeons[&plan.dungeon].depths.iter().filter(|(d,_)|**d<=plan.depth).flat_map(|(d,dd)|dd.traps.iter().filter(|t|!t.countered_by.is_actionable()).map(move|t|format!("D{d} · {} ({}%): {}",t.name,t.chance_pct,t.countered_by.notes.as_deref().unwrap_or("Uncounterable")))).collect();
             if !hazards.is_empty() { sections.push(("Unavoidable hazards".into(),hazards.join("\n"))); }
-            (format!("{} D{}",label(plan.dungeon),plan.depth),cards,sections)
+            (format!("{} D{}{title_note}",label(plan.dungeon),plan.depth),cards,sections)
         }).collect()
     }
     fn gear(&self, sa: &solver::SlotAssignment, settings: &Settings, plan: &DungeonPlan) -> String {

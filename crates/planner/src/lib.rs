@@ -10,3 +10,4 @@ pub mod log_parser;
 
 pub mod dungeon_state;
 pub mod dungeon_support;
+pub mod difficulty;
