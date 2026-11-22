@@ -4,6 +4,7 @@ pub mod equipment;
 pub mod growth;
 pub mod merge;
 pub mod solver;
+pub mod wiki_audit;
 
 pub mod analyzer;
 pub mod log_parser;

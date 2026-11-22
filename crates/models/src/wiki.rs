@@ -220,6 +220,61 @@ pub struct WikiPet {
     pub campaign_bonus: Option<CampaignBonus>,
 }
 
+/// Something about a pet's wiki data that the extractor couldn't take at face
+/// value: a placeholder (`?`, "TBD", ...), a value it didn't recognize, or a
+/// page it couldn't read. The extractor never fails on these; it falls back to
+/// a default and records one of these so the refresh job can raise an alert.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WikiDataWarning {
+    pub pet: String,
+    /// Human-readable field name, e.g. "evo difficulty" or "campaign bonus".
+    pub field: String,
+    /// What was wrong and what was used instead.
+    pub detail: String,
+}
+
+/// Words that, on their own or inside a value, mean "nobody knows yet".
+const PLACEHOLDER_WORDS: &[&str] = &[
+    "unknown",
+    "tbd",
+    "tba",
+    "to be determined",
+    "to be announced",
+    "not yet known",
+    "not known yet",
+];
+
+/// Whether a scraped wiki value is (or contains) an "unknown yet" placeholder.
+///
+/// The wiki is user-edited, so a brand-new pet's unknowns show up in whatever
+/// form the editor picked: `?`, `???`, `?(?)`, `+?% growth`, "TBD", "Unknown",
+/// "(exactly how much is to be determined)". This is deliberately broad: any
+/// question mark, or any of a few placeholder words as a whole word. Empty
+/// values and "None"/"-" are *not* placeholders; they mean "no value".
+pub fn is_placeholder(value: &str) -> bool {
+    if value.contains('?') {
+        return true;
+    }
+    let lower = value.to_ascii_lowercase();
+    PLACEHOLDER_WORDS.iter().any(|w| contains_word(&lower, w))
+}
+
+/// `needle` occurs in `hay` with no letter/digit directly on either side.
+fn contains_word(hay: &str, needle: &str) -> bool {
+    let mut start = 0;
+    while let Some(pos) = hay[start..].find(needle) {
+        let begin = start + pos;
+        let end = begin + needle.len();
+        let before_ok = hay[..begin].chars().next_back().is_none_or(|c| !c.is_alphanumeric());
+        let after_ok = hay[end..].chars().next().is_none_or(|c| !c.is_alphanumeric());
+        if before_ok && after_ok {
+            return true;
+        }
+        start = begin + 1;
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,5 +309,17 @@ mod tests {
         // Campaign-bonus prose round-trips for display.
         let cat = find("Cat").campaign_bonus.as_ref().expect("Cat campaign");
         assert!(!cat.raw.is_empty());
+    }
+
+    #[test]
+    fn placeholder_detection() {
+        for v in ["?", "???", "?(?)", "+?% to Growth", "TBD", "Unknown", "tba",
+                  "costs more (exactly how much is to be determined)"] {
+            assert!(is_placeholder(v), "{v:?} should be a placeholder");
+        }
+        for v in ["", "None", "-", "+77% to All Campaigns", "2.1% x CL",
+                  "35600 Magic Ore", "Unknownable", "stbd"] {
+            assert!(!is_placeholder(v), "{v:?} should not be a placeholder");
+        }
     }
 }
