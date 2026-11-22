@@ -36,22 +36,24 @@ fn parse_name(cell: &str) -> Option<String> {
     None
 }
 
-fn parse_element(cell: &str) -> Element {
+/// The pet's element, or `None` if the cell names none we know (including a
+/// `?` placeholder). The caller falls back to Neutral and records a warning.
+fn try_parse_element(cell: &str) -> Option<Element> {
     let lower = cell.to_lowercase();
     if lower.contains("fire") {
-        Element::Fire
+        Some(Element::Fire)
     } else if lower.contains("water") {
-        Element::Water
+        Some(Element::Water)
     } else if lower.contains("wind") {
-        Element::Wind
+        Some(Element::Wind)
     } else if lower.contains("earth") {
-        Element::Earth
+        Some(Element::Earth)
     } else if lower.contains("neutral") {
-        Element::Neutral
-    } else if lower.contains("all") || lower.trim() == "all" {
-        Element::All
+        Some(Element::Neutral)
+    } else if lower.contains("all") {
+        Some(Element::All)
     } else {
-        Element::Neutral
+        None
     }
 }
 
@@ -69,27 +71,34 @@ fn parse_single_class(s: &str) -> Option<Class> {
     }
 }
 
+#[cfg(test)]
 fn parse_recommended_class(cell: &str) -> RecommendedClass {
+    try_parse_recommended_class(cell).unwrap_or(RecommendedClass::Wildcard)
+}
+
+/// The recommended class, or `None` if unrecognized (the caller falls back to
+/// Wildcard and records a warning).
+fn try_parse_recommended_class(cell: &str) -> Option<RecommendedClass> {
     let re_sup = Regex::new(r"<sup>\d+</sup>").unwrap();
     let cleaned = re_sup.replace_all(cell, "").trim().to_string();
 
     if cleaned == "Special" {
-        return RecommendedClass::Special;
+        return Some(RecommendedClass::Special);
     }
     if cleaned == "Alternates" {
-        return RecommendedClass::Alternates;
+        return Some(RecommendedClass::Alternates);
     }
     if cleaned == "All Classes" {
-        return RecommendedClass::AllClasses;
+        return Some(RecommendedClass::AllClasses);
     }
     if cleaned == "Dungeon Wildcard" {
-        return RecommendedClass::DungeonWildcard;
+        return Some(RecommendedClass::DungeonWildcard);
     }
     if cleaned == "Tavern Wildcard" {
-        return RecommendedClass::Village("Tavern".to_string());
+        return Some(RecommendedClass::Village("Tavern".to_string()));
     }
     if cleaned == "Wildcard" {
-        return RecommendedClass::Wildcard;
+        return Some(RecommendedClass::Wildcard);
     }
 
     if let Some(rest) = cleaned.strip_prefix("Village") {
@@ -99,7 +108,7 @@ fn parse_recommended_class(cell: &str) -> RecommendedClass {
             .trim_end_matches(')')
             .trim()
             .to_string();
-        return RecommendedClass::Village(role);
+        return Some(RecommendedClass::Village(role));
     }
 
     if cleaned.contains('/') {
@@ -110,19 +119,19 @@ fn parse_recommended_class(cell: &str) -> RecommendedClass {
 
             if b.to_lowercase() == "wildcard" {
                 if let Some(cls) = parse_single_class(a) {
-                    return RecommendedClass::Dual(cls, Class::Wildcard);
+                    return Some(RecommendedClass::Dual(cls, Class::Wildcard));
                 }
-                return RecommendedClass::Wildcard;
+                return Some(RecommendedClass::Wildcard);
             }
             if a.to_lowercase() == "wildcard" {
                 if let Some(cls) = parse_single_class(b) {
-                    return RecommendedClass::Dual(cls, Class::Wildcard);
+                    return Some(RecommendedClass::Dual(cls, Class::Wildcard));
                 }
-                return RecommendedClass::Wildcard;
+                return Some(RecommendedClass::Wildcard);
             }
 
             if let (Some(c1), Some(c2)) = (parse_single_class(a), parse_single_class(b)) {
-                return RecommendedClass::Dual(c1, c2);
+                return Some(RecommendedClass::Dual(c1, c2));
             }
         }
     }
@@ -131,106 +140,107 @@ fn parse_recommended_class(cell: &str) -> RecommendedClass {
     let final_cleaned = no_sup.replace_all(&cleaned, "").trim().to_string();
 
     if let Some(cls) = parse_single_class(&final_cleaned) {
-        return RecommendedClass::Single(cls);
+        return Some(RecommendedClass::Single(cls));
     }
 
-    eprintln!("Warning: unrecognized class '{}', treating as Wildcard", cleaned);
-    RecommendedClass::Wildcard
+    None
 }
 
-fn parse_unlock_condition(cell: &str) -> UnlockCondition {
+/// The unlock condition, or `None` if unrecognized (the caller falls back to
+/// SpecialTask and records a warning).
+fn try_parse_unlock_condition(cell: &str) -> Option<UnlockCondition> {
     let trimmed = cell.trim();
 
     if trimmed == "Defeat Gods" {
-        return UnlockCondition::DefeatGods;
+        return Some(UnlockCondition::DefeatGods);
     }
 
     if let Some(rest) = trimmed.strip_prefix("Defeat P.Baal v")
         && let Ok(n) = rest.trim().parse::<u32>()
     {
-        return UnlockCondition::DefeatPBaalVersion(n);
+        return Some(UnlockCondition::DefeatPBaalVersion(n));
     }
 
     if let Some(rest) = trimmed.strip_prefix("Defeat P.Baal ")
         && let Ok(n) = rest.trim().parse::<u32>()
     {
-        return UnlockCondition::DefeatPBaal(n);
+        return Some(UnlockCondition::DefeatPBaal(n));
     }
 
     if trimmed == "Special Task" {
-        return UnlockCondition::SpecialTask;
+        return Some(UnlockCondition::SpecialTask);
     }
 
     if trimmed == "Pet Token" {
-        return UnlockCondition::PetToken;
+        return Some(UnlockCondition::PetToken);
     }
 
     if trimmed == "Secret" {
-        return UnlockCondition::Secret;
+        return Some(UnlockCondition::Secret);
     }
 
     if trimmed == "Special" {
-        return UnlockCondition::Special;
+        return Some(UnlockCondition::Special);
     }
 
     let stripped_links = strip_wiki_links(trimmed);
     if stripped_links.contains("Milestones") && stripped_links.contains("Pet Token") {
-        return UnlockCondition::MilestonesOrPetToken;
+        return Some(UnlockCondition::MilestonesOrPetToken);
     }
 
     if stripped_links.trim() == "Milestones" {
-        return UnlockCondition::Milestones;
+        return Some(UnlockCondition::Milestones);
     }
 
     if stripped_links.to_lowercase().contains("tavern") && stripped_links.to_lowercase().contains("quest") {
         let re = Regex::new(r"rank\s+(\S+)\s+quest").unwrap();
         if let Some(cap) = re.captures(&stripped_links) {
-            return UnlockCondition::TavernQuest(cap[1].to_string());
+            return Some(UnlockCondition::TavernQuest(cap[1].to_string()));
         }
-        return UnlockCondition::TavernQuest("SSS".to_string());
+        return Some(UnlockCondition::TavernQuest("SSS".to_string()));
     }
 
     if stripped_links.to_lowercase().contains("strategy room") {
         let re = Regex::new(r"[Ll]evel\s+(\d+)").unwrap();
         if let Some(cap) = re.captures(&stripped_links) {
-            return UnlockCondition::StrategyRoom(cap[1].parse().unwrap_or(0));
+            return Some(UnlockCondition::StrategyRoom(cap[1].parse().unwrap_or(0)));
         }
     }
 
     if trimmed.to_lowercase().contains("ancient mimic points") {
         let re = Regex::new(r"(\d+)\s+ancient mimic points").unwrap();
         if let Some(cap) = re.captures(&trimmed.to_lowercase()) {
-            return UnlockCondition::AncientMimicPoints(cap[1].parse().unwrap_or(0));
+            return Some(UnlockCondition::AncientMimicPoints(cap[1].parse().unwrap_or(0)));
         }
     }
 
     if trimmed.to_lowercase().contains("pets unlocked") {
         let re = Regex::new(r"(\d+)\s+[Pp]ets\s+[Uu]nlocked").unwrap();
         if let Some(cap) = re.captures(trimmed) {
-            return UnlockCondition::PetCount(cap[1].parse().unwrap_or(0));
+            return Some(UnlockCondition::PetCount(cap[1].parse().unwrap_or(0)));
         }
     }
 
     if trimmed.to_lowercase().contains("defeat a d") && trimmed.to_lowercase().contains("boss") {
         let re = Regex::new(r"[Dd]efeat a (D\S+) [Bb]oss").unwrap();
         if let Some(cap) = re.captures(trimmed) {
-            return UnlockCondition::DungeonBoss(cap[1].to_string());
+            return Some(UnlockCondition::DungeonBoss(cap[1].to_string()));
         }
     }
 
     if trimmed.to_lowercase().starts_with("give it") {
         let gift = trimmed.strip_prefix("Give it").unwrap_or(trimmed).trim();
-        return UnlockCondition::ItemGift(gift.to_string());
+        return Some(UnlockCondition::ItemGift(gift.to_string()));
     }
 
-    eprintln!("Warning: unrecognized unlock condition '{}', treating as SpecialTask", trimmed);
-    UnlockCondition::SpecialTask
+    None
 }
 
 /// Parse the "Evo Difficulty" cell, e.g. "3(5)" or "3(4-5)".
 ///
-/// Returns `None` when the wiki hasn't rated the pet yet: brand-new pets are
-/// listed as `?(?)` until someone works out the difficulty. (This used to fall
+/// Returns `None` when the wiki hasn't rated the pet yet (brand-new pets are
+/// listed as `?(?)` until someone works out the difficulty) or the cell is in
+/// a shape we don't know; `parse_pets_with_warnings` records which. (This used to fall
 /// back to 1(1), which made unrated pets look like the easiest evolutions.)
 fn parse_evo_difficulty(cell: &str) -> Option<EvoDifficulty> {
     let trimmed = cell.trim();
@@ -247,10 +257,6 @@ fn parse_evo_difficulty(cell: &str) -> Option<EvoDifficulty> {
             with_conditions: cond,
         });
     }
-    if !trimmed.is_empty() && trimmed.chars().all(|c| matches!(c, '?' | '(' | ')' | ' ')) {
-        return None;
-    }
-    eprintln!("Warning: couldn't parse evo difficulty '{}', leaving it unrated", trimmed);
     None
 }
 
@@ -284,9 +290,21 @@ fn strip_wiki_links(s: &str) -> String {
     result.replace("<br>", " ").replace("<br/>", " ").replace("<br />", " ")
 }
 
-/// Parse the full wiki source into a list of WikiPet structs.
+/// Parse the full wiki source into a list of WikiPet structs, discarding any
+/// data warnings (see [`parse_pets_with_warnings`]).
 pub fn parse_pets(source: &str) -> anyhow::Result<Vec<WikiPet>> {
+    Ok(parse_pets_with_warnings(source)?.0)
+}
+
+/// Parse the full wiki source into WikiPet structs, plus a warning for every
+/// cell that held a placeholder or a value we couldn't recognize.
+///
+/// A bad cell never fails the run: each field falls back to a safe default
+/// (Neutral element, Wildcard class, SpecialTask unlock, unrated difficulty)
+/// and the warning says so, so the refresh job can raise an alert instead.
+pub fn parse_pets_with_warnings(source: &str) -> anyhow::Result<(Vec<WikiPet>, Vec<WikiDataWarning>)> {
     let mut pets = Vec::new();
+    let mut warnings = Vec::new();
 
     let table_start = source.find("{| class=\"wikitable");
     let table_end = source.rfind("|}");
@@ -324,13 +342,47 @@ pub fn parse_pets(source: &str) -> anyhow::Result<Vec<WikiPet>> {
             }
         };
 
-        let element = parse_element(&cells[2]);
-        let recommended_class = parse_recommended_class(&cells[3]);
+        let mut warn = |field: &str, detail: String| {
+            warnings.push(WikiDataWarning { pet: name.clone(), field: field.to_string(), detail });
+        };
+        // Describes a cell we couldn't use and the fallback taken.
+        let why = |cell: &str| {
+            if cell.trim().is_empty() {
+                "empty value".to_string()
+            } else if is_placeholder(cell) {
+                format!("placeholder value {:?}", cell.trim())
+            } else {
+                format!("unrecognized value {:?}", cell.trim())
+            }
+        };
+
+        let element = try_parse_element(&cells[2]).unwrap_or_else(|| {
+            warn("element", format!("{}; using Neutral", why(&cells[2])));
+            Element::Neutral
+        });
+        let recommended_class = try_parse_recommended_class(&cells[3]).unwrap_or_else(|| {
+            warn("recommended class", format!("{}; using Wildcard", why(&cells[3])));
+            RecommendedClass::Wildcard
+        });
         let class_bonus = parse_class_bonus(&cells[4]);
-        let unlock_condition = parse_unlock_condition(&cells[5]);
+        if is_placeholder(&class_bonus) {
+            warn("class bonus", format!("placeholder value {class_bonus:?}; kept as display text"));
+        }
+        let unlock_condition = try_parse_unlock_condition(&cells[5]).unwrap_or_else(|| {
+            warn("unlock condition", format!("{}; using Special Task", why(&cells[5])));
+            UnlockCondition::SpecialTask
+        });
         let evo_difficulty = parse_evo_difficulty(&cells[6]);
+        if evo_difficulty.is_none() {
+            warn("evo difficulty", format!("{}; left unrated", why(&cells[6])));
+        }
         let token_improvable = parse_improve(&cells[7]);
         let special_ability = parse_special_ability(&cells[9]);
+        if let Some(sa) = &special_ability
+            && is_placeholder(sa)
+        {
+            warn("special ability", format!("contains a placeholder: {sa:?}"));
+        }
 
         let url = wiki_url(&name);
 
@@ -351,7 +403,7 @@ pub fn parse_pets(source: &str) -> anyhow::Result<Vec<WikiPet>> {
         });
     }
 
-    Ok(pets)
+    Ok((pets, warnings))
 }
 
 /// Parse the "Evolution Requirements" block from a pet page's *rendered* HTML.
@@ -385,6 +437,14 @@ pub fn parse_evo_requirements(html: &str) -> Option<EvoRequirements> {
         material: evo_field(scope, "Material").and_then(meaningful),
         other: evo_field(scope, "Other").and_then(meaningful),
     })
+}
+
+/// The raw text of the evolution block's growth-threshold cell, if the page
+/// has one. Used to explain *why* [`parse_evo_requirements`] gave up (e.g. the
+/// wiki shows `?` until the threshold is known).
+pub fn evo_growth_cell(html: &str) -> Option<String> {
+    let marker = html.find("Evolution Requirements")?;
+    evo_field(&html[marker..], "Total Growth")
 }
 
 /// Extract the first integer from a value cell, allowing thousands separators
@@ -683,6 +743,80 @@ mod tests {
         // New pets are listed as `?(?)` until the wiki rates them.
         assert_eq!(parse_evo_difficulty("?(?)"), None);
         assert_eq!(parse_evo_difficulty(" ? "), None);
+    }
+
+    /// Samael (added 2026-11-15) as the Pets table listed it, plus a made-up
+    /// pet with placeholders in every structured column, in different styles
+    /// (the wiki is user-edited, so unknowns aren't formatted consistently).
+    /// Nothing fails; each bad cell falls back to a default and is reported.
+    #[test]
+    fn test_placeholders_fall_back_and_warn() {
+        let source = r#"{| class="wikitable center sortable mw-collapsible"
+|+
+!Pet
+!Name
+|-
+|[[File:Samael.png|80px|link=Samael]]
+|[[Samael]]
+|[[File:neutral.png|30x30px]]
+|Blacksmith
+|2.1% x CL
+|Pet Token
+|?(?)
+|
+|2026-11-15
+|Skip T1-T3 to directly craft T4
+|shinrais
+|-
+|[[File:Mystery.png|80px|link=Mystery]]
+|[[Mystery]]
+|???
+|TBD
+|?% x CL
+|Unknown
+|tbd
+|
+|2026-11-20
+|Something (to be determined)
+|
+|}"#;
+        let (pets, warnings) = parse_pets_with_warnings(source).unwrap();
+        assert_eq!(pets.len(), 2);
+
+        // Samael: only the difficulty is unknown.
+        assert_eq!(pets[0].recommended_class, RecommendedClass::Single(Class::Blacksmith));
+        assert_eq!(pets[0].evo_difficulty, None);
+        let samael: Vec<_> = warnings.iter().filter(|w| w.pet == "Samael").collect();
+        assert_eq!(samael.len(), 1, "{samael:?}");
+        assert_eq!(samael[0].field, "evo difficulty");
+        assert!(samael[0].detail.contains("placeholder"), "{}", samael[0].detail);
+
+        // Mystery: every structured field falls back.
+        let m = &pets[1];
+        assert_eq!(m.element, Element::Neutral);
+        assert_eq!(m.recommended_class, RecommendedClass::Wildcard);
+        assert_eq!(m.unlock_condition, UnlockCondition::SpecialTask);
+        assert_eq!(m.evo_difficulty, None);
+        assert_eq!(m.class_bonus, "?% x CL");
+        let mut fields: Vec<_> =
+            warnings.iter().filter(|w| w.pet == "Mystery").map(|w| w.field.as_str()).collect();
+        fields.sort();
+        assert_eq!(
+            fields,
+            ["class bonus", "element", "evo difficulty", "recommended class", "special ability", "unlock condition"]
+        );
+        assert!(warnings.iter().all(|w| w.pet != "Mystery" || w.detail.contains("placeholder")));
+    }
+
+    #[test]
+    fn test_evo_growth_cell_placeholder() {
+        let html = r#"<td><b>Evolution Requirements</b></td></tr><tr>
+<td colspan="2"><b>Total Growth</b>
+</td>
+<td colspan="2">?
+</td></tr>"#;
+        assert!(parse_evo_requirements(html).is_none());
+        assert_eq!(evo_growth_cell(html).as_deref(), Some("?"));
     }
 
     /// Dullahan and Die/Dice (added 2026-10-30), verbatim from the wiki's Pets

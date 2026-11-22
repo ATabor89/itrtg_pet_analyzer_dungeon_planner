@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  # The audit step opens/updates/closes a "Wiki data needs attention" issue.
+  issues: write
 
 concurrency:
   group: refresh-wiki
@@ -36,8 +38,18 @@ jobs:
         with:
           shared-key: refresh-wiki
 
+      # Placeholder or unrecognized wiki values (a new pet's `?`s) never fail
+      # this step: the extractor falls back to a default and lists them in the
+      # warnings file for the audit below.
       - name: Fetch latest wiki pet data
-        run: cargo run -p wiki-extractor --features cli --quiet -- --output data/wiki_pets.yaml
+        run: cargo run -p wiki-extractor --features cli --quiet -- --output data/wiki_pets.yaml --warnings "$RUNNER_TEMP/wiki-warnings.yaml"
+
+      # Reports everything that needs a human look (placeholders, unrated
+      # difficulties, pets with no curated campaign bonus) as warning
+      # annotations and in the job summary. Never fails on findings.
+      - name: Audit wiki data
+        id: audit
+        run: cargo run -p itrtg-planner --bin wiki-audit --quiet -- --parse-warnings "$RUNNER_TEMP/wiki-warnings.yaml" --markdown "$RUNNER_TEMP/wiki-audit.md"
 
       - name: Check for changes
         id: diff
@@ -67,3 +79,35 @@ jobs:
           git add data/wiki_pets.yaml
           git commit -m "Refresh wiki_pets.yaml from itrtg.wiki.gg"
           git push origin HEAD:main
+
+      # One standing issue tracks the audit: opened when something needs a
+      # look, updated (with a comment, so it notifies) when the list changes,
+      # and closed once the wiki has filled the gaps.
+      - name: Raise or clear the wiki data alert
+        if: always() && steps.audit.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINDINGS: ${{ steps.audit.outputs.findings }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Wiki data needs attention"
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number,title \
+            --jq "map(select(.title == \"$title\"))[0].number // empty")
+          if [ "${FINDINGS:-0}" != "0" ]; then
+            {
+              cat "$RUNNER_TEMP/wiki-audit.md"
+              echo
+              echo "_Maintained by the weekly **Refresh wiki data** workflow; it closes this issue once the list is empty._"
+            } > "$RUNNER_TEMP/issue-body.md"
+            if [ -z "$existing" ]; then
+              gh issue create --title "$title" --body-file "$RUNNER_TEMP/issue-body.md"
+            else
+              old=$(gh issue view "$existing" --json body --jq .body)
+              if [ "$old" != "$(cat "$RUNNER_TEMP/issue-body.md")" ]; then
+                gh issue edit "$existing" --body-file "$RUNNER_TEMP/issue-body.md"
+                gh issue comment "$existing" --body "The list changed in [this run]($RUN_URL); see the updated description."
+              fi
+            fi
+          elif [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "All clear as of [this run]($RUN_URL)."
+          fi

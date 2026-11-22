@@ -183,6 +183,31 @@ pub const CAMPAIGN_FORMULA_PETS: &[&str] = &[
     "Cupid",
 ];
 
+/// Pets whose campaign text is deliberately left unstructured (display the raw
+/// prose only), with the reason. Together with a curated entry in
+/// `data/campaign_bonuses.yaml` and [`CAMPAIGN_FORMULA_PETS`], this is how a
+/// pet counts as "covered" for the wiki audit (`wiki_audit`).
+pub const CAMPAIGN_RAW_ONLY_PETS: &[&str] = &[
+    "Pandora's Box",    // multiplies the whole campaign, not its own bonus (simulator concern)
+    "Bug",              // random, per its description
+    "Turtle",           // per-campaign-duration bonus, not one of the 7 types
+    "Afky Clone",       // input formula identified but not yet built (campaign_bonus_design.md)
+    "Chocobear",        // banked-hours model identified but not yet built
+    "Gold Dragon",      // growth-sharing on feed, not a campaign bonus
+    "Living Draw",      // base 80% + per-lucky-draw increments (needs an input)
+    "Black Hole Chan",  // UBV4-points formula (needs an input)
+    "Treasure/Mimic",   // no bonus; only a Pandora interaction penalty
+    "Seed/Yggdrasil",   // RTI-god-based growth trickle, not a % bonus
+    "Pumpkin",          // finds chocolate; no inherent % bonus
+    "Ghost",            // explicitly no bonuses or maluses
+    "FSM",              // divinity-generator/log2 effect, not a % bonus
+    "Hourglass",        // days-since-start ramp (needs an input)
+    "Sloth",            // per-campaign-duration formula
+    "Wolf",             // per-challenge increments (needs an input)
+    "Basilisk",         // wiki says unknown
+    "Feather Pile/Owl", // alternates with Owl's focus
+];
+
 /// Extra Adventurer campaign bonus per class level, for pets with an Adventurer
 /// evo bonus — added to the base 2%/CL. Keyed by canonical pet name. (The
 /// in-game "Adventurer pet" entry has no match in the data and is omitted.)
@@ -1780,37 +1805,13 @@ mod tests {
         assert_eq!(meteor.campaign_bonus_for(CampaignType::Growth, &ctx0), Some(25.0));
     }
 
-    /// Every wiki pet with campaign-bonus text must be accounted for: a curated
-    /// entry in `data/campaign_bonuses.yaml`, a code formula
-    /// ([`CAMPAIGN_FORMULA_PETS`]), or the explicit raw-only list below. When
-    /// the weekly wiki refresh picks up a new pet, this fails — that's the
-    /// prompt to curate its bonus (there is no prose parser anymore).
-    /// Conversely, every curated/formula name must resolve to a real wiki pet,
-    /// guarding against typos and wiki renames.
+    /// Every curated/formula/raw-only name must resolve to a real wiki pet,
+    /// guarding against typos and wiki renames. The other direction (a wiki
+    /// pet with campaign text that none of them covers) used to fail here,
+    /// which broke the weekly refresh whenever the wiki added a pet; it is now
+    /// reported by the refresh job's audit (`wiki_audit`) as an alert.
     #[test]
     fn test_campaign_bonus_coverage() {
-        // Pets whose campaign text is deliberately left unstructured (display
-        // raw prose only), with the reason.
-        const RAW_ONLY: &[&str] = &[
-            "Pandora's Box",    // multiplies the whole campaign, not its own bonus (simulator concern)
-            "Bug",              // random, per its description
-            "Turtle",           // per-campaign-duration bonus, not one of the 7 types
-            "Afky Clone",       // input formula identified but not yet built (campaign_bonus_design.md)
-            "Chocobear",        // banked-hours model identified but not yet built
-            "Gold Dragon",      // growth-sharing on feed, not a campaign bonus
-            "Living Draw",      // base 80% + per-lucky-draw increments (needs an input)
-            "Black Hole Chan",  // UBV4-points formula (needs an input)
-            "Treasure/Mimic",   // no bonus; only a Pandora interaction penalty
-            "Seed/Yggdrasil",   // RTI-god-based growth trickle, not a % bonus
-            "Pumpkin",          // finds chocolate; no inherent % bonus
-            "Ghost",            // explicitly no bonuses or maluses
-            "FSM",              // divinity-generator/log2 effect, not a % bonus
-            "Hourglass",        // days-since-start ramp (needs an input)
-            "Sloth",            // per-campaign-duration formula
-            "Wolf",             // per-challenge increments (needs an input)
-            "Basilisk",         // wiki says unknown
-            "Feather Pile/Owl", // alternates with Owl's focus
-        ];
 
         let wiki: Vec<WikiPet> =
             serde_yaml::from_str(include_str!("../../../data/wiki_pets.yaml")).unwrap();
@@ -1819,22 +1820,14 @@ mod tests {
         let names: std::collections::BTreeSet<&str> =
             wiki.iter().map(|p| p.name.as_str()).collect();
 
-        // Forward: every pet with campaign text is curated, a formula, or raw-only.
-        let mut uncovered = Vec::new();
-        for pet in &wiki {
-            if pet.campaign_bonus.is_some()
-                && !rules.0.contains_key(&pet.name)
-                && !CAMPAIGN_FORMULA_PETS.contains(&pet.name.as_str())
-                && !RAW_ONLY.contains(&pet.name.as_str())
-            {
-                uncovered.push(pet.name.as_str());
-            }
+        // Forward: a pet with campaign text but no coverage is *not* a test
+        // failure (the weekly refresh must stay green when the wiki adds a
+        // pet); the refresh job's `wiki-audit` step reports it instead. Print
+        // them so a local test run still shows what needs curating.
+        let uncovered = crate::wiki_audit::uncurated_campaign_pets(&wiki, &rules);
+        if !uncovered.is_empty() {
+            eprintln!("pets awaiting a data/campaign_bonuses.yaml entry: {uncovered:?}");
         }
-        assert!(
-            uncovered.is_empty(),
-            "pets with campaign-bonus text but no curated entry in \
-             data/campaign_bonuses.yaml (add one, or list them as formula/raw-only): {uncovered:?}"
-        );
 
         // Reverse: every listed name must be a real wiki pet.
         for name in rules.0.keys() {
@@ -1843,8 +1836,8 @@ mod tests {
         for name in CAMPAIGN_FORMULA_PETS {
             assert!(names.contains(name), "CAMPAIGN_FORMULA_PETS entry '{name}' is not a wiki pet");
         }
-        for name in RAW_ONLY {
-            assert!(names.contains(name), "RAW_ONLY entry '{name}' is not a wiki pet");
+        for name in CAMPAIGN_RAW_ONLY_PETS {
+            assert!(names.contains(name), "CAMPAIGN_RAW_ONLY_PETS entry '{name}' is not a wiki pet");
         }
     }
 
