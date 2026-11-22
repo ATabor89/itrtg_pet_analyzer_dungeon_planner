@@ -153,6 +153,11 @@ fn try_parse_recommended_class(cell: &str) -> Option<RecommendedClass> {
 /// or Pet Token") becomes [`UnlockCondition::AnyOf`]; every alternative must
 /// be recognized, or the whole cell counts as unrecognized.
 fn try_parse_unlock_condition(cell: &str) -> Option<UnlockCondition> {
+    // A whole-cell match wins, so ordinary text containing "or" (an item
+    // gift, say) isn't split apart.
+    if let Some(single) = try_parse_single_unlock(cell) {
+        return Some(single);
+    }
     let flat = strip_wiki_links(cell);
     let or_re = Regex::new(r"(?i)\s+or\s+").unwrap();
     let parts: Vec<&str> = or_re.split(flat.trim()).collect();
@@ -163,7 +168,7 @@ fn try_parse_unlock_condition(cell: &str) -> Option<UnlockCondition> {
             .collect::<Option<Vec<_>>>()?;
         return Some(UnlockCondition::AnyOf(methods));
     }
-    try_parse_single_unlock(cell)
+    None
 }
 
 /// One unlock method (no "or").
@@ -839,6 +844,8 @@ mod tests {
         assert_eq!(try_parse_unlock_condition("Defeat P.Baal 10 or Pet Token"), Some(AnyOf(vec![DefeatPBaal(10), PetToken])));
         assert_eq!(try_parse_unlock_condition("[[Milestones]]"), Some(Milestones));
         assert_eq!(try_parse_unlock_condition("Pet Token"), Some(PetToken));
+        // A cell that parses whole isn't split on its "or".
+        assert_eq!(try_parse_unlock_condition("Give it 1000 Honey or Mana"), Some(ItemGift("1000 Honey or Mana".into())));
         // One unknown alternative makes the whole cell unrecognized.
         assert_eq!(try_parse_unlock_condition("Mystery or Pet Token"), None);
     }

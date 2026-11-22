@@ -119,7 +119,8 @@ impl UnlockCondition {
     /// A Pet Token is the *only* way to unlock the pet (worth prioritizing a
     /// token on, since nothing else will get it).
     pub fn pet_token_only(&self) -> bool {
-        self.methods().iter().all(|c| matches!(c, Self::PetToken))
+        let methods = self.methods();
+        !methods.is_empty() && methods.iter().all(|c| matches!(c, Self::PetToken))
     }
 }
 
@@ -352,6 +353,7 @@ mod tests {
         assert!(UnlockCondition::PetToken.pet_token_only());
         assert!(!UnlockCondition::SpecialTask.allows_pet_token());
         assert!(!UnlockCondition::SpecialTask.pet_token_only());
+        assert!(!UnlockCondition::AnyOf(vec![]).pet_token_only());
     }
 
     #[test]
