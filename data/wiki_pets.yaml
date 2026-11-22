@@ -437,7 +437,7 @@
     material: 2000 Magic Ice
     other: Give it 999,999 Mighty Food
   campaign_bonus:
-    raw: +333% (Food), +222%(Level), +111%(Multiplier)
+    raw: +333% (Food), +222% (Level), +111% (Multiplier)
 - name: Oni
   wiki_url: https://itrtg.wiki.gg/wiki/Oni
   element: Fire
@@ -2014,7 +2014,7 @@
   evo_requirements:
     growth: !Total 150000
     material: 1500 Magic Ore
-    other: Defeat any Depth 4 Difficulty 5 boss.(You cannot use a Pet Token to skip this evo condition.)
+    other: Defeat any Depth 4 Difficulty 5 boss. (You cannot use a Pet Token to skip this evo condition.)
   campaign_bonus:
     raw: Increases all her campaign gains by 150%
 - name: Mist Sphere
@@ -2080,7 +2080,7 @@
   evo_requirements:
     growth: !Total 50000
     material: 2500 Bound Feather
-    other: Have Hurricane Armor, Bow and Ring equipped.(not consumed)
+    other: Have Hurricane Armor, Bow and Ring equipped. (not consumed)
   campaign_bonus:
     raw: White tiger has -95% food campaign, +99% godpower campaign.
 - name: Black Tortoise
@@ -2626,6 +2626,21 @@
     growth: !Total 14000
     material: 700 iron Bar
     other: Roll 6 in continuous crafting (Material Factory or Alchemy Hut) 5000 times
+- name: Samael
+  wiki_url: https://itrtg.wiki.gg/wiki/Samael
+  element: Neutral
+  recommended_class: !Single Blacksmith
+  class_bonus: 2.1% x CL
+  unlock_condition: PetToken
+  evo_difficulty: null
+  token_improvable: false
+  special_ability: Skip T1-T3 to directly craft T4
+  evo_requirements:
+    growth: !Total 712000
+    material: 35600 Magic Ore
+    other: Give Samael 12 of each T4 Material
+  campaign_bonus:
+    raw: +101% in Growth campaigns, -666% in divinity campaigns, +777% in food campaigns
 - name: Nothing (Other)
   wiki_url: https://itrtg.wiki.gg/wiki/Nothing_(Other)
   element: Neutral
