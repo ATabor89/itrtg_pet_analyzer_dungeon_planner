@@ -6,16 +6,21 @@
 //! ```text
 //! wiki-audit [--wiki data/wiki_pets.yaml] [--rules data/campaign_bonuses.yaml]
 //!            [--parse-warnings <extractor warnings yaml>] [--markdown <out.md>]
+//!            [--issue-markdown <out.md>]
 //! ```
+//!
+//! `--markdown` gets every finding (for the job summary); `--issue-markdown`
+//! leaves out one-off page-fetch problems, so the standing issue only changes
+//! when the data does.
 //!
 //! Under GitHub Actions (`GITHUB_ACTIONS=true`) it also emits one `::warning`
 //! annotation per finding, appends the report to `$GITHUB_STEP_SUMMARY`, and
-//! writes `findings=<n>` to `$GITHUB_OUTPUT`.
+//! writes `findings=<n>` (the issue-worthy count) to `$GITHUB_OUTPUT`.
 
 use std::io::Write;
 
 use itrtg_models::{CampaignBonusRules, WikiDataWarning, WikiPet};
-use itrtg_planner::wiki_audit::{audit, render_markdown};
+use itrtg_planner::wiki_audit::{audit, is_persistent, render_markdown};
 
 fn main() {
     if let Err(e) = run() {
@@ -29,6 +34,7 @@ fn run() -> Result<(), String> {
     let mut rules_path = "data/campaign_bonuses.yaml".to_string();
     let mut parse_warnings_path = None;
     let mut markdown_path = None;
+    let mut issue_markdown_path = None;
 
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -38,6 +44,7 @@ fn run() -> Result<(), String> {
             "--rules" => rules_path = value()?,
             "--parse-warnings" => parse_warnings_path = Some(value()?),
             "--markdown" => markdown_path = Some(value()?),
+            "--issue-markdown" => issue_markdown_path = Some(value()?),
             other => return Err(format!("unknown argument {other:?}")),
         }
     }
@@ -64,6 +71,10 @@ fn run() -> Result<(), String> {
     if let Some(p) = &markdown_path {
         std::fs::write(p, &md).map_err(|e| format!("{p}: {e}"))?;
     }
+    let persistent: Vec<WikiDataWarning> = findings.iter().filter(|w| is_persistent(w)).cloned().collect();
+    if let Some(p) = &issue_markdown_path {
+        std::fs::write(p, render_markdown(&persistent)).map_err(|e| format!("{p}: {e}"))?;
+    }
 
     if std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true") {
         for w in &findings {
@@ -75,7 +86,7 @@ fn run() -> Result<(), String> {
             );
         }
         append_env_file("GITHUB_STEP_SUMMARY", &format!("## Wiki data audit\n\n{md}\n"))?;
-        append_env_file("GITHUB_OUTPUT", &format!("findings={}\n", findings.len()))?;
+        append_env_file("GITHUB_OUTPUT", &format!("findings={}\n", persistent.len()))?;
     }
     Ok(())
 }

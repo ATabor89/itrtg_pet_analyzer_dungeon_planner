@@ -49,7 +49,7 @@ jobs:
       # annotations and in the job summary. Never fails on findings.
       - name: Audit wiki data
         id: audit
-        run: cargo run -p itrtg-planner --bin wiki-audit --quiet -- --parse-warnings "$RUNNER_TEMP/wiki-warnings.yaml" --markdown "$RUNNER_TEMP/wiki-audit.md"
+        run: cargo run -p itrtg-planner --bin wiki-audit --quiet -- --parse-warnings "$RUNNER_TEMP/wiki-warnings.yaml" --markdown "$RUNNER_TEMP/wiki-audit.md" --issue-markdown "$RUNNER_TEMP/wiki-issue.md"
 
       - name: Check for changes
         id: diff
@@ -84,7 +84,7 @@ jobs:
       # look, updated (with a comment, so it notifies) when the list changes,
       # and closed once the wiki has filled the gaps.
       - name: Raise or clear the wiki data alert
-        if: always() && steps.audit.outcome == 'success'
+        if: ${{ !cancelled() && steps.audit.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
           FINDINGS: ${{ steps.audit.outputs.findings }}
@@ -95,7 +95,7 @@ jobs:
             --jq "map(select(.title == \"$title\"))[0].number // empty")
           if [ "${FINDINGS:-0}" != "0" ]; then
             {
-              cat "$RUNNER_TEMP/wiki-audit.md"
+              cat "$RUNNER_TEMP/wiki-issue.md"
               echo
               echo "_Maintained by the weekly **Refresh wiki data** workflow; it closes this issue once the list is empty._"
             } > "$RUNNER_TEMP/issue-body.md"

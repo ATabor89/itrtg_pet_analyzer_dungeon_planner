@@ -15,6 +15,16 @@ use itrtg_models::{is_placeholder, CampaignBonusRules, WikiDataWarning, WikiPet}
 
 use crate::merge::{CAMPAIGN_FORMULA_PETS, CAMPAIGN_RAW_ONLY_PETS};
 
+/// Field name the extractor uses for a pet page it couldn't fetch or read.
+pub const WIKI_PAGE_FIELD: &str = "wiki page";
+
+/// Whether a finding is about the data itself (worth a standing issue) rather
+/// than a one-off fetch problem, which would just flip the issue back and
+/// forth between runs. Fetch problems still show in the job summary.
+pub fn is_persistent(w: &WikiDataWarning) -> bool {
+    w.field != WIKI_PAGE_FIELD
+}
+
 /// Field name used for the "needs a curated campaign-bonus entry" finding.
 pub const UNCURATED_CAMPAIGN_FIELD: &str = "campaign bonus (uncurated)";
 
@@ -60,8 +70,11 @@ pub fn audit(
         {
             add(&p.name, "special ability", format!("contains a placeholder: {sa:?}"));
         }
+        // Raw-only pets are deliberately left as prose (Basilisk's is literally
+        // "Unknown"), so their campaign text isn't something to chase.
         if let Some(cb) = &p.campaign_bonus
             && is_placeholder(&cb.raw)
+            && !CAMPAIGN_RAW_ONLY_PETS.contains(&p.name.as_str())
         {
             add(&p.name, "campaign bonus", format!("contains a placeholder: {:?}", cb.raw));
         }
@@ -113,10 +126,16 @@ pub fn render_markdown(findings: &[WikiDataWarning]) -> String {
     for pet in pets {
         md.push_str(&format!("\n### {pet}\n\n"));
         for w in findings.iter().filter(|w| w.pet == pet) {
-            md.push_str(&format!("- **{}**: {}\n", w.field, w.detail));
+            md.push_str(&format!("- **{}**: {}\n", w.field, escape_markdown(&w.detail)));
         }
     }
     md
+}
+
+/// Neutralize user-edited wiki text for a GitHub issue: no `@` mentions, no
+/// raw HTML.
+fn escape_markdown(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('@', "&#64;")
 }
 
 #[cfg(test)]
@@ -138,6 +157,24 @@ mod tests {
             evo_requirements: None,
             campaign_bonus: None,
         }
+    }
+
+    #[test]
+    fn raw_only_placeholder_text_is_not_flagged() {
+        let mut p = pet(CAMPAIGN_RAW_ONLY_PETS[0]);
+        p.campaign_bonus = Some(CampaignBonus { raw: "Unknown".to_string() });
+        assert!(audit(&[p], &CampaignBonusRules::default(), &[]).is_empty());
+    }
+
+    #[test]
+    fn markdown_escapes_mentions_and_html() {
+        let w = WikiDataWarning {
+            pet: "P".to_string(),
+            field: "f".to_string(),
+            detail: "ask @someone <b>now</b>".to_string(),
+        };
+        let md = render_markdown(&[w]);
+        assert!(!md.contains('@') && !md.contains("<b>"), "{md}");
     }
 
     #[test]

@@ -106,6 +106,8 @@ fn crawl_evo_requirements(
         let mut warn = |detail: String| {
             warnings.push(WikiDataWarning {
                 pet: pet.name.clone(),
+                // Keep in sync with `wiki_audit::WIKI_PAGE_FIELD` (planner),
+                // which keeps these one-off fetch problems out of the issue.
                 field: "wiki page".to_string(),
                 detail,
             })
