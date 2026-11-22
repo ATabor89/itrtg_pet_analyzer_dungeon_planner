@@ -374,6 +374,11 @@ Raven:
 Rose:
   - when: Always
     set: { Level: 37, Multiplier: 22, GodPower: 58 }
+Samael:
+  # Infobox (2026-11-22): "+101% in Growth campaigns, -666% in divinity
+  # campaigns, +777% in food campaigns". Taken as-is from the wiki.
+  - when: Always
+    set: { Growth: 101, Divinity: -666, Food: 777 }
 Santa:
   - when: Always
     set: { Food: 50, Item: 50 }

@@ -60,9 +60,6 @@ pub enum UnlockCondition {
     /// Purchase with a Pet Token.
     PetToken,
 
-    /// Obtainable via Milestones or a Pet Token.
-    MilestonesOrPetToken,
-
     /// Obtainable via Milestones only.
     Milestones,
 
@@ -89,6 +86,42 @@ pub enum UnlockCondition {
 
     /// Give the pet a specific item/resource (e.g. "1000 Honey").
     ItemGift(String),
+
+    /// Redeem an Old Event Token (event pets from past events).
+    OldEventToken,
+
+    /// Any one of several methods unlocks the pet, e.g. "Old Event Token or
+    /// Pet Token" or "Milestones or Pet Token". Never nested and always has
+    /// at least two entries; see [`UnlockCondition::methods`].
+    AnyOf(Vec<UnlockCondition>),
+}
+
+impl UnlockCondition {
+    /// Every way this pet can be unlocked: the alternatives of an
+    /// [`AnyOf`](Self::AnyOf), or just this condition.
+    pub fn methods(&self) -> Vec<&UnlockCondition> {
+        match self {
+            Self::AnyOf(all) => all.iter().flat_map(|c| c.methods()).collect(),
+            other => vec![other],
+        }
+    }
+
+    /// Whether any unlock method satisfies `pred`.
+    pub fn any_method(&self, pred: impl Fn(&UnlockCondition) -> bool) -> bool {
+        self.methods().into_iter().any(pred)
+    }
+
+    /// The pet can be unlocked with a Pet Token.
+    pub fn allows_pet_token(&self) -> bool {
+        self.any_method(|c| matches!(c, Self::PetToken))
+    }
+
+    /// A Pet Token is the *only* way to unlock the pet (worth prioritizing a
+    /// token on, since nothing else will get it).
+    pub fn pet_token_only(&self) -> bool {
+        let methods = self.methods();
+        !methods.is_empty() && methods.iter().all(|c| matches!(c, Self::PetToken))
+    }
 }
 
 /// Evolution difficulty rating.
@@ -309,6 +342,18 @@ mod tests {
         // Campaign-bonus prose round-trips for display.
         let cat = find("Cat").campaign_bonus.as_ref().expect("Cat campaign");
         assert!(!cat.raw.is_empty());
+    }
+
+    #[test]
+    fn unlock_methods() {
+        let either = UnlockCondition::AnyOf(vec![UnlockCondition::OldEventToken, UnlockCondition::PetToken]);
+        assert_eq!(either.methods(), [&UnlockCondition::OldEventToken, &UnlockCondition::PetToken]);
+        assert!(either.allows_pet_token());
+        assert!(!either.pet_token_only());
+        assert!(UnlockCondition::PetToken.pet_token_only());
+        assert!(!UnlockCondition::SpecialTask.allows_pet_token());
+        assert!(!UnlockCondition::SpecialTask.pet_token_only());
+        assert!(!UnlockCondition::AnyOf(vec![]).pet_token_only());
     }
 
     #[test]
