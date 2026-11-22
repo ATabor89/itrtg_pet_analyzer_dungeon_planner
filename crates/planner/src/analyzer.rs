@@ -18,6 +18,9 @@ pub enum UnlockTypeFilter {
     DefeatGods,
     PBaal,
     PetToken,
+    /// Pets a Pet Token is the *only* way to get.
+    PetTokenOnly,
+    OldEventToken,
     Milestones,
     Special,
     Secret,
@@ -30,12 +33,33 @@ pub enum UnlockTypeFilter {
 }
 
 impl UnlockTypeFilter {
+    /// Every filter, in display order (both front ends' dropdowns use this).
+    pub const ALL: [Self; 15] = [
+        Self::All,
+        Self::DefeatGods,
+        Self::PBaal,
+        Self::PetToken,
+        Self::PetTokenOnly,
+        Self::OldEventToken,
+        Self::Milestones,
+        Self::Special,
+        Self::Secret,
+        Self::TavernQuest,
+        Self::StrategyRoom,
+        Self::DungeonBoss,
+        Self::PetCount,
+        Self::ItemGift,
+        Self::AncientMimic,
+    ];
+
     pub fn label(self) -> &'static str {
         match self {
             Self::All => "All",
             Self::DefeatGods => "Defeat Gods",
             Self::PBaal => "P.Baal",
             Self::PetToken => "Pet Token",
+            Self::PetTokenOnly => "Pet Token only",
+            Self::OldEventToken => "Old Event Token",
             Self::Milestones => "Milestones",
             Self::Special => "Special",
             Self::Secret => "Secret",
@@ -48,21 +72,30 @@ impl UnlockTypeFilter {
         }
     }
 
+    /// Whether a pet with this unlock condition shows under the filter. A pet
+    /// with alternative unlocks (e.g. "Old Event Token or Pet Token") matches
+    /// every filter one of its methods matches.
     pub fn matches(self, cond: &UnlockCondition) -> bool {
+        use UnlockCondition as U;
         match self {
             Self::All => true,
-            Self::DefeatGods => matches!(cond, UnlockCondition::DefeatGods),
-            Self::PBaal => matches!(cond, UnlockCondition::DefeatPBaal(_) | UnlockCondition::DefeatPBaalVersion(_)),
-            Self::PetToken => matches!(cond, UnlockCondition::PetToken),
-            Self::Milestones => matches!(cond, UnlockCondition::Milestones | UnlockCondition::MilestonesOrPetToken),
-            Self::Special => matches!(cond, UnlockCondition::SpecialTask | UnlockCondition::Special),
-            Self::Secret => matches!(cond, UnlockCondition::Secret),
-            Self::TavernQuest => matches!(cond, UnlockCondition::TavernQuest(_)),
-            Self::StrategyRoom => matches!(cond, UnlockCondition::StrategyRoom(_)),
-            Self::DungeonBoss => matches!(cond, UnlockCondition::DungeonBoss(_)),
-            Self::PetCount => matches!(cond, UnlockCondition::PetCount(_)),
-            Self::ItemGift => matches!(cond, UnlockCondition::ItemGift(_)),
-            Self::AncientMimic => matches!(cond, UnlockCondition::AncientMimicPoints(_)),
+            Self::PetTokenOnly => cond.pet_token_only(),
+            _ => cond.any_method(|c| match self {
+                Self::DefeatGods => matches!(c, U::DefeatGods),
+                Self::PBaal => matches!(c, U::DefeatPBaal(_) | U::DefeatPBaalVersion(_)),
+                Self::PetToken => matches!(c, U::PetToken),
+                Self::OldEventToken => matches!(c, U::OldEventToken),
+                Self::Milestones => matches!(c, U::Milestones),
+                Self::Special => matches!(c, U::SpecialTask | U::Special),
+                Self::Secret => matches!(c, U::Secret),
+                Self::TavernQuest => matches!(c, U::TavernQuest(_)),
+                Self::StrategyRoom => matches!(c, U::StrategyRoom(_)),
+                Self::DungeonBoss => matches!(c, U::DungeonBoss(_)),
+                Self::PetCount => matches!(c, U::PetCount(_)),
+                Self::ItemGift => matches!(c, U::ItemGift(_)),
+                Self::AncientMimic => matches!(c, U::AncientMimicPoints(_)),
+                Self::All | Self::PetTokenOnly => unreachable!(),
+            }),
         }
     }
 }
@@ -634,7 +667,6 @@ pub fn format_unlock_condition(cond: &UnlockCondition) -> String {
         UnlockCondition::DefeatPBaalVersion(n) => format!("Defeat P.Baal v{n}"),
         UnlockCondition::SpecialTask => "Special Task".to_string(),
         UnlockCondition::PetToken => "Pet Token".to_string(),
-        UnlockCondition::MilestonesOrPetToken => "Milestones or Pet Token".to_string(),
         UnlockCondition::Milestones => "Milestones".to_string(),
         UnlockCondition::Secret => "Secret".to_string(),
         UnlockCondition::Special => "Special".to_string(),
@@ -644,6 +676,10 @@ pub fn format_unlock_condition(cond: &UnlockCondition) -> String {
         UnlockCondition::PetCount(n) => format!("{n} Pets Unlocked"),
         UnlockCondition::DungeonBoss(boss) => format!("Dungeon Boss: {boss}"),
         UnlockCondition::ItemGift(item) => format!("Item Gift: {item}"),
+        UnlockCondition::OldEventToken => "Old Event Token".to_string(),
+        UnlockCondition::AnyOf(all) => {
+            all.iter().map(format_unlock_condition).collect::<Vec<_>>().join(" or ")
+        }
     }
 }
 
@@ -945,4 +981,40 @@ pub fn format_number(n: u64) -> String {
 /// Remaining hours to Earth Eater's permanent lock at one planet per second.
 pub fn earth_eater_lock_hours(total: f64, lifetime: bool) -> Option<f64> {
     (lifetime && total > 0.0 && total < 32_400_000.0).then(|| (32_400_000.0 - total) / 3600.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn alternative_unlocks_match_every_applicable_filter() {
+        use UnlockCondition as U;
+        let event = U::AnyOf(vec![U::OldEventToken, U::PetToken]);
+        assert!(UnlockTypeFilter::PetToken.matches(&event));
+        assert!(UnlockTypeFilter::OldEventToken.matches(&event));
+        assert!(!UnlockTypeFilter::PetTokenOnly.matches(&event));
+        assert!(!UnlockTypeFilter::Special.matches(&event));
+
+        let milestone = U::AnyOf(vec![U::Milestones, U::PetToken]);
+        assert!(UnlockTypeFilter::Milestones.matches(&milestone));
+        assert!(UnlockTypeFilter::PetToken.matches(&milestone));
+
+        assert!(UnlockTypeFilter::PetToken.matches(&U::PetToken));
+        assert!(UnlockTypeFilter::PetTokenOnly.matches(&U::PetToken));
+        assert!(!UnlockTypeFilter::PetTokenOnly.matches(&U::SpecialTask));
+        assert!(UnlockTypeFilter::All.matches(&event));
+    }
+
+    #[test]
+    fn alternative_unlocks_format_with_or() {
+        let event = UnlockCondition::AnyOf(vec![UnlockCondition::OldEventToken, UnlockCondition::PetToken]);
+        assert_eq!(format_unlock_condition(&event), "Old Event Token or Pet Token");
+    }
+
+    #[test]
+    fn filter_list_has_no_duplicates() {
+        let mut seen = std::collections::HashSet::new();
+        assert!(UnlockTypeFilter::ALL.iter().all(|f| seen.insert(*f as u8)));
+    }
 }

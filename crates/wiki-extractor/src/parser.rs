@@ -148,7 +148,26 @@ fn try_parse_recommended_class(cell: &str) -> Option<RecommendedClass> {
 
 /// The unlock condition, or `None` if unrecognized (the caller falls back to
 /// SpecialTask and records a warning).
+///
+/// A cell listing alternatives ("Old Event Token or Pet Token", "[[Milestones]]
+/// or Pet Token") becomes [`UnlockCondition::AnyOf`]; every alternative must
+/// be recognized, or the whole cell counts as unrecognized.
 fn try_parse_unlock_condition(cell: &str) -> Option<UnlockCondition> {
+    let flat = strip_wiki_links(cell);
+    let or_re = Regex::new(r"(?i)\s+or\s+").unwrap();
+    let parts: Vec<&str> = or_re.split(flat.trim()).collect();
+    if parts.len() > 1 {
+        let methods = parts
+            .iter()
+            .map(|p| try_parse_single_unlock(p))
+            .collect::<Option<Vec<_>>>()?;
+        return Some(UnlockCondition::AnyOf(methods));
+    }
+    try_parse_single_unlock(cell)
+}
+
+/// One unlock method (no "or").
+fn try_parse_single_unlock(cell: &str) -> Option<UnlockCondition> {
     let trimmed = cell.trim();
 
     if trimmed == "Defeat Gods" {
@@ -184,8 +203,8 @@ fn try_parse_unlock_condition(cell: &str) -> Option<UnlockCondition> {
     }
 
     let stripped_links = strip_wiki_links(trimmed);
-    if stripped_links.contains("Milestones") && stripped_links.contains("Pet Token") {
-        return Some(UnlockCondition::MilestonesOrPetToken);
+    if stripped_links.trim().eq_ignore_ascii_case("Old Event Token") {
+        return Some(UnlockCondition::OldEventToken);
     }
 
     if stripped_links.trim() == "Milestones" {
@@ -806,6 +825,22 @@ mod tests {
             ["class bonus", "element", "evo difficulty", "recommended class", "special ability", "unlock condition"]
         );
         assert!(warnings.iter().all(|w| w.pet != "Mystery" || w.detail.contains("placeholder")));
+    }
+
+    #[test]
+    fn test_unlock_alternatives() {
+        use UnlockCondition::*;
+        assert_eq!(try_parse_unlock_condition("Old Event Token or Pet Token"), Some(AnyOf(vec![OldEventToken, PetToken])));
+        assert_eq!(
+            try_parse_unlock_condition("[[Events#Old_Event_Tokens|Old Event Token]] or Pet Token"),
+            Some(AnyOf(vec![OldEventToken, PetToken]))
+        );
+        assert_eq!(try_parse_unlock_condition("[[Milestones]] or Pet Token"), Some(AnyOf(vec![Milestones, PetToken])));
+        assert_eq!(try_parse_unlock_condition("Defeat P.Baal 10 or Pet Token"), Some(AnyOf(vec![DefeatPBaal(10), PetToken])));
+        assert_eq!(try_parse_unlock_condition("[[Milestones]]"), Some(Milestones));
+        assert_eq!(try_parse_unlock_condition("Pet Token"), Some(PetToken));
+        // One unknown alternative makes the whole cell unrecognized.
+        assert_eq!(try_parse_unlock_condition("Mystery or Pet Token"), None);
     }
 
     #[test]

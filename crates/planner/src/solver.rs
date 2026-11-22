@@ -1596,14 +1596,19 @@ pub fn suggest_unlocks_for_slot(
     suggestions
 }
 
+/// The easiest of the pet's unlock methods.
 fn classify_unlock(wiki: &Option<WikiPet>) -> UnlockDifficulty {
-    match wiki.as_ref().map(|w| &w.unlock_condition) {
-        Some(UnlockCondition::PetToken) => UnlockDifficulty::Token,
-        Some(UnlockCondition::MilestonesOrPetToken) => UnlockDifficulty::Token,
-        Some(UnlockCondition::DefeatPBaal(_)) => UnlockDifficulty::PBaal,
-        Some(UnlockCondition::DefeatPBaalVersion(_)) => UnlockDifficulty::PBaal,
-        _ => UnlockDifficulty::Complex,
-    }
+    let Some(w) = wiki else { return UnlockDifficulty::Complex };
+    w.unlock_condition
+        .methods()
+        .into_iter()
+        .map(|c| match c {
+            UnlockCondition::PetToken => UnlockDifficulty::Token,
+            UnlockCondition::DefeatPBaal(_) | UnlockCondition::DefeatPBaalVersion(_) => UnlockDifficulty::PBaal,
+            _ => UnlockDifficulty::Complex,
+        })
+        .min()
+        .unwrap_or(UnlockDifficulty::Complex)
 }
 
 // =============================================================================
@@ -1836,6 +1841,23 @@ mod tests {
             element,
             equipment: None,
         }
+    }
+
+    #[test]
+    fn test_classify_unlock_uses_easiest_method() {
+        let with = |c: UnlockCondition| {
+            let mut w: WikiPet = serde_yaml::from_str(
+                "name: X\nwiki_url: ''\nelement: Neutral\nrecommended_class: Wildcard\nclass_bonus: ''\nunlock_condition: PetToken\nevo_difficulty: null\ntoken_improvable: false\nspecial_ability: null\n",
+            )
+            .unwrap();
+            w.unlock_condition = c;
+            classify_unlock(&Some(w))
+        };
+        use UnlockCondition as U;
+        assert_eq!(with(U::AnyOf(vec![U::OldEventToken, U::PetToken])), UnlockDifficulty::Token);
+        assert_eq!(with(U::AnyOf(vec![U::SpecialTask, U::DefeatPBaal(5)])), UnlockDifficulty::PBaal);
+        assert_eq!(with(U::OldEventToken), UnlockDifficulty::Complex);
+        assert_eq!(classify_unlock(&None), UnlockDifficulty::Complex);
     }
 
     #[test]

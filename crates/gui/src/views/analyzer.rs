@@ -1323,21 +1323,7 @@ fn show_filters(ui: &mut Ui, state: &mut AnalyzerState) {
         egui::ComboBox::from_id_salt("unlock_type_filter")
             .selected_text(state.filter_unlock_type.label())
             .show_ui(ui, |ui| {
-                for f in [
-                    UnlockTypeFilter::All,
-                    UnlockTypeFilter::DefeatGods,
-                    UnlockTypeFilter::PBaal,
-                    UnlockTypeFilter::PetToken,
-                    UnlockTypeFilter::Milestones,
-                    UnlockTypeFilter::Special,
-                    UnlockTypeFilter::Secret,
-                    UnlockTypeFilter::TavernQuest,
-                    UnlockTypeFilter::StrategyRoom,
-                    UnlockTypeFilter::DungeonBoss,
-                    UnlockTypeFilter::PetCount,
-                    UnlockTypeFilter::ItemGift,
-                    UnlockTypeFilter::AncientMimic,
-                ] {
+                for f in UnlockTypeFilter::ALL {
                     ui.selectable_value(&mut state.filter_unlock_type, f, f.label());
                 }
             });

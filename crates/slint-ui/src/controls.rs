@@ -6,11 +6,7 @@ use crate::app::{AppModel, Sort};
 pub const SORTS: [Sort; 12] = [Sort::Name, Sort::Growth, Sort::DungeonLevel, Sort::ClassLevel,
     Sort::Element, Sort::RecClass, Sort::EvoDifficulty, Sort::Class, Sort::Action,
     Sort::TimeToEvolve, Sort::TimeToTarget, Sort::CampaignBonus];
-const UNLOCK: [UnlockTypeFilter; 13] = [UnlockTypeFilter::All, UnlockTypeFilter::DefeatGods,
-    UnlockTypeFilter::PBaal, UnlockTypeFilter::PetToken, UnlockTypeFilter::Milestones,
-    UnlockTypeFilter::Special, UnlockTypeFilter::Secret, UnlockTypeFilter::TavernQuest,
-    UnlockTypeFilter::StrategyRoom, UnlockTypeFilter::DungeonBoss, UnlockTypeFilter::PetCount,
-    UnlockTypeFilter::ItemGift, UnlockTypeFilter::AncientMimic];
+const UNLOCK: [UnlockTypeFilter; 15] = UnlockTypeFilter::ALL;
 const RECOMMENDED: [RecClassFilter; 14] = [RecClassFilter::All, RecClassFilter::Adventurer,
     RecClassFilter::Blacksmith, RecClassFilter::Alchemist, RecClassFilter::Defender,
     RecClassFilter::Supporter, RecClassFilter::Rogue, RecClassFilter::Assassin, RecClassFilter::Mage,
